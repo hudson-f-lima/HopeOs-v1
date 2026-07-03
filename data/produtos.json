@@ -1,0 +1,32 @@
+[
+  {
+    "id": "44444444-4444-4444-4444-444444444441",
+    "nome": "Pomada Modeladora",
+    "sku": "POMADA-001",
+    "codigo_barras": "",
+    "categoria": "Finalização",
+    "custo_centavos": 1800,
+    "preco_venda_centavos": 4500,
+    "estoque_atual": 12,
+    "estoque_minimo": 3,
+    "comissao_pct": 10,
+    "modelo_comissao": "bruto_salao",
+    "controla_estoque": true,
+    "ativo": true
+  },
+  {
+    "id": "44444444-4444-4444-4444-444444444442",
+    "nome": "Shampoo Profissional",
+    "sku": "SHAMPOO-001",
+    "codigo_barras": "",
+    "categoria": "Cabelo",
+    "custo_centavos": 2500,
+    "preco_venda_centavos": 6500,
+    "estoque_atual": 8,
+    "estoque_minimo": 2,
+    "comissao_pct": 8,
+    "modelo_comissao": "bruto_salao",
+    "controla_estoque": true,
+    "ativo": true
+  }
+]

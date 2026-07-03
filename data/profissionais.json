@@ -1,0 +1,107 @@
+[
+  {
+    "id": "33333333-3333-3333-3333-333333333331",
+    "nome": "Eduardo",
+    "whatsapp": "11971233980",
+    "modelo_comissao": "dividido",
+    "horario": {
+      "ter": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qua": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qui": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sex": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sab": {
+        "ativo": true,
+        "inicio": "08:00",
+        "fim": "18:30"
+      }
+    },
+    "overrides": {},
+    "ativo": true
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333332",
+    "nome": "Robson",
+    "whatsapp": "",
+    "modelo_comissao": "dividido",
+    "horario": {
+      "ter": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qua": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qui": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sex": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sab": {
+        "ativo": true,
+        "inicio": "08:00",
+        "fim": "18:30"
+      }
+    },
+    "overrides": {},
+    "ativo": true
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "nome": "Andressa",
+    "whatsapp": "",
+    "modelo_comissao": "bruto_staff",
+    "horario": {
+      "ter": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qua": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "qui": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sex": {
+        "ativo": true,
+        "inicio": "09:00",
+        "fim": "19:30"
+      },
+      "sab": {
+        "ativo": true,
+        "inicio": "08:00",
+        "fim": "18:30"
+      }
+    },
+    "overrides": {},
+    "ativo": true
+  }
+]
