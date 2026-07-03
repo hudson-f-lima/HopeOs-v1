@@ -1,0 +1,32 @@
+[
+  {
+    "id": "22222222-2222-2222-2222-222222222221",
+    "nome": "Corte Masculino",
+    "categoria": "Barbearia",
+    "valor_centavos": 5000,
+    "duracao_min": 30,
+    "slot_min": 30,
+    "comissao_pct": 45,
+    "ativo": true
+  },
+  {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "nome": "Barba Toalha Quente",
+    "categoria": "Barbearia",
+    "valor_centavos": 5500,
+    "duracao_min": 30,
+    "slot_min": 30,
+    "comissao_pct": 45,
+    "ativo": true
+  },
+  {
+    "id": "22222222-2222-2222-2222-222222222223",
+    "nome": "Manicure",
+    "categoria": "Unhas",
+    "valor_centavos": 4000,
+    "duracao_min": 45,
+    "slot_min": 45,
+    "comissao_pct": 60,
+    "ativo": true
+  }
+]

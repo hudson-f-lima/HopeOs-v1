@@ -1,0 +1,10 @@
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "nome": "Cliente Exemplo",
+    "whatsapp": "11999999999",
+    "observacoes": "Seed de laboratório",
+    "faltas": 0,
+    "ativo": true
+  }
+]

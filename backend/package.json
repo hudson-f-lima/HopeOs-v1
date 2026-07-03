@@ -1,0 +1,26 @@
+{
+  "name": "hope-os-v1-node-supabase-api",
+  "version": "1.0.3",
+  "private": true,
+  "description": "HOPE OS V1 API — pre-deploy hotfix for polymorphic command items.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed": "node scripts/seed-from-data.js",
+    "export:data": "node scripts/export-to-data.js",
+    "test:finance": "node tests/finance-gate-v1.test.js",
+    "test": "npm run test:gate",
+    "test:rpc-lock": "node tests/rpc-permission-lock.test.js",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock",
+    "test:product": "node tests/product-foundation-gate.test.js",
+    "test:schema": "node tests/schema-polymorphic-gate.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0"
+  }
+}
