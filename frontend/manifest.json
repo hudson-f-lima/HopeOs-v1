@@ -1,0 +1,15 @@
+{
+  "name": "HOPE OS",
+  "short_name": "HOPE OS",
+  "description": "Comanda e checkout HOPE OS conectado ao backend real.",
+  "start_url": "./index.local-prototype.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#7c3aed",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

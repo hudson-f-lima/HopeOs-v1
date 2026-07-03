@@ -63,6 +63,20 @@ router.get('/agenda', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/catalog', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const [clientes, servicos, produtos, profissionais, formas_pagamento] = await Promise.all([
+      repo.list('clientes', { empresa_id: repo.empresaId }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('produtos', { empresa_id: repo.empresaId }),
+      repo.list('profissionais', { empresa_id: repo.empresaId }),
+      repo.list('formas_pagamento', { empresa_id: repo.empresaId })
+    ]);
+    res.json({ ok: true, data: { clientes, servicos, produtos, profissionais, formas_pagamento } });
+  } catch (err) { next(err); }
+});
+
 router.post('/checkout/preview', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
