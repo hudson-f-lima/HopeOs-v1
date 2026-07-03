@@ -6,10 +6,15 @@ const routes = require('./routes');
 
 const app = express();
 
+// Celular na mesma Wi-Fi acessa o frontend por um IP de rede local (192.168.x.x, 10.x.x.x,
+// 172.16-31.x.x) cuja porta muda a cada sessão de teste — não dá pra fixar no CORS_ORIGIN.
+const LAN_ORIGIN = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
 const corsOptions = {
   origin(origin, callback) {
     if (!origin && env.CORS_ORIGIN.includes('null')) return callback(null, true);
     if (env.CORS_ORIGIN.includes('*') || env.CORS_ORIGIN.includes(origin)) return callback(null, true);
+    if (origin && LAN_ORIGIN.test(origin)) return callback(null, true);
     return callback(null, false);
   }
 };
