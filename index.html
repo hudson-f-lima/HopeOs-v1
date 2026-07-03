@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="theme-color" content="#7c3aed"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="HOPE OS"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
+<link rel="icon" href="icon.svg"/>
+<title>HOPE OS — Comanda</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f4f4f6;color:#171620;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding:12px;padding-bottom:40px;}
+h1{font-size:18px;font-weight:800;color:#7c3aed;}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#555168;margin-bottom:10px;}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+button{cursor:pointer;font-family:inherit;border:none;outline:none;}
+.icon-btn{width:34px;height:34px;border-radius:10px;background:#ece8ff;color:#5f4de0;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.card{background:#fff;border:1px solid #e2e2e8;border-radius:14px;padding:16px;margin-bottom:12px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:11px;font-weight:600;color:#555168;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
+input,select{width:100%;background:#f6f4ff;border:1px solid #d2d2da;color:#171620;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;}
+input:focus,select:focus{border-color:#7c3aed;outline:none;}
+.btn{width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:700;}
+.btn-primary{background:#7c3aed;color:#fff;}
+.btn-primary:disabled{background:#c9bdf5;cursor:not-allowed;}
+.btn-secondary{background:#ece8ff;color:#5f4de0;}
+.row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f3;}
+.row:last-child{border-bottom:none;}
+.row b{font-weight:700;}
+.row.total{font-size:15px;margin-top:4px;padding-top:10px;border-top:2px solid #ece8ff;}
+.banner{border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;}
+.banner-error{background:#fde8e8;color:#dc2626;border:1px solid #f3c6c6;}
+.banner-ok{background:#e8f8ee;color:#16a34a;border:1px solid #c6ecd3;}
+.hidden{display:none!important;}
+.settings-panel{display:flex;flex-direction:column;gap:8px;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#ece8ff;color:#5f4de0;}
+footer{text-align:center;font-size:11px;color:#a0a0ac;margin-top:20px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>HOPE OS — Comanda</h1>
+  <button class="icon-btn" id="btnSettings" title="Configurar backend">⚙</button>
+</header>
+
+<div id="banner"></div>
+
+<div class="card settings-panel hidden" id="settingsPanel">
+  <h2>Backend</h2>
+  <div class="field">
+    <label>URL da API (ex: http://192.168.0.10:3333/api)</label>
+    <input id="apiBaseInput" type="text" placeholder="http://localhost:3333/api"/>
+  </div>
+  <button class="btn btn-primary" id="btnSaveSettings">Salvar e recarregar catálogo</button>
+</div>
+
+<div class="card">
+  <h2>Nova comanda</h2>
+  <div class="field">
+    <label>Cliente (opcional)</label>
+    <select id="selCliente"><option value="">Sem cliente</option></select>
+  </div>
+  <div class="field">
+    <label>Serviço</label>
+    <select id="selServico"><option value="">Selecione…</option></select>
+  </div>
+  <div class="field">
+    <label for="produto">Produto (opcional)</label>
+    <select id="produto"><option value="">Sem produto</option></select>
+  </div>
+  <div class="field">
+    <label>Profissional</label>
+    <select id="selProfissional"><option value="">Selecione…</option></select>
+  </div>
+  <div class="field">
+    <label>Forma de pagamento</label>
+    <select id="selForma"><option value="">Selecione…</option></select>
+  </div>
+  <div class="field">
+    <label>Gorjeta (R$)</label>
+    <input id="inpGorjeta" type="number" min="0" step="0.01" value="0"/>
+  </div>
+  <button class="btn btn-primary" id="btnSimular">Simular comanda</button>
+</div>
+
+<div class="card hidden" id="cardPreview">
+  <h2>Preview</h2>
+  <div class="row"><span>Serviços líquidos</span><b id="pvServicos">—</b></div>
+  <div class="row"><span>Itens líquidos</span><b id="pvItens">—</b></div>
+  <div class="row"><span>Gorjeta bruta</span><b id="pvGorjetaBruta">—</b></div>
+  <div class="row"><span>Gorjeta líquida (profissional)</span><b id="pvGorjetaLiquida">—</b></div>
+  <div class="row"><span>Comissão profissional</span><b id="pvComissao">—</b></div>
+  <div class="row"><span>Taxa total (forma pgto)</span><b id="pvTaxa">—</b></div>
+  <div class="row"><span>Total recebido</span><b id="pvRecebido">—</b></div>
+  <div class="row total"><span>Receita empresa</span><b id="pvReceita">—</b></div>
+  <div style="margin-top:14px;">
+    <button class="btn btn-primary" id="btnFechar" disabled>Fechar comanda</button>
+  </div>
+</div>
+
+<div class="card hidden" id="cardResultado">
+  <h2>Comanda fechada</h2>
+  <div class="row"><span>Comanda ID</span><b id="resComandaId">—</b></div>
+  <div class="row"><span>Status</span><b id="resStatus">—</b></div>
+  <div class="row"><span>Itens / Pagamentos / Gorjetas</span><b id="resCounts">—</b></div>
+  <div class="row"><span>Movimentos de caixa</span><b id="resCaixa">—</b></div>
+</div>
+
+<div class="card">
+  <h2>Dashboard <span class="badge" id="dashUpdatedAt"></span></h2>
+  <div class="row"><span>Receita empresa (total)</span><b id="dbReceita">—</b></div>
+  <div class="row"><span>Comandas fechadas</span><b id="dbComandos">—</b></div>
+  <div class="row"><span>Comissões (total)</span><b id="dbComissoes">—</b></div>
+  <button class="btn btn-secondary" id="btnDashboard" style="margin-top:10px;">Atualizar dashboard</button>
+</div>
+
+<footer>HOPE OS V1.0.3 · PWA conectada ao backend real · frontendCalculates: false</footer>
+
+<script>
+const DEFAULT_API_BASE = 'http://localhost:3333/api';
+
+function getApiBase() {
+  return localStorage.getItem('hope_api_base') || DEFAULT_API_BASE;
+}
+function setApiBase(url) {
+  localStorage.setItem('hope_api_base', url);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(getApiBase() + path, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    method: options.method || 'GET',
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  let json;
+  try { json = await res.json(); } catch { json = {}; }
+  if (!res.ok || json.ok === false) {
+    const msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return json.data;
+}
+
+function centsToBRL(cents) {
+  return 'R$ ' + ((Number(cents) || 0) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function brlToCents(v) {
+  return Math.round((Number(v) || 0) * 100);
+}
+function genIdempotencyKey() {
+  return Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function showBanner(message, type) {
+  const el = document.getElementById('banner');
+  el.innerHTML = `<div class="banner banner-${type}">${message}</div>`;
+  if (type === 'ok') setTimeout(() => { el.innerHTML = ''; }, 4000);
+}
+function clearBanner() {
+  document.getElementById('banner').innerHTML = '';
+}
+
+let catalog = { clientes: [], servicos: [], produtos: [], profissionais: [], formas_pagamento: [] };
+let currentPayload = null; // payload usado no último /checkout/preview bem-sucedido
+
+function fillSelect(selectEl, items, labelFn, valueFn) {
+  selectEl.innerHTML = selectEl.querySelector('option[value=""]').outerHTML;
+  for (const item of items) {
+    const opt = document.createElement('option');
+    opt.value = valueFn(item);
+    opt.textContent = labelFn(item);
+    selectEl.appendChild(opt);
+  }
+}
+
+async function loadCatalog() {
+  catalog = await api('/catalog');
+  fillSelect(document.getElementById('selCliente'), catalog.clientes, c => c.nome, c => c.id);
+  fillSelect(document.getElementById('selServico'), catalog.servicos.filter(s => s.ativo !== false), s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
+  fillSelect(document.getElementById('produto'), (catalog.produtos || []).filter(p => p.ativo !== false), p => `${p.nome} (${centsToBRL(p.preco_venda_centavos)})`, p => p.id);
+  fillSelect(document.getElementById('selProfissional'), catalog.profissionais.filter(p => p.ativo !== false), p => p.nome, p => p.id);
+  fillSelect(document.getElementById('selForma'), catalog.formas_pagamento.filter(f => f.ativo !== false), f => f.label, f => f.code);
+}
+
+function buildPayload() {
+  const servicoId = document.getElementById('selServico').value;
+  const profissionalId = document.getElementById('selProfissional').value;
+  const formaCode = document.getElementById('selForma').value;
+  const clienteId = document.getElementById('selCliente').value;
+  const gorjetaCentavos = brlToCents(document.getElementById('inpGorjeta').value);
+
+  if (!servicoId) throw new Error('Selecione um serviço.');
+  if (!profissionalId) throw new Error('Selecione um profissional.');
+  if (!formaCode) throw new Error('Selecione uma forma de pagamento.');
+
+  const servico = catalog.servicos.find(s => s.id === servicoId);
+  const valorServicoCentavos = servico ? servico.valor_centavos : 0;
+
+  const itens = [{ tipo: 'servico', servicoId, profissionalId }];
+
+  // Produto é opcional. Preço/custo NÃO vão no payload: o backend resolve tudo
+  // a partir do produtoId no catálogo real (validator rejeita valor financeiro vindo do frontend).
+  const produtoId = document.getElementById('produto').value;
+  let valorProdutoCentavos = 0;
+  if (produtoId) {
+    const produto = catalog.produtos.find(p => p.id === produtoId);
+    valorProdutoCentavos = produto ? produto.preco_venda_centavos : 0;
+    itens.push({ tipo: 'produto', produtoId, quantidade: 1, profissionalId: profissionalId || undefined });
+  }
+
+  const totalCentavos = valorServicoCentavos + valorProdutoCentavos + gorjetaCentavos;
+
+  return {
+    clienteId: clienteId || null,
+    idempotencyKey: genIdempotencyKey(),
+    itens,
+    payments: [
+      { formaCode, valorCentavos: totalCentavos }
+    ],
+    gorjetaCentavos
+  };
+}
+
+async function simular() {
+  clearBanner();
+  document.getElementById('cardPreview').classList.add('hidden');
+  document.getElementById('cardResultado').classList.add('hidden');
+  document.getElementById('btnFechar').disabled = true;
+  try {
+    const payload = buildPayload();
+    const preview = await api('/checkout/preview', { method: 'POST', body: payload });
+    currentPayload = payload;
+    const t = preview.totals;
+    document.getElementById('pvServicos').textContent = centsToBRL(t.servicosLiquidosCentavos);
+    document.getElementById('pvItens').textContent = centsToBRL(t.itensLiquidosCentavos);
+    document.getElementById('pvGorjetaBruta').textContent = centsToBRL(t.gorjetaBrutaCentavos);
+    document.getElementById('pvGorjetaLiquida').textContent = centsToBRL(t.totalGorjetaLiquidaCentavos);
+    document.getElementById('pvComissao').textContent = centsToBRL(t.totalComissaoCentavos);
+    document.getElementById('pvTaxa').textContent = centsToBRL(t.taxaTotalCentavos);
+    document.getElementById('pvRecebido').textContent = centsToBRL(t.totalRecebidoCentavos);
+    document.getElementById('pvReceita').textContent = centsToBRL(t.receitaEmpresaCentavos);
+    document.getElementById('cardPreview').classList.remove('hidden');
+    document.getElementById('btnFechar').disabled = false;
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
+async function fechar() {
+  if (!currentPayload) return;
+  clearBanner();
+  const btn = document.getElementById('btnFechar');
+  btn.disabled = true;
+  btn.textContent = 'Fechando…';
+  try {
+    const saved = await api('/checkout/close', { method: 'POST', body: currentPayload });
+    const s = saved.saved;
+    document.getElementById('resComandaId').textContent = s.comandoId || '—';
+    document.getElementById('resStatus').textContent = s.status || (s.idempotent ? 'já fechada (idempotente)' : '—');
+    document.getElementById('resCounts').textContent = `${s.itens ?? '—'} / ${s.pagamentos ?? '—'} / ${s.gorjetas ?? '—'}`;
+    document.getElementById('resCaixa').textContent = s.caixaMovimentos ?? '—';
+    document.getElementById('cardResultado').classList.remove('hidden');
+    showBanner('Comanda fechada com sucesso.', 'ok');
+    currentPayload = null;
+    btn.textContent = 'Fechar comanda';
+    await atualizarDashboard();
+  } catch (err) {
+    showBanner(err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Fechar comanda';
+  }
+}
+
+async function atualizarDashboard() {
+  try {
+    const dash = await api('/dashboard');
+    document.getElementById('dbReceita').textContent = centsToBRL(dash.kpis.receitaEmpresaCentavos);
+    document.getElementById('dbComandos').textContent = dash.kpis.comandos ?? 0;
+    document.getElementById('dbComissoes').textContent = centsToBRL(dash.finance.totals.totalComissaoCentavos);
+    document.getElementById('dashUpdatedAt').textContent = new Date().toLocaleTimeString('pt-BR');
+  } catch (err) {
+    showBanner('Dashboard: ' + err.message, 'error');
+  }
+}
+
+function openSettings() {
+  document.getElementById('apiBaseInput').value = getApiBase();
+  document.getElementById('settingsPanel').classList.remove('hidden');
+}
+
+async function init() {
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    const panel = document.getElementById('settingsPanel');
+    panel.classList.contains('hidden') ? openSettings() : panel.classList.add('hidden');
+  });
+  document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+    const val = document.getElementById('apiBaseInput').value.trim();
+    if (val) setApiBase(val.replace(/\/+$/, ''));
+    document.getElementById('settingsPanel').classList.add('hidden');
+    clearBanner();
+    try {
+      await loadCatalog();
+      await atualizarDashboard();
+      showBanner('Catálogo atualizado.', 'ok');
+    } catch (err) {
+      showBanner('Falha ao carregar catálogo: ' + err.message, 'error');
+    }
+  });
+  document.getElementById('btnSimular').addEventListener('click', simular);
+  document.getElementById('btnFechar').addEventListener('click', fechar);
+  document.getElementById('btnDashboard').addEventListener('click', atualizarDashboard);
+
+  try {
+    await loadCatalog();
+    await atualizarDashboard();
+  } catch (err) {
+    showBanner('Não foi possível conectar ao backend (' + getApiBase() + '): ' + err.message, 'error');
+    openSettings();
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  }
+}
+
+init();
+</script>
+</body>
+</html>
