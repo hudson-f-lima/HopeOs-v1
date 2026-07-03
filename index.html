@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="HOPE OS"/>
-<link rel="manifest" href="manifest.json"/>
-<link rel="apple-touch-icon" href="icon.svg"/>
-<link rel="icon" href="icon.svg"/>
+<link rel="manifest" href="/HopeOs-v1/manifest.json"/>
+<link rel="apple-touch-icon" href="/HopeOs-v1/icon.svg"/>
+<link rel="icon" href="/HopeOs-v1/icon.svg"/>
 <title>HOPE OS — Comanda</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -323,7 +323,7 @@ async function init() {
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('/HopeOs-v1/service-worker.js').catch(() => {});
   }
 }
 
