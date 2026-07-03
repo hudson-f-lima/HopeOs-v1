@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", "frontend", "-l", "5500"],
       "port": 5500
+    },
+    {
+      "name": "site-root",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", ".", "-l", "5501"],
+      "port": 5501
     }
   ]
 }
