@@ -12,9 +12,18 @@ const LAN_ORIGIN = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin && env.CORS_ORIGIN.includes('null')) return callback(null, true);
+    // Permitir arquivos locais (file://) que enviam origin nula ou indefinida
+    if (!origin || origin === 'null') return callback(null, true);
+    
+    // Permitir origens configuradas nas variáveis de ambiente
     if (env.CORS_ORIGIN.includes('*') || env.CORS_ORIGIN.includes(origin)) return callback(null, true);
-    if (origin && LAN_ORIGIN.test(origin)) return callback(null, true);
+    
+    // Permitir GitHub Pages do usuário
+    if (origin.includes('hudson-f-lima.github.io')) return callback(null, true);
+    
+    // Permitir localhost e rede local LAN
+    if (LAN_ORIGIN.test(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) return callback(null, true);
+    
     return callback(null, false);
   }
 };
