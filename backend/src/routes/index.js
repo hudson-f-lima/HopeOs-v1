@@ -136,6 +136,21 @@ router.patch('/agenda/:id/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.patch('/agenda/:id/duracao', async (req, res, next) => {
+  try {
+    const duracaoMin = Number(req.body && req.body.duracaoMin);
+    if (!Number.isInteger(duracaoMin) || duracaoMin < 10 || duracaoMin > 480) {
+      throw createAppError('INVALID_DURATION', 'Duração deve ser um inteiro entre 10 e 480 minutos.', 422);
+    }
+    const repo = new SupabaseRepository();
+    const updated = await repo.update('agendamentos', req.params.id, {
+      duracao_min: duracaoMin,
+      updated_at: new Date().toISOString()
+    });
+    res.json({ ok: true, data: { id: updated.id, duracaoMin: updated.duracao_min } });
+  } catch (err) { next(err); }
+});
+
 router.get('/catalog', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
