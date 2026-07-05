@@ -38,8 +38,7 @@ o barbeiro usa quinta. Publicado no GitHub Pages
 - Fluxo completo (GitHub Pages → Render → Supabase) validado e funcional.
 
 ## Tarefa pendente
-1. Decidir se limpa as ~10 comandas de teste técnico já fechadas no Supabase real antes do barbeiro rodar os checkouts de verdade (dashboard hoje está com números inflados por teste, não por uso real).
-
+Nenhuma pendência crítica em aberto. Banco de dados limpo e zerado, pronto para a operação piloto de quinta-feira.
 
 ## Gate de expansão
 Nada de tabela nova, feature nova, ou Blueprint V4 antes desse checkout real fechar.
