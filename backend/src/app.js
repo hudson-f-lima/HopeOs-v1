@@ -23,6 +23,10 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(morgan('dev'));
 
+app.get('/', (req, res) => {
+  res.redirect('/api/health');
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: 'HOPE OS V1 API', time: new Date().toISOString() });
 });
