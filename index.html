@@ -38,7 +38,20 @@ input:focus,select:focus{border-color:#7c3aed;outline:none;}
 .hidden{display:none!important;}
 .settings-panel{display:flex;flex-direction:column;gap:8px;}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#ece8ff;color:#5f4de0;}
+.badge-confirmado{background:#e8f8ee;color:#16a34a;}
+.badge-noshow{background:#fde8e8;color:#dc2626;}
+.badge-cancelado{background:#f0f0f3;color:#6b6b78;}
+.badge-concluido{background:#e8f0fe;color:#2563eb;}
 footer{text-align:center;font-size:11px;color:#a0a0ac;margin-top:20px;}
+.agenda-item{border:1px solid #f0f0f3;border-radius:10px;padding:10px;margin-bottom:8px;}
+.agenda-item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.agenda-item-info{font-size:13px;line-height:1.5;}
+.agenda-item-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.btn-chip{padding:7px 10px;border-radius:8px;font-size:11px;font-weight:700;background:#ece8ff;color:#5f4de0;flex:1 1 auto;min-width:64px;}
+.btn-chip.danger{background:#fde8e8;color:#dc2626;}
+.btn-chip.primary{background:#7c3aed;color:#fff;}
+.modal-backdrop{position:fixed;inset:0;background:rgba(23,22,32,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px;}
+.modal-box{background:#fff;border-radius:16px;padding:16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
 </style>
 </head>
 <body>
@@ -56,6 +69,70 @@ footer{text-align:center;font-size:11px;color:#a0a0ac;margin-top:20px;}
     <input id="apiBaseInput" type="text" placeholder="http://localhost:3333/api"/>
   </div>
   <button class="btn btn-primary" id="btnSaveSettings">Salvar e recarregar catálogo</button>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <h2 style="margin-bottom:0;">Agenda — <span id="agendaData"></span></h2>
+    <button class="btn-chip primary" id="btnNovoAgendamento" style="flex:none;">+ Agendamento</button>
+  </div>
+  <div id="agendaLista"><p style="font-size:13px;color:#9090a0;">Carregando agenda…</p></div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalNovoAgendamento">
+  <div class="modal-box">
+    <h2>Novo agendamento</h2>
+    <div class="field">
+      <label>Cliente (opcional)</label>
+      <select id="agCliente"><option value="">Sem cliente</option></select>
+    </div>
+    <div class="field">
+      <label>Serviço</label>
+      <select id="agServico"><option value="">Selecione…</option></select>
+    </div>
+    <div class="field">
+      <label>Profissional</label>
+      <select id="agProfissional"><option value="">Selecione…</option></select>
+    </div>
+    <div class="field">
+      <label>Data</label>
+      <input id="agData" type="date"/>
+    </div>
+    <div class="field">
+      <label>Horário</label>
+      <input id="agHorario" type="time"/>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnCancelarNovoAgendamento" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarNovoAgendamento" style="flex:1;">Agendar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalReagendar">
+  <div class="modal-box">
+    <h2>Reagendar</h2>
+    <div class="field">
+      <label>Nova data</label>
+      <input id="reNovaData" type="date"/>
+    </div>
+    <div class="field">
+      <label>Novo horário</label>
+      <input id="reNovoHorario" type="time"/>
+    </div>
+    <div class="field">
+      <label>Novo serviço (opcional)</label>
+      <select id="reNovoServico"><option value="">Manter serviço atual</option></select>
+    </div>
+    <div class="field">
+      <label>Novo profissional (opcional)</label>
+      <select id="reNovoProfissional"><option value="">Manter profissional atual</option></select>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnCancelarReagendar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarReagendar" style="flex:1;">Confirmar reagendamento</button>
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -184,6 +261,158 @@ async function loadCatalog() {
   fillSelect(document.getElementById('produto'), (catalog.produtos || []).filter(p => p.ativo !== false), p => `${p.nome} (${centsToBRL(p.preco_venda_centavos)})`, p => p.id);
   fillSelect(document.getElementById('selProfissional'), catalog.profissionais.filter(p => p.ativo !== false), p => p.nome, p => p.id);
   fillSelect(document.getElementById('selForma'), catalog.formas_pagamento.filter(f => f.ativo !== false), f => f.label, f => f.code);
+
+  fillSelect(document.getElementById('agCliente'), catalog.clientes, c => c.nome, c => c.id);
+  fillSelect(document.getElementById('agServico'), catalog.servicos.filter(s => s.ativo !== false), s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
+  fillSelect(document.getElementById('agProfissional'), catalog.profissionais.filter(p => p.ativo !== false), p => p.nome, p => p.id);
+  fillSelect(document.getElementById('reNovoServico'), catalog.servicos.filter(s => s.ativo !== false), s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
+  fillSelect(document.getElementById('reNovoProfissional'), catalog.profissionais.filter(p => p.ativo !== false), p => p.nome, p => p.id);
+}
+
+function todayStr() {
+  const d = new Date();
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function formatDateBR(dateStr) {
+  const [y, m, d] = String(dateStr).split('-');
+  return `${d}/${m}/${y}`;
+}
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function findClienteNome(id) { const c = catalog.clientes.find(x => x.id === id); return c ? c.nome : 'Sem cliente'; }
+function findServicoNome(id) { const s = catalog.servicos.find(x => x.id === id); return s ? s.nome : '—'; }
+function findProfissionalNome(id) { const p = catalog.profissionais.find(x => x.id === id); return p ? p.nome : '—'; }
+
+let agendaDataAtual = todayStr();
+let agendaItems = [];
+let reagendarAlvoId = null;
+let agendamentoIdParaCheckout = null;
+
+const AGENDA_STATUS_META = {
+  agendado: { label: 'Agendado', cls: 'badge' },
+  confirmado: { label: 'Confirmado', cls: 'badge badge-confirmado' },
+  no_show: { label: 'No-show', cls: 'badge badge-noshow' },
+  cancelado: { label: 'Cancelado', cls: 'badge badge-cancelado' },
+  concluido: { label: 'Concluído', cls: 'badge badge-concluido' },
+  reagendado: { label: 'Reagendado', cls: 'badge badge-cancelado' }
+};
+
+async function loadAgenda(data) {
+  agendaDataAtual = data;
+  document.getElementById('agendaData').textContent = formatDateBR(data);
+  try {
+    agendaItems = await api('/agenda?data=' + encodeURIComponent(data));
+    renderAgendaList();
+  } catch (err) {
+    showBanner('Agenda: ' + err.message, 'error');
+  }
+}
+
+function renderAgendaList() {
+  const el = document.getElementById('agendaLista');
+  if (!agendaItems.length) {
+    el.innerHTML = '<p style="font-size:13px;color:#9090a0;">Nenhum agendamento nesse dia.</p>';
+    return;
+  }
+  const sorted = [...agendaItems].sort((a, b) => String(a.horario).localeCompare(String(b.horario)));
+  el.innerHTML = sorted.map(renderAgendaItem).join('');
+}
+
+function renderAgendaItem(item) {
+  const meta = AGENDA_STATUS_META[item.status] || { label: item.status, cls: 'badge' };
+  const horario = String(item.horario || '').slice(0, 5);
+  let actions = '';
+  if (item.status === 'agendado') {
+    actions = `
+      <button class="btn-chip" data-action="confirmar" data-id="${item.id}">Confirmar</button>
+      <button class="btn-chip danger" data-action="noshow" data-id="${item.id}">No-show</button>
+      <button class="btn-chip danger" data-action="cancelar" data-id="${item.id}">Cancelar</button>
+      <button class="btn-chip" data-action="reagendar" data-id="${item.id}">Reagendar</button>
+      <button class="btn-chip primary" data-action="checkout" data-id="${item.id}">Fazer checkout</button>`;
+  } else if (item.status === 'confirmado') {
+    actions = `
+      <button class="btn-chip danger" data-action="noshow" data-id="${item.id}">No-show</button>
+      <button class="btn-chip danger" data-action="cancelar" data-id="${item.id}">Cancelar</button>
+      <button class="btn-chip primary" data-action="checkout" data-id="${item.id}">Fazer checkout</button>`;
+  } else if (item.status === 'concluido') {
+    actions = `<span style="font-size:12px;color:#16a34a;font-weight:700;">✓ Checkout feito</span>`;
+  }
+
+  return `
+    <div class="agenda-item">
+      <div class="agenda-item-top">
+        <div class="agenda-item-info">
+          <b>${horario}</b> — ${escapeHtml(findClienteNome(item.cliente_id))}<br/>
+          ${escapeHtml(findServicoNome(item.servico_id))} · ${escapeHtml(findProfissionalNome(item.profissional_id))}
+        </div>
+        <span class="${meta.cls}">${meta.label}</span>
+      </div>
+      ${actions ? `<div class="agenda-item-actions">${actions}</div>` : ''}
+    </div>`;
+}
+
+async function patchAgendaStatus(id, novoStatus) {
+  clearBanner();
+  try {
+    await api(`/agenda/${id}/status`, { method: 'PATCH', body: { novoStatus } });
+    showBanner('Agendamento atualizado.', 'ok');
+    await loadAgenda(agendaDataAtual);
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
+function openReagendarModal(item) {
+  reagendarAlvoId = item.id;
+  document.getElementById('reNovaData').value = item.data;
+  document.getElementById('reNovoHorario').value = String(item.horario || '').slice(0, 5);
+  document.getElementById('reNovoServico').value = '';
+  document.getElementById('reNovoProfissional').value = '';
+  document.getElementById('modalReagendar').classList.remove('hidden');
+}
+function closeReagendarModal() {
+  document.getElementById('modalReagendar').classList.add('hidden');
+  reagendarAlvoId = null;
+}
+
+function openNovoAgendamentoModal() {
+  document.getElementById('agCliente').value = '';
+  document.getElementById('agServico').value = '';
+  document.getElementById('agProfissional').value = '';
+  document.getElementById('agData').value = agendaDataAtual;
+  document.getElementById('agHorario').value = '';
+  document.getElementById('modalNovoAgendamento').classList.remove('hidden');
+}
+function closeNovoAgendamentoModal() {
+  document.getElementById('modalNovoAgendamento').classList.add('hidden');
+}
+
+function prefillCheckoutFromAgendamento(item) {
+  agendamentoIdParaCheckout = item.id;
+  document.getElementById('selCliente').value = item.cliente_id || '';
+  document.getElementById('selServico').value = item.servico_id || '';
+  document.getElementById('selProfissional').value = item.profissional_id || '';
+  document.getElementById('produto').value = '';
+  document.getElementById('cardPreview').classList.add('hidden');
+  document.getElementById('cardResultado').classList.add('hidden');
+  currentPayload = null;
+  showBanner('Comanda pré-preenchida a partir do agendamento das ' + String(item.horario || '').slice(0, 5) + '. Confira e clique em "Simular comanda".', 'ok');
+  document.getElementById('selServico').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function onAgendaListClick(ev) {
+  const btn = ev.target.closest('button[data-action]');
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  const item = agendaItems.find(a => a.id === id);
+  if (!item) return;
+
+  if (action === 'confirmar') return patchAgendaStatus(id, 'confirmado');
+  if (action === 'noshow') { if (confirm('Confirmar no-show?')) await patchAgendaStatus(id, 'no_show'); return; }
+  if (action === 'cancelar') { if (confirm('Confirmar cancelamento?')) await patchAgendaStatus(id, 'cancelado'); return; }
+  if (action === 'reagendar') return openReagendarModal(item);
+  if (action === 'checkout') return prefillCheckoutFromAgendamento(item);
 }
 
 function buildPayload() {
@@ -221,7 +450,8 @@ function buildPayload() {
     payments: [
       { formaCode, valorCentavos: totalCentavos }
     ],
-    gorjetaCentavos
+    gorjetaCentavos,
+    agendamentoId: agendamentoIdParaCheckout || undefined
   };
 }
 
@@ -266,8 +496,10 @@ async function fechar() {
     document.getElementById('cardResultado').classList.remove('hidden');
     showBanner('Comanda fechada com sucesso.', 'ok');
     currentPayload = null;
+    agendamentoIdParaCheckout = null;
     btn.textContent = 'Fechar comanda';
     await atualizarDashboard();
+    await loadAgenda(agendaDataAtual);
   } catch (err) {
     showBanner(err.message, 'error');
     btn.disabled = false;
@@ -305,6 +537,7 @@ async function init() {
     try {
       await loadCatalog();
       await atualizarDashboard();
+      await loadAgenda(agendaDataAtual);
       showBanner('Catálogo atualizado.', 'ok');
     } catch (err) {
       showBanner('Falha ao carregar catálogo: ' + err.message, 'error');
@@ -314,9 +547,56 @@ async function init() {
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnDashboard').addEventListener('click', atualizarDashboard);
 
+  document.getElementById('agendaLista').addEventListener('click', onAgendaListClick);
+  document.getElementById('btnNovoAgendamento').addEventListener('click', openNovoAgendamentoModal);
+  document.getElementById('btnCancelarNovoAgendamento').addEventListener('click', closeNovoAgendamentoModal);
+  document.getElementById('btnConfirmarNovoAgendamento').addEventListener('click', async () => {
+    const clienteId = document.getElementById('agCliente').value || null;
+    const servicoId = document.getElementById('agServico').value;
+    const profissionalId = document.getElementById('agProfissional').value;
+    const data = document.getElementById('agData').value;
+    const horario = document.getElementById('agHorario').value;
+    if (!servicoId || !profissionalId || !data || !horario) {
+      showBanner('Preencha serviço, profissional, data e horário.', 'error');
+      return;
+    }
+    clearBanner();
+    try {
+      await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario } });
+      closeNovoAgendamentoModal();
+      showBanner('Agendamento criado.', 'ok');
+      await loadAgenda(agendaDataAtual);
+    } catch (err) {
+      showBanner(err.message, 'error');
+    }
+  });
+
+  document.getElementById('btnCancelarReagendar').addEventListener('click', closeReagendarModal);
+  document.getElementById('btnConfirmarReagendar').addEventListener('click', async () => {
+    if (!reagendarAlvoId) return;
+    const novaData = document.getElementById('reNovaData').value;
+    const novoHorario = document.getElementById('reNovoHorario').value;
+    if (!novaData || !novoHorario) { showBanner('Informe nova data e horário.', 'error'); return; }
+    const novoServicoId = document.getElementById('reNovoServico').value || undefined;
+    const novoProfissionalId = document.getElementById('reNovoProfissional').value || undefined;
+    clearBanner();
+    try {
+      await api(`/agenda/${reagendarAlvoId}/status`, {
+        method: 'PATCH',
+        body: { novoStatus: 'reagendado', novaData, novoHorario, novoServicoId, novoProfissionalId }
+      });
+      closeReagendarModal();
+      showBanner('Reagendado com sucesso.', 'ok');
+      await loadAgenda(agendaDataAtual);
+    } catch (err) {
+      showBanner(err.message, 'error');
+    }
+  });
+
   try {
     await loadCatalog();
     await atualizarDashboard();
+    await loadAgenda(todayStr());
   } catch (err) {
     showBanner('Não foi possível conectar ao backend (' + getApiBase() + '): ' + err.message, 'error');
     openSettings();
