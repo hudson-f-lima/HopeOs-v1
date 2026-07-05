@@ -1,10 +1,22 @@
 require('dotenv').config();
 const { getSupabase } = require('../src/db/supabaseClient');
 
+const args = process.argv.slice(2);
+const hasForceFlag = args.includes('--force') || args.includes('-f');
+
 async function main() {
+  if (!hasForceFlag) {
+    console.error('⚠️  Este script apaga TODOS os dados financeiros (comandas, pagamentos, etc.) do banco de produção.');
+    console.error('   Nenhum dado será recuperável após execução.');
+    console.error('');
+    console.error('   Execute com a flag --force para confirmar:');
+    console.error('   node scripts/clear-test-data.js --force');
+    process.exit(1);
+  }
+
   const supabase = getSupabase();
 
-  console.log('Iniciando limpeza de dados de teste...');
+  console.log('⚠️  Iniciando limpeza de dados de teste (operação irreversível)...');
 
   // As tabelas dependentes devem ser limpas antes por causa de chaves estrangeiras
   const tablesToClear = [
