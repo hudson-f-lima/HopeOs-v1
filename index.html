@@ -77,16 +77,20 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .prof-filter-btn .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
 .prof-filter-btn.selected{border-color:currentColor;}
 
-.timeline-container{position:relative;overflow-y:auto;height:600px;display:flex;border-radius:12px;box-shadow:var(--elevation-1);background:var(--md-surface);}
-.timeline-ruler{position:sticky;left:0;z-index:4;width:52px;flex:0 0 52px;background:var(--md-surface);border-right:1px solid var(--md-surface-variant);}
+.timeline-container{position:relative;overflow:auto;height:600px;border-radius:0 0 12px 12px;box-shadow:var(--elevation-1);background:var(--md-surface);touch-action:pan-y pan-x;}
+.timeline-inner{display:flex;position:relative;}
+.timeline-ruler{position:sticky;left:0;top:0;z-index:10;width:52px;flex:0 0 52px;align-self:flex-start;background:var(--md-surface);border-right:1px solid var(--md-surface-variant);}
 .ruler-mark{position:absolute;left:0;right:0;font-size:9px;color:var(--md-outline);font-weight:700;text-align:right;padding-right:6px;transform:translateY(-6px);}
-.timeline-cols-wrapper{flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;}
-.timeline-cols{display:flex;position:relative;}
+.timeline-cols-area{position:relative;flex:1;}
+.timeline-grid-lines{position:absolute;top:0;left:0;right:0;pointer-events:none;z-index:1;}
+.grid-line-hour{position:absolute;left:0;right:0;height:1px;background:var(--md-surface-variant);opacity:0.8;}
+.grid-line-half{position:absolute;left:0;right:0;height:1px;background:var(--md-surface-variant);opacity:0.35;border-top:1px dashed var(--md-surface-variant);}
+.timeline-cols{display:flex;position:relative;z-index:2;}
 .prof-col{position:relative;flex:1 1 120px;min-width:120px;border-right:1px solid var(--md-surface-variant);}
 .prof-col.col-hidden{display:none;}
 .slot-vazio{position:absolute;left:2px;right:2px;border:1px dashed #d8d2e0;border-radius:6px;cursor:pointer;}
 .slot-vazio:hover{background:#f3e8ff;}
-.ag-block{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 5px;overflow:hidden;cursor:pointer;color:#fff;box-shadow:var(--elevation-1);}
+.ag-block{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 5px;overflow:hidden;cursor:pointer;color:#fff;box-shadow:var(--elevation-1);min-height:48px;}
 .ag-block .ag-line1{font-weight:700;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ag-block .ag-line2{font-size:10px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ag-block.compact .ag-line2{display:none;}
@@ -142,6 +146,7 @@ footer{text-align:center;font-size:11px;color:var(--md-outline);margin-top:8px;p
   user-select: none;
   background: rgba(0,0,0,0.15);
   border-radius: 6px 6px 0 0;
+  touch-action: none;
 }
 .drag-handle::before {
   content: '⠿';
@@ -157,6 +162,7 @@ footer{text-align:center;font-size:11px;color:var(--md-outline);margin-top:8px;p
   background: rgba(255,255,255,0.25);
   border-radius: 0 0 6px 6px;
   z-index: 5;
+  touch-action: none;
 }
 @media (pointer: coarse) {
   .resize-handle {
@@ -234,10 +240,13 @@ dialog {
             <div id="timelineHeadersInner" style="display:flex; flex:1;"></div>
           </div>
         </div>
-        <div class="timeline-container" id="timelineContainer" style="border-radius:0 0 12px 12px; border-top:none; margin-top:0;">
-          <div class="timeline-ruler" id="timelineRuler"></div>
-          <div class="timeline-cols-wrapper" id="timelineColsWrapper">
-            <div class="timeline-cols" id="timelineCols"></div>
+        <div class="timeline-container" id="timelineContainer" style="border-top:none; margin-top:0;">
+          <div class="timeline-inner" id="timelineInner">
+            <div class="timeline-ruler" id="timelineRuler"></div>
+            <div class="timeline-cols-area">
+              <div class="timeline-grid-lines" id="timelineGridLines"></div>
+              <div class="timeline-cols" id="timelineCols"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -984,8 +993,22 @@ function renderRuler() {
   ruler.innerHTML = html;
 }
 
+function renderGridLines() {
+  const gridEl = document.getElementById('timelineGridLines');
+  if (!gridEl) return;
+  gridEl.style.height = TIMELINE_TOTAL_HEIGHT + 'px';
+  let html = '';
+  const totalMin = (HORA_FIM - HORA_INICIO) * 60;
+  for (let m = 0; m <= totalMin; m += 30) {
+    const cls = m % 60 === 0 ? 'grid-line-hour' : 'grid-line-half';
+    html += `<div class="${cls}" style="top:${m * PX_POR_MIN}px;"></div>`;
+  }
+  gridEl.innerHTML = html;
+}
+
 function renderTimeline() {
   renderRuler();
+  renderGridLines();
   const profs = activeProfissionais();
   
   // Renderizar cabeçalhos de profissionais
@@ -1014,17 +1037,24 @@ function renderTimeline() {
 
 function positionRedline() {
   const cols = document.getElementById('timelineCols');
-  const old = cols.querySelector('.timeline-redline-abs');
-  if (old) old.remove();
-  if (selectedDay !== todayStr()) return;
+  let line = cols.querySelector('.timeline-redline-abs');
+  if (selectedDay !== todayStr()) {
+    if (line) line.remove();
+    return;
+  }
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  if (nowMin < HORA_INICIO * 60 || nowMin > HORA_FIM * 60) return;
+  if (nowMin < HORA_INICIO * 60 || nowMin > HORA_FIM * 60) {
+    if (line) line.remove();
+    return;
+  }
   const top = (nowMin - HORA_INICIO * 60) * PX_POR_MIN;
-  const line = document.createElement('div');
-  line.className = 'timeline-redline-abs';
+  if (!line) {
+    line = document.createElement('div');
+    line.className = 'timeline-redline-abs';
+    cols.appendChild(line);
+  }
   line.style.top = top + 'px';
-  cols.appendChild(line);
 }
 
 function onTimelineClick(ev) {
@@ -1331,18 +1361,18 @@ async function init() {
 
   document.getElementById('timelineCols').addEventListener('click', onTimelineClick);
   
-  const colsWrapper = document.getElementById('timelineColsWrapper');
+  const timelineContainer = document.getElementById('timelineContainer');
   const headersWrapper = document.getElementById('timelineHeadersWrapper');
-  if (colsWrapper && headersWrapper) {
-    colsWrapper.addEventListener('scroll', () => {
-      headersWrapper.scrollLeft = colsWrapper.scrollLeft;
+  if (timelineContainer && headersWrapper) {
+    timelineContainer.addEventListener('scroll', () => {
+      headersWrapper.scrollLeft = timelineContainer.scrollLeft;
     });
   }
 
   document.getElementById('agServico').addEventListener('change', updateNovoAgendamentoPreview);
   document.getElementById('agHorario').addEventListener('input', updateNovoAgendamentoPreview);
 
-  setInterval(() => { if (activeTab === 'agenda') positionRedline(); }, 60000);
+  setInterval(() => { if (activeTab === 'agenda') positionRedline(); }, 30000);
 
   document.getElementById('actionSheet').addEventListener('click', (ev) => {
     if (ev.target.id === 'actionSheet') closeActionSheet();
