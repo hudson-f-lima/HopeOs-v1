@@ -18,7 +18,6 @@ h1{font-size:18px;font-weight:800;color:#7c3aed;}
 h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#555168;margin-bottom:10px;}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 button{cursor:pointer;font-family:inherit;border:none;outline:none;}
-.icon-btn{width:34px;height:34px;border-radius:10px;background:#ece8ff;color:#5f4de0;font-size:16px;display:flex;align-items:center;justify-content:center;}
 .card{background:#fff;border:1px solid #e2e2e8;border-radius:14px;padding:16px;margin-bottom:12px;}
 .field{margin-bottom:12px;}
 .field label{display:block;font-size:11px;font-weight:600;color:#555168;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
@@ -36,7 +35,6 @@ input:focus,select:focus{border-color:#7c3aed;outline:none;}
 .banner-error{background:#fde8e8;color:#dc2626;border:1px solid #f3c6c6;}
 .banner-ok{background:#e8f8ee;color:#16a34a;border:1px solid #c6ecd3;}
 .hidden{display:none!important;}
-.settings-panel{display:flex;flex-direction:column;gap:8px;}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#ece8ff;color:#5f4de0;}
 .badge-confirmado{background:#e8f8ee;color:#16a34a;}
 .badge-noshow{background:#fde8e8;color:#dc2626;}
@@ -57,19 +55,16 @@ footer{text-align:center;font-size:11px;color:#a0a0ac;margin-top:20px;}
 <body>
 <header>
   <h1>HOPE OS — Comanda</h1>
-  <button class="icon-btn" id="btnSettings" title="Configurar backend">⚙</button>
 </header>
 
-<div id="banner"></div>
-
-<div class="card settings-panel hidden" id="settingsPanel">
-  <h2>Backend</h2>
-  <div class="field">
-    <label>URL da API (ex: http://192.168.0.10:3333/api)</label>
-    <input id="apiBaseInput" type="text" placeholder="http://localhost:3333/api"/>
-  </div>
-  <button class="btn btn-primary" id="btnSaveSettings">Salvar e recarregar catálogo</button>
+<div class="card hidden" id="fatalError" style="border-color:#f3c6c6;">
+  <h2 style="color:#dc2626;">Backend indisponível</h2>
+  <p style="font-size:14px;line-height:1.5;">Backend indisponível — avise o Hudson.</p>
 </div>
+
+<div id="appRoot">
+
+<div id="banner"></div>
 
 <div class="card">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -195,16 +190,30 @@ footer{text-align:center;font-size:11px;color:#a0a0ac;margin-top:20px;}
   <button class="btn btn-secondary" id="btnDashboard" style="margin-top:10px;">Atualizar dashboard</button>
 </div>
 
+</div>
+
 <footer>HOPE OS V1.0.3 · PWA conectada ao backend real · frontendCalculates: false</footer>
 
 <script>
-const DEFAULT_API_BASE = 'http://localhost:3333/api';
+let API_BASE = null;
 
 function getApiBase() {
-  return localStorage.getItem('hope_api_base') || DEFAULT_API_BASE;
+  return API_BASE;
 }
-function setApiBase(url) {
-  localStorage.setItem('hope_api_base', url);
+
+// Config externa: normalmente vem de ./config.json (publicado junto do index.html).
+// ?apiBase=... é uma via de escape oculta, não documentada na UI, só pra emergência.
+async function loadConfig() {
+  const override = new URLSearchParams(window.location.search).get('apiBase');
+  if (override) {
+    API_BASE = override.replace(/\/+$/, '');
+    return;
+  }
+  const res = await fetch('./config.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('config.json indisponível (HTTP ' + res.status + ')');
+  const cfg = await res.json();
+  if (!cfg || !cfg.apiBase) throw new Error('config.json sem apiBase.');
+  API_BASE = String(cfg.apiBase).replace(/\/+$/, '');
 }
 
 async function api(path, options = {}) {
@@ -519,30 +528,12 @@ async function atualizarDashboard() {
   }
 }
 
-function openSettings() {
-  document.getElementById('apiBaseInput').value = getApiBase();
-  document.getElementById('settingsPanel').classList.remove('hidden');
+function showFatalError() {
+  document.getElementById('appRoot').classList.add('hidden');
+  document.getElementById('fatalError').classList.remove('hidden');
 }
 
 async function init() {
-  document.getElementById('btnSettings').addEventListener('click', () => {
-    const panel = document.getElementById('settingsPanel');
-    panel.classList.contains('hidden') ? openSettings() : panel.classList.add('hidden');
-  });
-  document.getElementById('btnSaveSettings').addEventListener('click', async () => {
-    const val = document.getElementById('apiBaseInput').value.trim();
-    if (val) setApiBase(val.replace(/\/+$/, ''));
-    document.getElementById('settingsPanel').classList.add('hidden');
-    clearBanner();
-    try {
-      await loadCatalog();
-      await atualizarDashboard();
-      await loadAgenda(agendaDataAtual);
-      showBanner('Catálogo atualizado.', 'ok');
-    } catch (err) {
-      showBanner('Falha ao carregar catálogo: ' + err.message, 'error');
-    }
-  });
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnDashboard').addEventListener('click', atualizarDashboard);
@@ -594,12 +585,14 @@ async function init() {
   });
 
   try {
+    await loadConfig();
     await loadCatalog();
     await atualizarDashboard();
     await loadAgenda(todayStr());
   } catch (err) {
-    showBanner('Não foi possível conectar ao backend (' + getApiBase() + '): ' + err.message, 'error');
-    openSettings();
+    console.error('Falha ao inicializar:', err);
+    showFatalError();
+    return;
   }
 
   if ('serviceWorker' in navigator) {
