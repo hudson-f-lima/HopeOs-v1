@@ -228,9 +228,15 @@ dialog {
         </div>
         <div class="day-pills" id="dayPills"></div>
         <div class="prof-filter" id="profFilter"></div>
-        <div class="timeline-container" id="timelineContainer">
+        <div class="timeline-header-outer" id="timelineHeaderOuter" style="display:flex; background:var(--md-surface); border:1px solid var(--md-surface-variant); border-bottom:none; border-radius:12px 12px 0 0; overflow:hidden; margin-top:8px; height:40px; box-shadow:var(--elevation-1);">
+          <div style="width:52px; flex:0 0 52px; border-right:1px solid var(--md-surface-variant); background:var(--md-surface);"></div>
+          <div id="timelineHeadersWrapper" style="flex:1; overflow:hidden; display:flex;">
+            <div id="timelineHeadersInner" style="display:flex; flex:1;"></div>
+          </div>
+        </div>
+        <div class="timeline-container" id="timelineContainer" style="border-radius:0 0 12px 12px; border-top:none; margin-top:0;">
           <div class="timeline-ruler" id="timelineRuler"></div>
-          <div class="timeline-cols-wrapper">
+          <div class="timeline-cols-wrapper" id="timelineColsWrapper">
             <div class="timeline-cols" id="timelineCols"></div>
           </div>
         </div>
@@ -854,10 +860,22 @@ function renderProfFilter() {
 }
 
 function applyProfFilter() {
-  document.querySelectorAll('.prof-col').forEach(col => {
+  const cols = document.querySelectorAll('.prof-col');
+  cols.forEach(col => {
     const show = !activeProfFilter || col.dataset.profId === activeProfFilter;
     col.classList.toggle('col-hidden', !show);
   });
+  
+  const headers = document.getElementById('timelineHeadersInner').children;
+  if (headers && headers.length === cols.length) {
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i];
+      const header = headers[i];
+      if (header) {
+        header.style.display = col.classList.contains('col-hidden') ? 'none' : 'flex';
+      }
+    }
+  }
 }
 
 function profItemsForDay(profId) {
@@ -969,6 +987,20 @@ function renderRuler() {
 function renderTimeline() {
   renderRuler();
   const profs = activeProfissionais();
+  
+  // Renderizar cabeçalhos de profissionais
+  const headersInner = document.getElementById('timelineHeadersInner');
+  if (headersInner) {
+    if (!profs.length) {
+      headersInner.innerHTML = '';
+    } else {
+      headersInner.innerHTML = profs.map((p, i) => {
+        const color = PROF_COLORS[i % PROF_COLORS.length];
+        return `<div style="flex:1 1 120px; min-width:120px; box-sizing:border-box; border-right:1px solid var(--md-surface-variant); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; color:${color}; background:var(--md-surface); text-align:center; padding:4px;">${escapeHtml(p.nome)}</div>`;
+      }).join('');
+    }
+  }
+
   const cols = document.getElementById('timelineCols');
   cols.style.height = TIMELINE_TOTAL_HEIGHT + 'px';
   if (!profs.length) {
@@ -1298,6 +1330,15 @@ async function init() {
   });
 
   document.getElementById('timelineCols').addEventListener('click', onTimelineClick);
+  
+  const colsWrapper = document.getElementById('timelineColsWrapper');
+  const headersWrapper = document.getElementById('timelineHeadersWrapper');
+  if (colsWrapper && headersWrapper) {
+    colsWrapper.addEventListener('scroll', () => {
+      headersWrapper.scrollLeft = colsWrapper.scrollLeft;
+    });
+  }
+
   document.getElementById('agServico').addEventListener('change', updateNovoAgendamentoPreview);
   document.getElementById('agHorario').addEventListener('input', updateNovoAgendamentoPreview);
 
