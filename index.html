@@ -125,6 +125,76 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 @keyframes spin{to{transform:rotate(360deg);}}
 
 footer{text-align:center;font-size:11px;color:var(--md-outline);margin-top:8px;padding-bottom:8px;}
+
+/* Timeline Handles and Interactivity CSS */
+.drag-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: rgba(255,255,255,0.7);
+  user-select: none;
+  background: rgba(0,0,0,0.15);
+  border-radius: 6px 6px 0 0;
+}
+.drag-handle::before {
+  content: '⠿';
+  font-weight: bold;
+}
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  background: rgba(255,255,255,0.25);
+  border-radius: 0 0 6px 6px;
+  z-index: 5;
+}
+@media (pointer: coarse) {
+  .resize-handle {
+    height: 16px;
+  }
+}
+.resize-tooltip {
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.drag-highlight {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 10;
+}
+dialog::backdrop {
+  background: rgba(28,27,31,.5);
+}
+dialog {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 0;
+}
 </style>
 </head>
 <body>
@@ -340,6 +410,8 @@ footer{text-align:center;font-size:11px;color:var(--md-outline);margin-top:8px;p
   </div>
 </div>
 
+<dialog id="conflict-dialog"></dialog>
+
 <script>
 /* ---------- Config / API ---------- */
 let API_BASE = null;
@@ -420,6 +492,8 @@ let currentPayload = null;
 let agendamentoIdParaCheckout = null;
 let reagendarAlvoId = null;
 let activeTab = 'agenda';
+let dragging = null;
+let resizing = null;
 
 const AGENDA_STATUS_META = {
   agendado: { label: 'Agendado', cls: 'badge' },
@@ -597,6 +671,32 @@ function emptySlotsForProf(profId) {
   return slots;
 }
 
+const SERVICE_COLORS = {
+  'corte':      { bg: '#1976d2', border: '#0d47a1' },
+  'barba':      { bg: '#0d47a1', border: '#01579b' },
+  'manicure':   { bg: '#e91e8c', border: '#880e4f' },
+  'pedicure':   { bg: '#e91e8c', border: '#880e4f' },
+  'coloracao':  { bg: '#f57c00', border: '#e65100' },
+  'quimica':    { bg: '#f57c00', border: '#e65100' },
+  'estetica':   { bg: '#2e7d32', border: '#1b5e20' },
+  'tratamento': { bg: '#2e7d32', border: '#1b5e20' },
+  'default':    { bg: '#546e7a', border: '#37474f' }
+};
+
+function getServiceColor(ag) {
+  const servico = catalog.servicos.find(s => s.id === ag.servico_id || s.id === ag.servicoId);
+  if (!servico) return SERVICE_COLORS.default;
+  const cat = (servico.categoria || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  for (const key of Object.keys(SERVICE_COLORS)) {
+    if (key !== 'default' && cat.includes(key)) {
+      return SERVICE_COLORS[key];
+    }
+  }
+  return SERVICE_COLORS.default;
+}
+
 function renderAgBlock(item, color) {
   const top = itemStartMinutes(item) * PX_POR_MIN;
   const duracao = item.duracao_min || 30;
@@ -606,11 +706,25 @@ function renderAgBlock(item, color) {
   let opacity = 1;
   if (item.status === 'no_show') opacity = 0.55;
   if (item.status === 'concluido') opacity = 0.7;
-  const line2 = compact ? '' : `<div class="ag-line2">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
+
+  const sColor = getServiceColor(item);
+
+  const line2 = compact ? '' : `<div class="ag-line2" style="pointer-events:none;">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
+  
+  const isEditable = !['concluido', 'no_show'].includes(item.status);
+  const dragHtml = isEditable ? `<div class="drag-handle" data-ag-id="${item.id}"></div>` : '';
+  const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}"></div>` : '';
+
   return `
-    <div class="ag-block ${compact ? 'compact' : ''}" style="top:${top}px;height:${height}px;background:${color};opacity:${opacity};" data-action="open-sheet" data-id="${item.id}">
-      <div class="ag-line1">${horario} ${escapeHtml(findClienteNome(item.cliente_id))}</div>
+    <div class="ag-block ${compact ? 'compact' : ''}" 
+         style="top:${top}px;height:${height}px;background:${sColor.bg};border-left:4px solid ${sColor.border};color:#ffffff;opacity:${opacity};position:absolute;box-sizing:border-box;" 
+         data-action="open-sheet" 
+         data-id="${item.id}"
+         data-ag-id="${item.id}">
+      ${dragHtml}
+      <div class="ag-line1" style="pointer-events:none;padding-top:${isEditable ? '12px' : '4px'};">${horario} ${escapeHtml(findClienteNome(item.cliente_id))}</div>
       ${line2}
+      ${resizeHtml}
     </div>`;
 }
 
@@ -665,6 +779,9 @@ function positionRedline() {
 }
 
 function onTimelineClick(ev) {
+  if (ev.target.classList.contains('drag-handle') || ev.target.classList.contains('resize-handle')) {
+    return;
+  }
   const block = ev.target.closest('[data-action="open-sheet"]');
   if (block) {
     const item = findAgendaItemById(block.dataset.id);
@@ -1019,6 +1136,390 @@ async function init() {
     navigator.serviceWorker.register('/HopeOs-v1/service-worker.js').catch(() => {});
   }
 }
+
+const SNAP_MIN = 20;
+
+function formatTime(h, m) {
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function detectConflict(profId, data, hora, min, duracaoMin, ignorarId) {
+  const inicioMin = (hora - HORA_INICIO) * 60 + min;
+  const fimMin = inicioMin + duracaoMin;
+  const items = weekAgenda[data] || [];
+  return items.filter(ag =>
+    ag.id !== ignorarId &&
+    ag.profissional_id === profId &&
+    !['cancelado', 'no_show', 'reagendado'].includes(ag.status) &&
+    (() => {
+      const [h2, m2] = ag.horario.split(':').map(Number);
+      const ini2 = (h2 - HORA_INICIO) * 60 + m2;
+      const fim2 = ini2 + (ag.duracao_min || 30);
+      return !(fimMin <= ini2 || inicioMin >= fim2);
+    })()
+  );
+}
+
+function proximoSlotLivre(profId, data, duracaoMin, aPartirDeMin) {
+  for (let m = aPartirDeMin; m <= (HORA_FIM - HORA_INICIO) * 60 - duracaoMin; m += SNAP_MIN) {
+    const hora = HORA_INICIO + Math.floor(m / 60);
+    const min  = m % 60;
+    const conf = detectConflict(profId, data, hora, min, duracaoMin, null);
+    if (conf.length === 0) return { hora, min };
+  }
+  return null;
+}
+
+function highlightSlot(profId, minC, temConflito) {
+  clearHighlights();
+  const col = document.querySelector(`[data-prof-id="${profId}"]`);
+  if (!col) return;
+  const top = minC * PX_POR_MIN;
+  const div = document.createElement('div');
+  div.className = 'drag-highlight';
+  div.style.cssText = `
+    position: absolute; left: 2px; right: 2px;
+    top: ${top}px; height: 60px;
+    border-radius: 6px; pointer-events: none; z-index: 10;
+    background: ${temConflito ? '#ffebee' : '#e8f5e9'};
+    border: 2px dashed ${temConflito ? '#f44336' : '#4caf50'};
+  `;
+  col.appendChild(div);
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.drag-highlight').forEach(el => el.remove());
+}
+
+function showResizeTooltip(block, text) {
+  let tooltip = block.querySelector('.resize-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'resize-tooltip';
+    block.appendChild(tooltip);
+  }
+  tooltip.textContent = text;
+}
+
+function hideResizeTooltip() {
+  document.querySelectorAll('.resize-tooltip').forEach(el => el.remove());
+}
+
+function showConflictDialog(ag, targetProf, hora, min, conflitos) {
+  const profNome = catalog.profissionais.find(p => p.id === targetProf)?.nome || '';
+  const horario  = formatTime(hora, min);
+
+  const proximo  = proximoSlotLivre(targetProf, selectedDay,
+                     ag.duracao_min || 30, (hora - HORA_INICIO) * 60 + min);
+  const proximoLabel = proximo
+    ? `📍 ${formatTime(proximo.hora, proximo.min)}`
+    : null;
+
+  const dialog = document.getElementById('conflict-dialog');
+  dialog.innerHTML = `
+    <div style="padding:20px; max-width:320px; font-family:inherit">
+      <div style="font-size:18px; font-weight:700; margin-bottom:8px">
+        ⚠️ Conflito de horário
+      </div>
+      <div style="font-size:13px; color:#555; margin-bottom:20px">
+        <b>${profNome}</b> já tem atendimento às <b>${horario}</b>.<br>
+        O que você quer fazer?
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <button id="btn-encaixar" style="
+          padding:12px; border-radius:10px; border:none; cursor:pointer;
+          background:#7c3aed; color:#fff; font-weight:700; font-size:14px">
+          ✓ Encaixar mesmo assim
+        </button>
+        ${proximoLabel ? `
+        <button id="btn-proximo" style="
+          padding:12px; border-radius:10px; border:none; cursor:pointer;
+          background:#e8f5e9; color:#2e7d32; font-weight:700; font-size:14px">
+          ${proximoLabel} — Slot mais próximo
+        </button>` : ''}
+        <button id="btn-cancelar" style="
+          padding:12px; border-radius:10px; border:1px solid #e0e0e0;
+          cursor:pointer; background:#fff; color:#555; font-size:14px">
+          ✗ Cancelar
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btn-encaixar').onclick = () => {
+    dialog.close();
+    executarReagendar(ag.id, targetProf, selectedDay, horario);
+  };
+
+  if (proximo) {
+    document.getElementById('btn-proximo').onclick = () => {
+      dialog.close();
+      executarReagendar(ag.id, targetProf, selectedDay,
+        formatTime(proximo.hora, proximo.min));
+    };
+  }
+
+  document.getElementById('btn-cancelar').onclick = () => dialog.close();
+  dialog.showModal();
+}
+
+function executarReagendar(agId, profId, data, horario) {
+  api('/agenda/' + agId + '/status', {
+    method: 'PATCH',
+    body: {
+      novoStatus: 'reagendado',
+      novaData: data,
+      novoHorario: horario,
+      novoProfissionalId: profId
+    }
+  })
+  .then(() => {
+    loadWeekAgenda();
+    navigator.vibrate?.([10, 50, 10]);
+  })
+  .catch(err => showBanner('Erro ao reagendar: ' + err.message, 'error'));
+}
+
+/* ---------- Drag-and-Drop Implementation ---------- */
+function startDrag(agId, e) {
+  const block = document.querySelector(`[data-ag-id="${agId}"]`);
+  if (!block) return;
+
+  const clientX = e.touches?.[0].clientX ?? e.clientX;
+  const clientY = e.touches?.[0].clientY ?? e.clientY;
+
+  const clone = block.cloneNode(true);
+  clone.style.cssText = `
+    position: fixed; opacity: 0.75; pointer-events: none;
+    z-index: 9999; width: ${block.offsetWidth}px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    left: ${clientX - 60}px;
+    top: ${clientY - 20}px;
+  `;
+  document.body.appendChild(clone);
+
+  dragging = { agId, clone, targetProf: null, targetMin: null };
+
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('mouseup', onDragEnd);
+  document.addEventListener('touchend', onDragEnd);
+}
+
+function onDragMove(e) {
+  if (e.cancelable) e.preventDefault();
+  const clientX = e.touches?.[0].clientX ?? e.clientX;
+  const clientY = e.touches?.[0].clientY ?? e.clientY;
+
+  dragging.clone.style.left = clientX - 60 + 'px';
+  dragging.clone.style.top  = clientY - 20 + 'px';
+
+  // Use elementFromPoint to find where we are dragging
+  dragging.clone.style.pointerEvents = 'none';
+  const el = document.elementFromPoint(clientX, clientY);
+
+  const profCol = el?.closest('[data-prof-id]');
+  const wrapper = document.querySelector('.timeline-cols-wrapper');
+
+  if (profCol && wrapper) {
+    const rect = wrapper.getBoundingClientRect();
+    const yRel = clientY - rect.top + wrapper.scrollTop;
+    const min  = Math.round(yRel / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
+    const minC = Math.max(0, Math.min(min, (HORA_FIM - HORA_INICIO) * 60 - 20));
+
+    dragging.targetProf = profCol.dataset.profId;
+    dragging.targetMin  = minC;
+
+    const hora = HORA_INICIO + Math.floor(minC / 60);
+    const mins = minC % 60;
+    const ag   = findAgendaItemById(dragging.agId);
+    const conf = detectConflict(
+      dragging.targetProf, selectedDay,
+      hora, mins, ag.duracao_min || 30, ag.id
+    );
+
+    highlightSlot(profCol.dataset.profId, minC, conf.length > 0);
+  }
+}
+
+function onDragEnd(e) {
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+  document.removeEventListener('touchend', onDragEnd);
+  clearHighlights();
+  
+  if (dragging.clone) {
+    dragging.clone.remove();
+  }
+
+  if (!dragging.targetProf) {
+    dragging = null;
+    return;
+  }
+
+  const ag = findAgendaItemById(dragging.agId);
+  const hora = HORA_INICIO + Math.floor(dragging.targetMin / 60);
+  const mins = dragging.targetMin % 60;
+  const conflitos = detectConflict(
+    dragging.targetProf, selectedDay,
+    hora, mins, ag.duracao_min || 30, ag.id
+  );
+
+  if (conflitos.length > 0) {
+    showConflictDialog(ag, dragging.targetProf, hora, mins, conflitos);
+  } else {
+    executarReagendar(ag.id, dragging.targetProf, selectedDay, formatTime(hora, mins));
+  }
+  dragging = null;
+}
+
+/* ---------- Resize Implementation ---------- */
+function startResize(agId, e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const block = document.querySelector(`[data-ag-id="${agId}"]`);
+  if (!block) return;
+
+  const clientY = e.touches?.[0].clientY ?? e.clientY;
+
+  resizing = {
+    agId,
+    block,
+    yInicio: clientY,
+    alturaInicio: block.offsetHeight
+  };
+
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('touchmove', onResizeMove, { passive: false });
+  document.addEventListener('mouseup', onResizeEnd);
+  document.addEventListener('touchend', onResizeEnd);
+}
+
+function onResizeMove(e) {
+  if (e.cancelable) e.preventDefault();
+  const clientY = e.touches?.[0].clientY ?? e.clientY;
+  const delta = clientY - resizing.yInicio;
+  const minAltura = SNAP_MIN * PX_POR_MIN; // 60px mínimo
+  let novaAltura = Math.max(minAltura, resizing.alturaInicio + delta);
+
+  // Snap
+  novaAltura = Math.round(novaAltura / minAltura) * minAltura;
+
+  // Verificar se ultrapassa próximo agendamento
+  const novaMin = novaAltura / PX_POR_MIN;
+  const ag = findAgendaItemById(resizing.agId);
+  const [h, m] = ag.horario.split(':').map(Number);
+  const inicioMin = (h - HORA_INICIO) * 60 + m;
+  const fimMin = inicioMin + novaMin;
+
+  // Clampar no início do próximo agendamento ou 20:00
+  const maxMin = (HORA_FIM - HORA_INICIO) * 60;
+  const professionalId = ag.profissional_id;
+  const dayItems = weekAgenda[selectedDay] || [];
+  
+  const otherItems = dayItems.filter(item => 
+    item.id !== ag.id && 
+    item.profissional_id === professionalId && 
+    !['cancelado', 'no_show', 'reagendado'].includes(item.status)
+  );
+
+  let nextStartMin = maxMin;
+  for (const other of otherItems) {
+    const [h2, m2] = other.horario.split(':').map(Number);
+    const start2 = (h2 - HORA_INICIO) * 60 + m2;
+    if (start2 >= inicioMin && start2 < nextStartMin) {
+      nextStartMin = start2;
+    }
+  }
+
+  if (fimMin > nextStartMin) {
+    novaAltura = (nextStartMin - inicioMin) * PX_POR_MIN;
+  }
+
+  resizing.block.style.height = novaAltura + 'px';
+
+  // Tooltip de duração
+  const durMin = Math.round(novaAltura / PX_POR_MIN);
+  const fimH = h + Math.floor((m + durMin) / 60);
+  const fimM = (m + durMin) % 60;
+  showResizeTooltip(resizing.block,
+    `${durMin}min (até ${String(fimH).padStart(2,'0')}:${String(fimM).padStart(2,'0')})`
+  );
+
+  navigator.vibrate?.([5]);
+}
+
+function onResizeEnd(e) {
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('touchmove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.removeEventListener('touchend', onResizeEnd);
+  hideResizeTooltip();
+
+  const novaDuracao = Math.round(resizing.block.offsetHeight / PX_POR_MIN);
+  const ag = findAgendaItemById(resizing.agId);
+  if (!ag || novaDuracao === ag.duracao_min) {
+    resizing = null;
+    return;
+  }
+
+  api('/agenda/' + resizing.agId + '/duracao', {
+    method: 'PATCH',
+    body: { duracaoMin: novaDuracao }
+  })
+  .then(() => {
+    loadWeekAgenda();
+  })
+  .catch(err => {
+    showBanner('Erro ao ajustar duração: ' + err.message, 'error');
+    resizing.block.style.height = (ag.duracao_min * PX_POR_MIN) + 'px';
+  });
+  resizing = null;
+}
+
+let longPressTimer = null;
+
+document.getElementById('timelineCols').addEventListener('mousedown', e => {
+  const handle = e.target.closest('.drag-handle');
+  if (handle) {
+    const agId = handle.dataset.agId;
+    startDrag(agId, e);
+  }
+  
+  const resizeHandle = e.target.closest('.resize-handle');
+  if (resizeHandle) {
+    const agId = resizeHandle.dataset.agId;
+    startResize(agId, e);
+  }
+});
+
+document.getElementById('timelineCols').addEventListener('touchstart', e => {
+  const handle = e.target.closest('.drag-handle');
+  if (handle) {
+    const agId = handle.dataset.agId;
+    longPressTimer = setTimeout(() => {
+      navigator.vibrate?.([10]);
+      startDrag(agId, e);
+    }, 500);
+  }
+
+  const resizeHandle = e.target.closest('.resize-handle');
+  if (resizeHandle) {
+    const agId = resizeHandle.dataset.agId;
+    startResize(agId, e);
+  }
+}, { passive: true });
+
+document.getElementById('timelineCols').addEventListener('touchend', e => {
+  clearTimeout(longPressTimer);
+});
+
+document.getElementById('timelineCols').addEventListener('touchmove', e => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+  }
+}, { passive: true });
 
 init();
 </script>
