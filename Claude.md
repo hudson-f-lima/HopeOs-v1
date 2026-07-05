@@ -34,24 +34,12 @@ o barbeiro usa quinta. Publicado no GitHub Pages
   produto pra testar comanda serviço+produto; PWA (manifest.json,
   service-worker.js, icon.svg) publicada em
   https://hudson-f-lima.github.io/HopeOs-v1/.
-- Conectividade celular → backend depende de um túnel Cloudflare Quick Tunnel
-  (`cloudflared tunnel --url http://localhost:3333`) rodando neste PC, porque
-  GitHub Pages é HTTPS e o backend local é HTTP (bloqueio de conteúdo misto
-  no navegador do celular). A URL do túnel é efêmera — muda toda vez que o
-  processo reinicia. CORS do backend foi ampliado pra aceitar qualquer origem
-  de rede local (192.168.x.x/10.x.x.x/172.16-31.x.x), além do domínio do
-  GitHub Pages, pra suportar teste tanto por Wi-Fi local quanto pelo túnel.
-- Fluxo completo (GitHub Pages → túnel → backend → Supabase) validado
-  manualmente num celular real em 2026-07-03.
-- Relatório detalhado desta expansão em docs/RELATORIO_EXECUTIVO_2026-07-03.md.
+- Conectividade celular → backend: O backend foi migrado para a nuvem no Render (https://hopeos-v1.onrender.com) em 2026-07-05. A conexão do frontend no GitHub Pages (HTTPS) funciona de forma transparente apontando para o Render. Para contornar a limitação de inatividade (modo de suspensão/sleep) do Render, foi configurado o UptimeRobot disparando pings para `/api/health` a cada 10 minutos.
+- Fluxo completo (GitHub Pages → Render → Supabase) validado e funcional.
 
 ## Tarefa pendente
-1. Decidir se o túnel Cloudflare efêmero é aceitável pro teste de quinta
-   (PC precisa ficar ligado o dia todo) ou se vale migrar pra algo mais
-   permanente antes disso.
-2. Decidir se limpa as ~10 comandas de teste técnico já fechadas no Supabase
-   real antes do barbeiro rodar os 5 checkouts de verdade (dashboard hoje
-   está com números inflados por teste, não por uso real).
+1. Decidir se limpa as ~10 comandas de teste técnico já fechadas no Supabase real antes do barbeiro rodar os checkouts de verdade (dashboard hoje está com números inflados por teste, não por uso real).
+
 
 ## Gate de expansão
 Nada de tabela nova, feature nova, ou Blueprint V4 antes desse checkout real fechar.
