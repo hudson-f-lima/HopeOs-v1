@@ -154,14 +154,15 @@ router.patch('/agenda/:id/duracao', async (req, res, next) => {
 router.get('/catalog', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    const [clientes, servicos, produtos, profissionais, formas_pagamento] = await Promise.all([
+    const [clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos] = await Promise.all([
       repo.list('clientes', { empresa_id: repo.empresaId }),
       repo.list('servicos', { empresa_id: repo.empresaId }),
       repo.list('produtos', { empresa_id: repo.empresaId }),
       repo.list('profissionais', { empresa_id: repo.empresaId }),
-      repo.list('formas_pagamento', { empresa_id: repo.empresaId })
+      repo.list('formas_pagamento', { empresa_id: repo.empresaId }),
+      repo.list('profissional_servicos', { empresa_id: repo.empresaId })
     ]);
-    res.json({ ok: true, data: { clientes, servicos, produtos, profissionais, formas_pagamento } });
+    res.json({ ok: true, data: { clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos } });
   } catch (err) { next(err); }
 });
 
