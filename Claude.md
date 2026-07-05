@@ -1,7 +1,11 @@
 # HOPE OS V1.0.3 — Contexto do projeto
 
 ## Stack
-Backend Node.js + Express + Supabase (Postgres). Frontend é protótipo HTML isolado, não mexer ainda.
+Backend Node.js + Express + Supabase (Postgres). Frontend é uma PWA
+(`index.html` na raiz + `frontend/index.local-prototype.html`) conectada ao
+backend real via `/api/*` — não é mais protótipo isolado, é a interface que
+o barbeiro usa quinta. Publicado no GitHub Pages
+(`https://hudson-f-lima.github.io/HopeOs-v1/`).
 
 ## Regras invioláveis
 - Auditoria brutal sempre: classificar REAL / PARCIAL / MOCKADO / CRÍTICO
@@ -24,12 +28,33 @@ Backend Node.js + Express + Supabase (Postgres). Frontend é protótipo HTML iso
   via POST /checkout/close, com baixa de estoque, comando_pagamentos,
   caixa_movimentos e idempotencyKey todos confirmados via dashboard/finance
   read model. anon/publishable key confirmada bloqueada (401) na RPC checkout_close.
+- Frontend patch executado em 2026-07-03 (era o "próximo gate" em aberto):
+  endpoint GET /api/catalog novo (clientes, serviços, produtos, profissionais,
+  formas_pagamento); frontend reescrito sem cálculo local, com dropdown de
+  produto pra testar comanda serviço+produto; PWA (manifest.json,
+  service-worker.js, icon.svg) publicada em
+  https://hudson-f-lima.github.io/HopeOs-v1/.
+- Conectividade celular → backend depende de um túnel Cloudflare Quick Tunnel
+  (`cloudflared tunnel --url http://localhost:3333`) rodando neste PC, porque
+  GitHub Pages é HTTPS e o backend local é HTTP (bloqueio de conteúdo misto
+  no navegador do celular). A URL do túnel é efêmera — muda toda vez que o
+  processo reinicia. CORS do backend foi ampliado pra aceitar qualquer origem
+  de rede local (192.168.x.x/10.x.x.x/172.16-31.x.x), além do domínio do
+  GitHub Pages, pra suportar teste tanto por Wi-Fi local quanto pelo túnel.
+- Fluxo completo (GitHub Pages → túnel → backend → Supabase) validado
+  manualmente num celular real em 2026-07-03.
+- Relatório detalhado desta expansão em docs/RELATORIO_EXECUTIVO_2026-07-03.md.
 
 ## Tarefa pendente
-Nenhuma das 4 tarefas do último hotfix está pendente. Próximo gate: decidir
-o que entra depois do V1.0.3 (frontend patch, pacotes, etc.) conforme a
-regra de processo do blueprint (001/002/003 congeladas, mudanças novas = 005+).
+1. Decidir se o túnel Cloudflare efêmero é aceitável pro teste de quinta
+   (PC precisa ficar ligado o dia todo) ou se vale migrar pra algo mais
+   permanente antes disso.
+2. Decidir se limpa as ~10 comandas de teste técnico já fechadas no Supabase
+   real antes do barbeiro rodar os 5 checkouts de verdade (dashboard hoje
+   está com números inflados por teste, não por uso real).
 
 ## Gate de expansão
 Nada de tabela nova, feature nova, ou Blueprint V4 antes desse checkout real fechar.
-Esse checkout real já fechou (ver Estado atual) — próxima expansão pode ser discutida.
+Esse checkout real já fechou (ver Estado atual). Frontend patch (era a próxima
+expansão discutível) já foi decidido e executado — ver Estado atual. Próxima
+expansão real (pacotes, assinaturas, relatórios novos, etc.) seria migration 005+.
