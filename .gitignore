@@ -5,3 +5,4 @@ node_modules/
 backend/node_modules/
 data/backups/*.json
 *.log
+*.xlsx
