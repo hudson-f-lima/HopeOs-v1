@@ -8,6 +8,19 @@ const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
 const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
+const {
+  validateCreateServicoPayload,
+  validateUpdateServicoPayload,
+  validateCreateProfissionalPayload,
+  validateUpdateProfissionalPayload,
+  validateCreateProdutoPayload,
+  validateUpdateProdutoPayload,
+  validateEstoqueAjustePayload,
+  validateCreateFormaPagamentoPayload,
+  validateUpdateFormaPagamentoPayload,
+  validateProfissionalServicosPayload,
+  validateProfissionalServicoOverridePayload
+} = require('../validators/cadastros.validator');
 const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
 
@@ -26,6 +39,21 @@ async function requireActiveEntity(repo, table, id, label, notFoundCode) {
   if (!row) throw createAppError(notFoundCode, `${label} não encontrado: ${id}`, 422, { id });
   if (row.ativo === false) throw createAppError(notFoundCode.replace('_NOT_FOUND', '_INACTIVE'), `${label} inativo: ${id}`, 422, { id });
   return row;
+}
+
+async function requireScopedEntity(repo, table, id, label, notFoundCode) {
+  const row = await repo.getByIdScoped(table, id);
+  if (!row) throw createAppError(notFoundCode, `${label} nÃ£o encontrado: ${id}`, 404, { id });
+  return row;
+}
+
+function assertProdutoEconomics(produto) {
+  if (produto.ativo !== false && Number(produto.preco_venda_centavos || 0) < Number(produto.custo_centavos || 0)) {
+    throw createAppError('PRODUCT_BELOW_COST', 'Produto ativo nao pode vender abaixo do custo.', 422, {
+      custoCentavos: produto.custo_centavos,
+      precoVendaCentavos: produto.preco_venda_centavos
+    });
+  }
 }
 
 router.get('/data-contract', (req, res) => {
@@ -58,13 +86,166 @@ router.post('/clientes', async (req, res, next) => {
 });
 
 router.get('/servicos', async (req, res, next) => {
-  try { res.json({ ok: true, data: await new SupabaseRepository().list('servicos') }); }
+  try {
+    const repo = new SupabaseRepository();
+    res.json({ ok: true, data: await repo.list('servicos', { empresa_id: repo.empresaId }) });
+  }
   catch (err) { next(err); }
 });
 
+router.post('/servicos', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const payload = validateCreateServicoPayload(req.body);
+    res.status(201).json({ ok: true, data: await repo.insertScoped('servicos', payload) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/servicos/:id', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    await requireScopedEntity(repo, 'servicos', req.params.id, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+    const payload = validateUpdateServicoPayload(req.body);
+    res.json({ ok: true, data: await repo.updateScoped('servicos', req.params.id, payload) });
+  } catch (err) { next(err); }
+});
+
 router.get('/profissionais', async (req, res, next) => {
-  try { res.json({ ok: true, data: await new SupabaseRepository().list('profissionais') }); }
+  try {
+    const repo = new SupabaseRepository();
+    res.json({ ok: true, data: await repo.list('profissionais', { empresa_id: repo.empresaId }) });
+  }
   catch (err) { next(err); }
+});
+
+router.post('/profissionais', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const payload = validateCreateProfissionalPayload(req.body);
+    res.status(201).json({ ok: true, data: await repo.insertScoped('profissionais', payload) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/profissionais/:id', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    await requireScopedEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const payload = validateUpdateProfissionalPayload(req.body);
+    res.json({ ok: true, data: await repo.updateScoped('profissionais', req.params.id, payload) });
+  } catch (err) { next(err); }
+});
+
+router.get('/produtos', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    res.json({ ok: true, data: await repo.list('produtos', { empresa_id: repo.empresaId }) });
+  }
+  catch (err) { next(err); }
+});
+
+router.post('/produtos', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const { produto, estoqueInicial } = validateCreateProdutoPayload(req.body);
+    const data = await repo.createProdutoComEstoque({
+      produto,
+      estoqueInicial,
+      motivo: 'Estoque inicial do cadastro de produto'
+    });
+    res.status(201).json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.patch('/produtos/:id', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const existing = await requireScopedEntity(repo, 'produtos', req.params.id, 'Produto', 'PRODUCT_NOT_FOUND');
+    const payload = validateUpdateProdutoPayload(req.body);
+    const merged = { ...existing, ...payload };
+    assertProdutoEconomics(merged);
+    res.json({ ok: true, data: await repo.updateScoped('produtos', req.params.id, payload) });
+  } catch (err) { next(err); }
+});
+
+router.post('/produtos/:id/estoque/ajuste', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    await requireScopedEntity(repo, 'produtos', req.params.id, 'Produto', 'PRODUCT_NOT_FOUND');
+    const payload = validateEstoqueAjustePayload(req.body);
+    res.status(201).json({ ok: true, data: await repo.adjustProdutoEstoque(req.params.id, payload) });
+  } catch (err) { next(err); }
+});
+
+router.get('/formas-pagamento', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    res.json({ ok: true, data: await repo.list('formas_pagamento', { empresa_id: repo.empresaId }) });
+  }
+  catch (err) { next(err); }
+});
+
+router.post('/formas-pagamento', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const payload = validateCreateFormaPagamentoPayload(req.body);
+    const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: payload.code });
+    if (existing[0]) {
+      throw createAppError('PAYMENT_METHOD_ALREADY_EXISTS', `Forma de pagamento ja existe: ${payload.code}. Use PATCH /formas-pagamento/${payload.code} para editar.`, 409, { code: payload.code });
+    }
+    res.status(201).json({ ok: true, data: await repo.createFormaPagamento(payload) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/formas-pagamento/:code', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: req.params.code });
+    if (!existing[0]) throw createAppError('PAYMENT_METHOD_NOT_FOUND', `Forma de pagamento nÃ£o encontrada: ${req.params.code}`, 404, { code: req.params.code });
+    const payload = validateUpdateFormaPagamentoPayload(req.body);
+    res.json({ ok: true, data: await repo.updateFormaPagamento(req.params.code, payload) });
+  } catch (err) { next(err); }
+});
+
+router.get('/profissionais/:id/servicos', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    await requireScopedEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    res.json({ ok: true, data: await repo.list('profissional_servicos', { empresa_id: repo.empresaId, profissional_id: req.params.id }) });
+  } catch (err) { next(err); }
+});
+
+router.put('/profissionais/:id/servicos', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const profissional = await requireActiveEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const { servicoIds } = validateProfissionalServicosPayload(req.body);
+    for (const servicoId of servicoIds) {
+      await requireActiveEntity(repo, 'servicos', servicoId, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+    }
+    const data = await repo.replaceProfissionalServicos(profissional.id, servicoIds);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    await requireActiveEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    await requireActiveEntity(repo, 'servicos', req.params.servicoId, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+    const links = await repo.list('profissional_servicos', {
+      empresa_id: repo.empresaId,
+      profissional_id: req.params.id,
+      servico_id: req.params.servicoId
+    });
+    if (!links[0]) {
+      throw createAppError('SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL', 'ServiÃ§o nÃ£o vinculado ao profissional.', 422, {
+        profissionalId: req.params.id,
+        servicoId: req.params.servicoId
+      });
+    }
+    const payload = validateProfissionalServicoOverridePayload(req.body);
+    res.json({ ok: true, data: await repo.updateProfissionalServicoOverride(req.params.id, req.params.servicoId, payload) });
+  } catch (err) { next(err); }
 });
 
 router.get('/agenda', async (req, res, next) => {

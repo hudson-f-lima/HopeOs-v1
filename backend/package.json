@@ -12,7 +12,8 @@
     "test:finance": "node tests/finance-gate-v1.test.js",
     "test": "npm run test:gate",
     "test:rpc-lock": "node tests/rpc-permission-lock.test.js",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock",
+    "test:cadastros": "node tests/cadastros-reais-gate.test.js",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js"
   },

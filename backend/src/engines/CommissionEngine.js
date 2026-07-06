@@ -8,6 +8,10 @@ function calculateItemCommission(item) {
   const pct = Number(item.comissaoPct || 0);
   const modelo = item.modeloComissao || 'bruto_salao';
 
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    throw createAppError('COMMISSION_PCT_OUT_OF_RANGE', `Comissao invalida: ${pct}. Deve estar entre 0 e 100.`, 422, { comissaoPct: pct });
+  }
+
   let baseCalculoCentavos = valor;
   let comissaoCentavos = 0;
   let receitaEmpresaCentavos = 0;
