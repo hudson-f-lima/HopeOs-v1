@@ -961,6 +961,18 @@ async function patchAgendaStatus(id, novoStatus) {
   }
 }
 
+async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario) {
+  clearBanner();
+  try {
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario } });
+    closeNovoAgendamentoModal();
+    showBanner('Agendamento criado.', 'ok');
+    await loadWeekAgenda();
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
 /* ---------- Modal novo agendamento ---------- */
 function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || selectedDay || todayStr();
@@ -1206,14 +1218,20 @@ async function init() {
       return;
     }
     clearBanner();
-    try {
-      await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario } });
-      closeNovoAgendamentoModal();
-      showBanner('Agendamento criado.', 'ok');
-      await loadWeekAgenda();
-    } catch (err) {
-      showBanner(err.message, 'error');
+
+    const servico = catalog.servicos.find(s => s.id === servicoId);
+    const duracaoMin = servico ? (servico.duracao_min || 30) : 30;
+    const [h, m] = horario.split(':').map(Number);
+    const conflitos = detectConflict(profissionalId, data, h, m, duracaoMin, null);
+
+    if (conflitos.length > 0) {
+      showConflictDialog(profissionalId, data, h, m, duracaoMin, (horarioEscolhido) => {
+        criarAgendamento(clienteId, servicoId, profissionalId, data, horarioEscolhido);
+      });
+      return;
     }
+
+    await criarAgendamento(clienteId, servicoId, profissionalId, data, horario);
   });
 
   document.getElementById('btnCancelarReagendar').addEventListener('click', closeReagendarModal);
@@ -1410,12 +1428,12 @@ function hideResizeTooltip() {
   document.querySelectorAll('.resize-tooltip').forEach(el => el.remove());
 }
 
-function showConflictDialog(ag, targetProf, hora, min, conflitos) {
-  const profNome = catalog.profissionais.find(p => p.id === targetProf)?.nome || '';
+function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfirm) {
+  const profNome = catalog.profissionais.find(p => p.id === profissionalId)?.nome || '';
   const horario  = formatTime(hora, min);
 
-  const proximo  = proximoSlotLivre(targetProf, selectedDay,
-                     ag.duracao_min || 30, (hora - HORA_INICIO) * 60 + min);
+  const proximo  = proximoSlotLivre(profissionalId, data,
+                     duracaoMin || 30, (hora - HORA_INICIO) * 60 + min);
   const proximoLabel = proximo
     ? `📍 ${formatTime(proximo.hora, proximo.min)}`
     : null;
@@ -1453,14 +1471,13 @@ function showConflictDialog(ag, targetProf, hora, min, conflitos) {
 
   document.getElementById('btn-encaixar').onclick = () => {
     dialog.close();
-    executarReagendar(ag.id, targetProf, selectedDay, horario);
+    onConfirm(horario);
   };
 
   if (proximo) {
     document.getElementById('btn-proximo').onclick = () => {
       dialog.close();
-      executarReagendar(ag.id, targetProf, selectedDay,
-        formatTime(proximo.hora, proximo.min));
+      onConfirm(formatTime(proximo.hora, proximo.min));
     };
   }
 
@@ -1572,7 +1589,9 @@ function onDragEnd(e) {
   );
 
   if (conflitos.length > 0) {
-    showConflictDialog(ag, dragging.targetProf, hora, mins, conflitos);
+    showConflictDialog(dragging.targetProf, selectedDay, hora, mins, ag.duracao_min || 30, (horarioEscolhido) => {
+      executarReagendar(ag.id, dragging.targetProf, selectedDay, horarioEscolhido);
+    });
   } else {
     executarReagendar(ag.id, dragging.targetProf, selectedDay, formatTime(hora, mins));
   }
