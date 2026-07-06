@@ -412,18 +412,15 @@ dialog {
     <h2>Novo agendamento</h2>
     <div class="field">
       <label>Cliente (opcional)</label>
-      <input id="agClienteSearch" type="text" placeholder="🔍 Digite para filtrar cliente..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-      <select id="agCliente"><option value="">Sem cliente</option></select>
+      <input id="agCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label>Serviço</label>
-      <input id="agServicoSearch" type="text" placeholder="🔍 Digite para filtrar serviço..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-      <select id="agServico"><option value="">Selecione…</option></select>
+      <input id="agServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label>Profissional</label>
-      <input id="agProfissionalSearch" type="text" placeholder="🔍 Digite para filtrar profissional..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-      <select id="agProfissional"><option value="">Selecione…</option></select>
+      <input id="agProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label>Data</label>
@@ -454,13 +451,11 @@ dialog {
     </div>
     <div class="field">
       <label>Novo serviço (opcional)</label>
-      <input id="reNovoServicoSearch" type="text" placeholder="🔍 Digite para filtrar serviço..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-      <select id="reNovoServico"><option value="">Manter serviço atual</option></select>
+      <input id="reNovoServico" type="text" placeholder="🔍 Manter serviço atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label>Novo profissional (opcional)</label>
-      <input id="reNovoProfissionalSearch" type="text" placeholder="🔍 Digite para filtrar profissional..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-      <select id="reNovoProfissional"><option value="">Manter profissional atual</option></select>
+      <input id="reNovoProfissional" type="text" placeholder="🔍 Manter profissional atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarReagendar" style="flex:1;">Cancelar</button>
@@ -540,147 +535,6 @@ function showBanner(message, type) {
 }
 function clearBanner() { document.getElementById('banner').innerHTML = ''; }
 
-function fillSelect(selectEl, items, labelFn, valueFn) {
-  selectEl.innerHTML = selectEl.querySelector('option[value=""]').outerHTML;
-  for (const item of items) {
-    const opt = document.createElement('option');
-    opt.value = valueFn(item);
-    opt.textContent = labelFn(item);
-    selectEl.appendChild(opt);
-  }
-}
-
-/* ---------- Fuzzy Search & Cross Filtering Helpers ---------- */
-function fuzzyMatch(haystack, query) {
-  if (!query) return true;
-  const hay = String(haystack).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const que = String(query).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  
-  let i = 0, n = -1;
-  for (let c of que) {
-    n = hay.indexOf(c, n + 1);
-    if (n === -1) return false;
-  }
-  return true;
-}
-
-// 1. Novo Agendamento
-function rebuildAgCliente(searchQuery = '') {
-  const selectEl = document.getElementById('agCliente');
-  const currentValue = selectEl.value;
-  let list = catalog.clientes || [];
-  if (searchQuery) {
-    list = list.filter(c => fuzzyMatch(c.nome, searchQuery) || fuzzyMatch(c.whatsapp, searchQuery));
-  }
-  fillSelect(selectEl, list, c => c.nome, c => c.id);
-  if (list.some(c => c.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildAgServico(selectedProfId, searchQuery = '') {
-  const selectEl = document.getElementById('agServico');
-  const currentValue = selectEl.value;
-  let list = (catalog.servicos || []).filter(s => s.ativo !== false);
-  
-  if (selectedProfId) {
-    const links = catalog.profissional_servicos || [];
-    const linkedServiceIds = links
-      .filter(l => l.profissional_id === selectedProfId)
-      .map(l => l.servico_id);
-    list = list.filter(s => linkedServiceIds.includes(s.id));
-  }
-  
-  if (searchQuery) {
-    list = list.filter(s => fuzzyMatch(s.nome, searchQuery));
-  }
-  
-  fillSelect(selectEl, list, s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
-  if (list.some(s => s.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildAgProfissional(selectedServiceId, searchQuery = '') {
-  const selectEl = document.getElementById('agProfissional');
-  const currentValue = selectEl.value;
-  let list = (catalog.profissionais || []).filter(p => p.ativo !== false);
-  
-  if (selectedServiceId) {
-    const links = catalog.profissional_servicos || [];
-    const linkedProfIds = links
-      .filter(l => l.servico_id === selectedServiceId)
-      .map(l => l.profissional_id);
-    list = list.filter(p => linkedProfIds.includes(p.id));
-  }
-  
-  if (searchQuery) {
-    list = list.filter(p => fuzzyMatch(p.nome, searchQuery));
-  }
-  
-  fillSelect(selectEl, list, p => p.nome, p => p.id);
-  if (list.some(p => p.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-// 2. Reagendamento
-function rebuildReNovoServico(selectedProfId, searchQuery = '') {
-  const selectEl = document.getElementById('reNovoServico');
-  const currentValue = selectEl.value;
-  let list = (catalog.servicos || []).filter(s => s.ativo !== false);
-  
-  if (selectedProfId) {
-    const links = catalog.profissional_servicos || [];
-    const linkedServiceIds = links
-      .filter(l => l.profissional_id === selectedProfId)
-      .map(l => l.servico_id);
-    list = list.filter(s => linkedServiceIds.includes(s.id));
-  }
-  
-  if (searchQuery) {
-    list = list.filter(s => fuzzyMatch(s.nome, searchQuery));
-  }
-  
-  fillSelect(selectEl, list, s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
-  if (list.some(s => s.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildReNovoProfissional(selectedServiceId, searchQuery = '') {
-  const selectEl = document.getElementById('reNovoProfissional');
-  const currentValue = selectEl.value;
-  let list = (catalog.profissionais || []).filter(p => p.ativo !== false);
-  
-  if (selectedServiceId) {
-    const links = catalog.profissional_servicos || [];
-    const linkedProfIds = links
-      .filter(l => l.servico_id === selectedServiceId)
-      .map(l => l.profissional_id);
-    list = list.filter(p => linkedProfIds.includes(p.id));
-  }
-  
-  if (searchQuery) {
-    list = list.filter(p => fuzzyMatch(p.nome, searchQuery));
-  }
-  
-  fillSelect(selectEl, list, p => p.nome, p => p.id);
-  if (list.some(p => p.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
 /* ---------- State ---------- */
 let catalog = { clientes: [], servicos: [], produtos: [], profissionais: [], formas_pagamento: [] };
 let currentWeekStart = startOfWeek(todayStr());
@@ -692,6 +546,8 @@ let activeTab = 'agenda';
 let dragging = null;
 let resizing = null;
 let fuzzyCliente, fuzzyServico, fuzzyProduto, fuzzyProfissional, fuzzyForma;
+let fuzzyAgCliente, fuzzyAgServico, fuzzyAgProfissional;
+let fuzzyReNovoServico, fuzzyReNovoProfissional;
 
 const AGENDA_STATUS_META = {
   agendado: { label: 'Agendado', cls: 'badge' },
@@ -723,23 +579,6 @@ function showTab(name) {
 /* ---------- Catalog ---------- */
 async function loadCatalog() {
   catalog = await api('/catalog');
-
-  // Limpar inputs de busca (modal novo agendamento)
-  document.getElementById('agClienteSearch').value = '';
-  document.getElementById('agServicoSearch').value = '';
-  document.getElementById('agProfissionalSearch').value = '';
-
-  // Limpar inputs de busca (modal reagendamento)
-  document.getElementById('reNovoServicoSearch').value = '';
-  document.getElementById('reNovoProfissionalSearch').value = '';
-
-  // Preencher via rebuilders
-  rebuildAgCliente();
-  rebuildAgServico();
-  rebuildAgProfissional();
-
-  rebuildReNovoServico();
-  rebuildReNovoProfissional();
 }
 
 /* ---------- Agenda: semana + filtro por profissional + timeline por minuto ---------- */
@@ -1046,7 +885,7 @@ function onTimelineClick(ev) {
 }
 
 function updateNovoAgendamentoPreview() {
-  const servicoId = document.getElementById('agServico').value;
+  const servicoId = fuzzyAgServico.getValue();
   const horario = document.getElementById('agHorario').value;
   const el = document.getElementById('agDuracaoPreview');
   if (!servicoId || !horario) { el.textContent = ''; return; }
@@ -1126,20 +965,19 @@ async function patchAgendaStatus(id, novoStatus) {
 function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || selectedDay || todayStr();
 
-  // Limpar buscas e reconstruir selects do novo agendamento
-  document.getElementById('agClienteSearch').value = '';
-  document.getElementById('agServicoSearch').value = '';
-  document.getElementById('agProfissionalSearch').value = '';
-  rebuildAgCliente();
-  rebuildAgServico(profissionalId || '');
-  rebuildAgProfissional('');
+  // Reseta os fuzzy fields e a lista completa (sem cross-filter ainda)
+  fuzzyAgCliente.clear();
+  fuzzyAgServico.setItems(catalog.servicos.filter(s => s.ativo !== false));
+  fuzzyAgServico.clear();
+  fuzzyAgProfissional.setItems(catalog.profissionais.filter(p => p.ativo !== false));
 
-  document.getElementById('agCliente').value = '';
-  document.getElementById('agServico').value = '';
-  document.getElementById('agProfissional').value = profissionalId || '';
-  
   if (profissionalId) {
-    rebuildAgServico(profissionalId);
+    fuzzyAgProfissional.setValue(profissionalId);
+    const links = catalog.profissional_servicos || [];
+    const linkedServiceIds = links.filter(l => l.profissional_id === profissionalId).map(l => l.servico_id);
+    fuzzyAgServico.setItems(catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
+  } else {
+    fuzzyAgProfissional.clear();
   }
 
   document.getElementById('agData').value = date;
@@ -1154,17 +992,23 @@ function closeNovoAgendamentoModal() {
 /* ---------- Modal reagendar ---------- */
 function openReagendarModal(item) {
   reagendarAlvoId = item.id;
-  
-  // Limpar buscas e reconstruir selects do reagendamento
-  document.getElementById('reNovoServicoSearch').value = '';
-  document.getElementById('reNovoProfissionalSearch').value = '';
-  rebuildReNovoServico(item.profissional_id || item.profissionalId || '');
-  rebuildReNovoProfissional(item.servico_id || item.servicoId || '');
+
+  const profissionalAtualId = item.profissional_id || item.profissionalId || '';
+  const servicoAtualId = item.servico_id || item.servicoId || '';
+  const links = catalog.profissional_servicos || [];
+
+  // Serviço: filtra pelos serviços do profissional ATUAL do agendamento (mantém opção de trocar sem trocar prof.)
+  const linkedServiceIds = links.filter(l => l.profissional_id === profissionalAtualId).map(l => l.servico_id);
+  fuzzyReNovoServico.setItems(catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
+  fuzzyReNovoServico.clear();
+
+  // Profissional: filtra pelos profissionais que fazem o serviço ATUAL do agendamento
+  const linkedProfIds = links.filter(l => l.servico_id === servicoAtualId).map(l => l.profissional_id);
+  fuzzyReNovoProfissional.setItems(catalog.profissionais.filter(p => p.ativo !== false && linkedProfIds.includes(p.id)));
+  fuzzyReNovoProfissional.clear();
 
   document.getElementById('reNovaData').value = item.data;
   document.getElementById('reNovoHorario').value = String(item.horario || '').slice(0, 5);
-  document.getElementById('reNovoServico').value = '';
-  document.getElementById('reNovoProfissional').value = '';
   document.getElementById('modalReagendar').classList.remove('hidden');
 }
 function closeReagendarModal() {
@@ -1341,7 +1185,6 @@ async function init() {
     });
   }
 
-  document.getElementById('agServico').addEventListener('change', updateNovoAgendamentoPreview);
   document.getElementById('agHorario').addEventListener('input', updateNovoAgendamentoPreview);
 
   setInterval(() => { if (activeTab === 'agenda') positionRedline(); }, 30000);
@@ -1353,9 +1196,9 @@ async function init() {
 
   document.getElementById('btnCancelarNovoAgendamento').addEventListener('click', closeNovoAgendamentoModal);
   document.getElementById('btnConfirmarNovoAgendamento').addEventListener('click', async () => {
-    const clienteId = document.getElementById('agCliente').value || null;
-    const servicoId = document.getElementById('agServico').value;
-    const profissionalId = document.getElementById('agProfissional').value;
+    const clienteId = fuzzyAgCliente.getValue() || null;
+    const servicoId = fuzzyAgServico.getValue();
+    const profissionalId = fuzzyAgProfissional.getValue();
     const data = document.getElementById('agData').value;
     const horario = document.getElementById('agHorario').value;
     if (!servicoId || !profissionalId || !data || !horario) {
@@ -1379,8 +1222,8 @@ async function init() {
     const novaData = document.getElementById('reNovaData').value;
     const novoHorario = document.getElementById('reNovoHorario').value;
     if (!novaData || !novoHorario) { showBanner('Informe nova data e horário.', 'error'); return; }
-    const novoServicoId = document.getElementById('reNovoServico').value || undefined;
-    const novoProfissionalId = document.getElementById('reNovoProfissional').value || undefined;
+    const novoServicoId = fuzzyReNovoServico.getValue() || undefined;
+    const novoProfissionalId = fuzzyReNovoProfissional.getValue() || undefined;
     clearBanner();
     try {
       await api(`/agenda/${reagendarAlvoId}/status`, {
@@ -1432,6 +1275,55 @@ async function init() {
       labelFn: f => f.label,
       valueFn: f => f.code,
       onSelect: (code) => { clearBanner(); }
+    });
+
+    // Fuzzy search fields (modal novo agendamento) com cross-filter serviço <-> profissional
+    fuzzyAgCliente = new FuzzyField('agCliente', catalog.clientes, {
+      labelFn: c => c.nome,
+      valueFn: c => c.id,
+      onSelect: () => {}
+    });
+
+    fuzzyAgServico = new FuzzyField('agServico', catalog.servicos.filter(s => s.ativo !== false), {
+      labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
+      valueFn: s => s.id,
+      onSelect: (servicoId) => {
+        const links = catalog.profissional_servicos || [];
+        const linkedProfIds = links.filter(l => l.servico_id === servicoId).map(l => l.profissional_id);
+        fuzzyAgProfissional.setItems(catalog.profissionais.filter(p => p.ativo !== false && linkedProfIds.includes(p.id)));
+        updateNovoAgendamentoPreview();
+      }
+    });
+
+    fuzzyAgProfissional = new FuzzyField('agProfissional', catalog.profissionais.filter(p => p.ativo !== false), {
+      labelFn: p => p.nome,
+      valueFn: p => p.id,
+      onSelect: (profissionalId) => {
+        const links = catalog.profissional_servicos || [];
+        const linkedServiceIds = links.filter(l => l.profissional_id === profissionalId).map(l => l.servico_id);
+        fuzzyAgServico.setItems(catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
+      }
+    });
+
+    // Fuzzy search fields (modal reagendar) com o mesmo cross-filter
+    fuzzyReNovoServico = new FuzzyField('reNovoServico', catalog.servicos.filter(s => s.ativo !== false), {
+      labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
+      valueFn: s => s.id,
+      onSelect: (servicoId) => {
+        const links = catalog.profissional_servicos || [];
+        const linkedProfIds = links.filter(l => l.servico_id === servicoId).map(l => l.profissional_id);
+        fuzzyReNovoProfissional.setItems(catalog.profissionais.filter(p => p.ativo !== false && linkedProfIds.includes(p.id)));
+      }
+    });
+
+    fuzzyReNovoProfissional = new FuzzyField('reNovoProfissional', catalog.profissionais.filter(p => p.ativo !== false), {
+      labelFn: p => p.nome,
+      valueFn: p => p.id,
+      onSelect: (profissionalId) => {
+        const links = catalog.profissional_servicos || [];
+        const linkedServiceIds = links.filter(l => l.profissional_id === profissionalId).map(l => l.servico_id);
+        fuzzyReNovoServico.setItems(catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
+      }
     });
 
     await loadWeekAgenda();
@@ -1929,6 +1821,20 @@ class FuzzyField {
     if (item) {
       this.input.value = this.labelFn(item);
     }
+  }
+
+  setItems(newItems) {
+    this.items = newItems;
+    // Se o valor selecionado não existe mais na nova lista (cross-filter), limpa
+    if (this.selectedValue && !newItems.some(i => this.valueFn(i) === this.selectedValue)) {
+      this.clear();
+    }
+  }
+
+  clear() {
+    this.input.value = '';
+    this.selectedValue = null;
+    this.closeDropdown();
   }
 }
 
