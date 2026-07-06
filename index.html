@@ -13,18 +13,53 @@
 <title>HOPE OS — Comanda</title>
 <style>
 :root{
-  --md-primary:#7c3aed;
-  --md-on-primary:#ffffff;
-  --md-surface:#fffbfe;
-  --md-surface-variant:#e7e0ec;
-  --md-on-surface:#1c1b1f;
-  --md-outline:#79747e;
-  --md-error:#b3261e;
-  --md-success:#16a34a;
-  --md-info:#2563eb;
-  --md-neutral:#6b6b78;
-  --elevation-1:0 1px 2px rgba(0,0,0,.30),0 1px 3px 1px rgba(0,0,0,.15);
-  --elevation-2:0 1px 2px rgba(0,0,0,.30),0 2px 6px 2px rgba(0,0,0,.15);
+  /* Dark mode (default) */
+  --bg:#0f0f11;
+  --surface:#18181b;
+  --surface-variant:#2a2a30;
+  --on-surface:#e8e8ea;
+  --outline:#79747e;
+
+  /* Primary + semantic */
+  --primary:#7c6af7;
+  --on-primary:#ffffff;
+  --success:#22c55e;
+  --error:#ef4444;
+  --info:#3b82f6;
+  --warning:#f59e0b;
+
+  /* Glass */
+  --glass:rgba(255,255,255,0.08);
+  --glass-border:rgba(255,255,255,0.12);
+
+  /* Elevation */
+  --elevation-1:0 4px 12px rgba(0,0,0,0.24);
+  --elevation-2:0 8px 24px rgba(0,0,0,0.32);
+
+  /* Legacy MD3 compat */
+  --md-primary:var(--primary);
+  --md-on-primary:var(--on-primary);
+  --md-surface:var(--surface);
+  --md-surface-variant:var(--surface-variant);
+  --md-on-surface:var(--on-surface);
+  --md-outline:var(--outline);
+  --md-error:var(--error);
+  --md-success:var(--success);
+  --md-info:var(--info);
+  --md-neutral:#999;
+}
+
+/* Light mode (opcional, media query) */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:#f5f3ff;
+    --surface:#ffffff;
+    --surface-variant:#f0f0f3;
+    --on-surface:#1a1a1f;
+    --outline:#74748a;
+    --glass:rgba(0,0,0,0.04);
+    --glass-border:rgba(0,0,0,0.08);
+  }
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--md-surface-variant);color:var(--md-on-surface);font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
@@ -72,7 +107,8 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .day-pill.selected{background:var(--md-primary);color:var(--md-on-primary);}
 .day-pill.selected .pill-weekday{color:var(--md-on-primary);opacity:.85;}
 
-.prof-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.prof-filter{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-bottom:10px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+.prof-filter-btn{flex:0 0 auto;white-space:nowrap;}
 .prof-filter-btn{padding:6px 12px;border-radius:20px;font-size:11px;font-weight:700;background:var(--md-surface-variant);color:var(--md-on-surface);border:2px solid transparent;display:flex;align-items:center;gap:5px;}
 .prof-filter-btn .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
 .prof-filter-btn.selected{border-color:currentColor;}
@@ -201,6 +237,16 @@ dialog {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   padding: 0;
 }
+
+/* Responsive timeline: week ≥768px, day <768px */
+@media (max-width: 767px) {
+  .timeline-container { height: 450px; }
+  .prof-col { min-width: 100px; }
+}
+@media (min-width: 768px) {
+  .timeline-container { height: 600px; }
+  .prof-col { min-width: 120px; }
+}
 </style>
 </head>
 <body>
@@ -257,27 +303,23 @@ dialog {
         <h2>Nova comanda</h2>
         <div class="field">
           <label>Cliente (opcional)</label>
-          <input id="coClienteSearch" type="text" placeholder="🔍 Digite para filtrar cliente..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-          <select id="coCliente"><option value="">Sem cliente</option></select>
+          <input id="coCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
         </div>
         <div class="field">
           <label>Serviço</label>
-          <input id="coServicoSearch" type="text" placeholder="🔍 Digite para filtrar serviço..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-          <select id="coServico"><option value="">Selecione…</option></select>
+          <input id="coServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
         </div>
         <div class="field">
           <label>Produto (opcional)</label>
-          <input id="coProdutoSearch" type="text" placeholder="🔍 Digite para filtrar produto..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-          <select id="coProduto"><option value="">Sem produto</option></select>
+          <input id="coProduto" type="text" placeholder="🔍 Digite produto..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
         </div>
         <div class="field">
           <label>Profissional</label>
-          <input id="coProfissionalSearch" type="text" placeholder="🔍 Digite para filtrar profissional..." style="margin-bottom:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--md-outline); font-family:inherit; font-size:13px; width:100%; box-sizing:border-box;" />
-          <select id="coProfissional"><option value="">Selecione…</option></select>
+          <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
         </div>
         <div class="field">
           <label>Forma de pagamento</label>
-          <select id="coForma"><option value="">Selecione…</option></select>
+          <input id="coForma" type="text" placeholder="🔍 Digite forma..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
         </div>
         <div class="field">
           <label>Gorjeta (R$)</label>
@@ -639,67 +681,6 @@ function rebuildReNovoProfissional(selectedServiceId, searchQuery = '') {
   }
 }
 
-// 3. Checkout (Comanda)
-function rebuildCoCliente(searchQuery = '') {
-  const selectEl = document.getElementById('coCliente');
-  const currentValue = selectEl.value;
-  let list = catalog.clientes || [];
-  if (searchQuery) {
-    list = list.filter(c => fuzzyMatch(c.nome, searchQuery) || fuzzyMatch(c.whatsapp, searchQuery));
-  }
-  fillSelect(selectEl, list, c => c.nome, c => c.id);
-  if (list.some(c => c.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildCoServico(searchQuery = '') {
-  const selectEl = document.getElementById('coServico');
-  const currentValue = selectEl.value;
-  let list = (catalog.servicos || []).filter(s => s.ativo !== false);
-  if (searchQuery) {
-    list = list.filter(s => fuzzyMatch(s.nome, searchQuery));
-  }
-  fillSelect(selectEl, list, s => `${s.nome} (${centsToBRL(s.valor_centavos)})`, s => s.id);
-  if (list.some(s => s.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildCoProduto(searchQuery = '') {
-  const selectEl = document.getElementById('coProduto');
-  const currentValue = selectEl.value;
-  let list = (catalog.produtos || []).filter(p => p.ativo !== false);
-  if (searchQuery) {
-    list = list.filter(p => fuzzyMatch(p.nome, searchQuery));
-  }
-  fillSelect(selectEl, list, p => `${p.nome} (${centsToBRL(p.preco_venda_centavos)})`, p => p.id);
-  if (list.some(p => p.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
-function rebuildCoProfissional(searchQuery = '') {
-  const selectEl = document.getElementById('coProfissional');
-  const currentValue = selectEl.value;
-  let list = (catalog.profissionais || []).filter(p => p.ativo !== false);
-  if (searchQuery) {
-    list = list.filter(p => fuzzyMatch(p.nome, searchQuery));
-  }
-  fillSelect(selectEl, list, p => p.nome, p => p.id);
-  if (list.some(p => p.id === currentValue)) {
-    selectEl.value = currentValue;
-  } else {
-    selectEl.value = '';
-  }
-}
-
 /* ---------- State ---------- */
 let catalog = { clientes: [], servicos: [], produtos: [], profissionais: [], formas_pagamento: [] };
 let currentWeekStart = startOfWeek(todayStr());
@@ -710,6 +691,7 @@ let reagendarAlvoId = null;
 let activeTab = 'agenda';
 let dragging = null;
 let resizing = null;
+let fuzzyCliente, fuzzyServico, fuzzyProduto, fuzzyProfissional, fuzzyForma;
 
 const AGENDA_STATUS_META = {
   agendado: { label: 'Agendado', cls: 'badge' },
@@ -741,27 +723,17 @@ function showTab(name) {
 /* ---------- Catalog ---------- */
 async function loadCatalog() {
   catalog = await api('/catalog');
-  
-  // Limpar inputs de busca
-  document.getElementById('coClienteSearch').value = '';
-  document.getElementById('coServicoSearch').value = '';
-  document.getElementById('coProdutoSearch').value = '';
-  document.getElementById('coProfissionalSearch').value = '';
 
+  // Limpar inputs de busca (modal novo agendamento)
   document.getElementById('agClienteSearch').value = '';
   document.getElementById('agServicoSearch').value = '';
   document.getElementById('agProfissionalSearch').value = '';
 
+  // Limpar inputs de busca (modal reagendamento)
   document.getElementById('reNovoServicoSearch').value = '';
   document.getElementById('reNovoProfissionalSearch').value = '';
 
   // Preencher via rebuilders
-  rebuildCoCliente();
-  rebuildCoServico();
-  rebuildCoProduto();
-  rebuildCoProfissional();
-  fillSelect(document.getElementById('coForma'), catalog.formas_pagamento.filter(f => f.ativo !== false), f => f.label, f => f.code);
-
   rebuildAgCliente();
   rebuildAgServico();
   rebuildAgProfissional();
@@ -1202,10 +1174,10 @@ function closeReagendarModal() {
 
 /* ---------- Checkout ---------- */
 function buildPayload() {
-  const servicoId = document.getElementById('coServico').value;
-  const profissionalId = document.getElementById('coProfissional').value;
-  const formaCode = document.getElementById('coForma').value;
-  const clienteId = document.getElementById('coCliente').value;
+  const servicoId = fuzzyServico.getValue();
+  const profissionalId = fuzzyProfissional.getValue();
+  const formaCode = fuzzyForma.getValue();
+  const clienteId = fuzzyCliente.getValue();
   const gorjetaCentavos = brlToCents(document.getElementById('coGorjeta').value);
 
   if (!servicoId) throw new Error('Selecione um serviço.');
@@ -1216,7 +1188,7 @@ function buildPayload() {
   const valorServicoCentavos = servico ? servico.valor_centavos : 0;
   const itens = [{ tipo: 'servico', servicoId, profissionalId }];
 
-  const produtoId = document.getElementById('coProduto').value;
+  const produtoId = fuzzyProduto.getValue();
   let valorProdutoCentavos = 0;
   if (produtoId) {
     const produto = catalog.produtos.find(p => p.id === produtoId);
@@ -1290,10 +1262,10 @@ async function fechar() {
 
 function prefillCheckoutFromAgendamento(item) {
   agendamentoIdParaCheckout = item.id;
-  document.getElementById('coCliente').value = item.cliente_id || '';
-  document.getElementById('coServico').value = item.servico_id || '';
-  document.getElementById('coProfissional').value = item.profissional_id || '';
-  document.getElementById('coProduto').value = '';
+  fuzzyCliente.setValue(item.cliente_id || null);
+  fuzzyServico.setValue(item.servico_id || null);
+  fuzzyProfissional.setValue(item.profissional_id || null);
+  fuzzyProduto.setValue(null);
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('cardResultado').classList.add('hidden');
   currentPayload = null;
@@ -1430,6 +1402,38 @@ async function init() {
   try {
     await loadConfig();
     await loadCatalog();
+
+    // Fuzzy search fields (checkout)
+    fuzzyCliente = new FuzzyField('coCliente', catalog.clientes, {
+      labelFn: c => c.nome,
+      valueFn: c => c.id,
+      onSelect: (id) => { agendamentoIdParaCheckout = null; clearBanner(); }
+    });
+
+    fuzzyServico = new FuzzyField('coServico', catalog.servicos.filter(s => s.ativo !== false), {
+      labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
+      valueFn: s => s.id,
+      onSelect: (id) => { clearBanner(); }
+    });
+
+    fuzzyProduto = new FuzzyField('coProduto', (catalog.produtos || []).filter(p => p.ativo !== false), {
+      labelFn: p => `${p.nome} (${centsToBRL(p.preco_venda_centavos)})`,
+      valueFn: p => p.id,
+      onSelect: (id) => { clearBanner(); }
+    });
+
+    fuzzyProfissional = new FuzzyField('coProfissional', catalog.profissionais.filter(p => p.ativo !== false), {
+      labelFn: p => p.nome,
+      valueFn: p => p.id,
+      onSelect: (id) => { clearBanner(); }
+    });
+
+    fuzzyForma = new FuzzyField('coForma', catalog.formas_pagamento.filter(f => f.ativo !== false), {
+      labelFn: f => f.label,
+      valueFn: f => f.code,
+      onSelect: (code) => { clearBanner(); }
+    });
+
     await loadWeekAgenda();
     await atualizarDashboard();
   } catch (err) {
@@ -1830,70 +1834,103 @@ document.getElementById('timelineCols').addEventListener('touchmove', e => {
   }
 }, { passive: true });
 
-// Search & cross-filtering event listeners
-document.getElementById('agClienteSearch').addEventListener('input', e => {
-  rebuildAgCliente(e.target.value);
-});
+// Fuzzy search component: substitui 2 campos (input+select) por 1 input flutuante
+class FuzzyField {
+  constructor(inputId, items, { labelFn, valueFn, onSelect }) {
+    this.input = document.getElementById(inputId);
+    this.items = items;
+    this.labelFn = labelFn;
+    this.valueFn = valueFn;
+    this.onSelect = onSelect;
+    this.dropdown = null;
+    this.selectedValue = null;
 
-document.getElementById('agServicoSearch').addEventListener('input', e => {
-  const profId = document.getElementById('agProfissional').value;
-  rebuildAgServico(profId, e.target.value);
-});
+    this.input.addEventListener('input', (e) => this.onInput(e));
+    this.input.addEventListener('blur', () => setTimeout(() => this.closeDropdown(), 200));
+    this.input.addEventListener('focus', () => this.onInput({ target: this.input }));
+  }
 
-document.getElementById('agProfissionalSearch').addEventListener('input', e => {
-  const servId = document.getElementById('agServico').value;
-  rebuildAgProfissional(servId, e.target.value);
-});
+  fuzzyMatch(query, text) {
+    const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const t = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (!q) return true;
+    if (t.includes(q)) return 0; // prefix match = score 0 (best)
+    let score = 0, qi = 0;
+    for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+      if (t[ti] === q[qi]) { score += 1; qi++; }
+      else { score += 2; }
+    }
+    return qi === q.length ? score : Infinity;
+  }
 
-document.getElementById('agServico').addEventListener('change', () => {
-  const servId = document.getElementById('agServico').value;
-  const profSearchQuery = document.getElementById('agProfissionalSearch').value;
-  rebuildAgProfissional(servId, profSearchQuery);
-});
+  onInput(e) {
+    const query = e.target.value.trim();
+    const matches = this.items
+      .map(item => ({ item, score: this.fuzzyMatch(query, this.labelFn(item)) }))
+      .filter(m => m.score < Infinity)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 8);
 
-document.getElementById('agProfissional').addEventListener('change', () => {
-  const profId = document.getElementById('agProfissional').value;
-  const servSearchQuery = document.getElementById('agServicoSearch').value;
-  rebuildAgServico(profId, servSearchQuery);
-});
+    this.showDropdown(matches.map(m => m.item));
+  }
 
-document.getElementById('reNovoServicoSearch').addEventListener('input', e => {
-  const profId = document.getElementById('reNovoProfissional').value;
-  rebuildReNovoServico(profId, e.target.value);
-});
+  showDropdown(filtered) {
+    if (!this.dropdown) {
+      this.dropdown = document.createElement('div');
+      this.dropdown.style.cssText = `
+        position: absolute; top: 100%; left: 0; right: 0;
+        background: var(--surface); border: 1px solid var(--surface-variant);
+        border-radius: 8px; margin-top: 2px; max-height: 200px; overflow-y: auto;
+        z-index: 1000; box-shadow: var(--elevation-1);
+      `;
+      this.input.parentElement.style.position = 'relative';
+      this.input.parentElement.appendChild(this.dropdown);
+    }
 
-document.getElementById('reNovoProfissionalSearch').addEventListener('input', e => {
-  const servId = document.getElementById('reNovoServico').value;
-  rebuildReNovoProfissional(servId, e.target.value);
-});
+    if (!filtered.length) {
+      this.dropdown.innerHTML = '<div style="padding: 8px; color: var(--outline); font-size: 12px;">Sem resultados</div>';
+      return;
+    }
 
-document.getElementById('reNovoServico').addEventListener('change', () => {
-  const servId = document.getElementById('reNovoServico').value;
-  const profSearchQuery = document.getElementById('reNovoProfissionalSearch').value;
-  rebuildReNovoProfissional(servId, profSearchQuery);
-});
+    this.dropdown.innerHTML = filtered
+      .map((item, i) => {
+        const label = this.labelFn(item);
+        const value = this.valueFn(item);
+        return `<div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--surface-variant); font-size: 13px;" data-value="${value}" data-label="${label}">
+          ${label}
+        </div>`;
+      })
+      .join('');
 
-document.getElementById('reNovoProfissional').addEventListener('change', () => {
-  const profId = document.getElementById('reNovoProfissional').value;
-  const servSearchQuery = document.getElementById('reNovoServicoSearch').value;
-  rebuildReNovoServico(profId, servSearchQuery);
-});
+    this.dropdown.querySelectorAll('div[data-value]').forEach(el => {
+      el.addEventListener('click', () => {
+        this.input.value = el.dataset.label;
+        this.selectedValue = el.dataset.value;
+        this.onSelect(this.selectedValue);
+        this.closeDropdown();
+      });
+    });
+  }
 
-document.getElementById('coClienteSearch').addEventListener('input', e => {
-  rebuildCoCliente(e.target.value);
-});
+  closeDropdown() {
+    if (this.dropdown) {
+      this.dropdown.innerHTML = '';
+      this.dropdown.style.display = 'none';
+    }
+  }
 
-document.getElementById('coServicoSearch').addEventListener('input', e => {
-  rebuildCoServico(e.target.value);
-});
+  getValue() {
+    return this.selectedValue;
+  }
 
-document.getElementById('coProdutoSearch').addEventListener('input', e => {
-  rebuildCoProduto(e.target.value);
-});
-
-document.getElementById('coProfissionalSearch').addEventListener('input', e => {
-  rebuildCoProfissional(e.target.value);
-});
+  setValue(value) {
+    this.selectedValue = value;
+    const item = this.items.find(i => this.valueFn(i) === value);
+    if (item) {
+      this.input.value = this.labelFn(item);
+    }
+  }
+}
 
 init();
 </script>
