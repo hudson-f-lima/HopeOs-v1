@@ -961,10 +961,10 @@ async function patchAgendaStatus(id, novoStatus) {
   }
 }
 
-async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario) {
+async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito) {
   clearBanner();
   try {
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario } });
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito } });
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
     await loadWeekAgenda();
@@ -1225,8 +1225,8 @@ async function init() {
     const conflitos = detectConflict(profissionalId, data, h, m, duracaoMin, null);
 
     if (conflitos.length > 0) {
-      showConflictDialog(profissionalId, data, h, m, duracaoMin, (horarioEscolhido) => {
-        criarAgendamento(clienteId, servicoId, profissionalId, data, horarioEscolhido);
+      showConflictDialog(profissionalId, data, h, m, duracaoMin, (horarioEscolhido, forced) => {
+        criarAgendamento(clienteId, servicoId, profissionalId, data, horarioEscolhido, forced);
       });
       return;
     }
@@ -1243,17 +1243,36 @@ async function init() {
     const novoServicoId = fuzzyReNovoServico.getValue() || undefined;
     const novoProfissionalId = fuzzyReNovoProfissional.getValue() || undefined;
     clearBanner();
-    try {
-      await api(`/agenda/${reagendarAlvoId}/status`, {
-        method: 'PATCH',
-        body: { novoStatus: 'reagendado', novaData, novoHorario, novoServicoId, novoProfissionalId }
+
+    const original = findAgendaItemById(reagendarAlvoId);
+    const profissionalAlvo = novoProfissionalId || (original ? original.profissional_id : null);
+    const servicoAlvo = novoServicoId ? catalog.servicos.find(s => s.id === novoServicoId) : null;
+    const duracaoMin = servicoAlvo ? (servicoAlvo.duracao_min || 30) : (original ? (original.duracao_min || 30) : 30);
+    const [h, m] = novoHorario.split(':').map(Number);
+    const conflitos = profissionalAlvo ? detectConflict(profissionalAlvo, novaData, h, m, duracaoMin, reagendarAlvoId) : [];
+
+    const submeterReagendamento = async (horarioFinal, permitirConflito) => {
+      try {
+        await api(`/agenda/${reagendarAlvoId}/status`, {
+          method: 'PATCH',
+          body: { novoStatus: 'reagendado', novaData, novoHorario: horarioFinal, novoServicoId, novoProfissionalId, permitirConflito: !!permitirConflito }
+        });
+        closeReagendarModal();
+        showBanner('Reagendado com sucesso.', 'ok');
+        await loadWeekAgenda();
+      } catch (err) {
+        showBanner(err.message, 'error');
+      }
+    };
+
+    if (conflitos.length > 0 && profissionalAlvo) {
+      showConflictDialog(profissionalAlvo, novaData, h, m, duracaoMin, (horarioEscolhido, forced) => {
+        submeterReagendamento(horarioEscolhido, forced);
       });
-      closeReagendarModal();
-      showBanner('Reagendado com sucesso.', 'ok');
-      await loadWeekAgenda();
-    } catch (err) {
-      showBanner(err.message, 'error');
+      return;
     }
+
+    await submeterReagendamento(novoHorario, false);
   });
 
   document.getElementById('btnSimular').addEventListener('click', simular);
@@ -1471,13 +1490,13 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
 
   document.getElementById('btn-encaixar').onclick = () => {
     dialog.close();
-    onConfirm(horario);
+    onConfirm(horario, true);
   };
 
   if (proximo) {
     document.getElementById('btn-proximo').onclick = () => {
       dialog.close();
-      onConfirm(formatTime(proximo.hora, proximo.min));
+      onConfirm(formatTime(proximo.hora, proximo.min), false);
     };
   }
 
@@ -1485,14 +1504,15 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
   dialog.showModal();
 }
 
-function executarReagendar(agId, profId, data, horario) {
+function executarReagendar(agId, profId, data, horario, permitirConflito) {
   api('/agenda/' + agId + '/status', {
     method: 'PATCH',
     body: {
       novoStatus: 'reagendado',
       novaData: data,
       novoHorario: horario,
-      novoProfissionalId: profId
+      novoProfissionalId: profId,
+      permitirConflito: !!permitirConflito
     }
   })
   .then(() => {
@@ -1589,8 +1609,8 @@ function onDragEnd(e) {
   );
 
   if (conflitos.length > 0) {
-    showConflictDialog(dragging.targetProf, selectedDay, hora, mins, ag.duracao_min || 30, (horarioEscolhido) => {
-      executarReagendar(ag.id, dragging.targetProf, selectedDay, horarioEscolhido);
+    showConflictDialog(dragging.targetProf, selectedDay, hora, mins, ag.duracao_min || 30, (horarioEscolhido, forced) => {
+      executarReagendar(ag.id, dragging.targetProf, selectedDay, horarioEscolhido, forced);
     });
   } else {
     executarReagendar(ag.id, dragging.targetProf, selectedDay, formatTime(hora, mins));

@@ -8,6 +8,7 @@ const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
 const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
+const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
 
 const router = express.Router();
@@ -82,13 +83,27 @@ router.post('/agenda', async (req, res, next) => {
     const servico = await requireActiveEntity(repo, 'servicos', payload.servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     await requireActiveEntity(repo, 'profissionais', payload.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
+    const duracaoMin = payload.duracaoMin ?? servico.duracao_min ?? 30;
+
+    if (!payload.permitirConflito) {
+      const existentes = await repo.list('agendamentos', {
+        empresa_id: repo.empresaId,
+        profissional_id: payload.profissionalId,
+        data: payload.data
+      });
+      assertNoScheduleConflict({
+        agendamento: { id: null, profissionalId: payload.profissionalId, data: payload.data, horario: payload.horario, duracaoMin },
+        existing: existentes
+      });
+    }
+
     const created = await repo.insert('agendamentos', {
       cliente_id: payload.clienteId,
       servico_id: payload.servicoId,
       profissional_id: payload.profissionalId,
       data: payload.data,
       horario: payload.horario,
-      duracao_min: payload.duracaoMin ?? servico.duracao_min ?? 30,
+      duracao_min: duracaoMin,
       valor_centavos: servico.valor_centavos || 0,
       status: 'agendado'
     });
@@ -119,13 +134,27 @@ router.patch('/agenda/:id/status', async (req, res, next) => {
     if (reagendamento.novoServicoId) servico = await requireActiveEntity(repo, 'servicos', novoServicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     if (reagendamento.novoProfissionalId) await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
+    const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
+
+    if (!reagendamento.permitirConflito) {
+      const existentes = await repo.list('agendamentos', {
+        empresa_id: repo.empresaId,
+        profissional_id: novoProfissionalId,
+        data: reagendamento.novaData
+      });
+      assertNoScheduleConflict({
+        agendamento: { id: original.id, profissionalId: novoProfissionalId, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo },
+        existing: existentes
+      });
+    }
+
     const novo = await repo.insert('agendamentos', {
       cliente_id: original.cliente_id,
       servico_id: novoServicoId,
       profissional_id: novoProfissionalId,
       data: reagendamento.novaData,
       horario: reagendamento.novoHorario,
-      duracao_min: servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min,
+      duracao_min: duracaoMinNovo,
       valor_centavos: servico ? (servico.valor_centavos ?? original.valor_centavos) : original.valor_centavos,
       status: 'agendado'
     });
