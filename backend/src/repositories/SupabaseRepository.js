@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const { getSupabase } = require('../db/supabaseClient');
 const { env } = require('../config/env');
+const { createAppError } = require('../errors');
 
 class SupabaseRepository {
   constructor() {
@@ -24,8 +25,20 @@ class SupabaseRepository {
     return data;
   }
 
+  async getByIdScoped(table, id) {
+    const rows = await this.list(table, { id, empresa_id: this.empresaId });
+    return rows[0] || null;
+  }
+
   async insert(table, payload) {
     const row = { id: payload.id || randomUUID(), empresa_id: payload.empresa_id || payload.empresaId || this.empresaId, ...payload };
+    const { data, error } = await this.supabase.from(table).insert(row).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+
+  async insertScoped(table, payload) {
+    const row = { id: payload.id || randomUUID(), ...payload, empresa_id: this.empresaId };
     const { data, error } = await this.supabase.from(table).insert(row).select('*').single();
     if (error) throw error;
     return data;
@@ -37,10 +50,100 @@ class SupabaseRepository {
     return data;
   }
 
+  async updateScoped(table, id, payload) {
+    const { data, error } = await this.supabase
+      .from(table)
+      .update(payload)
+      .eq('id', id)
+      .eq('empresa_id', this.empresaId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
   async upsert(table, rows, conflict = 'id') {
     const { data, error } = await this.supabase.from(table).upsert(rows, { onConflict: conflict }).select('*');
     if (error) throw error;
     return data || [];
+  }
+
+  async createFormaPagamento(payload) {
+    const row = { ...payload, empresa_id: this.empresaId };
+    const { data, error } = await this.supabase
+      .from('formas_pagamento')
+      .insert(row)
+      .select('*')
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        throw createAppError('PAYMENT_METHOD_ALREADY_EXISTS', `Forma de pagamento ja existe: ${payload.code}`, 409, { code: payload.code });
+      }
+      throw error;
+    }
+    return data;
+  }
+
+  async updateFormaPagamento(code, payload) {
+    const { data, error } = await this.supabase
+      .from('formas_pagamento')
+      .update(payload)
+      .eq('empresa_id', this.empresaId)
+      .eq('code', code)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async replaceProfissionalServicos(profissionalId, servicoIds) {
+    const { data, error } = await this.supabase.rpc('profissional_servicos_replace', {
+      p_empresa_id: this.empresaId,
+      p_profissional_id: profissionalId,
+      p_servico_ids: servicoIds
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async createProdutoComEstoque(payload) {
+    const { data, error } = await this.supabase.rpc('produto_criar_com_estoque', {
+      p_empresa_id: this.empresaId,
+      p_produto: payload.produto,
+      p_estoque_inicial: payload.estoqueInicial || 0,
+      p_motivo: payload.motivo || null
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async updateProfissionalServicoOverride(profissionalId, servicoId, payload) {
+    const profissional = await this.getByIdScoped('profissionais', profissionalId);
+    if (!profissional) return null;
+    const current = typeof profissional.overrides === 'string'
+      ? JSON.parse(profissional.overrides || '{}')
+      : { ...(profissional.overrides || {}) };
+
+    if (payload.remover) delete current[servicoId];
+    else current[servicoId] = { ...(current[servicoId] || {}), ...payload.override };
+
+    return this.updateScoped('profissionais', profissionalId, {
+      overrides: current,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  async adjustProdutoEstoque(produtoId, payload) {
+    const { data, error } = await this.supabase.rpc('produto_estoque_ajuste', {
+      p_empresa_id: this.empresaId,
+      p_produto_id: produtoId,
+      p_tipo: payload.tipo,
+      p_quantidade: payload.quantidade,
+      p_custo_unitario_centavos: payload.custo_unitario_centavos || 0,
+      p_motivo: payload.motivo || null
+    });
+    if (error) throw error;
+    return data;
   }
 
   async loadSnapshot() {
