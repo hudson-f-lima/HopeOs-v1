@@ -1769,15 +1769,15 @@ class FuzzyField {
   showDropdown(filtered) {
     if (!this.dropdown) {
       this.dropdown = document.createElement('div');
-      this.dropdown.style.cssText = `
-        position: absolute; top: 100%; left: 0; right: 0;
-        background: var(--surface); border: 1px solid var(--surface-variant);
-        border-radius: 8px; margin-top: 2px; max-height: 200px; overflow-y: auto;
-        z-index: 1000; box-shadow: var(--elevation-1);
-      `;
       this.input.parentElement.style.position = 'relative';
       this.input.parentElement.appendChild(this.dropdown);
     }
+    this.dropdown.style.cssText = `
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: var(--surface); border: 1px solid var(--surface-variant);
+      border-radius: 8px; margin-top: 2px; max-height: 200px; overflow-y: auto;
+      z-index: 1000; box-shadow: var(--elevation-1); display: block;
+    `;
 
     if (!filtered.length) {
       this.dropdown.innerHTML = '<div style="padding: 8px; color: var(--outline); font-size: 12px;">Sem resultados</div>';
