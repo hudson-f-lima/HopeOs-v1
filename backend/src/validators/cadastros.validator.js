@@ -7,6 +7,15 @@ function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj || {}, key);
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUID(value, field = 'id') {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value.trim())) {
+    throw createAppError('INVALID_UUID', `${field} deve ser um UUID valido.`, 422, { field, value });
+  }
+  return value.trim().toLowerCase();
+}
+
 function rejectDangerousFields(payload, forbidden, code = 'FORBIDDEN_FIELD') {
   for (const field of forbidden) {
     if (hasOwn(payload, field)) {
@@ -246,7 +255,10 @@ function validateProfissionalServicosPayload(payload = {}) {
   if (!Array.isArray(payload.servicoIds)) {
     throw createAppError('INVALID_SERVICE_LINKS', 'servicoIds deve ser uma lista.', 422);
   }
-  const servicoIds = payload.servicoIds.map(id => nonEmptyString(String(id), 'servicoIds'));
+  if (payload.servicoIds.length === 0 && payload.confirmarSubstituicaoTotal !== true) {
+    throw createAppError('EMPTY_SERVICE_LINKS', 'Lista vazia apagara todos os vinculos. Envie confirmarSubstituicaoTotal: true se for intencional.', 422);
+  }
+  const servicoIds = payload.servicoIds.map(id => validateUUID(String(id), 'servicoIds'));
   if (new Set(servicoIds).size !== servicoIds.length) {
     throw createAppError('DUPLICATE_SERVICE_LINK', 'servicoIds nao pode conter duplicidade.', 422);
   }
@@ -265,6 +277,7 @@ function validateProfissionalServicoOverridePayload(payload = {}) {
 }
 
 module.exports = {
+  validateUUID,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,

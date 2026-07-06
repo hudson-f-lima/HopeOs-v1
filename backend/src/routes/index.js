@@ -9,6 +9,7 @@ const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
 const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
 const {
+  validateUUID,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,
@@ -43,7 +44,7 @@ async function requireActiveEntity(repo, table, id, label, notFoundCode) {
 
 async function requireScopedEntity(repo, table, id, label, notFoundCode) {
   const row = await repo.getByIdScoped(table, id);
-  if (!row) throw createAppError(notFoundCode, `${label} nÃ£o encontrado: ${id}`, 404, { id });
+  if (!row) throw createAppError(notFoundCode, `${label} não encontrado: ${id}`, 404, { id });
   return row;
 }
 
@@ -104,9 +105,10 @@ router.post('/servicos', async (req, res, next) => {
 router.patch('/servicos/:id', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    await requireScopedEntity(repo, 'servicos', req.params.id, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'servicos', id, 'Serviço', 'SERVICE_NOT_FOUND');
     const payload = validateUpdateServicoPayload(req.body);
-    res.json({ ok: true, data: await repo.updateScoped('servicos', req.params.id, payload) });
+    res.json({ ok: true, data: await repo.updateScoped('servicos', id, payload) });
   } catch (err) { next(err); }
 });
 
@@ -129,9 +131,10 @@ router.post('/profissionais', async (req, res, next) => {
 router.patch('/profissionais/:id', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    await requireScopedEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     const payload = validateUpdateProfissionalPayload(req.body);
-    res.json({ ok: true, data: await repo.updateScoped('profissionais', req.params.id, payload) });
+    res.json({ ok: true, data: await repo.updateScoped('profissionais', id, payload) });
   } catch (err) { next(err); }
 });
 
@@ -159,20 +162,31 @@ router.post('/produtos', async (req, res, next) => {
 router.patch('/produtos/:id', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    const existing = await requireScopedEntity(repo, 'produtos', req.params.id, 'Produto', 'PRODUCT_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    const existing = await requireScopedEntity(repo, 'produtos', id, 'Produto', 'PRODUCT_NOT_FOUND');
     const payload = validateUpdateProdutoPayload(req.body);
     const merged = { ...existing, ...payload };
     assertProdutoEconomics(merged);
-    res.json({ ok: true, data: await repo.updateScoped('produtos', req.params.id, payload) });
+    let data;
+    try {
+      data = await repo.updateScoped('produtos', id, payload);
+    } catch (dbErr) {
+      if (dbErr && dbErr.code === '23514') {
+        throw createAppError('PRODUCT_BELOW_COST', 'Produto ativo nao pode vender abaixo do custo.', 422, { produtoId: id });
+      }
+      throw dbErr;
+    }
+    res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
 router.post('/produtos/:id/estoque/ajuste', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    await requireScopedEntity(repo, 'produtos', req.params.id, 'Produto', 'PRODUCT_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'produtos', id, 'Produto', 'PRODUCT_NOT_FOUND');
     const payload = validateEstoqueAjustePayload(req.body);
-    res.status(201).json({ ok: true, data: await repo.adjustProdutoEstoque(req.params.id, payload) });
+    res.status(201).json({ ok: true, data: await repo.adjustProdutoEstoque(id, payload) });
   } catch (err) { next(err); }
 });
 
@@ -200,7 +214,7 @@ router.patch('/formas-pagamento/:code', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
     const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: req.params.code });
-    if (!existing[0]) throw createAppError('PAYMENT_METHOD_NOT_FOUND', `Forma de pagamento nÃ£o encontrada: ${req.params.code}`, 404, { code: req.params.code });
+    if (!existing[0]) throw createAppError('PAYMENT_METHOD_NOT_FOUND', `Forma de pagamento não encontrada: ${req.params.code}`, 404, { code: req.params.code });
     const payload = validateUpdateFormaPagamentoPayload(req.body);
     res.json({ ok: true, data: await repo.updateFormaPagamento(req.params.code, payload) });
   } catch (err) { next(err); }
@@ -209,18 +223,20 @@ router.patch('/formas-pagamento/:code', async (req, res, next) => {
 router.get('/profissionais/:id/servicos', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    await requireScopedEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
-    res.json({ ok: true, data: await repo.list('profissional_servicos', { empresa_id: repo.empresaId, profissional_id: req.params.id }) });
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    res.json({ ok: true, data: await repo.list('profissional_servicos', { empresa_id: repo.empresaId, profissional_id: id }) });
   } catch (err) { next(err); }
 });
 
 router.put('/profissionais/:id/servicos', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    const profissional = await requireActiveEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    const profissional = await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     const { servicoIds } = validateProfissionalServicosPayload(req.body);
     for (const servicoId of servicoIds) {
-      await requireActiveEntity(repo, 'servicos', servicoId, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+      await requireActiveEntity(repo, 'servicos', servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     }
     const data = await repo.replaceProfissionalServicos(profissional.id, servicoIds);
     res.json({ ok: true, data });
@@ -230,21 +246,23 @@ router.put('/profissionais/:id/servicos', async (req, res, next) => {
 router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res, next) => {
   try {
     const repo = new SupabaseRepository();
-    await requireActiveEntity(repo, 'profissionais', req.params.id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
-    await requireActiveEntity(repo, 'servicos', req.params.servicoId, 'ServiÃ§o', 'SERVICE_NOT_FOUND');
+    const id = validateUUID(req.params.id, 'id');
+    const servicoId = validateUUID(req.params.servicoId, 'servicoId');
+    await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    await requireActiveEntity(repo, 'servicos', servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     const links = await repo.list('profissional_servicos', {
       empresa_id: repo.empresaId,
-      profissional_id: req.params.id,
-      servico_id: req.params.servicoId
+      profissional_id: id,
+      servico_id: servicoId
     });
     if (!links[0]) {
-      throw createAppError('SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL', 'ServiÃ§o nÃ£o vinculado ao profissional.', 422, {
-        profissionalId: req.params.id,
-        servicoId: req.params.servicoId
+      throw createAppError('SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL', 'Serviço não vinculado ao profissional.', 422, {
+        profissionalId: id,
+        servicoId: servicoId
       });
     }
     const payload = validateProfissionalServicoOverridePayload(req.body);
-    res.json({ ok: true, data: await repo.updateProfissionalServicoOverride(req.params.id, req.params.servicoId, payload) });
+    res.json({ ok: true, data: await repo.setProfissionalServicoOverride(id, servicoId, payload) });
   } catch (err) { next(err); }
 });
 

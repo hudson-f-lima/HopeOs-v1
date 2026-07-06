@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const {
+  validateUUID,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,
@@ -90,9 +91,12 @@ test('06 cria forma de pagamento valida e bloqueia code invalido ou PATCH de cod
   assert.strictEqual(errCode(() => validateUpdateFormaPagamentoPayload({ code: 'pix' })), 'FORBIDDEN_FIELD');
 });
 
+const UUID_1 = '11111111-1111-1111-1111-111111111111';
+const UUID_2 = '22222222-2222-2222-2222-222222222222';
+
 test('07 valida vinculo servico x profissional e bloqueia duplicidade', () => {
-  assert.strictEqual(errCode(() => validateProfissionalServicosPayload({ servicoIds: ['s1', 's1'] })), 'DUPLICATE_SERVICE_LINK');
-  assert.deepStrictEqual(validateProfissionalServicosPayload({ servicoIds: ['s1', 's2'] }).servicoIds, ['s1', 's2']);
+  assert.strictEqual(errCode(() => validateProfissionalServicosPayload({ servicoIds: [UUID_1, UUID_1] })), 'DUPLICATE_SERVICE_LINK');
+  assert.deepStrictEqual(validateProfissionalServicosPayload({ servicoIds: [UUID_1, UUID_2] }).servicoIds, [UUID_1, UUID_2]);
   assert.strictEqual(errCode(() => validateProfissionalServicosPayload({ servicoIds: 's1' })), 'INVALID_SERVICE_LINKS');
 });
 
@@ -143,7 +147,7 @@ test('10 repositorio usa escopo por empresa e RPCs atomicas', () => {
   assert(repoSource.includes("rpc('produto_criar_com_estoque'"));
   assert(repoSource.includes("rpc('profissional_servicos_replace'"));
   assert(repoSource.includes('replaceProfissionalServicos'));
-  assert(repoSource.includes('updateProfissionalServicoOverride'));
+  assert(repoSource.includes('setProfissionalServicoOverride'));
   assert(!repoSource.includes(".from('profissional_servicos')\n      .delete()"), 'replace nao deve fazer delete+insert manual fora de RPC');
 });
 
@@ -226,6 +230,52 @@ test('16 POST formas-pagamento cria sem upsert silencioso e duplicidade vira 409
   assert(routesSource.includes('PAYMENT_METHOD_ALREADY_EXISTS'), 'rota POST deve rejeitar code duplicado');
   assert(routesSource.includes('409'), 'code duplicado deve responder 409');
   assert(repoSource.includes('updateFormaPagamento(code, payload)'), 'PATCH continua sendo o caminho de edicao');
+});
+
+test('17 hardening V1.2.1: preco vs custo tem CHECK no banco e override e RPC atomica (sem read-modify-write em Node)', () => {
+  // Achado 1: produto ativo abaixo do custo precisa ser bloqueado tambem pelo Postgres,
+  // nao so pela validacao em memoria do Node (que sozinha nao resiste a duas escritas concorrentes).
+  assert(migration006.includes('chk_produtos_ativo_preco_maior_custo'), 'migration deve criar a constraint de preco vs custo');
+  assert(migration006.includes('check (ativo = false or preco_venda_centavos >= custo_centavos)'), 'constraint deve expressar a regra preco >= custo quando ativo');
+  assert(routesSource.includes("dbErr.code === '23514'"), 'rota PATCH /produtos/:id deve tratar violacao da constraint do banco como erro de negocio');
+  assert(routesSource.includes('PRODUCT_BELOW_COST'), 'violacao da constraint deve virar PRODUCT_BELOW_COST, nao 500 generico');
+
+  // Achado 2: override deixou de ser read-modify-write em Node (JSON.parse + merge + regravar tudo)
+  // e passou a ser uma RPC que trava o profissional e altera so a chave do servico via jsonb_set.
+  assert(migration006.includes('create or replace function public.profissional_servico_override_set'), 'migration deve criar a RPC de override atomico');
+  assert(migration006.toLowerCase().includes('jsonb_set('), 'RPC deve alterar somente a chave do servico via jsonb_set, nao substituir o JSON inteiro');
+  assert(migration006.includes('servico nao vinculado ao profissional'), 'RPC deve validar o vinculo antes de gravar override');
+  assert(migration006.includes('revoke all on function public.profissional_servico_override_set') , 'RPC de override deve revogar acesso publico');
+  assert(migration006.includes('grant execute on function public.profissional_servico_override_set') && migration006.includes('to service_role'), 'RPC de override deve liberar somente para service_role');
+
+  assert(repoSource.includes("rpc('profissional_servico_override_set'"), 'repositorio deve chamar a RPC de override');
+  assert(!repoSource.includes('JSON.parse(profissional.overrides'), 'repositorio nao deve mais fazer parse manual do JSON de overrides em Node');
+  assert(!repoSource.includes('delete current[servicoId]'), 'repositorio nao deve mais fazer read-modify-write manual do override em Node');
+
+  assert(routesSource.includes('repo.setProfissionalServicoOverride'), 'rota do endpoint dedicado deve usar a nova RPC atomica');
+});
+
+test('18 hardening V1.2.1b: UUID de rota/lista validado, lista vazia exige confirmacao, RPC de produto revalida limites', () => {
+  // Achado ALTO: UUID invalido em params/servicoIds nao pode cair como erro cru do Postgres/PostgREST.
+  assert.strictEqual(errCode(() => validateUUID('abc', 'id')), 'INVALID_UUID');
+  assert.strictEqual(validateUUID(UUID_1, 'id'), UUID_1);
+  assert.strictEqual(errCode(() => validateProfissionalServicosPayload({ servicoIds: ['abc'] })), 'INVALID_UUID');
+
+  assert(routesSource.includes("validateUUID(req.params.id, 'id')"), 'rotas de servicos/profissionais/produtos devem validar o UUID do :id antes de chamar o repositorio');
+  assert(routesSource.includes("validateUUID(req.params.servicoId, 'servicoId')"), 'rota de override deve validar o UUID de :servicoId');
+
+  // Achado MEDIO: lista vazia em PUT /profissionais/:id/servicos apaga todos os vinculos;
+  // precisa de confirmacao explicita para nao acontecer por engano (ex: tela ainda carregando).
+  assert.strictEqual(errCode(() => validateProfissionalServicosPayload({ servicoIds: [] })), 'EMPTY_SERVICE_LINKS');
+  assert.deepStrictEqual(
+    validateProfissionalServicosPayload({ servicoIds: [], confirmarSubstituicaoTotal: true }).servicoIds,
+    []
+  );
+
+  // Achado ALTO: a RPC de produto roda como service_role e nao pode confiar cegamente
+  // no payload; precisa revalidar comissao_pct (0-100) e modelo_comissao internamente.
+  assert(migration006.includes('comissao_pct deve estar entre 0 e 100'), 'RPC produto_criar_com_estoque deve validar faixa de comissao_pct');
+  assert(migration006.includes('modelo_comissao invalido'), 'RPC produto_criar_com_estoque deve validar modelo_comissao');
 });
 
 let passed = 0;

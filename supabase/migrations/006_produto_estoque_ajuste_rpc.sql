@@ -181,6 +181,8 @@ declare
   v_preco int := coalesce((p_produto->>'preco_venda_centavos')::int, 0);
   v_ativo boolean := coalesce((p_produto->>'ativo')::boolean, true);
   v_controla_estoque boolean := coalesce((p_produto->>'controla_estoque')::boolean, true);
+  v_comissao_pct numeric := coalesce((p_produto->>'comissao_pct')::numeric, 0);
+  v_modelo_comissao text := coalesce(nullif(p_produto->>'modelo_comissao',''), 'bruto_salao');
 begin
   if p_empresa_id is null then
     raise exception 'empresa_id obrigatorio' using errcode = 'P0001';
@@ -203,6 +205,15 @@ begin
   if coalesce((p_produto->>'estoque_minimo')::int, 0) < 0 then
     raise exception 'estoque minimo nao pode ser negativo' using errcode = 'P0001';
   end if;
+  -- V1.2.1 hardening: a RPC roda como service_role e nao pode confiar apenas na
+  -- validacao em memoria do Node; um chamador direto de service_role poderia
+  -- gravar comissao_pct/modelo_comissao fora do contrato sem essas checagens.
+  if v_comissao_pct < 0 or v_comissao_pct > 100 then
+    raise exception 'comissao_pct deve estar entre 0 e 100' using errcode = 'P0001';
+  end if;
+  if v_modelo_comissao not in ('bruto_salao', 'dividido', 'bruto_staff') then
+    raise exception 'modelo_comissao invalido: %', v_modelo_comissao using errcode = 'P0001';
+  end if;
 
   insert into produtos (
     id, empresa_id, nome, sku, codigo_barras, categoria, custo_centavos,
@@ -219,8 +230,8 @@ begin
     v_preco,
     case when v_controla_estoque then coalesce(p_estoque_inicial, 0) else 0 end,
     coalesce((p_produto->>'estoque_minimo')::int, 0),
-    coalesce((p_produto->>'comissao_pct')::numeric, 0),
-    coalesce(nullif(p_produto->>'modelo_comissao',''), 'bruto_salao'),
+    v_comissao_pct,
+    v_modelo_comissao,
     v_controla_estoque,
     v_ativo,
     now()
@@ -266,3 +277,110 @@ revoke all on function public.produto_criar_com_estoque(uuid, jsonb, int, text) 
 revoke all on function public.produto_criar_com_estoque(uuid, jsonb, int, text) from anon;
 revoke all on function public.produto_criar_com_estoque(uuid, jsonb, int, text) from authenticated;
 grant execute on function public.produto_criar_com_estoque(uuid, jsonb, int, text) to service_role;
+
+-- V1.2.1 hardening: dois PATCH /produtos/:id concorrentes podem validar preco/custo
+-- separadamente em memoria no Node e persistir um produto ativo abaixo do custo.
+-- A regra precisa existir no Postgres, nao so na aplicacao.
+-- NOT VALID evita falhar a migration por causa de dados legados que ja violem a regra;
+-- toda escrita nova (insert/update) ja fica bloqueada a partir daqui. Depois de tratar
+-- eventuais produtos legados, valide com:
+--   alter table produtos validate constraint chk_produtos_ativo_preco_maior_custo;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'chk_produtos_ativo_preco_maior_custo'
+  ) then
+    alter table produtos
+      add constraint chk_produtos_ativo_preco_maior_custo
+      check (ativo = false or preco_venda_centavos >= custo_centavos) not valid;
+  end if;
+end;
+$$;
+
+-- V1.2.1 hardening: updateProfissionalServicoOverride fazia read-modify-write do JSON
+-- overrides em Node (le, mescla, regrava o objeto inteiro). Duas atualizacoes concorrentes
+-- em servicos diferentes do mesmo profissional perdiam uma a outra (lost update).
+-- Esta RPC trava a linha do profissional com FOR UPDATE e altera somente a chave do
+-- servico via jsonb_set/operador de remocao, nunca substituindo o JSON inteiro.
+create or replace function public.profissional_servico_override_set(
+  p_empresa_id uuid,
+  p_profissional_id uuid,
+  p_servico_id uuid,
+  p_override jsonb,
+  p_remover boolean default false
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_profissional profissionais%rowtype;
+  v_overrides jsonb;
+begin
+  if p_empresa_id is null then
+    raise exception 'empresa_id obrigatorio' using errcode = 'P0001';
+  end if;
+  if p_profissional_id is null then
+    raise exception 'profissional_id obrigatorio' using errcode = 'P0001';
+  end if;
+  if p_servico_id is null then
+    raise exception 'servico_id obrigatorio' using errcode = 'P0001';
+  end if;
+  if not p_remover and (p_override is null or jsonb_typeof(p_override) <> 'object') then
+    raise exception 'override deve ser objeto json' using errcode = 'P0001';
+  end if;
+
+  select * into v_profissional
+  from profissionais
+  where id = p_profissional_id and empresa_id = p_empresa_id
+  for update;
+
+  if not found then
+    raise exception 'profissional nao encontrado: %', p_profissional_id using errcode = 'P0001';
+  end if;
+  if coalesce(v_profissional.ativo, true) = false then
+    raise exception 'profissional inativo: %', p_profissional_id using errcode = 'P0001';
+  end if;
+
+  if not exists (
+    select 1 from servicos
+    where id = p_servico_id and empresa_id = p_empresa_id and ativo is not false
+  ) then
+    raise exception 'servico nao encontrado ou inativo: %', p_servico_id using errcode = 'P0001';
+  end if;
+
+  if not exists (
+    select 1 from profissional_servicos
+    where empresa_id = p_empresa_id and profissional_id = p_profissional_id and servico_id = p_servico_id
+  ) then
+    raise exception 'servico nao vinculado ao profissional: %', p_servico_id using errcode = 'P0001';
+  end if;
+
+  if p_remover then
+    v_overrides := coalesce(v_profissional.overrides, '{}'::jsonb) - p_servico_id::text;
+  else
+    v_overrides := jsonb_set(
+      coalesce(v_profissional.overrides, '{}'::jsonb),
+      array[p_servico_id::text],
+      p_override,
+      true
+    );
+  end if;
+
+  update profissionais
+  set overrides = v_overrides,
+      updated_at = now()
+  where id = p_profissional_id and empresa_id = p_empresa_id;
+
+  return jsonb_build_object(
+    'profissionalId', p_profissional_id,
+    'servicoId', p_servico_id,
+    'overrides', v_overrides
+  );
+end;
+$$;
+
+revoke all on function public.profissional_servico_override_set(uuid, uuid, uuid, jsonb, boolean) from public;
+revoke all on function public.profissional_servico_override_set(uuid, uuid, uuid, jsonb, boolean) from anon;
+revoke all on function public.profissional_servico_override_set(uuid, uuid, uuid, jsonb, boolean) from authenticated;
+grant execute on function public.profissional_servico_override_set(uuid, uuid, uuid, jsonb, boolean) to service_role;
