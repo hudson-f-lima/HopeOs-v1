@@ -18,6 +18,7 @@ const {
 const { resolveCheckoutInput } = require('../src/engines/CheckoutInputResolver');
 const { previewCheckout } = require('../src/engines/FinanceEngine');
 const { calculateItemCommission } = require('../src/engines/CommissionEngine');
+const { createAppError, mapErrorForResponse } = require('../src/errors');
 
 const root = path.join(__dirname, '../..');
 const routesSource = fs.readFileSync(path.join(root, 'backend/src/routes/index.js'), 'utf8');
@@ -276,6 +277,36 @@ test('18 hardening V1.2.1b: UUID de rota/lista validado, lista vazia exige confi
   // no payload; precisa revalidar comissao_pct (0-100) e modelo_comissao internamente.
   assert(migration006.includes('comissao_pct deve estar entre 0 e 100'), 'RPC produto_criar_com_estoque deve validar faixa de comissao_pct');
   assert(migration006.includes('modelo_comissao invalido'), 'RPC produto_criar_com_estoque deve validar modelo_comissao');
+});
+
+test('19 hardening M1: erro de negocio P0001 das RPCs vira HTTP 422, erro generico continua 500', () => {
+  // Simula o formato real de erro devolvido pelo supabase-js quando uma RPC faz
+  // `raise exception ... using errcode = 'P0001'` (confirmado ao vivo no smoke test:
+  // ajuste de estoque negativo chegava como 500 generico em vez de 422 de regra de negocio).
+  const p0001 = { code: 'P0001', message: 'ajuste deixaria estoque negativo para produto abc', details: null };
+  const mappedP0001 = mapErrorForResponse(p0001);
+  assert.strictEqual(mappedP0001.statusCode, 422);
+  assert.strictEqual(mappedP0001.body.error.code, 'BUSINESS_RULE_VIOLATION');
+  assert.strictEqual(mappedP0001.body.error.message, p0001.message);
+  assert.strictEqual(mappedP0001.body.ok, false);
+
+  // Erro generico/inesperado (bug, falha de rede, etc.) continua 500 — nao viramos
+  // todo erro SQL em 422, so o P0001 de regra de negocio esperada.
+  const generic = new Error('algo quebrou inesperadamente');
+  const mappedGeneric = mapErrorForResponse(generic);
+  assert.strictEqual(mappedGeneric.statusCode, 500);
+  assert.strictEqual(mappedGeneric.body.error.code, 'INTERNAL_ERROR');
+
+  const otherPgError = { code: '23505', message: 'duplicate key value violates unique constraint' };
+  const mappedOther = mapErrorForResponse(otherPgError);
+  assert.strictEqual(mappedOther.statusCode, 500);
+
+  // Erros de app (createAppError) ja tem statusCode/code proprios e nao podem ser
+  // reescritos por este mapeamento, mesmo que por acidente tenham code parecido.
+  const appError = createAppError('PRODUCT_BELOW_COST', 'Produto ativo nao pode vender abaixo do custo.', 422);
+  const mappedAppError = mapErrorForResponse(appError);
+  assert.strictEqual(mappedAppError.statusCode, 422);
+  assert.strictEqual(mappedAppError.body.error.code, 'PRODUCT_BELOW_COST');
 });
 
 let passed = 0;
