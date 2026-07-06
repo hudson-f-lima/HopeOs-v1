@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const { env } = require('./config/env');
 const routes = require('./routes');
+const { mapErrorForResponse } = require('./errors');
 
 const app = express();
 
@@ -44,16 +45,8 @@ app.use('/api', routes);
 
 app.use((err, req, res, next) => {
   console.error(err);
-  const code = err.code || 'INTERNAL_ERROR';
-  const message = err.message || 'Erro interno';
-  res.status(err.statusCode || err.status || 500).json({
-    ok: false,
-    error: {
-      code,
-      message,
-      details: err.details || null
-    }
-  });
+  const { statusCode, body } = mapErrorForResponse(err);
+  res.status(statusCode).json(body);
 });
 
 module.exports = { app };
