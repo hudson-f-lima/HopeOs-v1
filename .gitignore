@@ -6,3 +6,7 @@ backend/node_modules/
 data/backups/*.json
 *.log
 *.xlsx
+_ai__index/
+_AI_/
+_ai_index/
+_ai_inbox/
