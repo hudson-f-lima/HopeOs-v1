@@ -11,3 +11,8 @@ _ai__index/
 _AI_/
 _ai_index/
 _ai_inbox/
+supabase/.temp/
+backend/supabase.exe
+backend/supabase-go.exe
+backend/supabase.tar.gz
+
