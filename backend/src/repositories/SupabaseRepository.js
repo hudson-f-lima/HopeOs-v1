@@ -117,20 +117,16 @@ class SupabaseRepository {
     return data;
   }
 
-  async updateProfissionalServicoOverride(profissionalId, servicoId, payload) {
-    const profissional = await this.getByIdScoped('profissionais', profissionalId);
-    if (!profissional) return null;
-    const current = typeof profissional.overrides === 'string'
-      ? JSON.parse(profissional.overrides || '{}')
-      : { ...(profissional.overrides || {}) };
-
-    if (payload.remover) delete current[servicoId];
-    else current[servicoId] = { ...(current[servicoId] || {}), ...payload.override };
-
-    return this.updateScoped('profissionais', profissionalId, {
-      overrides: current,
-      updated_at: new Date().toISOString()
+  async setProfissionalServicoOverride(profissionalId, servicoId, payload) {
+    const { data, error } = await this.supabase.rpc('profissional_servico_override_set', {
+      p_empresa_id: this.empresaId,
+      p_profissional_id: profissionalId,
+      p_servico_id: servicoId,
+      p_override: payload.remover ? null : payload.override,
+      p_remover: !!payload.remover
     });
+    if (error) throw error;
+    return data;
   }
 
   async adjustProdutoEstoque(produtoId, payload) {
