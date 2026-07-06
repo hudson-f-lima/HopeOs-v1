@@ -1771,6 +1771,10 @@ class FuzzyField {
       this.dropdown = document.createElement('div');
       this.input.parentElement.style.position = 'relative';
       this.input.parentElement.appendChild(this.dropdown);
+      // Impede que o clique no dropdown tire o foco do input antes do 'click'
+      // disparar — sem isso, o blur (200ms) pode fechar/limpar o dropdown antes
+      // do clique no item ser processado, especialmente em dispositivos lentos.
+      this.dropdown.addEventListener('mousedown', (e) => e.preventDefault());
     }
     this.dropdown.style.cssText = `
       position: absolute; top: 100%; left: 0; right: 0;
