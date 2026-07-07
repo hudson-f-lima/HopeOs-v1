@@ -428,70 +428,6 @@ dialog {
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
 
-    <section id="tab-mais" class="tab-content hidden">
-      <div class="subtab-row" id="subtabRow">
-        <button class="subtab-btn active" data-subtab="servicos">Serviços</button>
-        <button class="subtab-btn" data-subtab="profissionais">Profissionais</button>
-        <button class="subtab-btn" data-subtab="produtos">Produtos</button>
-        <button class="subtab-btn" data-subtab="formas">Pagamentos</button>
-        <button class="subtab-btn" data-subtab="clientes">Clientes</button>
-      </div>
-
-      <div class="subtab-content hidden" id="subtab-clientes">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h2 style="margin-bottom:0;">Clientes</h2>
-            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoCliente">+ Novo</button>
-          </div>
-          <label class="filter-inline"><input type="checkbox" id="chkClientesInativos"/> Mostrar inativos</label>
-          <div id="listClientes"></div>
-        </div>
-      </div>
-
-      <div class="subtab-content" id="subtab-servicos">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h2 style="margin-bottom:0;">Serviços</h2>
-            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoServico">+ Novo</button>
-          </div>
-          <label class="filter-inline"><input type="checkbox" id="chkServicosInativos"/> Mostrar inativos</label>
-          <div id="listServicos"></div>
-        </div>
-      </div>
-
-      <div class="subtab-content hidden" id="subtab-profissionais">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h2 style="margin-bottom:0;">Profissionais</h2>
-            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoProfissional">+ Novo</button>
-          </div>
-          <label class="filter-inline"><input type="checkbox" id="chkProfissionaisInativos"/> Mostrar inativos</label>
-          <div id="listProfissionais"></div>
-        </div>
-      </div>
-
-      <div class="subtab-content hidden" id="subtab-produtos">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h2 style="margin-bottom:0;">Produtos</h2>
-            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoProduto">+ Novo</button>
-          </div>
-          <label class="filter-inline"><input type="checkbox" id="chkProdutosInativos"/> Mostrar inativos</label>
-          <div id="listProdutos"></div>
-        </div>
-      </div>
-
-      <div class="subtab-content hidden" id="subtab-formas">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h2 style="margin-bottom:0;">Formas de pagamento</h2>
-            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovaForma">+ Nova</button>
-          </div>
-          <label class="filter-inline"><input type="checkbox" id="chkFormasInativas"/> Mostrar inativas</label>
-          <div id="listFormas"></div>
-        </div>
-      </div>
-    </section>
   </main>
 
   <button class="fab" id="fab" title="Novo agendamento">
@@ -511,9 +447,9 @@ dialog {
       <svg viewBox="0 0 24 24"><rect x="4" y="10" width="4" height="10"/><rect x="10" y="6" width="4" height="14"/><rect x="16" y="13" width="4" height="7"/></svg>
       Dashboard
     </button>
-    <button class="nav-btn" id="navMais" data-tab="mais">
-      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-      Mais
+    <button class="nav-btn" id="navAvatar">
+      <span class="avatar-circle" style="width:26px;height:26px;font-size:11px;">HO</span>
+      Gestão
     </button>
   </nav>
 
@@ -637,6 +573,79 @@ dialog {
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarProfissional" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarProfissional" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop hidden" id="sheetGestao">
+  <div class="sheet-box" style="max-height:85vh;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h2 style="margin-bottom:0;">Gestão</h2>
+      <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnFecharGestao">Fechar</button>
+    </div>
+
+    <div class="subtab-row" id="subtabRow">
+      <button class="subtab-btn active" data-subtab="servicos">Serviços</button>
+      <button class="subtab-btn" data-subtab="profissionais">Profissionais</button>
+      <button class="subtab-btn" data-subtab="produtos">Produtos</button>
+      <button class="subtab-btn" data-subtab="formas">Pagamentos</button>
+      <button class="subtab-btn" data-subtab="clientes">Clientes</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-clientes">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Clientes</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoCliente">+ Novo</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkClientesInativos"/> Mostrar inativos</label>
+        <div id="listClientes"></div>
+      </div>
+    </div>
+
+    <div class="subtab-content" id="subtab-servicos">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Serviços</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoServico">+ Novo</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkServicosInativos"/> Mostrar inativos</label>
+        <div id="listServicos"></div>
+      </div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-profissionais">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Profissionais</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoProfissional">+ Novo</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkProfissionaisInativos"/> Mostrar inativos</label>
+        <div id="listProfissionais"></div>
+      </div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-produtos">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Produtos</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoProduto">+ Novo</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkProdutosInativos"/> Mostrar inativos</label>
+        <div id="listProdutos"></div>
+      </div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-formas">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Formas de pagamento</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovaForma">+ Nova</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkFormasInativas"/> Mostrar inativas</label>
+        <div id="listFormas"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1877,9 +1886,11 @@ function showFatalError() {
 }
 
 async function init() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   });
+  document.getElementById('navAvatar').addEventListener('click', () => openModal('sheetGestao'));
+  document.getElementById('btnFecharGestao').addEventListener('click', () => closeModal('sheetGestao'));
   document.getElementById('fab').addEventListener('click', () => openNovoAgendamentoModal(selectedDay));
 
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
