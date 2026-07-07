@@ -111,6 +111,30 @@ function rejectOverridesField(payload) {
   }
 }
 
+function validateCreateClientePayload(payload = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  const out = {
+    nome: nonEmptyString(payload.nome, 'nome'),
+    faltas: intField(payload.faltas ?? 0, 'faltas', { min: 0 }),
+    ativo: payload.ativo === undefined ? true : boolField(payload.ativo, 'ativo')
+  };
+  optionalString(payload, 'whatsapp', 'whatsapp', out);
+  optionalString(payload, 'observacoes', 'observacoes', out);
+  return withUpdatedAt(out);
+}
+
+function validateUpdateClientePayload(payload = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  const out = {};
+  if (hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
+  optionalString(payload, 'whatsapp', 'whatsapp', out);
+  optionalString(payload, 'observacoes', 'observacoes', out);
+  if (hasOwn(payload, 'faltas')) out.faltas = intField(payload.faltas, 'faltas', { min: 0 });
+  if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
+  if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
+  return withUpdatedAt(out);
+}
+
 function validateCreateServicoPayload(payload = {}) {
   rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
   const out = {
@@ -278,6 +302,8 @@ function validateProfissionalServicoOverridePayload(payload = {}) {
 
 module.exports = {
   validateUUID,
+  validateCreateClientePayload,
+  validateUpdateClientePayload,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,

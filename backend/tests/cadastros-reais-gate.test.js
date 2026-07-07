@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   validateUUID,
+  validateCreateClientePayload,
+  validateUpdateClientePayload,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,
@@ -307,6 +309,23 @@ test('19 hardening M1: erro de negocio P0001 das RPCs vira HTTP 422, erro generi
   const mappedAppError = mapErrorForResponse(appError);
   assert.strictEqual(mappedAppError.statusCode, 422);
   assert.strictEqual(mappedAppError.body.error.code, 'PRODUCT_BELOW_COST');
+});
+
+test('20 cria payload valido de cliente, bloqueia campos de escopo e exige update nao vazio', () => {
+  const out = validateCreateClientePayload({ nome: 'Maria', whatsapp: '11999990000', observacoes: 'Prefere manha' });
+  assert.strictEqual(out.nome, 'Maria');
+  assert.strictEqual(out.whatsapp, '11999990000');
+  assert.strictEqual(out.faltas, 0);
+  assert.strictEqual(out.ativo, true);
+  assert.strictEqual(errCode(() => validateCreateClientePayload({ nome: '' })), 'INVALID_FIELD');
+  assert.strictEqual(errCode(() => validateCreateClientePayload({ nome: 'X', empresa_id: 'y' })), 'FORBIDDEN_FIELD');
+  assert.strictEqual(errCode(() => validateUpdateClientePayload({})), 'EMPTY_UPDATE');
+  assert.strictEqual(errCode(() => validateUpdateClientePayload({ id: 'x' })), 'FORBIDDEN_FIELD');
+  assert.deepStrictEqual(Object.keys(validateUpdateClientePayload({ ativo: false })).sort(), ['ativo', 'updated_at']);
+
+  assert(routesSource.includes("router.post('/clientes'"), 'rota POST /clientes deve existir');
+  assert(routesSource.includes("router.patch('/clientes/:id'"), 'rota PATCH /clientes/:id deve existir');
+  assert(routesSource.includes('validateCreateClientePayload(req.body)'), 'POST /clientes deve validar o payload, nao ser passthrough cru');
 });
 
 let passed = 0;

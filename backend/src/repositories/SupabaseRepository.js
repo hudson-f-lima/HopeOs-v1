@@ -10,13 +10,29 @@ class SupabaseRepository {
   }
 
   async list(table, filters = {}) {
-    let query = this.supabase.from(table).select('*');
-    for (const [key, value] of Object.entries(filters)) {
-      if (value !== undefined && value !== null && value !== '') query = query.eq(key, value);
+    // PostgREST limita a 1000 linhas por chamada por padrao. Sem paginacao aqui,
+    // qualquer tabela que cresca alem disso (ex: clientes) silenciosamente perde
+    // registros em toda leitura (snapshot, export, GET /catalog, etc), sem erro.
+    const PAGE_SIZE = 1000;
+    const rows = [];
+    let from = 0;
+    for (;;) {
+      let query = this.supabase.from(table).select('*');
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined && value !== null && value !== '') query = query.eq(key, value);
+      }
+      // Nao ordena por 'id': profissional_servicos e formas_pagamento nao tem essa
+      // coluna (chave primaria composta). Tabelas sem 'id' sempre cabem numa unica
+      // pagina neste projeto, entao a ordem so importa para tabelas grandes (que tem
+      // 'id'), onde o Postgres retorna ordem estavel entre chamadas sequenciais sem
+      // escrita concorrente no meio.
+      const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return rows;
   }
 
   async getById(table, id) {
