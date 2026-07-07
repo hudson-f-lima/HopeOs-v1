@@ -408,6 +408,18 @@ dialog {
         <button class="subtab-btn" data-subtab="profissionais">Profissionais</button>
         <button class="subtab-btn" data-subtab="produtos">Produtos</button>
         <button class="subtab-btn" data-subtab="formas">Pagamentos</button>
+        <button class="subtab-btn" data-subtab="clientes">Clientes</button>
+      </div>
+
+      <div class="subtab-content hidden" id="subtab-clientes">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h2 style="margin-bottom:0;">Clientes</h2>
+            <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoCliente">+ Novo</button>
+          </div>
+          <label class="filter-inline"><input type="checkbox" id="chkClientesInativos"/> Mostrar inativos</label>
+          <div id="listClientes"></div>
+        </div>
       </div>
 
       <div class="subtab-content" id="subtab-servicos">
@@ -535,6 +547,24 @@ dialog {
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarReagendar" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnConfirmarReagendar" style="flex:1;">Confirmar reagendamento</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalCliente">
+  <div class="modal-box">
+    <h2 id="modalClienteTitulo">Novo cliente</h2>
+    <p class="modal-error hidden" id="clError"></p>
+    <input type="hidden" id="clId"/>
+    <div class="field"><label>Nome</label><input id="clNome" type="text"/></div>
+    <div class="field"><label>WhatsApp (opcional)</label><input id="clWhatsapp" type="text"/></div>
+    <div class="field"><label>Observações (opcional)</label><input id="clObservacoes" type="text"/></div>
+    <div class="field hidden" id="clAtivoField">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="clAtivo" style="width:auto;"/> Ativo</label>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnCancelarCliente" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarCliente" style="flex:1;">Salvar</button>
     </div>
   </div>
 </div>
@@ -1420,6 +1450,50 @@ async function atualizarDashboard() {
 }
 
 /* ---------- Cadastros: Serviços ---------- */
+function renderClienteRow(c) {
+  return `<div class="cadastro-row${c.ativo === false ? ' inactive' : ''}" data-id="${c.id}">
+    <div class="info">
+      <div class="nome">${escapeHtml(c.nome)}</div>
+      <div class="meta">${escapeHtml(c.whatsapp || '')}${c.faltas ? ' · ' + c.faltas + ' falta(s)' : ''}</div>
+    </div>
+    <div class="actions">
+      <button data-action="editar-cliente">Editar</button>
+      <button data-action="toggle-cliente" class="${c.ativo === false ? '' : 'danger'}">${c.ativo === false ? 'Reativar' : 'Desativar'}</button>
+    </div>
+  </div>`;
+}
+function renderClientesList() {
+  const mostrarInativos = document.getElementById('chkClientesInativos').checked;
+  renderList('listClientes', (catalog.clientes || []).filter(c => mostrarInativos || c.ativo !== false), renderClienteRow);
+}
+function openClienteModal(cliente) {
+  document.getElementById('modalClienteTitulo').textContent = cliente ? 'Editar cliente' : 'Novo cliente';
+  document.getElementById('clId').value = cliente ? cliente.id : '';
+  document.getElementById('clNome').value = cliente ? cliente.nome : '';
+  document.getElementById('clWhatsapp').value = cliente ? (cliente.whatsapp || '') : '';
+  document.getElementById('clObservacoes').value = cliente ? (cliente.observacoes || '') : '';
+  document.getElementById('clAtivoField').classList.toggle('hidden', !cliente);
+  document.getElementById('clAtivo').checked = cliente ? cliente.ativo !== false : true;
+  clearModalError('clError');
+  openModal('modalCliente');
+}
+async function submitClienteForm() {
+  const id = document.getElementById('clId').value;
+  const body = {
+    nome: document.getElementById('clNome').value.trim(),
+    whatsapp: document.getElementById('clWhatsapp').value.trim() || undefined,
+    observacoes: document.getElementById('clObservacoes').value.trim() || undefined
+  };
+  if (id) body.ativo = document.getElementById('clAtivo').checked;
+  const data = await submitCadastro(
+    () => api(id ? `/clientes/${id}` : '/clientes', { method: id ? 'PATCH' : 'POST', body }),
+    id ? 'Cliente atualizado.' : 'Cliente criado.',
+    renderClientesList,
+    'clError'
+  );
+  if (data) closeModal('modalCliente');
+}
+
 function renderServicoRow(s) {
   return `<div class="cadastro-row${s.ativo === false ? ' inactive' : ''}" data-id="${s.id}">
     <div class="info">
@@ -1899,6 +1973,20 @@ async function init() {
     showSubtab(btn.dataset.subtab);
   });
 
+  /* Cadastros: Clientes */
+  document.getElementById('chkClientesInativos').addEventListener('change', renderClientesList);
+  document.getElementById('btnNovoCliente').addEventListener('click', () => openClienteModal(null));
+  document.getElementById('btnCancelarCliente').addEventListener('click', () => closeModal('modalCliente'));
+  document.getElementById('btnSalvarCliente').addEventListener('click', submitClienteForm);
+  document.getElementById('listClientes').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-action]');
+    if (!btn) return;
+    const cliente = (catalog.clientes || []).find(c => c.id === btn.closest('[data-id]').dataset.id);
+    if (!cliente) return;
+    if (btn.dataset.action === 'editar-cliente') openClienteModal(cliente);
+    if (btn.dataset.action === 'toggle-cliente') toggleAtivo('/clientes', cliente.id, cliente.ativo !== false, renderClientesList);
+  });
+
   /* Cadastros: Serviços */
   document.getElementById('chkServicosInativos').addEventListener('change', renderServicosList);
   document.getElementById('btnNovoServico').addEventListener('click', () => openServicoModal(null));
@@ -1975,6 +2063,7 @@ async function init() {
     await loadConfig();
     await loadCatalog();
 
+    renderClientesList();
     renderServicosList();
     renderProfissionaisList();
     renderProdutosList();

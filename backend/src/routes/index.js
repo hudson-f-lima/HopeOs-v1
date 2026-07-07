@@ -10,6 +10,8 @@ const { validateCheckoutPayload } = require('../validators/checkout.validator');
 const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
 const {
   validateUUID,
+  validateCreateClientePayload,
+  validateUpdateClientePayload,
   validateCreateServicoPayload,
   validateUpdateServicoPayload,
   validateCreateProfissionalPayload,
@@ -82,8 +84,21 @@ router.get('/clientes', async (req, res, next) => {
 });
 
 router.post('/clientes', async (req, res, next) => {
-  try { res.status(201).json({ ok: true, data: await new SupabaseRepository().insert('clientes', req.body) }); }
-  catch (err) { next(err); }
+  try {
+    const repo = new SupabaseRepository();
+    const payload = validateCreateClientePayload(req.body);
+    res.status(201).json({ ok: true, data: await repo.insertScoped('clientes', payload) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/clientes/:id', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'clientes', id, 'Cliente', 'CLIENT_NOT_FOUND');
+    const payload = validateUpdateClientePayload(req.body);
+    res.json({ ok: true, data: await repo.updateScoped('clientes', id, payload) });
+  } catch (err) { next(err); }
 });
 
 router.get('/servicos', async (req, res, next) => {
