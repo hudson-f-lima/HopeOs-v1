@@ -84,6 +84,8 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .row:last-child{border-bottom:none;}
 .row b{font-weight:700;}
 .row.total{font-size:15px;margin-top:4px;padding-top:10px;border-top:2px solid var(--md-surface-variant);}
+.preview-section-label{font-size:11px;font-weight:700;color:var(--md-outline);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px;}
+.preview-section-label:first-of-type{margin-top:6px;}
 
 .banner{border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;}
 .banner-error{background:#fde8e8;color:var(--md-error);border:1px solid #f3c6c6;}
@@ -350,14 +352,21 @@ dialog {
 
       <div class="card hidden" id="cardPreview">
         <h2>Preview</h2>
-        <div class="row"><span>Serviços líquidos</span><b id="pvServicos">—</b></div>
-        <div class="row"><span>Itens líquidos</span><b id="pvItens">—</b></div>
+        <div class="preview-section-label">Bruto</div>
+        <div class="row"><span>Serviços</span><b id="pvServicos">—</b></div>
+        <div class="row"><span>Produtos</span><b id="pvProdutos">—</b></div>
         <div class="row"><span>Gorjeta bruta</span><b id="pvGorjetaBruta">—</b></div>
-        <div class="row"><span>Gorjeta líquida (profissional)</span><b id="pvGorjetaLiquida">—</b></div>
-        <div class="row"><span>Comissão profissional</span><b id="pvComissao">—</b></div>
-        <div class="row"><span>Taxa total (forma pgto)</span><b id="pvTaxa">—</b></div>
         <div class="row"><span>Total recebido</span><b id="pvRecebido">—</b></div>
+
+        <div class="preview-section-label">Deduções</div>
+        <div class="row"><span>Custo produtos</span><b id="pvCustoProdutos">—</b></div>
+        <div class="row"><span>Comissão profissional</span><b id="pvComissao">—</b></div>
+        <div class="row"><span>Taxa (forma pgto)</span><b id="pvTaxa">—</b></div>
+        <div class="row"><span>Gorjeta líquida (profissional)</span><b id="pvGorjetaLiquida">—</b></div>
+
+        <div class="preview-section-label">Resultado</div>
         <div class="row total"><span>Receita empresa</span><b id="pvReceita">—</b></div>
+
         <div style="margin-top:14px;">
           <button class="btn btn-primary" id="btnFechar" disabled>Fechar comanda</button>
         </div>
@@ -1328,12 +1337,13 @@ async function simular() {
     currentPayload = payload;
     const t = preview.totals;
     document.getElementById('pvServicos').textContent = centsToBRL(t.servicosLiquidosCentavos);
-    document.getElementById('pvItens').textContent = centsToBRL(t.itensLiquidosCentavos);
+    document.getElementById('pvProdutos').textContent = centsToBRL(t.produtosLiquidosCentavos);
     document.getElementById('pvGorjetaBruta').textContent = centsToBRL(t.gorjetaBrutaCentavos);
-    document.getElementById('pvGorjetaLiquida').textContent = centsToBRL(t.totalGorjetaLiquidaCentavos);
+    document.getElementById('pvRecebido').textContent = centsToBRL(t.totalRecebidoCentavos);
+    document.getElementById('pvCustoProdutos').textContent = centsToBRL(t.totalCustoProdutosCentavos);
     document.getElementById('pvComissao').textContent = centsToBRL(t.totalComissaoCentavos);
     document.getElementById('pvTaxa').textContent = centsToBRL(t.taxaTotalCentavos);
-    document.getElementById('pvRecebido').textContent = centsToBRL(t.totalRecebidoCentavos);
+    document.getElementById('pvGorjetaLiquida').textContent = centsToBRL(t.totalGorjetaLiquidaCentavos);
     document.getElementById('pvReceita').textContent = centsToBRL(t.receitaEmpresaCentavos);
     document.getElementById('cardPreview').classList.remove('hidden');
     document.getElementById('btnFechar').disabled = false;
