@@ -11,14 +11,22 @@
 <link rel="apple-touch-icon" href="icon.svg"/>
 <link rel="icon" href="icon.svg"/>
 <title>HOPE OS — Comanda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  /* Dark mode (default) */
-  --bg:#0f0f11;
-  --surface:#18181b;
-  --surface-variant:#2a2a30;
-  --on-surface:#e8e8ea;
-  --outline:#79747e;
+  /* V1.3 design system — fundo escuro fixo (preto azulado) + superficies claras.
+     Tema unico, sem alternancia clara/escura do sistema operacional. */
+  --bg-grad-start:#0b0d1a;
+  --bg-grad-mid:#12142a;
+  --bg-grad-end:#1a1d3d;
+  --bg:linear-gradient(160deg, var(--bg-grad-start) 0%, var(--bg-grad-mid) 55%, var(--bg-grad-end) 100%);
+
+  --surface:#fbfbfe;
+  --surface-variant:#f0eef7;
+  --on-surface:#1b1b23;
+  --outline:#6f6d7a;
 
   /* Primary + semantic */
   --primary:#7c6af7;
@@ -28,15 +36,34 @@
   --info:#3b82f6;
   --warning:#f59e0b;
 
-  /* Glass */
-  --glass:rgba(255,255,255,0.08);
-  --glass-border:rgba(255,255,255,0.12);
+  /* Accents (uso pontual: status, dashboard bento, cores por profissional) */
+  --accent-coral:#ff7a68;
+  --accent-teal:#14b8a6;
+  --accent-lilac:#b794f6;
+  --accent-blue-soft:#7dd3fc;
+
+  /* Glass — usar so em header, bottom nav, sheets e paineis pequenos */
+  --glass:rgba(255,255,255,0.10);
+  --glass-border:rgba(255,255,255,0.16);
+  --blur-glass:20px;
 
   /* Elevation */
   --elevation-1:0 4px 12px rgba(0,0,0,0.24);
   --elevation-2:0 8px 24px rgba(0,0,0,0.32);
+  --elevation-glass:0 8px 32px rgba(0,0,0,0.28);
 
-  /* Legacy MD3 compat */
+  /* Radius, spacing, tap target */
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-lg:16px;
+  --space-xs:4px;
+  --space-sm:8px;
+  --space-md:12px;
+  --space-lg:16px;
+  --space-xl:24px;
+  --tap-min:44px;
+
+  /* Legacy MD3 compat — mesmos nomes, resto do CSS/inline styles nao precisa mudar */
   --md-primary:var(--primary);
   --md-on-primary:var(--on-primary);
   --md-surface:var(--surface);
@@ -46,29 +73,16 @@
   --md-error:var(--error);
   --md-success:var(--success);
   --md-info:var(--info);
-  --md-neutral:#999;
-}
-
-/* Light mode (opcional, media query) */
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg:#f5f3ff;
-    --surface:#ffffff;
-    --surface-variant:#f0f0f3;
-    --on-surface:#1a1a1f;
-    --outline:#74748a;
-    --glass:rgba(0,0,0,0.04);
-    --glass-border:rgba(0,0,0,0.08);
-  }
+  --md-neutral:#8a8894;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--md-surface-variant);color:var(--md-on-surface);font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
+body{background:var(--bg);color:var(--md-on-surface);font-family:'Plus Jakarta Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
 button{cursor:pointer;font-family:inherit;border:none;outline:none;background:none;color:inherit;}
 input,select{width:100%;background:var(--md-surface);border:1px solid var(--md-surface-variant);color:var(--md-on-surface);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;}
 input:focus,select:focus{border-color:var(--md-primary);outline:none;}
 .hidden{display:none!important;}
 
-.topbar{background:var(--md-surface);padding:16px;box-shadow:var(--elevation-1);position:sticky;top:0;z-index:90;}
+.topbar{background:var(--glass);backdrop-filter:blur(var(--blur-glass));-webkit-backdrop-filter:blur(var(--blur-glass));border-bottom:1px solid var(--glass-border);padding:16px;box-shadow:var(--elevation-glass);position:sticky;top:0;z-index:90;}
 .topbar h1{font-size:18px;font-weight:800;color:var(--md-primary);}
 
 main{padding:12px;max-width:960px;margin:0 auto;}
@@ -96,6 +110,18 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .badge-noshow{background:#fde8e8;color:var(--md-error);}
 .badge-cancelado{background:#f0f0f3;color:var(--md-neutral);}
 .badge-concluido{background:#e8f0fe;color:var(--md-info);}
+
+/* V1.3 — componentes-base do design system. Declarados nesta etapa, aplicados em
+   telas reais nas etapas seguintes (agenda, dashboard, navegacao). */
+.bento-card{background:var(--md-surface);border-radius:var(--radius-lg);padding:var(--space-lg);box-shadow:var(--elevation-1);}
+.glass-surface{background:var(--glass);backdrop-filter:blur(var(--blur-glass));-webkit-backdrop-filter:blur(var(--blur-glass));border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--elevation-glass);}
+.avatar-circle{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;background:var(--md-primary);color:var(--md-on-primary);border:2px solid rgba(255,255,255,0.3);}
+.avatar-circle.active{border-color:var(--md-primary);box-shadow:0 0 0 3px rgba(124,106,247,0.25);}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;background:var(--md-surface-variant);color:var(--md-on-surface);min-height:var(--tap-min);}
+.chip.selected{background:var(--md-primary);color:var(--md-on-primary);}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
+.empty-state{text-align:center;padding:var(--space-xl) var(--space-lg);color:var(--md-outline);font-size:13px;}
+.loading-state{display:flex;align-items:center;justify-content:center;gap:8px;padding:var(--space-lg);color:var(--md-outline);font-size:13px;}
 
 /* Agenda: header semanal + filtro por profissional + timeline */
 .week-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
@@ -175,18 +201,18 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .filter-inline input{width:auto;}
 
 /* Bottom nav + FAB */
-.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:80px;background:var(--md-surface);border-top:1px solid var(--md-surface-variant);display:flex;box-shadow:var(--elevation-2);z-index:100;}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--md-outline);font-size:10px;font-weight:700;}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:80px;background:var(--glass);backdrop-filter:blur(var(--blur-glass));-webkit-backdrop-filter:blur(var(--blur-glass));border-top:1px solid var(--glass-border);display:flex;box-shadow:var(--elevation-glass);z-index:100;}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:rgba(255,255,255,0.65);font-size:10px;font-weight:700;}
 .nav-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;}
 .nav-btn.active{color:var(--md-primary);}
 .fab{position:fixed;right:16px;bottom:96px;width:56px;height:56px;border-radius:28px;background:var(--md-primary);color:var(--md-on-primary);display:flex;align-items:center;justify-content:center;box-shadow:var(--elevation-2);z-index:110;}
 .fab svg{width:26px;height:26px;stroke:currentColor;stroke-width:2.5;fill:none;}
 
-#loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;color:var(--md-outline);font-weight:600;font-size:13px;}
+#loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;color:rgba(255,255,255,0.7);font-weight:600;font-size:13px;}
 .spinner{width:40px;height:40px;border:4px solid var(--md-surface-variant);border-top-color:var(--md-primary);border-radius:50%;animation:spin 1s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-footer{text-align:center;font-size:11px;color:var(--md-outline);margin-top:8px;padding-bottom:8px;}
+footer{text-align:center;font-size:11px;color:rgba(255,255,255,0.5);margin-top:8px;padding-bottom:8px;}
 
 /* Timeline Handles and Interactivity CSS */
 .drag-handle {
