@@ -248,6 +248,38 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .agenda-occ{display:flex;align-items:center;gap:var(--space-md);}
 .occ-ring{width:20px;height:20px;flex-shrink:0;}
 
+/* ============ CHECKOUT TABS — Serviços / Produtos ============ */
+.checkout-tabs{display:flex;gap:var(--space-sm);background:var(--bg-glass-light);border-radius:var(--radius-md);padding:var(--space-sm);margin-bottom:var(--space-md);}
+.checkout-tab-btn{flex:1;padding:var(--space-sm) var(--space-md);border-radius:var(--radius-sm);border:none;cursor:pointer;font-weight:700;font-size:13px;transition:all 0.2s;background:transparent;color:var(--text-tertiary);}
+.checkout-tab-btn.active{background:var(--bg-surface);color:var(--primary);box-shadow:var(--elevation-1);}
+
+/* ============ TIP STEPPER — Botões +/- de gorjeta ============ */
+.tip-stepper{display:flex;align-items:center;gap:var(--space-md);justify-content:center;}
+.stepper-btn{width:36px;height:36px;border-radius:var(--radius-sm);background:var(--bg-glass-light);border:none;cursor:pointer;color:var(--primary);font-weight:700;font-size:16px;transition:all 0.2s;display:flex;align-items:center;justify-content:center;}
+.stepper-btn:hover{background:var(--primary);color:#fff;}
+.stepper-btn:disabled{opacity:0.5;cursor:not-allowed;background:var(--bg-glass-light);}
+.stepper-value{font-size:18px;font-weight:800;color:var(--text-primary);min-width:80px;text-align:center;}
+
+/* ============ SPLIT PAYMENT TOGGLE ============ */
+.split-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-md);}
+.split-toggle-label{font-size:13px;font-weight:700;color:var(--text-primary);}
+.split-toggle{position:relative;width:50px;height:28px;background:var(--bg-glass-light);border-radius:999px;border:none;cursor:pointer;transition:background 0.3s;padding:0;}
+.split-toggle.enabled{background:var(--primary);}
+.toggle-knob{position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:left 0.3s;box-shadow:var(--elevation-1);}
+.split-toggle.enabled .toggle-knob{left:24px;}
+
+/* ============ SPLIT PAYMENT ROWS ============ */
+.split-rows-container{display:flex;flex-direction:column;gap:var(--space-md);margin-bottom:var(--space-md);}
+.split-row{display:flex;gap:var(--space-sm);align-items:flex-end;}
+.split-row-form{flex:1;min-width:0;}
+.split-row-input{flex:1;min-width:0;}
+.split-row-amount{flex:1;min-width:0;display:flex;align-items:center;padding:var(--space-md);background:var(--bg-app-light);border-radius:var(--radius-md);border:1px solid var(--border);font-weight:700;color:var(--text-primary);font-size:13px;}
+.split-row-amount.display-only{cursor:default;}
+.split-row-remove{width:40px;height:40px;border-radius:var(--radius-sm);background:transparent;border:1px solid var(--border);color:var(--error);font-weight:700;font-size:16px;cursor:pointer;transition:all 0.2s;}
+.split-row-remove:hover{background:var(--error);color:#fff;}
+.split-add-btn{background:transparent;border:1px solid var(--primary);color:var(--primary);padding:var(--space-sm) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:13px;transition:all 0.2s;}
+.split-add-btn:hover{background:var(--primary);color:#fff;}
+
 /* ============ TIMELINE HEADERS — Avatares de profissional ============ */
 .timeline-header-btn{flex:1 1 120px;min-width:120px;cursor:pointer;box-sizing:border-box;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-sm);padding:var(--space-sm) 4px 10px;background:var(--bg-app-light);transition:background 0.2s;}
 .timeline-header-btn.selected{background:var(--bg-surface);}
