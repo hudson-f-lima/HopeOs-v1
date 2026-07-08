@@ -391,27 +391,27 @@ dialog {
         <div class="card checkout-card">
           <h2><span class="checkout-step">1</span> Atendimento</h2>
           <div class="field">
-            <label>Cliente (opcional)</label>
+            <label for="coCliente">Cliente (opcional)</label>
             <input id="coCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
           </div>
           <div class="field">
-            <label>Serviço</label>
+            <label for="coServico">Serviço</label>
             <input id="coServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
           </div>
           <div class="field">
-            <label>Produto (opcional)</label>
+            <label for="coProduto">Produto (opcional)</label>
             <input id="coProduto" type="text" placeholder="🔍 Digite produto..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
           </div>
           <div class="field">
-            <label>Profissional</label>
+            <label for="coProfissional">Profissional</label>
             <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
           </div>
           <div class="field">
-            <label>Forma de pagamento</label>
+            <label for="coForma">Forma de pagamento</label>
             <input id="coForma" type="text" placeholder="🔍 Digite forma..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
           </div>
           <div class="field">
-            <label>Gorjeta (R$)</label>
+            <label for="coGorjeta">Gorjeta (R$)</label>
             <input id="coGorjeta" type="number" min="0" step="0.01" value="0"/>
           </div>
           <div class="checkout-actions">
@@ -530,23 +530,23 @@ dialog {
   <div class="modal-box">
     <h2>Novo agendamento</h2>
     <div class="field">
-      <label>Cliente (opcional)</label>
+      <label for="agCliente">Cliente (opcional)</label>
       <input id="agCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
-      <label>Serviço</label>
+      <label for="agServico">Serviço</label>
       <input id="agServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
-      <label>Profissional</label>
+      <label for="agProfissional">Profissional</label>
       <input id="agProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
-      <label>Data</label>
+      <label for="agData">Data</label>
       <input id="agData" type="date"/>
     </div>
     <div class="field">
-      <label>Horário</label>
+      <label for="agHorario">Horário</label>
       <input id="agHorario" type="time"/>
     </div>
     <p id="agDuracaoPreview" style="font-size:12px;color:var(--md-outline);margin-bottom:12px;"></p>
@@ -561,19 +561,19 @@ dialog {
   <div class="modal-box">
     <h2>Reagendar</h2>
     <div class="field">
-      <label>Nova data</label>
+      <label for="reNovaData">Nova data</label>
       <input id="reNovaData" type="date"/>
     </div>
     <div class="field">
-      <label>Novo horário</label>
+      <label for="reNovoHorario">Novo horário</label>
       <input id="reNovoHorario" type="time"/>
     </div>
     <div class="field">
-      <label>Novo serviço (opcional)</label>
+      <label for="reNovoServico">Novo serviço (opcional)</label>
       <input id="reNovoServico" type="text" placeholder="🔍 Manter serviço atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
-      <label>Novo profissional (opcional)</label>
+      <label for="reNovoProfissional">Novo profissional (opcional)</label>
       <input id="reNovoProfissional" type="text" placeholder="🔍 Manter profissional atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div style="display:flex;gap:8px;">
@@ -588,9 +588,9 @@ dialog {
     <h2 id="modalClienteTitulo">Novo cliente</h2>
     <p class="modal-error hidden" id="clError"></p>
     <input type="hidden" id="clId"/>
-    <div class="field"><label>Nome</label><input id="clNome" type="text"/></div>
-    <div class="field"><label>WhatsApp (opcional)</label><input id="clWhatsapp" type="text"/></div>
-    <div class="field"><label>Observações (opcional)</label><input id="clObservacoes" type="text"/></div>
+    <div class="field"><label for="clNome">Nome</label><input id="clNome" type="text"/></div>
+    <div class="field"><label for="clWhatsapp">WhatsApp (opcional)</label><input id="clWhatsapp" type="text"/></div>
+    <div class="field"><label for="clObservacoes">Observações (opcional)</label><input id="clObservacoes" type="text"/></div>
     <div class="field hidden" id="clAtivoField">
       <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="clAtivo" style="width:auto;"/> Ativo</label>
     </div>
@@ -606,12 +606,12 @@ dialog {
     <h2 id="modalServicoTitulo">Novo serviço</h2>
     <p class="modal-error hidden" id="svError"></p>
     <input type="hidden" id="svId"/>
-    <div class="field"><label>Nome</label><input id="svNome" type="text"/></div>
-    <div class="field"><label>Categoria</label><input id="svCategoria" type="text" placeholder="Sem categoria"/></div>
-    <div class="field"><label>Valor (R$)</label><input id="svValor" type="number" min="0" step="0.01"/></div>
-    <div class="field"><label>Duração (min)</label><input id="svDuracao" type="number" min="5" max="480" step="1"/></div>
-    <div class="field"><label>Slot (min, opcional)</label><input id="svSlot" type="number" min="5" max="480" step="1"/></div>
-    <div class="field"><label>Comissão (%)</label><input id="svComissao" type="number" min="0" max="100" step="0.01"/></div>
+    <div class="field"><label for="svNome">Nome</label><input id="svNome" type="text"/></div>
+    <div class="field"><label for="svCategoria">Categoria</label><input id="svCategoria" type="text" placeholder="Sem categoria"/></div>
+    <div class="field"><label for="svValor">Valor (R$)</label><input id="svValor" type="number" min="0" step="0.01"/></div>
+    <div class="field"><label for="svDuracao">Duração (min)</label><input id="svDuracao" type="number" min="5" max="480" step="1"/></div>
+    <div class="field"><label for="svSlot">Slot (min, opcional)</label><input id="svSlot" type="number" min="5" max="480" step="1"/></div>
+    <div class="field"><label for="svComissao">Comissão (%)</label><input id="svComissao" type="number" min="0" max="100" step="0.01"/></div>
     <div class="field hidden" id="svAtivoField">
       <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="svAtivo" style="width:auto;"/> Ativo</label>
     </div>
@@ -627,10 +627,10 @@ dialog {
     <h2 id="modalProfissionalTitulo">Novo profissional</h2>
     <p class="modal-error hidden" id="pfError"></p>
     <input type="hidden" id="pfId"/>
-    <div class="field"><label>Nome</label><input id="pfNome" type="text"/></div>
-    <div class="field"><label>WhatsApp (opcional)</label><input id="pfWhatsapp" type="text"/></div>
+    <div class="field"><label for="pfNome">Nome</label><input id="pfNome" type="text"/></div>
+    <div class="field"><label for="pfWhatsapp">WhatsApp (opcional)</label><input id="pfWhatsapp" type="text"/></div>
     <div class="field">
-      <label>Modelo de comissão</label>
+      <label for="pfModeloComissao">Modelo de comissão</label>
       <select id="pfModeloComissao">
         <option value="bruto_salao">Bruto salão</option>
         <option value="dividido">Dividido</option>
@@ -753,16 +753,16 @@ dialog {
     <h2 id="modalProdutoTitulo">Novo produto</h2>
     <p class="modal-error hidden" id="pdError"></p>
     <input type="hidden" id="pdId"/>
-    <div class="field"><label>Nome</label><input id="pdNome" type="text"/></div>
-    <div class="field"><label>SKU (opcional)</label><input id="pdSku" type="text"/></div>
-    <div class="field"><label>Categoria</label><input id="pdCategoria" type="text" placeholder="Sem categoria"/></div>
-    <div class="field"><label>Custo (R$)</label><input id="pdCusto" type="number" min="0" step="0.01"/></div>
-    <div class="field"><label>Preço de venda (R$)</label><input id="pdPreco" type="number" min="0" step="0.01"/></div>
-    <div class="field" id="pdEstoqueInicialField"><label>Estoque inicial</label><input id="pdEstoqueInicial" type="number" min="0" step="1" value="0"/></div>
-    <div class="field"><label>Estoque mínimo</label><input id="pdEstoqueMinimo" type="number" min="0" step="1" value="0"/></div>
-    <div class="field"><label>Comissão (%)</label><input id="pdComissao" type="number" min="0" max="100" step="0.01" value="0"/></div>
+    <div class="field"><label for="pdNome">Nome</label><input id="pdNome" type="text"/></div>
+    <div class="field"><label for="pdSku">SKU (opcional)</label><input id="pdSku" type="text"/></div>
+    <div class="field"><label for="pdCategoria">Categoria</label><input id="pdCategoria" type="text" placeholder="Sem categoria"/></div>
+    <div class="field"><label for="pdCusto">Custo (R$)</label><input id="pdCusto" type="number" min="0" step="0.01"/></div>
+    <div class="field"><label for="pdPreco">Preço de venda (R$)</label><input id="pdPreco" type="number" min="0" step="0.01"/></div>
+    <div class="field" id="pdEstoqueInicialField"><label for="pdEstoqueInicial">Estoque inicial</label><input id="pdEstoqueInicial" type="number" min="0" step="1" value="0"/></div>
+    <div class="field"><label for="pdEstoqueMinimo">Estoque mínimo</label><input id="pdEstoqueMinimo" type="number" min="0" step="1" value="0"/></div>
+    <div class="field"><label for="pdComissao">Comissão (%)</label><input id="pdComissao" type="number" min="0" max="100" step="0.01" value="0"/></div>
     <div class="field">
-      <label>Modelo de comissão</label>
+      <label for="pdModeloComissao">Modelo de comissão</label>
       <select id="pdModeloComissao">
         <option value="bruto_salao">Bruto salão</option>
         <option value="dividido">Dividido</option>
@@ -786,16 +786,16 @@ dialog {
     <p class="modal-error hidden" id="aeError"></p>
     <p id="ajusteEstoqueProdutoNome" style="font-size:13px;color:var(--md-outline);margin-bottom:10px;"></p>
     <div class="field">
-      <label>Tipo</label>
+      <label for="aeTipo">Tipo</label>
       <select id="aeTipo">
         <option value="entrada">Entrada</option>
         <option value="ajuste">Ajuste</option>
         <option value="perda">Perda</option>
       </select>
     </div>
-    <div class="field"><label>Quantidade</label><input id="aeQuantidade" type="number" min="1" step="1"/></div>
-    <div class="field"><label>Custo unitário (R$, opcional)</label><input id="aeCusto" type="number" min="0" step="0.01"/></div>
-    <div class="field"><label>Motivo (opcional)</label><input id="aeMotivo" type="text"/></div>
+    <div class="field"><label for="aeQuantidade">Quantidade</label><input id="aeQuantidade" type="number" min="1" step="1"/></div>
+    <div class="field"><label for="aeCusto">Custo unitário (R$, opcional)</label><input id="aeCusto" type="number" min="0" step="0.01"/></div>
+    <div class="field"><label for="aeMotivo">Motivo (opcional)</label><input id="aeMotivo" type="text"/></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarAjusteEstoque" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarAjusteEstoque" style="flex:1;">Confirmar</button>
@@ -807,12 +807,12 @@ dialog {
   <div class="modal-box">
     <h2 id="modalFormaTitulo">Nova forma de pagamento</h2>
     <p class="modal-error hidden" id="fmError"></p>
-    <div class="field"><label>Código</label><input id="fmCode" type="text" placeholder="ex: credito_visa"/></div>
-    <div class="field"><label>Nome (label)</label><input id="fmLabel" type="text"/></div>
-    <div class="field"><label>Ícone (opcional)</label><input id="fmIcon" type="text" placeholder="💳"/></div>
-    <div class="field"><label>Taxa (%)</label><input id="fmTaxaPct" type="number" min="0" step="0.01" value="0"/></div>
-    <div class="field"><label>Taxa fixa (R$)</label><input id="fmTaxaFixa" type="number" min="0" step="0.01" value="0.00"/></div>
-    <div class="field"><label>Dias para recebimento</label><input id="fmDiasRecebimento" type="number" min="0" step="1" value="0"/></div>
+    <div class="field"><label for="fmCode">Código</label><input id="fmCode" type="text" placeholder="ex: credito_visa"/></div>
+    <div class="field"><label for="fmLabel">Nome (label)</label><input id="fmLabel" type="text"/></div>
+    <div class="field"><label for="fmIcon">Ícone (opcional)</label><input id="fmIcon" type="text" placeholder="💳"/></div>
+    <div class="field"><label for="fmTaxaPct">Taxa (%)</label><input id="fmTaxaPct" type="number" min="0" step="0.01" value="0"/></div>
+    <div class="field"><label for="fmTaxaFixa">Taxa fixa (R$)</label><input id="fmTaxaFixa" type="number" min="0" step="0.01" value="0.00"/></div>
+    <div class="field"><label for="fmDiasRecebimento">Dias para recebimento</label><input id="fmDiasRecebimento" type="number" min="0" step="1" value="0"/></div>
     <div class="field hidden" id="fmAtivoField">
       <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fmAtivo" style="width:auto;"/> Ativo</label>
     </div>
