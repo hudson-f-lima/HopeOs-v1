@@ -81,6 +81,7 @@ docs/FRONTEND_V1_3_ADVERSARIAL_AUDIT.md
 docs/HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md
 docs/API_CONTRACT.md
 docs/DATA_CONTRACT.md
+docs/archive/legacy-v1/
 ```
 
 ## Ultima validacao conhecida
