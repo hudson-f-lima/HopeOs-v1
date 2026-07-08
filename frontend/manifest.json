@@ -1,13 +1,13 @@
 {
   "name": "HOPE OS",
   "short_name": "HOPE OS",
-  "description": "Comanda e checkout HOPE OS conectado ao backend real.",
+  "description": "Agenda, comanda e gestão premium para beauty tech conectado ao backend real.",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#7c3aed",
-  "theme_color": "#7c3aed",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
   "orientation": "portrait",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
