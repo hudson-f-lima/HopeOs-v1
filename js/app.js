@@ -52,6 +52,11 @@ function showFatalError() {
 }
 
 async function init() {
+  const loadingMessage = document.getElementById('loadingMessage') || document.querySelector('#loadingScreen div:last-child');
+  const slowBootTimer = setTimeout(() => {
+    if (loadingMessage) loadingMessage.textContent = 'Conectando ao servidor... isso pode levar alguns segundos.';
+  }, 3500);
+
   // Navigation tabs
   document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
@@ -190,9 +195,12 @@ async function init() {
     ]);
   } catch (err) {
     console.error('Falha ao inicializar:', err);
+    clearTimeout(slowBootTimer);
     showFatalError();
     return;
   }
+
+  clearTimeout(slowBootTimer);
 
   const loading = document.getElementById('loadingScreen');
   const root = document.getElementById('appRoot');
