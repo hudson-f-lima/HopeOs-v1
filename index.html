@@ -172,10 +172,25 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .sheet-actions .btn.primary{background:var(--md-primary);color:var(--md-on-primary);}
 
 /* Dashboard */
-.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:4px;}
-.stat-card{background:var(--md-surface);border-radius:12px;padding:14px;box-shadow:var(--elevation-1);}
-.stat-card .label{font-size:10px;color:var(--md-outline);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px;}
-.stat-card .value{font-size:19px;font-weight:800;}
+.dashboard-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;color:#fff;}
+.dashboard-header h2{color:rgba(255,255,255,.78);margin-bottom:4px;}
+.dashboard-subtitle{font-size:13px;color:rgba(255,255,255,.66);line-height:1.4;}
+.dashboard-bento{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.stat-card{position:relative;overflow:hidden;background:var(--md-surface);border-radius:18px;padding:16px;box-shadow:var(--elevation-1);min-height:112px;}
+.stat-card::after{content:'';position:absolute;right:-24px;top:-24px;width:86px;height:86px;border-radius:50%;background:rgba(124,106,247,.10);}
+.stat-card.primary{grid-column:span 2;background:linear-gradient(135deg,#ffffff 0%,#f4f1ff 100%);min-height:132px;}
+.stat-card.accent-teal::after{background:rgba(20,184,166,.14);}
+.stat-card.accent-coral::after{background:rgba(255,122,104,.16);}
+.stat-card.accent-blue::after{background:rgba(59,130,246,.14);}
+.stat-card .label{font-size:10px;color:var(--md-outline);text-transform:uppercase;letter-spacing:.04em;font-weight:800;margin-bottom:8px;position:relative;z-index:1;}
+.stat-card .value{font-size:22px;font-weight:800;letter-spacing:0;position:relative;z-index:1;}
+.stat-card.primary .value{font-size:32px;}
+.stat-card .hint{font-size:12px;color:var(--md-outline);margin-top:8px;position:relative;z-index:1;}
+.dashboard-list{margin-top:12px;}
+.dashboard-list h2{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.dashboard-list .row{align-items:center;gap:12px;}
+.dashboard-list .row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@media (min-width:768px){.dashboard-bento{grid-template-columns:repeat(4,minmax(0,1fr));}.stat-card.primary{grid-column:span 2;}.dashboard-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}.dashboard-list{margin-top:0;}}
 
 /* Cadastros (aba Mais) */
 .subtab-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;-webkit-overflow-scrolling:touch;}
@@ -404,22 +419,46 @@ dialog {
     </section>
 
     <section id="tab-dashboard" class="tab-content hidden">
-      <div class="card">
-        <h2>KPIs <span class="badge" id="dashUpdatedAt"></span></h2>
-        <div class="stat-grid">
-          <div class="stat-card"><div class="label">Receita empresa</div><div class="value" id="dbReceita">—</div></div>
-          <div class="stat-card"><div class="label">Comandas fechadas</div><div class="value" id="dbComandos">—</div></div>
-          <div class="stat-card"><div class="label">Comissões</div><div class="value" id="dbComissoes">—</div></div>
-          <div class="stat-card"><div class="label">Ticket médio</div><div class="value" id="dbTicketMedio">—</div></div>
+      <div class="dashboard-header">
+        <div>
+          <h2>Dashboard</h2>
+          <p class="dashboard-subtitle">Resumo financeiro e repasses da operação.</p>
+        </div>
+        <span class="badge" id="dashUpdatedAt"></span>
+      </div>
+
+      <div class="dashboard-bento">
+        <div class="stat-card primary">
+          <div class="label">Receita empresa</div>
+          <div class="value" id="dbReceita">—</div>
+          <div class="hint">Resultado líquido operacional</div>
+        </div>
+        <div class="stat-card accent-teal">
+          <div class="label">Comandas</div>
+          <div class="value" id="dbComandos">—</div>
+          <div class="hint">Fechadas no período</div>
+        </div>
+        <div class="stat-card accent-coral">
+          <div class="label">Comissões</div>
+          <div class="value" id="dbComissoes">—</div>
+          <div class="hint">Previsão de repasse</div>
+        </div>
+        <div class="stat-card accent-blue">
+          <div class="label">Ticket médio</div>
+          <div class="value" id="dbTicketMedio">—</div>
+          <div class="hint">Por comanda fechada</div>
         </div>
       </div>
-      <div class="card">
-        <h2>Pagamentos por forma</h2>
-        <div id="dbPagamentos"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
-      </div>
-      <div class="card">
-        <h2>Repasse por profissional</h2>
-        <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
+
+      <div class="dashboard-list-grid">
+        <div class="card dashboard-list">
+          <h2>Pagamentos por forma</h2>
+          <div id="dbPagamentos"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
+        </div>
+        <div class="card dashboard-list">
+          <h2>Repasse por profissional</h2>
+          <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
+        </div>
       </div>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
@@ -1534,16 +1573,18 @@ async function atualizarDashboard() {
     document.getElementById('dashUpdatedAt').textContent = new Date().toLocaleTimeString('pt-BR');
 
     const porForma = dash.paymentsByMethod || [];
+    const formasVisiveis = porForma.slice(0, 5);
     document.getElementById('dbPagamentos').innerHTML = porForma.length
-      ? porForma.map(p => {
+      ? formasVisiveis.map(p => {
           const forma = catalog.formas_pagamento.find(f => f.code === p.formaCode);
           return `<div class="row"><span>${escapeHtml(forma ? forma.label : p.formaCode)} (${p.count}x)</span><b>${centsToBRL(p.valorCentavos)}</b></div>`;
-        }).join('')
+        }).join('') + (porForma.length > formasVisiveis.length ? `<p class="list-count-hint">+${porForma.length - formasVisiveis.length} forma(s) no total.</p>` : '')
       : '<p style="font-size:13px;color:var(--md-outline);">Sem dados.</p>';
 
     const repasses = (dash.finance && dash.finance.repassesPorProfissional) || [];
+    const repassesVisiveis = repasses.slice(0, 5);
     document.getElementById('dbRepasses').innerHTML = repasses.length
-      ? repasses.map(r => `<div class="row"><span>${escapeHtml(findProfissionalNome(r.profissionalId))}</span><b>${centsToBRL((r.comissaoCentavos || 0) + (r.gorjetaLiquidaCentavos || 0))}</b></div>`).join('')
+      ? repassesVisiveis.map(r => `<div class="row"><span>${escapeHtml(findProfissionalNome(r.profissionalId))}</span><b>${centsToBRL((r.comissaoCentavos || 0) + (r.gorjetaLiquidaCentavos || 0))}</b></div>`).join('') + (repasses.length > repassesVisiveis.length ? `<p class="list-count-hint">+${repasses.length - repassesVisiveis.length} profissional(is) no total.</p>` : '')
       : '<p style="font-size:13px;color:var(--md-outline);">Sem dados.</p>';
   } catch (err) {
     showBanner('Dashboard: ' + err.message, 'error');
