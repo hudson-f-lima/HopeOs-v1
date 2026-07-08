@@ -2,11 +2,14 @@ import { api } from '../api.js';
 import { state, stateBus } from '../state.js';
 import {
   centsToBRL,
-  brlToCents,
   genIdempotencyKey,
   clearBanner,
   showBanner
 } from '../utils.js';
+
+// F0 (V1.4): split do V1.3 foi mergeado incompleto — buildPayload() ignora os splits.
+// UI desligada até a F4 integrar payments[] de ponta a ponta (RPC já suporta N pagamentos).
+const SPLIT_ENABLED = false;
 
 export function getVisibleCartItems() {
   const tab = state.checkoutTab;
@@ -18,7 +21,8 @@ function buildPayload() {
   const profissionalId = state.fuzzyProfissional.getValue();
   const formaCode = state.fuzzyForma.getValue();
   const clienteId = state.fuzzyCliente.getValue();
-  const gorjetaCentavos = brlToCents(document.getElementById('coGorjeta').value);
+  // V1.3 trocou o input coGorjeta pelo tip stepper; a intenção de gorjeta vive em state.tip (centavos)
+  const gorjetaCentavos = state.tip || 0;
 
   if (!servicoId) throw new Error('Selecione um serviço.');
   if (!profissionalId) throw new Error('Selecione um profissional.');
@@ -91,6 +95,8 @@ export async function fechar() {
     showBanner('Comanda fechada com sucesso.', 'ok');
     state.currentPayload = null;
     state.agendamentoIdParaCheckout = null;
+    state.tip = 0;
+    renderTipStepper();
     btn.textContent = 'Fechar comanda';
     
     // Emit event so other modules (dashboard, agenda) update
@@ -142,18 +148,26 @@ export function renderTipStepper() {
   }
 }
 
+// Gorjeta alterada após o preview = payload defasado → força nova simulação (backend é a verdade)
+function invalidatePreview() {
+  state.currentPayload = null;
+  const card = document.getElementById('cardPreview');
+  if (card) card.classList.add('hidden');
+  updateSubmitButtonState();
+}
+
 export function incrementTip() {
   state.tip += 100; // incrementa 1 real (100 centavos)
   renderTipStepper();
-  updateSubmitButtonState();
+  invalidatePreview();
 }
 
 export function decrementTip() {
   if (state.tip > 0) {
     state.tip -= 100; // decrementa 1 real
     renderTipStepper();
+    invalidatePreview();
   }
-  updateSubmitButtonState();
 }
 
 export function renderSplitToggle() {
@@ -164,6 +178,7 @@ export function renderSplitToggle() {
 }
 
 export function toggleSplitPayment() {
+  if (!SPLIT_ENABLED) return;
   state.splitEnabled = !state.splitEnabled;
   renderSplitToggle();
   renderPaymentMethods();
@@ -174,6 +189,12 @@ export function toggleSplitPayment() {
 export function renderPaymentMethods() {
   const container = document.getElementById('paymentMethodsContainer');
   if (!container) return;
+
+  // Select órfão do V1.3 (buildPayload usa o fuzzy coForma) — nunca exibir com split desligado
+  if (!SPLIT_ENABLED) {
+    container.classList.add('hidden');
+    return;
+  }
 
   if (state.splitEnabled) {
     container.classList.add('hidden');
@@ -186,6 +207,11 @@ export function renderSplitRows() {
   const splitContainer = document.getElementById('splitRowsContainer');
   const splitList = document.getElementById('splitRowsList');
   if (!splitContainer || !splitList) return;
+
+  if (!SPLIT_ENABLED) {
+    splitContainer.classList.add('hidden');
+    return;
+  }
 
   if (state.splitEnabled) {
     splitContainer.classList.remove('hidden');
@@ -242,7 +268,7 @@ export function addSplitRow() {
 }
 
 export function validateSplitPayment() {
-  if (!state.splitEnabled) return true; // Sem split, sempre válido
+  if (!SPLIT_ENABLED || !state.splitEnabled) return true; // Sem split, sempre válido
 
   const total = state.tip; // Valor total a pagar (apenas gorjeta por enquanto)
   const sumManualSplits = state.splits.slice(0, -1).reduce((sum, split) => sum + (split.amount || 0), 0);
@@ -254,7 +280,8 @@ export function validateSplitPayment() {
 export function updateSubmitButtonState() {
   const btnFechar = document.getElementById('btnFechar');
   if (btnFechar) {
-    btnFechar.disabled = !validateSplitPayment();
+    // Só habilita com preview válido em mãos — nunca habilitar sem simulação
+    btnFechar.disabled = !state.currentPayload || !validateSplitPayment();
   }
 }
 
@@ -278,11 +305,14 @@ export function initCheckout() {
   if (tipPlusBtn) tipPlusBtn.addEventListener('click', incrementTip);
   if (tipMinusBtn) tipMinusBtn.addEventListener('click', decrementTip);
 
+  const splitToggleRow = document.querySelector('.split-toggle-row');
+  if (!SPLIT_ENABLED && splitToggleRow) splitToggleRow.classList.add('hidden');
+
   const splitToggle = document.getElementById('splitToggle');
-  if (splitToggle) splitToggle.addEventListener('click', toggleSplitPayment);
+  if (SPLIT_ENABLED && splitToggle) splitToggle.addEventListener('click', toggleSplitPayment);
 
   const addSplitRowBtn = document.getElementById('addSplitRowBtn');
-  if (addSplitRowBtn) addSplitRowBtn.addEventListener('click', addSplitRow);
+  if (SPLIT_ENABLED && addSplitRowBtn) addSplitRowBtn.addEventListener('click', addSplitRow);
 
   renderTipStepper();
   renderSplitToggle();
