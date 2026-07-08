@@ -1,4 +1,6 @@
-# HOPE OS V1.2 — Contexto do projeto
+# HOPE OS — Contexto do projeto (V1.3 em produção; V1.4 em andamento)
+
+KortexOS™ é o nome canônico do produto (HOPE OS vira legado interno) — fonte única: `KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` na raiz.
 
 ## Stack
 
@@ -41,11 +43,11 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 
 ### Frontend
 
-- `index.html` (PWA de arquivo único) publicado no GitHub Pages, consumindo o backend real via `/api/*`.
+- PWA publicada no GitHub Pages consumindo o backend real via `/api/*`. Desde o V1.3 é modular: `index.html` + `css/app.css` + módulos ES6 em `js/` (state, api, utils, ui/*).
 - Estrutura de abas: Agenda, Checkout, Dashboard, Mais.
 - Aba **Mais**: UI de Cadastros Reais implementada — CRUD de clientes, serviços, profissionais (+ vínculo com serviços + overrides por serviço), produtos (+ ajuste de estoque), formas de pagamento. Desativação sempre via `ativo=false`, nunca delete físico.
 - Checkout: preview reorganizado em blocos Bruto → Deduções → Resultado (mesmos campos que a API já retornava; nenhum cálculo novo no frontend).
-- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-2`.
+- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-3-11`.
 - `frontendCalculates: false` continua sendo a regra vigente — frontend só coleta intenção, chama API e exibe a resposta.
 
 ### Cadastros
@@ -58,24 +60,25 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Serviço x profissional: REAL — `GET/PUT /profissionais/:id/servicos` (RPC atômica), UI de vínculo (checklist) na aba Mais.
 - Overrides por profissional: REAL — `PATCH /profissionais/:id/servicos/:servicoId/override` (RPC atômica com `jsonb_set`, sem read-modify-write), checkout já lê e aplica os overrides, UI de personalização por serviço na aba Mais.
 
-## V1.3 — Frontend UI/UX Premium (em andamento)
+## V1.3 — Frontend UI/UX Premium (CONCLUÍDO — merged em main, 2026-07-08)
 
-Etapa atual do projeto, autorizada pelo usuário em 2026-07-07. Documentos de referência:
+Entregue: tema claro + design system CSS (variáveis + utilities), Agenda Premium (ocupação por day pill com cores, info bar com donut SVG, timeline com avatares), Checkout Premium (abas serviços/produtos, tip stepper), refactor modular (`css/`, `js/`). Docs: `docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md`, `docs/FRONTEND_V1_3_UI_UX_AUDIT.md`, `docs/PLAN_V1_3_TASKS.md`, `docs/SPEC_V1_3_AGENDA_CHECKOUT_PREMIUM.md`.
 
-- `docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md` — plano de produto/UX.
-- `docs/FRONTEND_V1_3_UI_UX_AUDIT.md` — auditoria visual/estrutural do estado atual.
-- `docs/DILEMA_EXCLUIR_VS_DESATIVAR_SNAPSHOT.md` — pesquisa de mercado sobre excluir vs desativar (referência, não bloqueia V1.3).
+**Débito conhecido (CRÍTICO):** split de pagamento foi mergeado INCOMPLETO — a UI renderiza toggle/linhas, mas `buildPayload()` continua enviando pagamento único e `validateSplitPayment()` valida só contra a gorjeta. Plano: esconder na F0 do V1.4 e completar na F4 (a RPC `checkout_close` já grava N pagamentos).
 
-Regra-mãe do V1.3: nenhuma regra de negócio muda por causa da UI; backend continua verdade única; sem migration nova, sem alteração no Supabase, sem novo backend, sem app do cliente/marketplace/IA/notificações reais/login completo nesta etapa (ver "Fora de escopo" no blueprint).
+Pendências herdadas: frontend segue sem testes (`test:gate` é 100% backend — QA manual obrigatório); lista de Clientes (1481+) sem paginação/busca na UI.
 
-**Decisão registrada em 2026-07-07**: dashboard sofisticado (bento grid, alertas operacionais) está explicitamente autorizado como parte do escopo do V1.3 — exceção pontual ao gate abaixo, decidida pelo usuário após auditoria adversarial do blueprint apontar o conflito. As demais proibições continuam de pé.
+## V1.4 — KortexOS Now-Scope: Decision Intelligence (em andamento)
 
-Achados da auditoria adversarial ao blueprint (2026-07-07) ainda não resolvidos no próprio blueprint, a considerar durante a execução:
-- Nenhum teste cobre o frontend (`test:gate` é 100% backend) — QA manual estruturado por fluxo é obrigatório, não opcional.
-- Lista de Clientes (1481+ registros reais) não tem paginação/virtualização/busca — mover para bottom sheet (Etapa 3/7) piora, não melhora, sem resolver isso antes.
-- Trocar os 3 `confirm()` nativos por modal custom é risco funcional em ações destrutivas (cancelar agendamento, no-show, esvaziar vínculos), não só cosmético.
-- Toast/notificação nova precisa herdar a separação já existente entre banner global e `modal-error` inline (construída nesta sessão para resolver bug real de z-index atrás de modais).
-- "Mínimo texto" não pode se aplicar a mensagens de erro vindas do backend (`err.message`) — só a textos estáticos do próprio frontend.
+Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Passos canônicos 3–4 do Master Briefing 5.1 concluídos (benchmark global + comparative proposal).
+
+**Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência nova é derivada read-only do ledger existente; agregação em Node (services); thresholds/faixas definidos no backend e enviados na resposta; frontend só exibe. Únicas escritas novas: CRUD de `lista_espera` (tabela existente e ociosa) e rebooking via POST /agenda existente.
+
+Escopo (fases F0–F5, ~10 dias): F0 saneamento (esconder split quebrado) → F1 insights núcleo (`/insights/occupancy|margin|cashflow`) → F2 retenção (RFM, churn-risk, Reliability Score v0 shadow, attach) → F3 Dashboard bento ("Ação do dia", heatmap, caixa D+30, "quem chamar hoje") → F4 ação (rebooking pós-checkout, split completo, waitlist, WhatsApp one-tap manual via `wa.me`) → F5 QA + auditoria + deploy.
+
+Docs do ciclo: `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md` (escopo/KPIs), `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas/contratos de API), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas/DoD/riscos), `docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md` e `docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md` (base canônica).
+
+Limites do V1.4: score NUNCA bloqueia/cobra (shadow); WhatsApp sempre manual um-a-um (não é marketing automático); assinatura só como analytics de candidatos (vender plano sem ledger/wallet = saldo paralelo = bloqueado).
 
 ## Próximo gate proibido
 
