@@ -3,7 +3,17 @@ const CACHE_NAME = 'hope-os-shell-v1-3-8';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './css/app.css',
+  './js/app.js',
+  './js/api.js',
+  './js/state.js',
+  './js/utils.js',
+  './js/components/fuzzy-field.js',
+  './js/ui/agenda.js',
+  './js/ui/checkout.js',
+  './js/ui/dashboard.js',
+  './js/ui/cadastros.js'
 ];
 
 self.addEventListener('install', (event) => {
