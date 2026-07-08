@@ -1,96 +1,93 @@
-# HOPE OS V1.0.3 — PRE DEPLOY HOTFIX
+# HOPE OS
 
-Hotfix pré-deploy do patch **Polymorphic Command Items**.
+App operacional para beauty tech: agenda, comanda, dashboard e gestao conectados ao backend real.
 
-## Parecer direto
-
-```txt
-Escopo: cirúrgico
-Versão conceitual: V1.0.3 mantida
-Objetivo: corrigir 3 pontos antes do Supabase real
-Backend pós-hotfix: congelado para deploy real
-```
-
-## Correções aplicadas
+## Estado atual
 
 ```txt
-1. servicosLiquidosCentavos agora contém somente serviços.
-2. produtosLiquidosCentavos foi criado para produtos.
-3. itensLiquidosCentavos soma serviços + produtos.
-4. Produto abaixo do custo bloqueia com PRODUCT_BELOW_COST.
-5. Desconto que joga produto abaixo do custo também bloqueia.
-6. Produto sem profissionalId gera comissão zero.
-7. Modelo de comissão de produto vem do produto, não do profissional.
-8. RPC checkout_close mapeia as colunas corretas.
+Backend: V1.2 cadastros reais + hardening aplicado
+Frontend: V1.3 UI/UX premium publicado
+Deploy frontend: GitHub Pages
+Deploy backend: Render
+Banco: Supabase
+PWA cache atual: hope-os-shell-v1-3-8
 ```
 
-## Arquivos alterados
+URLs:
 
 ```txt
-backend/src/engines/FinanceEngine.js
-backend/src/engines/ProductEngine.js
-backend/src/services/FinanceReadModel.js
-backend/src/services/DashboardService.js
-backend/tests/product-foundation-gate.test.js
-backend/tests/schema-polymorphic-gate.test.js
-supabase/migrations/001_init.sql
-supabase/migrations/002_checkout_close_rpc.sql
-supabase/migrations/003_lock_rpc_permissions.sql
-docs/PRE_DEPLOY_HOTFIX.md
+Frontend: https://hudson-f-lima.github.io/HopeOs-v1/
+Backend health: https://hopeos-v1.onrender.com/api/health
 ```
 
-## Teste local
+## O que existe
+
+```txt
+Agenda premium mobile-first
+Comanda / checkout real
+Dashboard bento
+Gestao via avatar
+Clientes, servicos, profissionais, produtos e formas de pagamento
+Service worker com HTML network-first
+Backend real com validacoes e gates
+```
+
+## Regras de seguranca
+
+```txt
+Nao commitar .env
+Nao expor tokens
+Nao rodar migration sem autorizacao
+Nao alterar Supabase sem autorizacao explicita
+Nao mudar regra financeira pelo frontend
+Backend continua sendo a fonte da verdade
+```
+
+## Comandos uteis
+
+Backend:
 
 ```bash
 cd backend
+npm install
 npm run test:gate
+npm start
 ```
 
-Resultado esperado:
+Git status:
 
-```txt
-Finance Gate V1: 10/10 testes verdes
-Product Foundation Gate: 8/8 testes verdes
-Schema Polymorphic Gate: 12/12 checks verdes
-RPC Permission Gate: 8/8 checks verdes
+```bash
+git status
+git log --oneline -5
 ```
 
-Total:
+## Deploy e cache
+
+Depois de alterar frontend:
 
 ```txt
-38/38 checks verdes
+1. Atualizar CACHE_NAME em service-worker.js
+2. Atualizar CACHE_NAME em frontend/service-worker.js
+3. Validar GitHub Pages publicado
+4. Se o navegador mostrar tela antiga, usar Ctrl+F5 ou abrir com query ?refresh=1
 ```
 
-## Ordem real agora
+## Documentos principais
 
 ```txt
-1. Aplicar 001 → 002 → 003 em Supabase real limpo
-2. Rodar seed
-3. Rodar npm run test:gate
-4. Testar anon key bloqueada na RPC checkout_close
-5. Fechar comanda simples
-6. Fechar comanda serviço + produto
-7. Conferir baixa de estoque
-8. Conferir produto_estoque_movimentos
-9. Conferir comando_pagamentos
-10. Conferir caixa_movimentos
+docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md
+docs/FRONTEND_V1_3_UI_UX_AUDIT.md
+docs/FRONTEND_V1_3_ADVERSARIAL_AUDIT.md
+docs/HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md
+docs/API_CONTRACT.md
+docs/DATA_CONTRACT.md
 ```
 
-## Regra de processo
+## Ultima validacao conhecida
 
 ```txt
-Este é o último rewrite in-place permitido.
-Após aplicar no Supabase real, 001/002/003 ficam congeladas.
-Toda mudança futura vira migration 004+.
-```
-
-## Congelamento
-
-```txt
-Não criar V1.0.4.
-Não criar pacotes.
-Não criar assinaturas.
-Não criar gift card.
-Não criar relatório novo.
-Não mexer no frontend checkout antes do gate real.
+GitHub Pages: HTTP 200
+service-worker.js: hope-os-shell-v1-3-8
+Backend /api/health: HTTP 200
+App abriu em navegador limpo com fatalVisible=false e appVisible=true
 ```
