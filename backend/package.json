@@ -13,7 +13,8 @@
     "test": "npm run test:gate",
     "test:rpc-lock": "node tests/rpc-permission-lock.test.js",
     "test:cadastros": "node tests/cadastros-reais-gate.test.js",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros",
+    "test:insights": "node tests/insights-gate.test.js",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js"
   },
