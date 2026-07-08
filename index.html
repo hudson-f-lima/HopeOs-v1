@@ -196,6 +196,8 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .modal-error{background:#fde8e8;color:var(--md-error);border:1px solid #f3c6c6;border-radius:10px;padding:8px 10px;font-size:12px;margin-bottom:12px;}
 .filter-inline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--md-outline);margin-bottom:8px;}
 .filter-inline input{width:auto;}
+.list-toolbar{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+.list-count-hint{font-size:12px;color:var(--md-outline);line-height:1.4;}
 
 /* Bottom nav + FAB */
 .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:80px;background:var(--glass);backdrop-filter:blur(var(--blur-glass));-webkit-backdrop-filter:blur(var(--blur-glass));border-top:1px solid var(--glass-border);display:flex;box-shadow:var(--elevation-glass);z-index:100;}
@@ -593,7 +595,11 @@ dialog {
           <h2 style="margin-bottom:0;">Clientes</h2>
           <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoCliente">+ Novo</button>
         </div>
-        <label class="filter-inline"><input type="checkbox" id="chkClientesInativos"/> Mostrar inativos</label>
+        <div class="list-toolbar">
+          <input id="buscaClientes" type="search" placeholder="Buscar cliente por nome ou WhatsApp" autocomplete="off"/>
+          <label class="filter-inline"><input type="checkbox" id="chkClientesInativos"/> Mostrar inativos</label>
+          <div class="list-count-hint" id="clientesListHint"></div>
+        </div>
         <div id="listClientes"></div>
       </div>
     </div>
@@ -790,6 +796,9 @@ function brlToCents(v) { return Math.round((Number(v) || 0) * 100); }
 function genIdempotencyKey() { return Date.now() + '-' + Math.random().toString(36).slice(2, 10); }
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function normalizeSearchText(str) {
+  return String(str ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 function toDateStr(d) { return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 function todayStr() { return toDateStr(new Date()); }
@@ -1556,7 +1565,20 @@ function renderClienteRow(c) {
 }
 function renderClientesList() {
   const mostrarInativos = document.getElementById('chkClientesInativos').checked;
-  renderList('listClientes', (catalog.clientes || []).filter(c => mostrarInativos || c.ativo !== false), renderClienteRow);
+  const query = normalizeSearchText(document.getElementById('buscaClientes').value.trim());
+  const base = (catalog.clientes || []).filter(c => mostrarInativos || c.ativo !== false);
+  const filtered = query
+    ? base.filter(c => normalizeSearchText(`${c.nome || ''} ${c.whatsapp || ''}`).includes(query))
+    : base;
+  const limit = query ? 50 : 20;
+  const visible = filtered.slice(0, limit);
+  const hint = document.getElementById('clientesListHint');
+  if (hint) {
+    if (!base.length) hint.textContent = 'Nenhum cliente cadastrado.';
+    else if (query) hint.textContent = `${visible.length} de ${filtered.length} resultado(s) para a busca.`;
+    else hint.textContent = `Mostrando ${visible.length} de ${filtered.length} cliente(s). Use a busca para encontrar rapidamente.`;
+  }
+  renderList('listClientes', visible, renderClienteRow);
 }
 function openClienteModal(cliente) {
   document.getElementById('modalClienteTitulo').textContent = cliente ? 'Editar cliente' : 'Novo cliente';
@@ -2070,6 +2092,7 @@ async function init() {
 
   /* Cadastros: Clientes */
   document.getElementById('chkClientesInativos').addEventListener('change', renderClientesList);
+  document.getElementById('buscaClientes').addEventListener('input', renderClientesList);
   document.getElementById('btnNovoCliente').addEventListener('click', () => openClienteModal(null));
   document.getElementById('btnCancelarCliente').addEventListener('click', () => closeModal('modalCliente'));
   document.getElementById('btnSalvarCliente').addEventListener('click', submitClienteForm);
