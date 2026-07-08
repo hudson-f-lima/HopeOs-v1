@@ -225,8 +225,8 @@ export function renderTimeline() {
         const initials = getInitials(p.nome);
         const firstName = p.nome ? p.nome.split(' ')[0] : '?';
         return `<div class="timeline-header-btn ${isSelected}" data-prof="${p.id}" 
-               style="flex:1 1 120px; min-width:120px; cursor:pointer; box-sizing:border-box; border-right:1px solid #f1effa; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px 10px; background:#faf9ff; transition:background 0.2s;">
-            <div class="avatar-circle" style="background:${color}; color:#fff; font-weight:800; font-size:12px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:${isSelected ? '2px solid #7c6af7' : '2px solid #fff'}; box-shadow:${isSelected ? '0 0 0 2px rgba(124,106,247,.18)' : 'none'};">${initials}</div>
+               style="flex:1 1 120px; min-width:120px; cursor:pointer; box-sizing:border-box; border-right:1px solid #e7e0ec; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px 10px; background:#f7f2fa; transition:background 0.2s;">
+            <div class="avatar-circle" style="background:${color}; color:#fff; font-weight:800; font-size:12px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:${isSelected ? '2px solid #6750a4' : '2px solid #fffbfe'}; box-shadow:${isSelected ? '0 0 0 2px rgba(103,80,164,.18)' : 'none'};">${initials}</div>
             <div style="font-weight:800; font-size:10.5px; color:${color}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHtml(firstName)}</div>
           </div>`;
       }).join('');
