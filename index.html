@@ -340,7 +340,7 @@ dialog {
 
 <div id="fatalError" class="card hidden" style="margin:16px;border:1px solid #f3c6c6;">
   <h2 style="color:var(--md-error);">Backend indisponível</h2>
-  <p style="font-size:14px;line-height:1.5;">Backend indisponível — avise o Hudson.</p>
+  <p style="font-size:14px;line-height:1.5;">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
 </div>
 
 <div id="appRoot" class="hidden">
@@ -488,11 +488,11 @@ dialog {
       <div class="dashboard-list-grid">
         <div class="card dashboard-list">
           <h2>Pagamentos por forma</h2>
-          <div id="dbPagamentos"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
+          <div id="dbPagamentos"><p style="font-size:13px;color:var(--md-outline);">Nenhum pagamento fechado ainda.</p></div>
         </div>
         <div class="card dashboard-list">
           <h2>Repasse por profissional</h2>
-          <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Sem dados.</p></div>
+          <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Nenhum repasse calculado ainda.</p></div>
         </div>
       </div>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
@@ -847,9 +847,9 @@ async function loadConfig() {
   const override = new URLSearchParams(window.location.search).get('apiBase');
   if (override) { API_BASE = override.replace(/\/+$/, ''); return; }
   const res = await fetch('./config.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error('config.json indisponível (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error('Configuração do app indisponível (HTTP ' + res.status + ')');
   const cfg = await res.json();
-  if (!cfg || !cfg.apiBase) throw new Error('config.json sem apiBase.');
+  if (!cfg || !cfg.apiBase) throw new Error('Configuração do app incompleta.');
   API_BASE = String(cfg.apiBase).replace(/\/+$/, '');
 }
 
@@ -908,7 +908,7 @@ function clearBanner() { document.getElementById('banner').innerHTML = ''; }
 function renderList(containerId, items, rowRenderer) {
   document.getElementById(containerId).innerHTML = items.length
     ? items.map(rowRenderer).join('')
-    : '<p style="font-size:13px;color:var(--md-outline);">Nenhum registro.</p>';
+    : '<p class="empty-state">Nada para mostrar aqui por enquanto.</p>';
 }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
@@ -1620,13 +1620,13 @@ async function atualizarDashboard() {
           const forma = catalog.formas_pagamento.find(f => f.code === p.formaCode);
           return `<div class="row"><span>${escapeHtml(forma ? forma.label : p.formaCode)} (${p.count}x)</span><b>${centsToBRL(p.valorCentavos)}</b></div>`;
         }).join('') + (porForma.length > formasVisiveis.length ? `<p class="list-count-hint">+${porForma.length - formasVisiveis.length} forma(s) no total.</p>` : '')
-      : '<p style="font-size:13px;color:var(--md-outline);">Sem dados.</p>';
+      : '<p class="empty-state">Nenhum pagamento fechado ainda.</p>';
 
     const repasses = (dash.finance && dash.finance.repassesPorProfissional) || [];
     const repassesVisiveis = repasses.slice(0, 5);
     document.getElementById('dbRepasses').innerHTML = repasses.length
       ? repassesVisiveis.map(r => `<div class="row"><span>${escapeHtml(findProfissionalNome(r.profissionalId))}</span><b>${centsToBRL((r.comissaoCentavos || 0) + (r.gorjetaLiquidaCentavos || 0))}</b></div>`).join('') + (repasses.length > repassesVisiveis.length ? `<p class="list-count-hint">+${repasses.length - repassesVisiveis.length} profissional(is) no total.</p>` : '')
-      : '<p style="font-size:13px;color:var(--md-outline);">Sem dados.</p>';
+      : '<p class="empty-state">Nenhum repasse calculado ainda.</p>';
   } catch (err) {
     showBanner('Dashboard: ' + err.message, 'error');
   }
@@ -1836,7 +1836,7 @@ function openVinculosModal(profissional) {
   document.getElementById('vinculosChecklist').innerHTML = catalog.servicos
     .filter(s => s.ativo !== false)
     .map(s => `<label class="checklist-row"><input type="checkbox" value="${s.id}" ${linkedIds.includes(s.id) ? 'checked' : ''}/> ${escapeHtml(s.nome)} (${centsToBRL(s.valor_centavos)})</label>`)
-    .join('') || '<p style="font-size:13px;color:var(--md-outline);">Nenhum serviço cadastrado.</p>';
+    .join('') || '<p class="empty-state">Cadastre serviços antes de configurar vínculos.</p>';
 
   renderOverridesSection(profissional);
   openModal('modalVinculos');
