@@ -26,6 +26,7 @@ const {
 } = require('../validators/cadastros.validator');
 const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
+const { InsightsService } = require('../services/InsightsService');
 
 const router = express.Router();
 
@@ -440,6 +441,43 @@ router.post('/checkout/close', async (req, res, next) => {
     }
 
     res.status(201).json({ ok: true, data: { preview, saved, agendamentoConcluido } });
+  } catch (err) { next(err); }
+});
+
+// F1 Insights — read-only, serão cacheáveis depois
+router.get('/insights/occupancy', async (req, res, next) => {
+  try {
+    const from = req.query.from || new Date().toISOString().split('T')[0];
+    const to = req.query.to || new Date().toISOString().split('T')[0];
+    // Validar datas YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
+    }
+    const service = new InsightsService();
+    const data = await service.loadOccupancyInsights(from, to);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.get('/insights/margin', async (req, res, next) => {
+  try {
+    const from = req.query.from || new Date().toISOString().split('T')[0];
+    const to = req.query.to || new Date().toISOString().split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
+    }
+    const service = new InsightsService();
+    const data = await service.loadMarginInsights(from, to);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.get('/insights/cashflow', async (req, res, next) => {
+  try {
+    const days = Math.min(parseInt(req.query.days || '30'), 90);
+    const service = new InsightsService();
+    const data = await service.loadCashflowInsights(days);
+    res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
