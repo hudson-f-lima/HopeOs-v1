@@ -145,6 +145,7 @@ export function renderTipStepper() {
 export function incrementTip() {
   state.tip += 100; // incrementa 1 real (100 centavos)
   renderTipStepper();
+  updateSubmitButtonState();
 }
 
 export function decrementTip() {
@@ -152,6 +153,7 @@ export function decrementTip() {
     state.tip -= 100; // decrementa 1 real
     renderTipStepper();
   }
+  updateSubmitButtonState();
 }
 
 export function renderSplitToggle() {
@@ -166,6 +168,7 @@ export function toggleSplitPayment() {
   renderSplitToggle();
   renderPaymentMethods();
   renderSplitRows();
+  updateSubmitButtonState();
 }
 
 export function renderPaymentMethods() {
@@ -225,6 +228,7 @@ export function renderSplitRows() {
       input.addEventListener('input', () => {
         const idx = parseInt(input.dataset.splitIdx);
         state.splits[idx].amount = parseFloat(input.value) || 0;
+        updateSubmitButtonState();
       });
     });
   } else {
@@ -235,6 +239,23 @@ export function renderSplitRows() {
 export function addSplitRow() {
   state.splits.push({ id: 's' + Date.now(), method: '', amount: 0 });
   renderSplitRows();
+}
+
+export function validateSplitPayment() {
+  if (!state.splitEnabled) return true; // Sem split, sempre válido
+
+  const total = state.tip; // Valor total a pagar (apenas gorjeta por enquanto)
+  const sumManualSplits = state.splits.slice(0, -1).reduce((sum, split) => sum + (split.amount || 0), 0);
+  const lastAmount = total - sumManualSplits;
+
+  return lastAmount >= 0; // Válido se o restante é >= 0
+}
+
+export function updateSubmitButtonState() {
+  const btnFechar = document.getElementById('btnFechar');
+  if (btnFechar) {
+    btnFechar.disabled = !validateSplitPayment();
+  }
 }
 
 export function initCheckout() {
@@ -267,6 +288,7 @@ export function initCheckout() {
   renderSplitToggle();
   renderPaymentMethods();
   renderSplitRows();
+  updateSubmitButtonState();
 
   stateBus.addEventListener('checkout:prefill', (e) => {
     prefillCheckoutFromAgendamento(e.detail);
