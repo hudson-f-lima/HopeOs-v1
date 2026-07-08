@@ -15,6 +15,16 @@ export const state = {
   resizing: null,
   selectedDay: todayStr(),
   activeProfFilter: null, // null = "Todos"
+
+  // V1.3 Checkout Premium
+  checkoutTab: 'servicos', // ou 'produtos'
+  tip: 0, // em centavos
+  splitEnabled: false,
+  splits: [{ id: 's1', method: 'PIX', amount: '' }],
+  cart: {
+    servicos: [], // [{ servicoId, profissionalId, ... }]
+    produtos: [], // [{ produtoId, quantidade, ... }]
+  },
 };
 
 export const PROF_COLORS = ['#16a34a', '#f59e0b', '#dc2626', '#2563eb', '#7c3aed', '#0891b2', '#db2777'];

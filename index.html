@@ -101,6 +101,11 @@
         </div>
       </div>
 
+      <div class="checkout-tabs" id="checkoutTabs">
+        <button class="checkout-tab-btn active" data-tab="servicos">Serviços</button>
+        <button class="checkout-tab-btn" data-tab="produtos">Produtos</button>
+      </div>
+
       <div class="checkout-grid">
         <div class="card checkout-card">
           <h2><span class="checkout-step">1</span> Atendimento</h2>
@@ -125,9 +130,38 @@
             <input id="coForma" type="text" placeholder="🔍 Digite forma..." class="input-light"/>
           </div>
           <div class="field">
-            <label for="coGorjeta">Gorjeta (R$)</label>
-            <input id="coGorjeta" type="number" min="0" step="0.01" value="0"/>
+            <label>Gorjeta (R$)</label>
+            <div class="tip-stepper">
+              <button class="stepper-btn" id="tipMinusBtn">−</button>
+              <div class="stepper-value" id="tipValue">R$ 0,00</div>
+              <button class="stepper-btn" id="tipPlusBtn">+</button>
+            </div>
           </div>
+          <div class="split-toggle-row">
+            <span class="split-toggle-label">Dividir pagamento</span>
+            <button class="split-toggle" id="splitToggle">
+              <div class="toggle-knob"></div>
+            </button>
+          </div>
+
+          <div id="paymentMethodsContainer" class="field hidden">
+            <label for="paymentMethod">Forma de pagamento</label>
+            <select id="paymentMethod" class="input-light">
+              <option value="">Selecione uma forma...</option>
+              <option value="pix">PIX</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="debito">Débito</option>
+              <option value="credito">Crédito</option>
+              <option value="online">Online</option>
+            </select>
+          </div>
+
+          <div id="splitRowsContainer" class="hidden">
+            <label>Formas de pagamento</label>
+            <div id="splitRowsList" class="split-rows-container"></div>
+            <button id="addSplitRowBtn" class="split-add-btn">+ Adicionar forma</button>
+          </div>
+
           <div class="checkout-actions">
             <button class="btn btn-primary" id="btnSimular">Simular comanda</button>
           </div>

@@ -1,12 +1,17 @@
 import { api } from '../api.js';
 import { state, stateBus } from '../state.js';
-import { 
-  centsToBRL, 
-  brlToCents, 
-  genIdempotencyKey, 
-  clearBanner, 
-  showBanner 
+import {
+  centsToBRL,
+  brlToCents,
+  genIdempotencyKey,
+  clearBanner,
+  showBanner
 } from '../utils.js';
+
+export function getVisibleCartItems() {
+  const tab = state.checkoutTab;
+  return tab === 'servicos' ? state.cart.servicos : state.cart.produtos;
+}
 
 function buildPayload() {
   const servicoId = state.fuzzyServico.getValue();
@@ -113,11 +118,165 @@ export function prefillCheckoutFromAgendamento(item) {
   showBanner('Comanda pré-preenchida a partir do agendamento das ' + String(item.horario || '').slice(0, 5) + '. Confira e clique em "Simular comanda".', 'ok');
 }
 
+function renderCheckoutTabs() {
+  const tabs = document.getElementById('checkoutTabs');
+  if (!tabs) return;
+
+  Array.from(tabs.querySelectorAll('.checkout-tab-btn')).forEach(btn => {
+    const isActive = btn.dataset.tab === state.checkoutTab;
+    btn.classList.toggle('active', isActive);
+  });
+}
+
+function renderCheckoutItems() {
+  const visibleItems = getVisibleCartItems();
+  // Placeholder for rendering cart items
+  // Will be implemented in future tasks when UI structure is ready
+  console.log(`Rendering ${state.checkoutTab} items:`, visibleItems);
+}
+
+export function renderTipStepper() {
+  const tipValue = document.getElementById('tipValue');
+  if (tipValue) {
+    tipValue.textContent = centsToBRL(state.tip);
+  }
+}
+
+export function incrementTip() {
+  state.tip += 100; // incrementa 1 real (100 centavos)
+  renderTipStepper();
+}
+
+export function decrementTip() {
+  if (state.tip > 0) {
+    state.tip -= 100; // decrementa 1 real
+    renderTipStepper();
+  }
+}
+
+export function renderSplitToggle() {
+  const toggle = document.getElementById('splitToggle');
+  if (toggle) {
+    toggle.classList.toggle('enabled', state.splitEnabled);
+  }
+}
+
+export function toggleSplitPayment() {
+  state.splitEnabled = !state.splitEnabled;
+  renderSplitToggle();
+  renderPaymentMethods();
+  renderSplitRows();
+}
+
+export function renderPaymentMethods() {
+  const container = document.getElementById('paymentMethodsContainer');
+  if (!container) return;
+
+  if (state.splitEnabled) {
+    container.classList.add('hidden');
+  } else {
+    container.classList.remove('hidden');
+  }
+}
+
+export function renderSplitRows() {
+  const splitContainer = document.getElementById('splitRowsContainer');
+  const splitList = document.getElementById('splitRowsList');
+  if (!splitContainer || !splitList) return;
+
+  if (state.splitEnabled) {
+    splitContainer.classList.remove('hidden');
+
+    // Renderizar as linhas de split
+    splitList.innerHTML = state.splits.map((split, idx) => {
+      const isLast = idx === state.splits.length - 1;
+      const methods = ['pix', 'dinheiro', 'debito', 'credito', 'online'];
+
+      return `
+        <div class="split-row">
+          <select class="split-row-form input-light" data-split-idx="${idx}">
+            <option value="">Selecione...</option>
+            ${methods.map(m => `<option value="${m}" ${split.method === m ? 'selected' : ''}>${m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('')}
+          </select>
+          ${isLast ? `
+            <div class="split-row-amount display-only" data-split-idx="${idx}">
+              R$ ${(split.amount || 0).toFixed(2)}
+            </div>
+          ` : `
+            <input type="number" class="split-row-input input-light" data-split-idx="${idx}" placeholder="0,00" value="${split.amount || ''}" min="0" step="0.01" />
+          `}
+          ${state.splits.length > 1 ? `
+            <button class="split-row-remove" data-split-idx="${idx}">×</button>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    // Adicionar event listeners
+    splitList.querySelectorAll('.split-row-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.splitIdx);
+        state.splits.splice(idx, 1);
+        renderSplitRows();
+      });
+    });
+
+    splitList.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', () => {
+        const idx = parseInt(input.dataset.splitIdx);
+        state.splits[idx].amount = parseFloat(input.value) || 0;
+      });
+    });
+  } else {
+    splitContainer.classList.add('hidden');
+  }
+}
+
+export function addSplitRow() {
+  state.splits.push({ id: 's' + Date.now(), method: '', amount: 0 });
+  renderSplitRows();
+}
+
 export function initCheckout() {
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
-  
+
+  const tabs = document.getElementById('checkoutTabs');
+  if (tabs) {
+    Array.from(tabs.querySelectorAll('.checkout-tab-btn')).forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.checkoutTab = btn.dataset.tab;
+        renderCheckoutTabs();
+        renderCheckoutItems();
+      });
+    });
+  }
+
+  const tipPlusBtn = document.getElementById('tipPlusBtn');
+  const tipMinusBtn = document.getElementById('tipMinusBtn');
+  if (tipPlusBtn) tipPlusBtn.addEventListener('click', incrementTip);
+  if (tipMinusBtn) tipMinusBtn.addEventListener('click', decrementTip);
+
+  const splitToggle = document.getElementById('splitToggle');
+  if (splitToggle) splitToggle.addEventListener('click', toggleSplitPayment);
+
+  const addSplitRowBtn = document.getElementById('addSplitRowBtn');
+  if (addSplitRowBtn) addSplitRowBtn.addEventListener('click', addSplitRow);
+
+  renderTipStepper();
+  renderSplitToggle();
+  renderPaymentMethods();
+  renderSplitRows();
+
   stateBus.addEventListener('checkout:prefill', (e) => {
     prefillCheckoutFromAgendamento(e.detail);
   });
+}
+
+export function updateCheckoutItems() {
+  renderCheckoutItems();
+}
+
+export function updateCheckoutTabs() {
+  renderCheckoutTabs();
 }
