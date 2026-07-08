@@ -1,6 +1,31 @@
 :root{
-  /* V1.3 design system — fundo escuro fixo (preto azulado) + superficies claras.
-     Tema unico, sem alternancia clara/escura do sistema operacional. */
+  /* ============ V1.3 TEMA CLARO (NOVO) ============ */
+  /* Light theme — fundo branco, superficies leves, sombras suaves */
+  --bg-app:#ffffff;
+  --bg-app-light:#faf9ff;
+  --bg-surface:#ffffff;
+  --bg-glass-light:#f3f1fb;
+
+  --text-primary:#171620;
+  --text-secondary:#6d6a7c;
+  --text-tertiary:#8b87a0;
+  --text-disabled:#c9c5da;
+
+  --border:#ece9f7;
+  --border-light:#f4f2fa;
+
+  --success-light:#e8f9ee;
+  --error-light:#fde8e8;
+  --warning-light:#fef3c7;
+  --info-light:#dbeafe;
+
+  /* Elevation (tema claro) */
+  --elevation-1:0 2px 10px rgba(23,22,32,0.04);
+  --elevation-2:0 6px 16px rgba(23,22,32,0.08);
+  --elevation-3:0 10px 24px rgba(23,22,32,0.12);
+  --elevation-4:0 12px 26px rgba(124,106,247,0.34);
+
+  /* ============ LEGACY: V1.2 Tema Escuro (compatibilidade) ============ */
   --bg-grad-start:#0b0d1a;
   --bg-grad-mid:#12142a;
   --bg-grad-end:#1a1d3d;
@@ -59,7 +84,7 @@
   --md-neutral:#8a8894;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--md-on-surface);font-family:'Plus Jakarta Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
+body{background:var(--bg-app);color:var(--text-primary);font-family:'Plus Jakarta Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
 button{cursor:pointer;font-family:inherit;border:none;outline:none;background:none;color:inherit;}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(124,106,247,.35);outline-offset:3px;}
 input,select{width:100%;background:var(--md-surface);border:1px solid var(--md-surface-variant);color:var(--md-on-surface);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;}
@@ -120,6 +145,116 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .empty-state{text-align:center;padding:var(--space-xl) var(--space-lg);color:var(--md-outline);font-size:13px;}
 .loading-state{display:flex;align-items:center;justify-content:center;gap:8px;padding:var(--space-lg);color:var(--md-outline);font-size:13px;}
 
+/* ============ V1.3 UTILITIES — Tema Claro ============ */
+/* Cards e containers */
+.card-light{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-lg);box-shadow:var(--elevation-1);}
+.card-light-sm{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-md);}
+.surface-glass{background:var(--bg-glass-light);border-radius:var(--radius-md);padding:var(--space-md);}
+
+/* Flexbox utilities */
+.flex-row{display:flex;flex-direction:row;}
+.flex-col{display:flex;flex-direction:column;}
+.flex-center{display:flex;align-items:center;justify-content:center;}
+.flex-between{display:flex;align-items:center;justify-content:space-between;}
+.gap-sm{gap:var(--space-sm);}
+.gap-md{gap:var(--space-md);}
+.gap-lg{gap:var(--space-lg);}
+
+/* Typography */
+.text-primary{color:var(--text-primary);}
+.text-secondary{color:var(--text-secondary);}
+.text-tertiary{color:var(--text-tertiary);}
+.text-disabled{color:var(--text-disabled);}
+.text-error{color:var(--error);}
+.text-success{color:var(--success);}
+.text-info{color:var(--info);}
+.text-sm{font-size:11px;font-weight:700;}
+.text-md{font-size:13.5px;font-weight:700;}
+.text-lg{font-size:15px;font-weight:800;}
+
+/* Spacing */
+.p-sm{padding:var(--space-sm);}
+.p-md{padding:var(--space-md);}
+.p-lg{padding:var(--space-lg);}
+.m-0{margin:0;}
+.m-sm{margin:var(--space-sm);}
+.m-md{margin:var(--space-md);}
+.m-lg{margin:var(--space-lg);}
+.mb-0{margin-bottom:0;}
+.mb-md{margin-bottom:var(--space-md);}
+.mb-lg{margin-bottom:var(--space-lg);}
+
+/* Inputs/selects tema claro */
+.input-light{width:100%;padding:var(--space-md);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-app-light);color:var(--text-primary);font-size:13.5px;font-family:inherit;}
+.input-light:focus{border-color:var(--primary);outline:none;}
+
+/* Buttons tema claro */
+.btn-icon{width:30px;height:30px;border-radius:var(--radius-md);background:var(--bg-glass-light);color:var(--primary);font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.btn-pill{border-radius:999px;padding:var(--space-sm) var(--space-lg);font-size:12.5px;font-weight:800;background:#fff;border:1px solid var(--border);color:var(--primary);box-shadow:var(--elevation-1);cursor:pointer;}
+
+/* ============ ELEVATION — Sombras padronizadas ============ */
+.elevation-1{box-shadow:var(--elevation-1);}
+.elevation-2{box-shadow:var(--elevation-2);}
+.elevation-3{box-shadow:var(--elevation-3);}
+.elevation-4{box-shadow:var(--elevation-4);}
+
+/* ============ BORDER-RADIUS — Cantos padronizados ============ */
+.rounded-sm{border-radius:var(--radius-sm);}
+.rounded-md{border-radius:var(--radius-md);}
+.rounded-lg{border-radius:var(--radius-lg);}
+.rounded-pill{border-radius:999px;}
+
+/* ============ TYPOGRAPHY — Estilos de texto padronizados ============ */
+/* Heading styles */
+.h1{font-size:22px;font-weight:800;letter-spacing:-0.02em;color:var(--text-primary);}
+.h2{font-size:17px;font-weight:800;color:var(--text-primary);}
+.h3{font-size:15px;font-weight:800;color:var(--text-primary);}
+
+/* Body text */
+.body-lg{font-size:14.5px;font-weight:500;color:var(--text-primary);}
+.body-md{font-size:13.5px;font-weight:500;color:var(--text-primary);}
+.body-sm{font-size:12px;font-weight:500;color:var(--text-secondary);}
+
+/* Labels and helpers */
+.label{font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;}
+.label-md{font-size:11.5px;font-weight:700;color:var(--text-tertiary);}
+.caption{font-size:11px;font-weight:600;color:var(--text-secondary);}
+.hint{font-size:10.5px;font-weight:600;color:var(--text-tertiary);}
+
+/* Semantic text */
+.text-overline{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary);}
+
+/* Avatares/iniciais */
+.avatar-initials{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;}
+
+/* Badges tema claro */
+.badge-light{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--bg-glass-light);color:var(--primary);}
+.badge-success{background:var(--success-light);color:var(--success);}
+.badge-error{background:var(--error-light);color:var(--error);}
+
+/* Posicionamento utilities */
+.absolute-pos{position:absolute;}
+.relative-pos{position:relative;}
+.z-10{z-index:10;}
+.z-20{z-index:20;}
+.z-30{z-index:30;}
+.pointer-none{pointer-events:none;}
+.overflow-hidden{overflow:hidden;}
+
+/* ============ AGENDA INFO BAR — Stats do dia ============ */
+.agenda-info-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-lg);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-md) var(--space-lg);box-shadow:var(--elevation-1);margin:var(--space-md) 0;}
+.agenda-info-bar > div{display:flex;align-items:center;gap:var(--space-sm);font-size:11.5px;font-weight:700;color:var(--text-primary);}
+.agenda-info-bar > div > span{font-size:14px;}
+.agenda-occ{display:flex;align-items:center;gap:var(--space-md);}
+.occ-ring{width:20px;height:20px;flex-shrink:0;}
+
+/* ============ TIMELINE HEADERS — Avatares de profissional ============ */
+.timeline-header-btn{flex:1 1 120px;min-width:120px;cursor:pointer;box-sizing:border-box;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-sm);padding:var(--space-sm) 4px 10px;background:var(--bg-app-light);transition:background 0.2s;}
+.timeline-header-btn.selected{background:var(--bg-surface);}
+.timeline-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;border:2px solid #fffbfe;transition:box-shadow 0.2s;}
+.timeline-header-btn.selected .timeline-avatar{box-shadow:0 0 0 2px rgba(124,106,247,0.18);}
+.timeline-prof-name{font-weight:800;font-size:10.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
+
 /* Agenda: Android/Material skin + real backend timeline */
 .agenda-android{position:relative;}
 .agenda-android .week-header{display:none;}
@@ -135,13 +270,6 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .agenda-bell{position:relative;font-size:0;}
 .agenda-bell::before{content:'';width:13px;height:15px;border:2px solid currentColor;border-radius:9px 9px 5px 5px;border-bottom-width:1px;}
 .agenda-bell::after{content:'';position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:#6750a4;border:2px solid #ece6f0;}
-.agenda-info-bar{margin:10px 0 0;background:#f7f2fa;border:1px solid #e7e0ec;border-radius:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:none;}
-.agenda-info-bar div{display:flex;align-items:center;gap:6px;min-width:0;color:#1d1b20;}
-.agenda-info-bar span{font-size:11px;font-weight:800;color:#79747e;text-transform:uppercase;letter-spacing:.04em;}
-.agenda-info-bar b{font-size:11.5px;font-weight:800;white-space:nowrap;color:#1d1b20;}
-.agenda-occ{flex-shrink:0;}
-.occ-ring{--occ:0%;width:16px;height:16px;border-radius:50%;background:conic-gradient(#22c55e var(--occ), #e7e0ec 0);position:relative;display:inline-block;}
-.occ-ring::after{content:'';position:absolute;inset:4px;border-radius:50%;background:#f7f2fa;}
 .agenda-week-stats{margin:10px 2px;color:#79747e;}
 .agenda-today-pill{position:fixed;left:16px;bottom:96px;background:#eaddff;border:1px solid #d0bcff;border-radius:999px;padding:10px 18px;font-size:12.5px;font-weight:800;color:#21005d;box-shadow:0 4px 12px rgba(29,27,32,.18);z-index:110;}
 .week-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
