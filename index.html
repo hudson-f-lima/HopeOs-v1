@@ -183,6 +183,14 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .sheet-actions .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}
 .sheet-actions .btn.danger{background:#fde8e8;color:var(--md-error);}
 .sheet-actions .btn.primary{background:var(--md-primary);color:var(--md-on-primary);}
+.gestao-sheet{max-height:88vh;background:linear-gradient(180deg,#ffffff 0%,#f7f5ff 100%);}
+.gestao-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
+.gestao-profile{display:flex;align-items:center;gap:10px;min-width:0;}
+.gestao-profile .avatar-circle{flex:0 0 auto;}
+.gestao-title{min-width:0;}
+.gestao-title h2{margin-bottom:2px;color:var(--md-on-surface);}
+.gestao-title p{font-size:12px;color:var(--md-outline);line-height:1.35;}
+.gestao-close{width:36px;height:36px;border-radius:50%;background:var(--md-surface-variant);color:var(--md-outline);font-size:20px;font-weight:700;flex:0 0 auto;}
 
 /* Dashboard */
 .dashboard-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;color:#fff;}
@@ -206,17 +214,18 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 @media (min-width:768px){.dashboard-bento{grid-template-columns:repeat(4,minmax(0,1fr));}.stat-card.primary{grid-column:span 2;}.dashboard-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}.dashboard-list{margin-top:0;}}
 
 /* Cadastros (aba Mais) */
-.subtab-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;-webkit-overflow-scrolling:touch;}
-.subtab-btn{flex:0 0 auto;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;background:var(--md-surface-variant);color:var(--md-on-surface);white-space:nowrap;}
+.subtab-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.subtab-row::-webkit-scrollbar{display:none;}
+.subtab-btn{flex:0 0 auto;padding:9px 14px;border-radius:999px;font-size:12px;font-weight:800;background:#fff;color:var(--md-on-surface);white-space:nowrap;box-shadow:0 1px 4px rgba(15,23,42,.08);}
 .subtab-btn.active{background:var(--md-primary);color:var(--md-on-primary);}
-.cadastro-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--md-surface-variant);gap:8px;}
-.cadastro-row:last-child{border-bottom:none;}
+.cadastro-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid rgba(111,109,122,.14);border-radius:14px;background:#fff;box-shadow:0 1px 8px rgba(15,23,42,.06);gap:10px;margin-bottom:8px;}
+.cadastro-row:last-child{margin-bottom:0;}
 .cadastro-row.inactive{opacity:.55;}
 .cadastro-row .info{flex:1;min-width:0;}
 .cadastro-row .info .nome{font-weight:700;font-size:14px;}
 .cadastro-row .info .meta{font-size:11px;color:var(--md-outline);margin-top:2px;}
 .cadastro-row .actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
-.cadastro-row .actions button{padding:6px 10px;border-radius:8px;font-size:11px;font-weight:700;background:var(--md-surface-variant);color:var(--md-primary);white-space:nowrap;}
+.cadastro-row .actions button{padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800;background:var(--md-surface-variant);color:var(--md-primary);white-space:nowrap;}
 .cadastro-row .actions button.danger{color:var(--md-error);}
 .checklist-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--md-surface-variant);font-size:13px;}
 .checklist-row:last-child{border-bottom:none;}
@@ -639,11 +648,17 @@ dialog {
 </div>
 
 <div class="sheet-backdrop hidden" id="sheetGestao">
-  <div class="sheet-box" style="max-height:85vh;">
+  <div class="sheet-box gestao-sheet">
     <div class="sheet-handle"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <h2 style="margin-bottom:0;">Gestão</h2>
-      <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnFecharGestao">Fechar</button>
+    <div class="gestao-header">
+      <div class="gestao-profile">
+        <span class="avatar-circle">HO</span>
+        <div class="gestao-title">
+          <h2>Gestão</h2>
+          <p>Cadastros, equipe, produtos e pagamentos.</p>
+        </div>
+      </div>
+      <button class="gestao-close" id="btnFecharGestao" aria-label="Fechar gestão">×</button>
     </div>
 
     <div class="subtab-row" id="subtabRow">
