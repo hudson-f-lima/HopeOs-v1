@@ -213,7 +213,7 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .dashboard-list .row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 @media (min-width:768px){.dashboard-bento{grid-template-columns:repeat(4,minmax(0,1fr));}.stat-card.primary{grid-column:span 2;}.dashboard-list-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}.dashboard-list{margin-top:0;}}
 
-/* Cadastros (aba Mais) */
+/* Cadastros (area Gestao via avatar) */
 .subtab-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .subtab-row::-webkit-scrollbar{display:none;}
 .subtab-btn{flex:0 0 auto;padding:9px 14px;border-radius:999px;font-size:12px;font-weight:800;background:#fff;color:var(--md-on-surface);white-space:nowrap;box-shadow:0 1px 4px rgba(15,23,42,.08);}
@@ -339,7 +339,7 @@ dialog {
 </div>
 
 <div id="fatalError" class="card hidden" style="margin:16px;border:1px solid #f3c6c6;">
-  <h2 style="color:var(--md-error);">Backend indisponível</h2>
+  <h2 style="color:var(--md-error);">Conexão indisponível</h2>
   <p style="font-size:14px;line-height:1.5;">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
 </div>
 
@@ -2165,7 +2165,7 @@ async function init() {
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnAtualizarDashboard').addEventListener('click', atualizarDashboard);
 
-  /* Cadastros: sub-nav da aba Mais */
+  /* Cadastros: sub-nav da area Gestao */
   document.getElementById('subtabRow').addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-subtab]');
     if (!btn) return;
@@ -2772,8 +2772,8 @@ class FuzzyField {
   }
 
   fuzzyMatch(query, text) {
-    const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const t = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const q = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (!q) return true;
     if (t.includes(q)) return 0; // prefix match = score 0 (best)
     let score = 0, qi = 0;
