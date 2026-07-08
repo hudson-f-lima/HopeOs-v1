@@ -2054,7 +2054,14 @@ function showFatalError() {
   document.getElementById('fatalError').classList.remove('hidden');
 }
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
+}
+
 async function init() {
+  registerServiceWorker();
+
   document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   });
@@ -2359,10 +2366,6 @@ async function init() {
 
   document.getElementById('loadingScreen').classList.add('hidden');
   document.getElementById('appRoot').classList.remove('hidden');
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
-  }
 }
 
 const SNAP_MIN = 20;
