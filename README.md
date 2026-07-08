@@ -98,6 +98,31 @@ Frontend local (preview):
 npx --yes serve . -l 5500
 ```
 
+## Seleção de modelo de IA (Claude Code)
+
+Cada fase de desenvolvimento recomenda um modelo específico baseado em custo-benefício:
+
+| Fase | Modelo | Por quê | Quando |
+|------|--------|---------|--------|
+| **F0** (saneamento) | Haiku 4.5 | Fixes pontuais, testes rápidos | Correção de bugs/hotfix |
+| **F1** (insights) | Haiku 4.5 | Funções puras + rotas simples | Specs já detalhadas, sem ambiguidade |
+| **F2** (retenção) | Haiku 4.5 | Engines puras, RFM/churn determinístico | Backend-only, matemática clara |
+| **F3** (dashboard) | Haiku 4.5 | Iteração UI/UX rápida no preview | Muitas rodadas de ajuste, custo importa |
+| **F4** (ação final) | Haiku 4.5→Sonnet 5 | Integração múltiplos sistemas, edge cases | Split payment + rebooking + waitlist |
+| **F5** (QA + auditoria) | Sonnet 5 | Revisão multi-dimensional antes de produção | QA final, confiança crítica |
+
+### Como trocar de modelo
+
+**Em sessão interativa Claude Code:**
+```bash
+/model haiku        # Claude Haiku 4.5 (mais econômico)
+/model sonnet       # Claude Sonnet 5 (mais capaz)
+```
+
+**Nota:** Não há automação de troca de modelo. Você muda manualmente via `/model` conforme a fase. Isso é por design — cada fase tem requisitos distintos, e a decisão deve ser consciente.
+
+**Custo estimado V1.4 completo:** ~R$ 100–150 em créditos de API (F0–F5), usando Haiku para F2–F4 e Sonnet para F5.
+
 ## Deploy e cache
 
 Depois de alterar frontend:
