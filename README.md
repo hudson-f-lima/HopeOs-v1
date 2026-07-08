@@ -1,64 +1,101 @@
-# HOPE OS
+# HOPE OS → KortexOS™
 
-App operacional para beauty tech: agenda, comanda, dashboard e gestao conectados ao backend real.
+Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real), dashboard e cadastros conectados a backend real. **KortexOS™ é o nome canônico do produto** (HOPE OS é o legado interno); a promoção está governada por `KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` na raiz.
 
-## Estado atual
+## Estado atual (2026-07-08)
 
 ```txt
-Backend: V1.2 cadastros reais + hardening aplicado
-Frontend: V1.3 UI/UX premium publicado
-Deploy frontend: GitHub Pages
-Deploy backend: Render
-Banco: Supabase
-PWA cache atual: hope-os-shell-v1-3-8
+Backend:  V1.2 cadastros reais + hardening — em produção no Render
+Frontend: V1.3 UI/UX premium (tema claro, agenda premium, checkout premium) — em produção no GitHub Pages
+Banco:    Supabase (migrations 001–006 aplicadas; projeto qosioymzswhkqkziocas)
+Ciclo em andamento: V1.4 "KortexOS Now-Scope: Decision Intelligence" — planejado, execução não iniciada (próximo passo: F0)
+Branch de trabalho: codex/v1.4-dashboard-premium
+PWA cache atual: hope-os-shell-v1-3-11
+Testes: cd backend && npm run test:gate → 58/58 verdes
 ```
 
 URLs:
 
 ```txt
-Frontend: https://hudson-f-lima.github.io/HopeOs-v1/
+Frontend:       https://hudson-f-lima.github.io/HopeOs-v1/
 Backend health: https://hopeos-v1.onrender.com/api/health
 ```
 
-## O que existe
+## Como continuar este projeto (qualquer plataforma de IA ou humano)
+
+Leia NESTA ORDEM antes de escrever qualquer código:
 
 ```txt
-Agenda premium mobile-first
-Comanda / checkout real
-Dashboard bento
-Gestao via avatar
-Clientes, servicos, profissionais, produtos e formas de pagamento
-Service worker com HTML network-first
-Backend real com validacoes e gates
+1. CLAUDE.md                                        → regras invioláveis, estado confirmado, gates proibidos
+   (vale para qualquer IA, não só Claude — é o contrato do projeto)
+2. KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md → visão canônica, domínios, bloqueios, ordem de construção
+3. docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md  → escopo do ciclo atual (V1.4), KPIs, governança
+4. docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md             → fórmulas determinísticas + contratos de API do V1.4
+5. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md      → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F0.1)
 ```
 
-## Regras de seguranca
+Base canônica de pesquisa (passos 3–4 da ordem de construção, concluídos):
 
 ```txt
-Nao commitar .env
-Nao expor tokens
-Nao rodar migration sem autorizacao
-Nao alterar Supabase sem autorizacao explicita
-Nao mudar regra financeira pelo frontend
-Backend continua sendo a fonte da verdade
+docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md   → benchmark global (beauty tech, aviação, hotelaria, Uber, fintech)
+docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md   → HERDAR/REFORÇAR/BLOQUEAR/ADIAR por módulo + escopo zero-migration
 ```
 
-## Comandos uteis
+Regras-mãe que NENHUMA plataforma pode violar:
+
+```txt
+Backend é a verdade única — frontend não calcula financeiro/margem/taxa/comissão/estoque
+V1.4 é ZERO MIGRATION — nenhuma tabela, coluna ou RPC nova no Supabase
+Auditoria brutal sempre — classificar REAL / PARCIAL / MOCKADO / HARDCODED / CRÍTICO
+Uma prioridade por vez; básico antes do sofisticado
+Gates proibidos sem decisão explícita do dono: IA, marketplace, app do cliente,
+multiunidade, assinatura vendida, CRM avançado, gamificação, marketing automático
+```
+
+## Débito conhecido (CRÍTICO)
+
+```txt
+Split de pagamento foi mergeado INCOMPLETO no V1.3: a UI renderiza toggle/linhas,
+mas buildPayload() envia pagamento único e a validação usa só a gorjeta.
+Plano registrado: F0 esconde a UI (flag), F4 completa a integração
+(a RPC checkout_close já grava N pagamentos — o banco está pronto).
+```
+
+## Arquitetura
+
+```txt
+Frontend: PWA modular — index.html + css/app.css + js/ (state, api, utils, ui/agenda|checkout|dashboard|cadastros)
+Backend:  Node + Express — backend/src (routes, validators, services, engines, repositories)
+Banco:    Supabase/Postgres — supabase/migrations/001–006; ledger financeiro DISTRIBUÍDO por design
+          (comandos, comando_itens, comando_pagamentos, comando_gorjetas, caixa_movimentos,
+           produto_estoque_movimentos) — NUNCA criar tabela única financial_ledger
+```
+
+## Regras de segurança
+
+```txt
+Não commitar .env
+Não expor tokens nem service_role ao frontend
+Não rodar migration sem autorização
+Não alterar Supabase sem autorização explícita
+Não mudar regra financeira pelo frontend
+```
+
+## Comandos úteis
 
 Backend:
 
 ```bash
 cd backend
 npm install
-npm run test:gate
+npm run test:gate   # 58 testes — obrigatório verde antes de qualquer merge
 npm start
 ```
 
-Git status:
+Frontend local (preview):
 
 ```bash
-git status
-git log --oneline -5
+npx --yes serve . -l 5500
 ```
 
 ## Deploy e cache
@@ -66,29 +103,35 @@ git log --oneline -5
 Depois de alterar frontend:
 
 ```txt
-1. Atualizar CACHE_NAME em service-worker.js
-2. Atualizar CACHE_NAME em frontend/service-worker.js
-3. Validar GitHub Pages publicado
-4. Se o navegador mostrar tela antiga, usar Ctrl+F5 ou abrir com query ?refresh=1
+1. Atualizar CACHE_NAME em service-worker.js (e frontend/service-worker.js se existir)
+2. Push para main → GitHub Pages publica
+3. Validar HTTP 200 e, se o navegador mostrar tela antiga, Ctrl+F5 ou ?refresh=1
 ```
+
+Backend: push para main → Render redeploy. Validar `GET /api/health` = 200.
 
 ## Documentos principais
 
 ```txt
+CLAUDE.md                                            → contrato do projeto (qualquer IA)
+KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md     → fonte canônica do produto
+docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md            → benchmark global (passo 3 ✓)
+docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md            → proposta comparativa (passo 4 ✓)
+docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md      → ciclo atual V1.4
+docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                 → spec técnica V1.4
+docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md          → execução F0–F5
+docs/SPEC_V1_3_AGENDA_CHECKOUT_PREMIUM.md            → spec do V1.3 (entregue)
 docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md
-docs/FRONTEND_V1_3_UI_UX_AUDIT.md
-docs/FRONTEND_V1_3_ADVERSARIAL_AUDIT.md
 docs/HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md
-docs/API_CONTRACT.md
-docs/DATA_CONTRACT.md
+docs/API_CONTRACT.md / docs/DATA_CONTRACT.md
 docs/archive/legacy-v1/
 ```
 
-## Ultima validacao conhecida
+## Última validação conhecida
 
 ```txt
-GitHub Pages: HTTP 200
-service-worker.js: hope-os-shell-v1-3-8
+GitHub Pages: HTTP 200 (V1.3)
+service-worker.js: hope-os-shell-v1-3-11
 Backend /api/health: HTTP 200
-App abriu em navegador limpo com fatalVisible=false e appVisible=true
+test:gate: 58/58 verdes
 ```
