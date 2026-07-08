@@ -10,7 +10,7 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "frontend", "-l", "5500"],
+      "runtimeArgs": ["--yes", "serve", ".", "-l", "5500"],
       "port": 5500
     },
     {

@@ -70,6 +70,13 @@ function occupancyForDate(dateStr) {
   return Math.min(100, Math.round((activeAgendaItemsForDate(dateStr).length / (activeProfs * CAPACITY_SLOTS_PER_PROF)) * 100));
 }
 
+function occupancyColor(percent) {
+  if (percent <= 25) return '#9490a3'; // gray
+  if (percent <= 50) return '#f59e0b'; // yellow
+  if (percent <= 75) return '#f97316'; // orange
+  return '#22c55e'; // green
+}
+
 function formatAgendaDate(dateStr) {
   const dt = new Date(dateStr + 'T12:00:00');
   return `${WEEKDAY_LABELS[dt.getDay()]}, ${dt.getDate()} de ${MONTH_LABELS[dt.getMonth()]}`;
@@ -130,7 +137,7 @@ function renderAgBlock(item, color) {
   if (item.status === 'concluido') opacity = 0.7;
 
   const sColor = getServiceColor(item);
-  const line2 = compact ? '' : `<div class="ag-line2" style="pointer-events:none;">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
+  const line2 = compact ? '' : `<div class="ag-line2" class="pointer-none">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
   
   const isEditable = !['concluido', 'no_show'].includes(item.status);
   const dragHtml = isEditable ? `<div class="drag-handle" data-ag-id="${item.id}"></div>` : '';
@@ -224,10 +231,9 @@ export function renderTimeline() {
         const isSelected = state.activeProfFilter === p.id ? 'selected' : '';
         const initials = getInitials(p.nome);
         const firstName = p.nome ? p.nome.split(' ')[0] : '?';
-        return `<div class="timeline-header-btn ${isSelected}" data-prof="${p.id}" 
-               style="flex:1 1 120px; min-width:120px; cursor:pointer; box-sizing:border-box; border-right:1px solid #e7e0ec; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px 4px 10px; background:#f7f2fa; transition:background 0.2s;">
-            <div class="avatar-circle" style="background:${color}; color:#fff; font-weight:800; font-size:12px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:${isSelected ? '2px solid #6750a4' : '2px solid #fffbfe'}; box-shadow:${isSelected ? '0 0 0 2px rgba(103,80,164,.18)' : 'none'};">${initials}</div>
-            <div style="font-weight:800; font-size:10.5px; color:${color}; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHtml(firstName)}</div>
+        return `<div class="timeline-header-btn ${isSelected}" data-prof="${p.id}">
+            <div class="timeline-avatar" style="background:${color};">${initials}</div>
+            <div class="timeline-prof-name" style="color:${color};">${escapeHtml(firstName)}</div>
           </div>`;
       }).join('');
       
@@ -297,13 +303,23 @@ export function renderWeekStats() {
   const selectedCount = activeAgendaItemsForDate(state.selectedDay).length;
   const selectedOccupancy = occupancyForDate(state.selectedDay);
   if (weekCount) weekCount.textContent = `${totalCounted} agend. na semana`;
-  if (weekOccupancy) weekOccupancy.textContent = `${occupancyPct}% ocupação`;
+  if (weekOccupancy) {
+    weekOccupancy.textContent = `${occupancyPct}% ocupação`;
+    weekOccupancy.style.color = occupancyColor(occupancyPct);
+  }
   if (weekRange) weekRange.textContent = `${formatDDMM(first)} - ${formatDDMM(last)}`;
   if (agendaDate) agendaDate.textContent = formatAgendaDate(state.selectedDay);
   if (selectedDayLabel) selectedDayLabel.textContent = state.selectedDay === todayStr() ? 'Hoje' : formatAgendaDate(state.selectedDay);
   if (dayCountLabel) dayCountLabel.textContent = `${selectedCount} agend.`;
-  if (dayOccupancyLabel) dayOccupancyLabel.textContent = `${selectedOccupancy}% Ocupacao`;
-  if (dayOccRing) dayOccRing.style.setProperty('--occ', `${selectedOccupancy}%`);
+  if (dayOccupancyLabel) {
+    dayOccupancyLabel.textContent = `${selectedOccupancy}% Ocupacao`;
+    dayOccupancyLabel.style.color = occupancyColor(selectedOccupancy);
+  }
+  if (dayOccRing) {
+    const circumference = 50.2; // 2 * π * 8 (radius=8)
+    const dasharray = (selectedOccupancy / 100) * circumference;
+    dayOccRing.style.setProperty('--occ-dash', `${dasharray.toFixed(1)}`);
+  }
 }
 
 export function renderDayPills() {
@@ -313,10 +329,12 @@ export function renderDayPills() {
   dayPills.innerHTML = dates.map(d => {
     const dt = new Date(d + 'T12:00:00');
     const occupancy = occupancyForDate(d);
-    return `<button class="day-pill ${d === state.selectedDay ? 'selected' : ''}" data-day="${d}">
-      <span class="pill-weekday">${WEEKDAY_LABELS[dt.getDay()]}</span>
-      <span class="pill-daynum">${dt.getDate()}</span>
-      <span class="pill-occ">${occupancy}%</span>
+    const occColor = occupancyColor(occupancy);
+    const isSelected = d === state.selectedDay;
+    return `<button class="day-pill ${isSelected ? 'selected' : ''}" data-day="${d}" style="background:${isSelected ? '#7c6af7' : '#fff'};">
+      <span class="pill-weekday" style="color:${isSelected ? '#fff' : '#9490a3'};">${WEEKDAY_LABELS[dt.getDay()]}</span>
+      <span class="pill-daynum" style="color:${isSelected ? '#fff' : '#171620'};">${dt.getDate()}</span>
+      <span class="pill-occ" style="color:${occColor};font-weight:800;">${occupancy}%</span>
     </button>`;
   }).join('');
 }

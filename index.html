@@ -24,8 +24,8 @@
 </div>
 
 <div id="fatalError" class="card hidden" style="margin:16px;border:1px solid #f3c6c6;">
-  <h2 style="color:var(--md-error);">Conexão indisponível</h2>
-  <p style="font-size:14px;line-height:1.5;">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
+  <h2 class="text-error">Conexão indisponível</h2>
+  <p class="body-lg">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
 </div>
 
 <div id="appRoot" class="hidden">
@@ -64,9 +64,15 @@
         </div>
         <div class="day-pills" id="dayPills"></div>
         <div class="agenda-info-bar">
-          <div><span>Cal</span><b id="selectedDayLabel">Hoje</b></div>
-          <div><span>Equipe</span><b id="dayCountLabel">0 agend.</b></div>
-          <div class="agenda-occ"><span class="occ-ring" id="dayOccRing"></span><b id="dayOccupancyLabel">0% Ocupacao</b></div>
+          <div><span>📅</span><b id="selectedDayLabel">Hoje</b></div>
+          <div><span>👥</span><b id="dayCountLabel">0 agend.</b></div>
+          <div class="agenda-occ">
+            <svg class="occ-ring" id="dayOccRing" width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="8" fill="none" stroke="#e5e2f2" stroke-width="2.4"></circle>
+              <circle cx="10" cy="10" r="8" fill="none" stroke="#22c55e" stroke-width="2.4" stroke-dasharray="var(--occ-dash, 50.2) 50.2" stroke-linecap="round" transform="rotate(-90 10 10)"></circle>
+            </svg>
+            <b id="dayOccupancyLabel">0% Ocupacao</b>
+          </div>
         </div>
         <div class="timeline-header-outer" id="timelineHeaderOuter">
           <div class="timeline-header-spacer"></div>
@@ -100,23 +106,23 @@
           <h2><span class="checkout-step">1</span> Atendimento</h2>
           <div class="field">
             <label for="coCliente">Cliente (opcional)</label>
-            <input id="coCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+            <input id="coCliente" type="text" placeholder="🔍 Digite cliente..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coServico">Serviço</label>
-            <input id="coServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+            <input id="coServico" type="text" placeholder="🔍 Digite serviço..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coProduto">Produto (opcional)</label>
-            <input id="coProduto" type="text" placeholder="🔍 Digite produto..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+            <input id="coProduto" type="text" placeholder="🔍 Digite produto..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coProfissional">Profissional</label>
-            <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+            <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coForma">Forma de pagamento</label>
-            <input id="coForma" type="text" placeholder="🔍 Digite forma..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+            <input id="coForma" type="text" placeholder="🔍 Digite forma..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coGorjeta">Gorjeta (R$)</label>
@@ -196,7 +202,7 @@
       <div class="dashboard-list-grid">
         <div class="card dashboard-list">
           <h2>Pagamentos por forma</h2>
-          <div id="dbPagamentos"><p style="font-size:13px;color:var(--md-outline);">Nenhum pagamento fechado ainda.</p></div>
+          <div id="dbPagamentos"><p class="body-sm text-tertiary">Nenhum pagamento fechado ainda.</p></div>
         </div>
         <div class="card dashboard-list">
           <h2>Repasse por profissional</h2>
@@ -257,7 +263,7 @@
       <label for="agHorario">Horário</label>
       <input id="agHorario" type="time"/>
     </div>
-    <p id="agDuracaoPreview" style="font-size:12px;color:var(--md-outline);margin-bottom:12px;"></p>
+    <p id="agDuracaoPreview" class="body-sm text-tertiary mb-md"></p>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarNovoAgendamento" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnConfirmarNovoAgendamento" style="flex:1;">Agendar</button>
@@ -380,7 +386,7 @@
     <div class="subtab-content hidden" id="subtab-clientes">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h2 style="margin-bottom:0;">Clientes</h2>
+          <h2 class="m-0">Clientes</h2>
           <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovoCliente">+ Novo</button>
         </div>
         <div class="list-toolbar">
@@ -443,7 +449,7 @@
     <div class="sheet-handle"></div>
     <h2 id="vinculosNomeProfissional">Serviços</h2>
     <p class="modal-error hidden" id="vnError"></p>
-    <p style="font-size:12px;color:var(--md-outline);margin-bottom:8px;">Marque os serviços que este profissional realiza.</p>
+    <p class="body-sm text-tertiary">Marque os serviços que este profissional realiza.</p>
     <div id="vinculosChecklist"></div>
     <button class="btn btn-primary" id="btnSalvarVinculos" style="margin-top:12px;">Salvar vínculos</button>
 
