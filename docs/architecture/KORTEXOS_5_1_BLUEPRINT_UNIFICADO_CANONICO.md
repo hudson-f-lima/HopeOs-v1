@@ -436,19 +436,21 @@ Esses candidatos não são SQL autorizado.
 
 ## 10. RAGOV 5.1
 
-### REAL
+**Nota de sincronização (A02/A07):** este RAGOV classifica o Blueprint como *design* (status documental). Ele não substitui nem duplica a classificação de maturidade — a coluna "Status implementado" (evidência na base real 001–006) é autoridade exclusiva do `docs/canon/KORTEXOS_5_1_TRUTH_MAP.md`. Em qualquer leitura, Truth Map vence.
 
-- Backend SSOT
-- D00–D31
-- Gates 00–25
-- Ledger append-only double-entry
-- Booking Candidate Contract
-- Tip Isolation
-- Action Requests
-- SQL bloqueado até Blueprint/SQL Master
+### REAL (como design aprovado; NÃO significa implementado — ver Truth Map)
 
-### PARCIAL
+- Backend SSOT — **implementado: REAL** (Truth Map §3)
+- D00–D31 — arquitetura; a maioria dos domínios está AUSENTE/PARCIAL implementado (Truth Map §4)
+- Gates 00–25 — grade de design; formalização AUSENTE, precursor `test:gate` 63/63 real (Truth Map §10)
+- Tip Isolation — **implementado: REAL** (Truth Map §5)
+- SQL bloqueado até Blueprint/SQL Master — regra vigente, não é fato de implementação
 
+### PARCIAL / AUSENTE implementado (ver Truth Map para status exato)
+
+- Ledger append-only double-entry — PARCIAL documental; AUSENTE implementado (pré-requisito: migration 007)
+- Booking Candidate Contract — AUSENTE implementado
+- Action Requests — AUSENTE implementado
 - KortexFlow operacional completo
 - Capacity Inventory
 - Trust Layer
@@ -507,7 +509,8 @@ Permitido apenas em fixture, seed e gate controlado.
 |---|---|
 | D00–D31 preservados | OK |
 | Gates 00–25 preservados | OK |
-| Migrations 001–045 não renumeradas | OK |
+| Base real 001–006 intocada; 001–045 do 4.0 tratado como design (nunca física) | OK |
+| Faixa futura declarada como 007+ (046–060 obsoleta) | OK |
 | SQL executável ausente | OK |
 | Capacity Inventory incluído | OK |
 | RevPAH incluído | OK |

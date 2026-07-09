@@ -26,19 +26,22 @@ Backend health: https://hopeos-v1.onrender.com/api/health
 Leia NESTA ORDEM antes de escrever qualquer código:
 
 ```txt
-1. CLAUDE.md                                        → regras invioláveis, estado confirmado, gates proibidos
+1. AGENTS.md                                                  → manifesto para agentes de IA (leia primeiro)
+2. CLAUDE.md                                                  → regras invioláveis, estado confirmado, gates proibidos
    (vale para qualquer IA, não só Claude — é o contrato do projeto)
-2. KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md → visão canônica, domínios, bloqueios, ordem de construção
-3. docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md  → escopo do ciclo atual (V1.4), KPIs, governança
-4. docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md             → fórmulas determinísticas + contratos de API do V1.4
-5. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md      → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F0.1)
+3. docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md → visão canônica, domínios, bloqueios, ordem de construção
+4. docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md            → escopo do ciclo atual (V1.4), KPIs, governança
+5. docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                       → fórmulas determinísticas + contratos de API do V1.4
+6. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md                → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F0.1)
 ```
+
+Mapa completo de documentação (incl. Truth Map, Migration Map, Blueprint 5.1, SQL Planning/Draft, Red Team): [`docs/INDEX.md`](docs/INDEX.md).
 
 Base canônica de pesquisa (passos 3–4 da ordem de construção, concluídos):
 
 ```txt
-docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md   → benchmark global (beauty tech, aviação, hotelaria, Uber, fintech)
-docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md   → HERDAR/REFORÇAR/BLOQUEAR/ADIAR por módulo + escopo zero-migration
+docs/canon/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md   → benchmark global (beauty tech, aviação, hotelaria, Uber, fintech)
+docs/canon/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md   → HERDAR/REFORÇAR/BLOQUEAR/ADIAR por módulo + escopo zero-migration
 ```
 
 Regras-mãe que NENHUMA plataforma pode violar:
@@ -138,10 +141,14 @@ Backend: push para main → Render redeploy. Validar `GET /api/health` = 200.
 ## Documentos principais
 
 ```txt
+AGENTS.md                                            → manifesto para agentes de IA
 CLAUDE.md                                            → contrato do projeto (qualquer IA)
-KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md     → fonte canônica do produto
-docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md            → benchmark global (passo 3 ✓)
-docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md            → proposta comparativa (passo 4 ✓)
+docs/INDEX.md                                        → mapa completo da documentação (autoridade, ordem de leitura)
+docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md → fonte canônica do produto
+docs/canon/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md      → benchmark global (passo 3 ✓)
+docs/canon/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md      → proposta comparativa (passo 4 ✓)
+docs/canon/KORTEXOS_5_1_TRUTH_MAP.md                 → maturidade real (status documental × implementado)
+docs/planning/KORTEXOS_5_1_MIGRATION_MAP.md          → fundação real 001–006 + faixa futura 007–023
 docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md      → ciclo atual V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                 → spec técnica V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md          → execução F0–F5

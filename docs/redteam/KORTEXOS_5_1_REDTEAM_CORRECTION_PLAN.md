@@ -113,7 +113,7 @@ GERADO / AGUARDA RED TEAM
 9. ✅ SQL Master Draft reescrito in-place (§4.5) — faixa 007–023; ledger core primeiro (A03); obrigações (A06); polymorphic endurecido (A04); contrato mínimo §1.1 (A05); k-anonimato (A14); nome único rev_pah_snapshots (A09).
 
 ### Pré-SQL
-10. Nova rodada Red Team completa do conjunto corrigido (PENDENTE — próximo passo).
+10. ✅ Red Team final rodado sobre o conjunto corrigido (2026-07-08) — ver §10.
 11. Só com veredito A/B: SQL Executable Package 007+ em sandbox → fixtures → gates → produção.
 
 ## 8. Critério de aprovação
@@ -130,4 +130,28 @@ O conjunto só avança quando:
 
 ```text
 NÃO avançar para SQL executável.
+```
+
+## 10. Red Team final — Rodada 2 (2026-07-08)
+
+Escopo: `docs/canon/`, `docs/architecture/`, `docs/planning/`, `docs/redteam/`, `docs/prompts/`, `AGENTS.md`, `CLAUDE.md`, `README.md`. Confirmado: base real ainda 001–006 (working tree limpo antes da auditoria); nenhuma auto-aprovação residual encontrada (`grep aprovado` sem ocorrência de autodeclaração).
+
+| ID | Sev | Achado | Documento | Correção aplicada |
+|---|---|---|---|---|
+| B01 | P1 | RAGOV §10 do Blueprint listava D00–D31, Gates 00–25, ledger double-entry, Booking Candidate, Action Requests como REAL sem qualificação — contradizia o Truth Map corrigido (A02 não propagado ao Blueprint) | `docs/architecture/KORTEXOS_5_1_BLUEPRINT_UNIFICADO_CANONICO.md` §10 | Nota de sincronização + reclassificação citando Truth Map como autoridade de status implementado |
+| B02 | P1 | DoD §11 do Blueprint mantinha "Migrations 001–045 não renumeradas \| OK" — linha órfã que trata o 4.0 como sequência física, contradizendo §0.2/§2/§8.1 do mesmo documento | `docs/architecture/KORTEXOS_5_1_BLUEPRINT_UNIFICADO_CANONICO.md` §11 | Linha substituída por critério consistente com base real 001–006 + faixa 007+ |
+| B03 | P1 | README.md raiz — 5 referências não corrigidas na rodada de path-fix anterior (linhas 31/40/41/142-144: "Como continuar" e "Documentos principais" apontavam para paths pré-reorganização) | `README.md` | Paths corrigidos para `docs/canon/`; adicionados ponteiros para `AGENTS.md`/`docs/INDEX.md` |
+| B04 | P2 | Migration Map §4.1 (dependências) incompleto — faltavam 014/015/020/021/022, presentes no SQL Master Planning §6 | `docs/planning/KORTEXOS_5_1_MIGRATION_MAP.md` §4.1 | Entradas faltantes adicionadas; nota apontando Planning §6 como autoridade da tabela completa |
+| B05 | P3 | A10 (unique do catálogo sem `business_unit_id`) sem justificativa explícita no ponto da constraint — Correction Plan exigia "incluir OU justificar" | `docs/planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md` §008 | Comentário inline justificando pela decisão de tenancy (Migration Map §3) |
+
+Todos os achados B01–B05 foram corrigidos in-place na mesma rodada (sem `*_REVISED`, sem novo documento). Nenhum achado P0 encontrado. Nenhuma violação de: base real 001–006 intocada, faixa 046–060 tratada como obsoleta em todos os docs, SQL executável ausente, autoaprovação ausente.
+
+### Veredito Rodada 2
+
+```text
+APROVADO COM RESSALVAS MENORES (todas corrigidas nesta rodada).
+Bloqueadores P0: nenhum.
+Bloqueadores P1: nenhum remanescente (B01–B03 corrigidos).
+Próximo passo permitido: commit desta rodada; início do design técnico da migration 007 (ledger core) como documento — SQL ainda bloqueado.
+Próximo passo bloqueado: qualquer SQL executável ou aplicação em supabase/.
 ```
