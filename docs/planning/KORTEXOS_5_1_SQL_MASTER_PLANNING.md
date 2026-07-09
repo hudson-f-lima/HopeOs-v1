@@ -11,18 +11,8 @@
 
 ## 0. Regra de autoridade
 
-Este documento organiza a futura evolução do SQL Master. **Não cria SQL executável, não autoriza migration imediata e não altera a base real 001–006.**
+Este documento planeja a evolução futura do banco (faixa 007+). Não cria SQL executável, não autoriza migration imediata e não altera a base real 001-006 (bloqueio completo: §10). Cadeia de autoridade completa (Master Briefing > Benchmark > Comparative Proposal > Truth Map > Migration Map > Blueprint > SQL Planning > SQL Draft): `AGENTS.md` §Documentation Authority; mapa de arquivos: [INDEX.md](../INDEX.md).
 
-```text
-Master Brief decide visão.
-Benchmark compara.
-Comparative Proposal seleciona.
-Truth Map classifica.
-Migration Map mede impacto.
-Blueprint organiza arquitetura.
-SQL Master Planning organiza execução futura.
-SQL Master materializa depois — somente após novo Red Team.
-```
 
 ---
 

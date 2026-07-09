@@ -32,7 +32,6 @@
 ## 5. Prompts
 
 - [prompts/KORTEXOS_5_1_REDTEAM_AUDIT_PROMPT_FABLE5.md](prompts/KORTEXOS_5_1_REDTEAM_AUDIT_PROMPT_FABLE5.md) — prompt da auditoria Red Team (registro histórico; menções a 046–060 são pré-reancoramento).
-- [prompts/PROMPT_CLAUDE_ANTIGRAVITY_V1_2_CADASTROS_REAIS.md](prompts/PROMPT_CLAUDE_ANTIGRAVITY_V1_2_CADASTROS_REAIS.md) — prompt histórico V1.2.
 
 ## 6. Legacy Reference
 
@@ -41,6 +40,7 @@
 - [legacy/SMART_FLOW_4_0_MASTER_BRIEF_CANONICO.md](legacy/SMART_FLOW_4_0_MASTER_BRIEF_CANONICO.md)
 - [legacy/SMART_FLOW_4_0_BLUEPRINT_UNIFICADO_CANONICO.md](legacy/SMART_FLOW_4_0_BLUEPRINT_UNIFICADO_CANONICO.md) — a sequência 001–045 daqui colide por número com a base real; usar só como design.
 - [legacy/HOPE_OS_V1_0_3_PRE_DEPLOY_HOTFIX_BLUEPRINT.md](legacy/HOPE_OS_V1_0_3_PRE_DEPLOY_HOTFIX_BLUEPRINT.md), [legacy/FRONTEND_V1_1_AUDIT.md](legacy/FRONTEND_V1_1_AUDIT.md) — históricos V1.0/V1.1 superados.
+- [legacy/PROMPT_CLAUDE_ANTIGRAVITY_V1_2_CADASTROS_REAIS.md](legacy/PROMPT_CLAUDE_ANTIGRAVITY_V1_2_CADASTROS_REAIS.md) — prompt histórico V1.2.
 - `archive/legacy-v1/` — patches e relatórios V1.0.x arquivados. `archive/Claude.v1.1.backup.md` — backup antigo do CLAUDE.md.
 
 ## 7. Blocked / Obsolete
