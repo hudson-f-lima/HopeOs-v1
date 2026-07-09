@@ -33,7 +33,7 @@ Leia NESTA ORDEM antes de escrever qualquer código:
 4. docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md            → escopo do ciclo atual (V1.4), KPIs, governança
 5. docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                       → fórmulas determinísticas + contratos de API do V1.4
 6. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md                → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F3.1)
-7. docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md             → registro operacional usado para executar F2
+7. docs/KORTEXOS_V1_4_SESSION_HANDOFF_F3_READY.md             → registro operacional usado para executar F3
 ```
 
 Mapa completo de documentação (incl. Truth Map, Migration Map, Blueprint 5.1, SQL Planning/Draft, Red Team): [`docs/INDEX.md`](docs/INDEX.md).
@@ -153,7 +153,7 @@ docs/planning/KORTEXOS_5_1_MIGRATION_MAP.md          → fundação real 001–0
 docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md      → ciclo atual V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                 → spec técnica V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md          → execução F0–F5
-docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md        → registro operacional da F2
+docs/KORTEXOS_V1_4_SESSION_HANDOFF_F3_READY.md        → registro operacional da F3
 docs/SPEC_V1_3_AGENDA_CHECKOUT_PREMIUM.md            → spec do V1.3 (entregue)
 docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md
 docs/HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md
