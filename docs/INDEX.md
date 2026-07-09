@@ -21,6 +21,7 @@
 
 ## 3. Planning
 
+- [planning/CADASTROS_DEEPENING_PLAN_V1_5.md](planning/CADASTROS_DEEPENING_PLAN_V1_5.md) — plano técnico estrutural para evolução profunda dos cadastros na V1.5.
 - [planning/KORTEXOS_5_1_MIGRATION_MAP.md](planning/KORTEXOS_5_1_MIGRATION_MAP.md) — impacto e faixa futura 007–023.
 - [planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md](planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md) — planejamento da faixa (não é SQL).
 - [planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md](planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md) — rascunho técnico DRAFT ONLY (não executar).
