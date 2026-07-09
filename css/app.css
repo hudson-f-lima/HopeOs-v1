@@ -689,3 +689,100 @@ dialog {
   .agenda-scroll-container { height: 600px; }
   .agenda-grid { grid-template-columns: 52px repeat(var(--prof-count, 1), minmax(120px, 1fr)); }
 }
+
+/* ============ TOAST SYSTEM ============ */
+.toast-container {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+@media (max-width: 767px) {
+  .toast-container {
+    bottom: 96px; /* Above bottom nav */
+    left: 16px;
+    right: 16px;
+  }
+}
+@media (min-width: 768px) {
+  .toast-container {
+    bottom: 24px;
+    right: 24px;
+    max-width: 360px;
+  }
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--md-surface);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--elevation-3);
+  border-left: 4px solid var(--md-primary);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+.toast.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast-success { border-left-color: var(--md-success); }
+.toast-error { border-left-color: var(--md-error); }
+.toast-warning { border-left-color: var(--warning); }
+.toast-info { border-left-color: var(--md-info); }
+
+.toast-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+.toast-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.toast-message {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.toast-action-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--bg-glass-light);
+  color: var(--primary);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}
+.toast-action-btn:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+.toast-close:hover {
+  opacity: 1;
+}

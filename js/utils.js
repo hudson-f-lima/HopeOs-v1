@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { loadCatalog } from './state.js';
+import { showToast } from './ui/toast.js';
 
 export function getInitials(name) {
   if (!name) return '?';
@@ -55,16 +56,16 @@ export function waLink(numero, texto) {
 }
 
 export function showBanner(message, type) {
-  const el = document.getElementById('banner');
-  if (el) {
-    el.innerHTML = `<div class="banner banner-${type}">${escapeHtml(message)}</div>`;
-    if (type === 'ok') setTimeout(() => { el.innerHTML = ''; }, 4000);
-  }
+  // Mantem compatibilidade e converte ok -> success
+  const toastType = type === 'ok' ? 'success' : type;
+  showToast({
+    type: toastType,
+    message: message
+  });
 }
 
 export function clearBanner() { 
-  const el = document.getElementById('banner');
-  if (el) el.innerHTML = ''; 
+  // No-op for toast system, active toasts clear themselves
 }
 
 export function renderList(containerId, items, rowRenderer) {

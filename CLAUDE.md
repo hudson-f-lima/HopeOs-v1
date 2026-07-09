@@ -54,11 +54,12 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 
 - Clientes: REAL — `GET/POST /clientes`, `PATCH /clientes/:id` (payload validado, campos perigosos bloqueados), UI de cadastro na aba Mais.
 - Serviços: REAL — `GET/POST /servicos`, `PATCH /servicos/:id`, UI de cadastro na aba Mais.
-- Profissionais: REAL — `GET/POST /profissionais`, `PATCH /profissionais/:id`, UI de cadastro na aba Mais. `overrides` só via endpoint dedicado (bloqueado no POST/PATCH genérico).
-- Produtos: REAL — `GET/POST /produtos`, `PATCH /produtos/:id`, ajuste de estoque via `POST /produtos/:id/estoque/ajuste` (RPC atômica, bloqueia saldo negativo), UI de cadastro + ajuste de estoque na aba Mais.
+- Profissionais: REAL — `GET/POST /profissionais`, `PATCH /profissionais/:id`, UI de cadastro na aba Mais. `overrides` só via endpoint dedicado (bloqueado no POST/PATCH genérico). (Nota de Auditoria: Os overrides são armazenados numa coluna JSONB; paliativo aceito para V1.4).
+- Produtos: REAL (Mais maduro) — `GET/POST /produtos`, `PATCH /produtos/:id`, ajuste de estoque via `POST /produtos/:id/estoque/ajuste` (RPC atômica, bloqueia saldo negativo), UI de cadastro + ajuste de estoque na aba Mais. (Débito: Ajuste manual carece de actor e idempotência explícita na rota).
 - Formas de pagamento: REAL — `GET/POST /formas-pagamento`, `PATCH /formas-pagamento/:code` (POST duplicado retorna 409, não sobrescreve), UI de cadastro na aba Mais.
-- Serviço x profissional: REAL — `GET/PUT /profissionais/:id/servicos` (RPC atômica), UI de vínculo (checklist) na aba Mais.
+- Serviço x profissional: REAL (Parcial) — `GET/PUT /profissionais/:id/servicos` (RPC atômica), UI de vínculo (checklist) na aba Mais. (Débito: Tabela sem metadados ricos; necessitará de migration 007+ para o modelo Kortex 5.1).
 - Overrides por profissional: REAL — `PATCH /profissionais/:id/servicos/:servicoId/override` (RPC atômica com `jsonb_set`, sem read-modify-write), checkout já lê e aplica os overrides, UI de personalização por serviço na aba Mais.
+- Toast Embutido (UI): Implementado globalmente no app shell sem `alert()`, interceptando mensagens de API (`submitCadastro`) com design empilhável mobile-first, respeitando a SSOT (só mostra sucesso após API confirmar).
 
 ## V1.3 — Frontend UI/UX Premium (CONCLUÍDO — merged em main, 2026-07-08)
 
