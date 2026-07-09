@@ -195,6 +195,9 @@ create table public.kortex_sellable_catalog_items (
   unique (item_kind, servico_id, produto_id, package_id, membership_plan_id,
           corporate_contract_id, partner_campaign_id)  -- A10: unique cobre a origem completa
 );
+-- A10: sem business_unit_id na unique — justificado pela decisão de tenancy (Migration Map §3):
+-- a base real é single-tenant/single-unidade; a coluna entra apenas quando D28 (multiunidade)
+-- virar decisão formal, com sua própria migration e ajuste desta unique.
 ```
 
 ## Invariantes

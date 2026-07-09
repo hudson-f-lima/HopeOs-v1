@@ -120,12 +120,19 @@ Ordem regida pelas dependências dos achados A03 (ledger antes de wallet/staff) 
 011 ← 007
 012 ← histórico agenda real (JÁ REAL) 
 013 ← 007 + 010
+014 ← agenda/profissionais reais (JÁ REAL na base 001–006)
+015 ← 014 + ledger distribuído real
 016 ← 008 + 009 + 013
 017 ← 008 + 016 + LGPD mínima (consent em 017 ou 020)
 018 ← 008 + 020
 019 ← 012 + 013 + 014
+020 ← D21/D30 design aprovado
+021 ← D22/D23 design aprovado
+022 ← — (pode nascer cedo como trava)
 023 ← 007–022
 ```
+
+Tabela completa de dependências: `docs/planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md` §6 (autoridade para a faixa 007+; esta seção resume).
 
 ---
 
