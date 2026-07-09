@@ -39,7 +39,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Cadastros reais (clientes, serviços, profissionais, produtos, formas de pagamento, vínculo serviço×profissional, overrides): REAL — endpoints, validações e RPCs atômicas implementados e em produção (ver seção Cadastros).
 - Hardening pós-auditoria aplicado: `overrides` bloqueado no POST/PATCH genérico de profissionais (só endpoint dedicado), `POST /formas-pagamento` não faz upsert silencioso (409 em duplicado), `CommissionEngine` bloqueia comissão fora de 0-100%, CHECK no banco para produto ativo não vender abaixo do custo, override de profissional via RPC atômica (`jsonb_set`, sem read-modify-write em Node), validação de UUID em params/listas, RPC de produto revalida `comissao_pct`/`modelo_comissao` internamente, erros de negócio da RPC (`P0001`) mapeados para HTTP 422, `POST/PATCH /clientes` validados (antes era passthrough cru).
 - `SupabaseRepository.list()` pagina além de 1000 linhas (limite padrão do PostgREST) — sem isso, tabelas grandes (`clientes` já passou de 1000 registros reais) perdiam linhas silenciosamente em toda leitura (snapshot, export, `GET /catalog`).
-- Testes: `npm run test:gate` — 58/58 verdes (Finance 10 + Product Foundation 8 + Schema Polymorphic 12 + RPC Permission 8 + Cadastros Reais 20).
+- Testes: `npm run test:gate` — 63/63 verdes (58 antigos + 5 novos de Insights F1).
 
 ### Frontend
 
@@ -47,7 +47,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Estrutura de abas: Agenda, Checkout, Dashboard, Mais.
 - Aba **Mais**: UI de Cadastros Reais implementada — CRUD de clientes, serviços, profissionais (+ vínculo com serviços + overrides por serviço), produtos (+ ajuste de estoque), formas de pagamento. Desativação sempre via `ativo=false`, nunca delete físico.
 - Checkout: preview reorganizado em blocos Bruto → Deduções → Resultado (mesmos campos que a API já retornava; nenhum cálculo novo no frontend).
-- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-3-11`.
+- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-0`.
 - `frontendCalculates: false` continua sendo a regra vigente — frontend só coleta intenção, chama API e exibe a resposta.
 
 ### Cadastros
