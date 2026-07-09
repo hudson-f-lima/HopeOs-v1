@@ -78,18 +78,19 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 | F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA — em main | fb2478b |
 | F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA — em main | 2df93b3 |
 | F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA — em main | 57b4a2c |
-| F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ✅ CONCLUÍDA — local/branch | ae95cf5 |
-| F5 | QA + auditoria + deploy | ⏳ EM ANDAMENTO | — |
+| F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ✅ CONCLUÍDA — em main | ae95cf5 |
+| F5 | QA + auditoria + deploy | ✅ CONCLUÍDA — em main | c07a834 |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado F4 (pronto para F5):**
+**Estado V1.4 (Ciclo Concluído & Publicado):**
 - ✅ Split Payment completo (frontend + backend): 2 novos testes no finance-gate, reescrita de UI no `checkout.js`, cálculo automático e validação client-side.
 - ✅ Rebooking pós-checkout: card sugestão de rebooking de 1 clique, integração com agenda.
 - ✅ Lista de Espera (Waitlist): backend completo (rotas + validadores + 21 testes) e UI frontend (subaba "Espera" em gestão, modal de cadastro e prompt ao cancelar agendamento).
 - ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
 - ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
 - ✅ Todos os testes verdes: `npm run test:gate` passa localmente.
+- ✅ Deploys em produção (Render + GitHub Pages) ativados e validados ativamente via testes de rede.
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD), `docs/QA_V1_4_CHECKLIST.md`.
 
