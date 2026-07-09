@@ -1,19 +1,45 @@
-import { api } from '../api.js';
+import { api, getInsightsRebooking, getInsightsAttach } from '../api.js';
 import { state, stateBus } from '../state.js';
 import {
   centsToBRL,
+  brlToCents,
+  escapeHtml,
   genIdempotencyKey,
   clearBanner,
-  showBanner
+  showBanner,
+  formatDDMM
 } from '../utils.js';
-
-// F0 (V1.4): split do V1.3 foi mergeado incompleto — buildPayload() ignora os splits.
-// UI desligada até a F4 integrar payments[] de ponta a ponta (RPC já suporta N pagamentos).
-const SPLIT_ENABLED = false;
 
 export function getVisibleCartItems() {
   const tab = state.checkoutTab;
   return tab === 'servicos' ? state.cart.servicos : state.cart.produtos;
+}
+
+// F4.2: split usa sempre o total confirmado pelo preview (nunca uma estimativa
+// client-side) — a última linha é o restante exibido, nunca digitável.
+function buildSplitPayments() {
+  if (!state.currentPreview) throw new Error('Simule a comanda antes de dividir o pagamento.');
+  if (!state.splits.length) throw new Error('Adicione ao menos uma forma de pagamento.');
+
+  const totalCentavos = state.currentPreview.totals.totalRecebidoCentavos;
+  const outras = state.splits.slice(0, -1);
+  const last = state.splits[state.splits.length - 1];
+
+  let somaOutras = 0;
+  const payments = outras.map((split, idx) => {
+    if (!split.method) throw new Error(`Selecione a forma de pagamento na linha ${idx + 1}.`);
+    const valorCentavos = brlToCents(split.amount);
+    if (valorCentavos <= 0) throw new Error(`Informe um valor maior que zero na linha ${idx + 1}.`);
+    somaOutras += valorCentavos;
+    return { formaCode: split.method, valorCentavos };
+  });
+
+  if (!last.method) throw new Error('Selecione a forma de pagamento na última linha.');
+  const restanteCentavos = totalCentavos - somaOutras;
+  if (restanteCentavos <= 0) throw new Error('A soma das formas de pagamento já cobre o total. Ajuste os valores.');
+  payments.push({ formaCode: last.method, valorCentavos: restanteCentavos });
+
+  return payments;
 }
 
 function buildPayload() {
@@ -26,7 +52,7 @@ function buildPayload() {
 
   if (!servicoId) throw new Error('Selecione um serviço.');
   if (!profissionalId) throw new Error('Selecione um profissional.');
-  if (!formaCode) throw new Error('Selecione uma forma de pagamento.');
+  if (!state.splitEnabled && !formaCode) throw new Error('Selecione uma forma de pagamento.');
 
   const servico = state.catalog.servicos.find(s => s.id === servicoId);
   const valorServicoCentavos = servico ? servico.valor_centavos : 0;
@@ -41,12 +67,15 @@ function buildPayload() {
   }
 
   const totalCentavos = valorServicoCentavos + valorProdutoCentavos + gorjetaCentavos;
+  const payments = state.splitEnabled
+    ? buildSplitPayments()
+    : [{ formaCode, valorCentavos: totalCentavos }];
 
   return {
     clienteId: clienteId || null,
     idempotencyKey: genIdempotencyKey(),
     itens,
-    payments: [{ formaCode, valorCentavos: totalCentavos }],
+    payments,
     gorjetaCentavos,
     agendamentoId: state.agendamentoIdParaCheckout || undefined
   };
@@ -56,11 +85,14 @@ export async function simular() {
   clearBanner();
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('cardResultado').classList.add('hidden');
+  document.getElementById('rebookingCard').classList.add('hidden');
+  hideAttachSuggestion();
   document.getElementById('btnFechar').disabled = true;
   try {
     const payload = buildPayload();
     const preview = await api('/checkout/preview', { method: 'POST', body: payload });
     state.currentPayload = payload;
+    state.currentPreview = preview;
     const t = preview.totals;
     document.getElementById('pvServicos').textContent = centsToBRL(t.servicosLiquidosCentavos);
     document.getElementById('pvProdutos').textContent = centsToBRL(t.produtosLiquidosCentavos);
@@ -72,7 +104,8 @@ export async function simular() {
     document.getElementById('pvGorjetaLiquida').textContent = centsToBRL(t.totalGorjetaLiquidaCentavos);
     document.getElementById('pvReceita').textContent = centsToBRL(t.receitaEmpresaCentavos);
     document.getElementById('cardPreview').classList.remove('hidden');
-    document.getElementById('btnFechar').disabled = false;
+    renderSplitRows();
+    updateSubmitButtonState();
   } catch (err) {
     showBanner(err.message, 'error');
   }
@@ -87,6 +120,9 @@ export async function fechar() {
   try {
     const saved = await api('/checkout/close', { method: 'POST', body: state.currentPayload });
     const s = saved.saved;
+    const clienteId = state.currentPayload.clienteId;
+    const servicoItem = state.currentPayload.itens.find(i => i.tipo === 'servico');
+
     document.getElementById('resComandaId').textContent = s.comandoId || '—';
     document.getElementById('resStatus').textContent = s.status || (s.idempotent ? 'já fechada (idempotente)' : '—');
     document.getElementById('resCounts').textContent = `${s.itens ?? '—'} / ${s.pagamentos ?? '—'} / ${s.gorjetas ?? '—'}`;
@@ -94,17 +130,71 @@ export async function fechar() {
     document.getElementById('cardResultado').classList.remove('hidden');
     showBanner('Comanda fechada com sucesso.', 'ok');
     state.currentPayload = null;
+    state.currentPreview = null;
     state.agendamentoIdParaCheckout = null;
     state.tip = 0;
+    state.splitEnabled = false;
+    state.splits = [{ id: 's1', method: '', amount: '' }];
     renderTipStepper();
+    renderSplitToggle();
+    renderSplitRows();
     btn.textContent = 'Fechar comanda';
-    
+
     // Emit event so other modules (dashboard, agenda) update
     stateBus.dispatchEvent(new CustomEvent('checkout:closed'));
+
+    // F4.3: sugestão de reagendamento é best-effort — nunca bloqueia o fechamento já concluído
+    if (clienteId && servicoItem) {
+      showRebookingSuggestion(clienteId, servicoItem.servicoId, servicoItem.profissionalId);
+    } else {
+      document.getElementById('rebookingCard').classList.add('hidden');
+    }
   } catch (err) {
     showBanner(err.message, 'error');
     btn.disabled = false;
     btn.textContent = 'Fechar comanda';
+  }
+}
+
+async function showRebookingSuggestion(clienteId, servicoId, profissionalId) {
+  const card = document.getElementById('rebookingCard');
+  if (!card) return;
+  card.classList.add('hidden');
+  try {
+    const suggestion = await getInsightsRebooking(clienteId, servicoId);
+    if (!suggestion || !suggestion.dataSugerida) return;
+    document.getElementById('rebookingText').textContent =
+      `Sugerir retorno em ${formatDDMM(suggestion.dataSugerida)} às ${suggestion.horaSugerida}?`;
+    card.dataset.clienteId = clienteId;
+    card.dataset.servicoId = servicoId || '';
+    card.dataset.profissionalId = profissionalId || '';
+    card.dataset.data = suggestion.dataSugerida;
+    card.dataset.horario = suggestion.horaSugerida;
+    card.classList.remove('hidden');
+  } catch (err) {
+    // Sugestão de reagendamento é um extra — falha silenciosa não deve confundir o usuário
+    // logo após o fechamento real da comanda já ter dado certo.
+  }
+}
+
+async function confirmRebooking() {
+  const card = document.getElementById('rebookingCard');
+  const { clienteId, servicoId, profissionalId, data, horario } = card.dataset;
+  if (!servicoId || !profissionalId || !data || !horario) {
+    card.classList.add('hidden');
+    return;
+  }
+  const btn = document.getElementById('btnRebookingConfirm');
+  btn.disabled = true;
+  try {
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: false } });
+    showBanner('Reagendamento criado na agenda.', 'ok');
+    card.classList.add('hidden');
+    stateBus.dispatchEvent(new CustomEvent('checkout:closed'));
+  } catch (err) {
+    showBanner('Não foi possível criar o reagendamento: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -116,8 +206,15 @@ export function prefillCheckoutFromAgendamento(item) {
   state.fuzzyProduto.setValue(null);
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('cardResultado').classList.add('hidden');
+  document.getElementById('rebookingCard').classList.add('hidden');
+  hideAttachSuggestion();
   state.currentPayload = null;
-  
+  state.currentPreview = null;
+  state.splitEnabled = false;
+  state.splits = [{ id: 's1', method: '', amount: '' }];
+  renderSplitToggle();
+  renderSplitRows();
+
   // Emit tab:change to switch to checkout tab
   stateBus.dispatchEvent(new CustomEvent('tab:change', { detail: 'checkout' }));
   
@@ -148,8 +245,19 @@ export function renderTipStepper() {
   }
 }
 
-// Gorjeta alterada após o preview = payload defasado → força nova simulação (backend é a verdade)
+// Gorjeta alterada após o preview = total muda → payload E total de referência ficam defasados
 function invalidatePreview() {
+  state.currentPayload = null;
+  state.currentPreview = null;
+  const card = document.getElementById('cardPreview');
+  if (card) card.classList.add('hidden');
+  updateSubmitButtonState();
+}
+
+// Split editado após o preview (forma/valor por linha) muda só a FORMA de pagar o
+// mesmo total já confirmado — mantém state.currentPreview (base do restante da última
+// linha) e invalida apenas o payload, forçando reconfirmar com o backend antes de fechar.
+function invalidatePayload() {
   state.currentPayload = null;
   const card = document.getElementById('cardPreview');
   if (card) card.classList.add('hidden');
@@ -178,29 +286,28 @@ export function renderSplitToggle() {
 }
 
 export function toggleSplitPayment() {
-  if (!SPLIT_ENABLED) return;
-  state.splitEnabled = !state.splitEnabled;
-  renderSplitToggle();
-  renderPaymentMethods();
-  renderSplitRows();
-  updateSubmitButtonState();
-}
-
-export function renderPaymentMethods() {
-  const container = document.getElementById('paymentMethodsContainer');
-  if (!container) return;
-
-  // Select órfão do V1.3 (buildPayload usa o fuzzy coForma) — nunca exibir com split desligado
-  if (!SPLIT_ENABLED) {
-    container.classList.add('hidden');
+  if (!state.splitEnabled && !state.currentPreview) {
+    showBanner('Simule a comanda antes de dividir o pagamento.', 'error');
     return;
   }
+  state.splitEnabled = !state.splitEnabled;
+  renderSplitToggle();
+  renderSplitRows();
+  invalidatePayload();
+}
 
-  if (state.splitEnabled) {
-    container.classList.add('hidden');
-  } else {
-    container.classList.remove('hidden');
-  }
+// Restante da última linha (não digitável) = total confirmado no preview - soma das outras linhas
+function lastSplitRemainderCentavos() {
+  if (!state.currentPreview) return 0;
+  const totalCentavos = state.currentPreview.totals.totalRecebidoCentavos;
+  const outrasCentavos = state.splits.slice(0, -1).reduce((sum, s) => sum + brlToCents(s.amount), 0);
+  return totalCentavos - outrasCentavos;
+}
+
+function updateLastSplitRowDisplay() {
+  const lastIdx = state.splits.length - 1;
+  const el = document.querySelector(`.split-row-amount[data-split-idx="${lastIdx}"]`);
+  if (el) el.textContent = centsToBRL(lastSplitRemainderCentavos());
 }
 
 export function renderSplitRows() {
@@ -208,73 +315,79 @@ export function renderSplitRows() {
   const splitList = document.getElementById('splitRowsList');
   if (!splitContainer || !splitList) return;
 
-  if (!SPLIT_ENABLED) {
+  if (!state.splitEnabled) {
     splitContainer.classList.add('hidden');
     return;
   }
 
-  if (state.splitEnabled) {
-    splitContainer.classList.remove('hidden');
+  splitContainer.classList.remove('hidden');
+  const formas = (state.catalog.formas_pagamento || []).filter(f => f.ativo !== false);
+  const restanteCentavos = lastSplitRemainderCentavos();
 
-    // Renderizar as linhas de split
-    splitList.innerHTML = state.splits.map((split, idx) => {
-      const isLast = idx === state.splits.length - 1;
-      const methods = ['pix', 'dinheiro', 'debito', 'credito', 'online'];
+  splitList.innerHTML = state.splits.map((split, idx) => {
+    const isLast = idx === state.splits.length - 1;
 
-      return `
-        <div class="split-row">
-          <select class="split-row-form input-light" data-split-idx="${idx}">
-            <option value="">Selecione...</option>
-            ${methods.map(m => `<option value="${m}" ${split.method === m ? 'selected' : ''}>${m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('')}
-          </select>
-          ${isLast ? `
-            <div class="split-row-amount display-only" data-split-idx="${idx}">
-              R$ ${(split.amount || 0).toFixed(2)}
-            </div>
-          ` : `
-            <input type="number" class="split-row-input input-light" data-split-idx="${idx}" placeholder="0,00" value="${split.amount || ''}" min="0" step="0.01" />
-          `}
-          ${state.splits.length > 1 ? `
-            <button class="split-row-remove" data-split-idx="${idx}">×</button>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
+    return `
+      <div class="split-row">
+        <select class="split-row-form input-light" data-split-idx="${idx}">
+          <option value="">Selecione...</option>
+          ${formas.map(f => `<option value="${escapeHtml(f.code)}" ${split.method === f.code ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+        </select>
+        ${isLast ? `
+          <div class="split-row-amount display-only" data-split-idx="${idx}">${centsToBRL(restanteCentavos)}</div>
+        ` : `
+          <input type="number" class="split-row-input input-light" data-split-idx="${idx}" placeholder="0,00" value="${split.amount || ''}" min="0" step="0.01" />
+        `}
+        ${state.splits.length > 1 ? `
+          <button type="button" class="split-row-remove" data-split-idx="${idx}">×</button>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
 
-    // Adicionar event listeners
-    splitList.querySelectorAll('.split-row-remove').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.splitIdx);
-        state.splits.splice(idx, 1);
-        renderSplitRows();
-      });
+  splitList.querySelectorAll('.split-row-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.splitIdx, 10);
+      state.splits.splice(idx, 1);
+      renderSplitRows();
+      invalidatePayload();
     });
+  });
 
-    splitList.querySelectorAll('input').forEach(input => {
-      input.addEventListener('input', () => {
-        const idx = parseInt(input.dataset.splitIdx);
-        state.splits[idx].amount = parseFloat(input.value) || 0;
-        updateSubmitButtonState();
-      });
+  splitList.querySelectorAll('.split-row-form').forEach(select => {
+    select.addEventListener('change', () => {
+      const idx = parseInt(select.dataset.splitIdx, 10);
+      state.splits[idx].method = select.value;
+      invalidatePayload();
     });
-  } else {
-    splitContainer.classList.add('hidden');
-  }
+  });
+
+  splitList.querySelectorAll('.split-row-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const idx = parseInt(input.dataset.splitIdx, 10);
+      state.splits[idx].amount = input.value;
+      updateLastSplitRowDisplay();
+      invalidatePayload();
+    });
+  });
 }
 
 export function addSplitRow() {
-  state.splits.push({ id: 's' + Date.now(), method: '', amount: 0 });
+  state.splits.push({ id: 's' + Date.now(), method: '', amount: '' });
   renderSplitRows();
+  invalidatePayload();
 }
 
 export function validateSplitPayment() {
-  if (!SPLIT_ENABLED || !state.splitEnabled) return true; // Sem split, sempre válido
+  if (!state.splitEnabled) return true; // Sem split, sempre válido
+  if (!state.currentPreview) return false; // precisa do total confirmado pelo preview
 
-  const total = state.tip; // Valor total a pagar (apenas gorjeta por enquanto)
-  const sumManualSplits = state.splits.slice(0, -1).reduce((sum, split) => sum + (split.amount || 0), 0);
-  const lastAmount = total - sumManualSplits;
+  if (state.splits.some(split => !split.method)) return false;
 
-  return lastAmount >= 0; // Válido se o restante é >= 0
+  const outras = state.splits.slice(0, -1);
+  if (outras.some(split => brlToCents(split.amount) <= 0)) return false;
+
+  return lastSplitRemainderCentavos() > 0;
 }
 
 export function updateSubmitButtonState() {
@@ -283,6 +396,48 @@ export function updateSubmitButtonState() {
     // Só habilita com preview válido em mãos — nunca habilitar sem simulação
     btnFechar.disabled = !state.currentPayload || !validateSplitPayment();
   }
+}
+
+// F4.6: attach é sempre sugestão — nunca adiciona produto sozinho ao carrinho.
+async function ensureAttachLoaded() {
+  if (state.insights.attach) return state.insights.attach;
+  try {
+    const attach = await getInsightsAttach();
+    state.insights.attach = attach;
+    return attach;
+  } catch (err) {
+    return null;
+  }
+}
+
+function hideAttachSuggestion() {
+  const el = document.getElementById('attachSuggestion');
+  if (el) el.classList.add('hidden');
+}
+
+export async function onServicoSelected(servicoId) {
+  hideAttachSuggestion();
+  if (!servicoId) return;
+  const attach = await ensureAttachLoaded();
+  const sugestao = attach?.sugestoes?.find(s => s.servicoId === servicoId);
+  const top = sugestao?.produtos?.[0];
+  if (!top) return;
+
+  const el = document.getElementById('attachSuggestion');
+  const text = document.getElementById('attachSuggestionText');
+  if (!el || !text) return;
+  text.textContent = `Sugestão: adicionar ${top.nome}?`;
+  el.dataset.produtoId = top.produtoId;
+  el.classList.remove('hidden');
+}
+
+function addAttachSuggestion() {
+  const el = document.getElementById('attachSuggestion');
+  const produtoId = el?.dataset.produtoId;
+  if (!produtoId || !state.fuzzyProduto) return;
+  state.fuzzyProduto.setValue(produtoId);
+  hideAttachSuggestion();
+  invalidatePayload();
 }
 
 export function initCheckout() {
@@ -305,18 +460,21 @@ export function initCheckout() {
   if (tipPlusBtn) tipPlusBtn.addEventListener('click', incrementTip);
   if (tipMinusBtn) tipMinusBtn.addEventListener('click', decrementTip);
 
-  const splitToggleRow = document.querySelector('.split-toggle-row');
-  if (!SPLIT_ENABLED && splitToggleRow) splitToggleRow.classList.add('hidden');
-
   const splitToggle = document.getElementById('splitToggle');
-  if (SPLIT_ENABLED && splitToggle) splitToggle.addEventListener('click', toggleSplitPayment);
+  if (splitToggle) splitToggle.addEventListener('click', toggleSplitPayment);
 
   const addSplitRowBtn = document.getElementById('addSplitRowBtn');
-  if (SPLIT_ENABLED && addSplitRowBtn) addSplitRowBtn.addEventListener('click', addSplitRow);
+  if (addSplitRowBtn) addSplitRowBtn.addEventListener('click', addSplitRow);
+
+  document.getElementById('btnRebookingConfirm')?.addEventListener('click', confirmRebooking);
+  document.getElementById('btnRebookingDismiss')?.addEventListener('click', () => {
+    document.getElementById('rebookingCard').classList.add('hidden');
+  });
+
+  document.getElementById('btnAttachSuggestionAdd')?.addEventListener('click', addAttachSuggestion);
 
   renderTipStepper();
   renderSplitToggle();
-  renderPaymentMethods();
   renderSplitRows();
   updateSubmitButtonState();
 

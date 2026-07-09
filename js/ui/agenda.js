@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, getClientReliability, getListaEspera } from '../api.js';
 import { 
   state, 
   stateBus, 
@@ -25,7 +25,8 @@ import {
   closeModal,
   confirmAction,
   escapeHtml,
-  getInitials
+  getInitials,
+  waLink
 } from '../utils.js';
 
 export const PX_POR_MIN = 3;
@@ -463,10 +464,39 @@ function openActionSheet(item) {
     <div class="row"><span>Hora início</span><b>${horario}</b></div>
     <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
     <div class="row"><span>Status</span><span class="${meta.cls}">${meta.label}</span></div>
+    <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
     <div class="sheet-actions">${actionsHtml}</div>
   `;
   document.getElementById('actionSheet').dataset.agendaId = item.id;
   openModal('actionSheet');
+  loadReliabilityBadge(item.cliente_id);
+}
+
+function reliabilityColor(faixa) {
+  if (faixa === 'confiavel') return '#22c55e';
+  if (faixa === 'normal') return '#2563eb';
+  if (faixa === 'atencao') return '#f59e0b';
+  return '#ef4444'; // risco
+}
+
+const RELIABILITY_LABEL = { confiavel: 'Confiável', normal: 'Normal', atencao: 'Atenção', risco: 'Risco' };
+
+// F4.5: shadow mode — só exibe score/fatores, nunca bloqueia nenhuma ação do sheet.
+async function loadReliabilityBadge(clienteId) {
+  const valueEl = document.getElementById('reliabilityValue');
+  const rowEl = document.getElementById('reliabilityRow');
+  if (!valueEl || !rowEl) return;
+  if (!clienteId) { rowEl.classList.add('hidden'); return; }
+  try {
+    const r = await getClientReliability(clienteId);
+    if (document.getElementById('reliabilityValue') !== valueEl) return; // sheet trocou de item enquanto carregava
+    const label = RELIABILITY_LABEL[r.faixa] || r.faixa;
+    valueEl.textContent = `${r.score} · ${label}`;
+    valueEl.style.color = reliabilityColor(r.faixa);
+    valueEl.title = `No-shows (365d): ${r.fatores.noShows365d} · Cancelamentos tardios: ${r.fatores.cancelTardios365d} · Sequência de comparecimentos: ${r.fatores.streakConcluidos}`;
+  } catch (err) {
+    rowEl.classList.add('hidden');
+  }
 }
 
 function closeActionSheet() {
@@ -492,6 +522,7 @@ async function onActionSheetClick(ev) {
     closeActionSheet();
     if (await confirmAction({ title: 'Cancelar atendimento', message: 'Cancelar este atendimento na agenda?', confirmLabel: 'Cancelar atendimento', danger: true })) {
       await patchAgendaStatus(id, 'cancelado');
+      await promptWaitlistCandidates(item.servico_id);
     }
     return;
   }
@@ -501,6 +532,47 @@ async function onActionSheetClick(ev) {
     stateBus.dispatchEvent(new CustomEvent('checkout:prefill', { detail: item }));
     return; 
   }
+}
+
+// F4.4: vaga aberta por cancelamento -> sugere quem chamar da lista de espera.
+// Best-effort: nunca cria/edita agendamento sozinho, só oferece contato manual via WhatsApp.
+async function promptWaitlistCandidates(servicoId) {
+  if (!servicoId) return;
+  let candidatos = [];
+  try {
+    candidatos = await getListaEspera({ servicoId, status: 'aguardando' });
+  } catch (err) {
+    return;
+  }
+  if (!candidatos.length) return;
+
+  const servicoNome = findServicoNome(servicoId);
+  const rowsHtml = candidatos.slice(0, 5).map(c => {
+    const cliente = state.catalog.clientes.find(cl => cl.id === c.cliente_id);
+    const nome = cliente ? cliente.nome : 'Cliente';
+    const texto = `Olá ${nome}! Abriu uma vaga para ${servicoNome}, tem interesse?`;
+    const link = cliente?.whatsapp ? waLink(cliente.whatsapp, texto) : null;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:13px;font-weight:600;">${escapeHtml(nome)}</span>
+      ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:#22c55e;text-decoration:none;">WhatsApp</a>` : '<span style="font-size:11px;color:#9490a3;">Sem WhatsApp</span>'}
+    </div>`;
+  }).join('');
+
+  const dialog = document.getElementById('conflict-dialog');
+  dialog.innerHTML = `
+    <div style="padding:20px;max-width:320px;font-family:inherit">
+      <div style="font-size:18px;font-weight:800;margin-bottom:8px">Vaga aberta — lista de espera</div>
+      <div style="font-size:13px;color:#555;line-height:1.45;margin-bottom:12px">
+        ${candidatos.length} cliente(s) aguardando ${escapeHtml(servicoNome)}. Avise quem preferir:
+      </div>
+      ${rowsHtml}
+      <button id="btn-waitlist-fechar" style="
+        margin-top:16px;width:100%;padding:12px;border-radius:10px;border:1px solid #e0e0e0;
+        cursor:pointer;background:#fff;color:#555;font-size:14px">Fechar</button>
+    </div>
+  `;
+  document.getElementById('btn-waitlist-fechar').onclick = () => dialog.close();
+  dialog.showModal();
 }
 
 async function patchAgendaStatus(id, novoStatus) {

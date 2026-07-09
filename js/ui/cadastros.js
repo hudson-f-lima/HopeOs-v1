@@ -1,18 +1,20 @@
-import { api } from '../api.js';
+import { api, getListaEspera, createListaEspera, updateListaEspera } from '../api.js';
 import { state, stateBus } from '../state.js';
-import { 
-  centsToBRL, 
-  brlToCents, 
-  escapeHtml, 
-  normalizeSearchText, 
-  openModal, 
-  closeModal, 
-  clearModalError, 
-  showModalError, 
-  submitCadastro, 
-  toggleAtivo, 
+import {
+  centsToBRL,
+  brlToCents,
+  escapeHtml,
+  normalizeSearchText,
+  openModal,
+  closeModal,
+  clearModalError,
+  showModalError,
+  submitCadastro,
+  toggleAtivo,
   confirmAction,
-  renderList 
+  renderList,
+  showBanner,
+  waLink
 } from '../utils.js';
 
 const MODELO_COMISSAO_LABEL = { bruto_salao: 'Bruto salão', dividido: 'Dividido', bruto_staff: 'Bruto staff' };
@@ -448,6 +450,101 @@ async function submitFormaForm() {
   if (data) closeModal('modalForma');
 }
 
+/* ---------- Lista de espera (F4.4) ---------- */
+const LISTA_ESPERA_STATUS_LABEL = { aguardando: 'Aguardando', contatado: 'Contatado', agendado: 'Agendado', cancelado: 'Cancelado' };
+
+function findClienteById(id) {
+  return (state.catalog.clientes || []).find(c => c.id === id);
+}
+
+function renderListaEsperaRow(item) {
+  const cliente = findClienteById(item.cliente_id);
+  const servico = state.catalog.servicos.find(s => s.id === item.servico_id);
+  const profissional = state.catalog.profissionais.find(p => p.id === item.profissional_id);
+  const statusLabel = LISTA_ESPERA_STATUS_LABEL[item.status] || item.status;
+  const isOpen = item.status === 'aguardando' || item.status === 'contatado';
+
+  const metaParts = [servico ? servico.nome : 'Serviço removido'];
+  if (profissional) metaParts.push(profissional.nome);
+  if (item.data_preferencia) metaParts.push('pref. ' + item.data_preferencia);
+  metaParts.push(statusLabel);
+
+  const whatsappBtn = cliente?.whatsapp
+    ? `<a class="btn btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;text-align:center;" href="${escapeHtml(waLink(cliente.whatsapp, `Olá ${cliente.nome}! Abriu uma vaga para ${servico ? servico.nome : 'seu atendimento'}, tem interesse?`))}" target="_blank" rel="noopener">WhatsApp</a>`
+    : '';
+
+  const actionsHtml = isOpen ? `
+    ${item.status === 'aguardando' ? '<button data-action="le-contatado">Marcar contatado</button>' : ''}
+    <button data-action="le-agendado">Marcar agendado</button>
+    <button data-action="le-cancelado" class="danger">Cancelar</button>
+  ` : '';
+
+  return `<div class="cadastro-row" data-id="${item.id}">
+    <div class="info">
+      <div class="nome">${escapeHtml(cliente ? cliente.nome : 'Cliente removido')}</div>
+      <div class="meta">${escapeHtml(metaParts.join(' · '))}</div>
+    </div>
+    <div class="actions">${whatsappBtn}${actionsHtml}</div>
+  </div>`;
+}
+
+export async function renderListaEsperaList() {
+  const container = document.getElementById('listListaEspera');
+  if (!container) return;
+  const mostrarTodas = document.getElementById('chkListaEsperaTodas')?.checked;
+  try {
+    const items = await getListaEspera();
+    const filtered = mostrarTodas ? items : items.filter(i => i.status === 'aguardando' || i.status === 'contatado');
+    renderList('listListaEspera', filtered, renderListaEsperaRow);
+  } catch (err) {
+    container.innerHTML = `<p class="empty-state">Erro ao carregar lista de espera: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+export function openListaEsperaModal() {
+  document.getElementById('leDataPreferencia').value = '';
+  document.getElementById('leObservacoes').value = '';
+  state.fuzzyLeCliente?.clear();
+  state.fuzzyLeServico?.clear();
+  state.fuzzyLeProfissional?.clear();
+  clearModalError('leError');
+  openModal('modalListaEspera');
+}
+
+async function submitListaEsperaForm() {
+  const clienteId = state.fuzzyLeCliente?.getValue();
+  const servicoId = state.fuzzyLeServico?.getValue();
+  const profissionalId = state.fuzzyLeProfissional?.getValue();
+  if (!clienteId || !servicoId) {
+    showModalError('leError', 'Selecione cliente e serviço.');
+    return;
+  }
+  const body = {
+    clienteId,
+    servicoId,
+    profissionalId: profissionalId || undefined,
+    dataPreferencia: document.getElementById('leDataPreferencia').value || undefined,
+    observacoes: document.getElementById('leObservacoes').value.trim() || undefined
+  };
+  const data = await submitCadastro(
+    () => createListaEspera(body),
+    'Adicionado à lista de espera.',
+    renderListaEsperaList,
+    'leError'
+  );
+  if (data) closeModal('modalListaEspera');
+}
+
+async function updateListaEsperaStatus(id, status) {
+  try {
+    await updateListaEspera(id, { status });
+    showBanner('Status atualizado.', 'ok');
+    await renderListaEsperaList();
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
 export function initCadastros() {
   /* Clientes */
   document.getElementById('chkClientesInativos').addEventListener('change', renderClientesList);
@@ -536,11 +633,26 @@ export function initCadastros() {
     if (btn.dataset.action === 'toggle-forma') toggleAtivo('/formas-pagamento', forma.code, forma.ativo !== false, renderFormasList);
   });
 
+  /* Lista de espera */
+  document.getElementById('chkListaEsperaTodas').addEventListener('change', renderListaEsperaList);
+  document.getElementById('btnNovaListaEspera').addEventListener('click', openListaEsperaModal);
+  document.getElementById('btnCancelarListaEspera').addEventListener('click', () => closeModal('modalListaEspera'));
+  document.getElementById('btnSalvarListaEspera').addEventListener('click', submitListaEsperaForm);
+  document.getElementById('listListaEspera').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-action]');
+    if (!btn) return;
+    const id = btn.closest('[data-id]').dataset.id;
+    if (btn.dataset.action === 'le-contatado') updateListaEsperaStatus(id, 'contatado');
+    if (btn.dataset.action === 'le-agendado') updateListaEsperaStatus(id, 'agendado');
+    if (btn.dataset.action === 'le-cancelado') updateListaEsperaStatus(id, 'cancelado');
+  });
+
   stateBus.addEventListener('catalog:updated', () => {
     renderClientesList();
     renderServicosList();
     renderProfissionaisList();
     renderProdutosList();
     renderFormasList();
+    renderListaEsperaList();
   });
 }

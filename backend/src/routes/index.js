@@ -22,7 +22,9 @@ const {
   validateCreateFormaPagamentoPayload,
   validateUpdateFormaPagamentoPayload,
   validateProfissionalServicosPayload,
-  validateProfissionalServicoOverridePayload
+  validateProfissionalServicoOverridePayload,
+  validateCreateListaEsperaPayload,
+  validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
 const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
@@ -515,6 +517,39 @@ router.get('/insights/rebooking/:clienteId', async (req, res, next) => {
     const service = new RetentionService();
     const data = await service.loadRebookingSuggestion(clienteId, servicoId);
     res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+// F4.4 — lista de espera (tabela ja existe desde 001_init.sql; zero migration nova)
+router.get('/lista-espera', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const filters = { empresa_id: repo.empresaId };
+    if (req.query.servicoId) filters.servico_id = validateUUID(req.query.servicoId, 'servicoId');
+    if (req.query.status) filters.status = req.query.status;
+    res.json({ ok: true, data: await repo.list('lista_espera', filters) });
+  } catch (err) { next(err); }
+});
+
+router.post('/lista-espera', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const payload = validateCreateListaEsperaPayload(req.body);
+    await requireActiveEntity(repo, 'clientes', payload.cliente_id, 'Cliente', 'CLIENT_NOT_FOUND');
+    await requireActiveEntity(repo, 'servicos', payload.servico_id, 'Serviço', 'SERVICE_NOT_FOUND');
+    if (payload.profissional_id) await requireActiveEntity(repo, 'profissionais', payload.profissional_id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    res.status(201).json({ ok: true, data: await repo.insertScoped('lista_espera', payload) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/lista-espera/:id', async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository();
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'lista_espera', id, 'Item da lista de espera', 'WAITLIST_ITEM_NOT_FOUND');
+    const payload = validateUpdateListaEsperaPayload(req.body);
+    if (payload.profissional_id) await requireActiveEntity(repo, 'profissionais', payload.profissional_id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    res.json({ ok: true, data: await repo.updateScoped('lista_espera', id, payload) });
   } catch (err) { next(err); }
 });
 
