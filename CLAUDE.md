@@ -70,20 +70,20 @@ Pendências herdadas: frontend segue sem testes (`test:gate` é 100% backend —
 
 ## V1.4 — KortexOS Now-Scope: Decision Intelligence (em andamento)
 
-Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Status:
+Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-dashboard-premium`; F0–F3 mergeados em `main` via PR [#11](https://github.com/hudson-f-lima/HopeOs-v1/pull/11) em 2026-07-09 (merge commit `324bc5c`). Status:
 
 | Fase | Nome | Status | Commits |
 |------|------|--------|---------|
-| F0 | Saneamento (esconder split) | ✅ CONCLUÍDA | bae1923 |
-| F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA | fb2478b |
-| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA | branch V1.4 |
-| F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA LOCALMENTE | pendente commit |
+| F0 | Saneamento (esconder split) | ✅ CONCLUÍDA — em main | bae1923 |
+| F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA — em main | fb2478b |
+| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA — em main | 2df93b3 |
+| F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA — em main | 57b4a2c |
 | F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ⏳ PENDENTE | — |
 | F5 | QA + auditoria + deploy | ⏳ PENDENTE | — |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado F3 (pronto para F4):**
+**Estado F3 (mergeado em main, pronto para F4):**
 - ✅ 3 engines puras: `occupancy.js` (v0, refinada depois), `cashflow.js` (pronto), `margin.js` (pronto)
 - ✅ InsightsService orquestra com paginação real (>1000 linhas)
 - ✅ Rotas GET `/insights/{occupancy,margin,cashflow}` validadas

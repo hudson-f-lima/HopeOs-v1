@@ -1,8 +1,8 @@
 # KortexOS V1.4 Session Handoff - F4 Ready
 
 **Ultima atualizacao:** 2026-07-09
-**Branch:** `codex/v1.4-dashboard-premium`
-**Status:** F3 concluida localmente, pronta para F4
+**Branch:** `main` (F0-F3 mergeados via PR #11, merge commit `324bc5c`; branch `codex/v1.4-dashboard-premium` segue disponivel para F4)
+**Status:** F3 mergeada em main, pronta para F4
 
 ---
 
@@ -56,8 +56,8 @@ O frontend local/Pages pode apontar para o backend Render. Enquanto o backend re
 ## Como Continuar
 
 ```bash
-git checkout codex/v1.4-dashboard-premium
-git pull origin codex/v1.4-dashboard-premium
+git checkout main
+git pull origin main
 cd backend
 npm run test:gate
 ```
