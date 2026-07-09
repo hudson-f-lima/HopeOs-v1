@@ -70,7 +70,7 @@ Pendências herdadas: frontend segue sem testes (`test:gate` é 100% backend —
 
 ## V1.4 — KortexOS Now-Scope: Decision Intelligence (em andamento)
 
-Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-dashboard-premium`; F0–F3 mergeados em `main` via PR [#11](https://github.com/hudson-f-lima/HopeOs-v1/pull/11) em 2026-07-09 (merge commit `324bc5c`). Status:
+Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `codex/v1.4-dashboard-premium` (F0-F3); F0–F3 mergeados em `main` via PR [#11](https://github.com/hudson-f-lima/HopeOs-v1/pull/11) em 2026-07-09 (merge commit `324bc5c`). Status:
 
 | Fase | Nome | Status | Commits |
 |------|------|--------|---------|
@@ -78,22 +78,20 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-dashboard-premium`;
 | F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA — em main | fb2478b |
 | F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA — em main | 2df93b3 |
 | F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA — em main | 57b4a2c |
-| F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ⏳ PENDENTE | — |
-| F5 | QA + auditoria + deploy | ⏳ PENDENTE | — |
+| F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ✅ CONCLUÍDA — local/branch | ae95cf5 |
+| F5 | QA + auditoria + deploy | ⏳ EM ANDAMENTO | — |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado F3 (mergeado em main, pronto para F4):**
-- ✅ 3 engines puras: `occupancy.js` (v0, refinada depois), `cashflow.js` (pronto), `margin.js` (pronto)
-- ✅ InsightsService orquestra com paginação real (>1000 linhas)
-- ✅ Rotas GET `/insights/{occupancy,margin,cashflow}` validadas
-- ✅ Engine pura `retention.js`: RFM, churn-risk, Reliability Score, rebooking e attach
-- ✅ RetentionService + rotas GET `/insights/retention`, `/insights/clients/:id/reliability`, `/insights/attach`, `/insights/rebooking/:clienteId`
-- ✅ Dashboard Bento frontend: helpers `/insights/*`, `state.insights`, widgets Ocupação/Dinheiro/Margem/Pessoas, ação do dia, `waLink`, refresh manual e listener `checkout:closed`
-- ✅ 73/73 testes verdes (58 antigos + 15 checks de Insights V1.4)
-- ✅ QA manual F3: smoke desktop/mobile local, sem erro de console; fallback 404 controlado enquanto backend remoto não expõe `/api/insights/*`
+**Estado F4 (pronto para F5):**
+- ✅ Split Payment completo (frontend + backend): 2 novos testes no finance-gate, reescrita de UI no `checkout.js`, cálculo automático e validação client-side.
+- ✅ Rebooking pós-checkout: card sugestão de rebooking de 1 clique, integração com agenda.
+- ✅ Lista de Espera (Waitlist): backend completo (rotas + validadores + 21 testes) e UI frontend (subaba "Espera" em gestão, modal de cadastro e prompt ao cancelar agendamento).
+- ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
+- ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
+- ✅ Todos os testes verdes: `npm run test:gate` passa localmente.
 
-**Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD).
+**Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD), `docs/QA_V1_4_CHECKLIST.md`.
 
 ## Seleção de Modelo de IA por Fase (V1.4 e além)
 
