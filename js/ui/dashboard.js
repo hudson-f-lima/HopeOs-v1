@@ -79,6 +79,13 @@ function renderLegacyDashboard(dash) {
   }
 }
 
+function renderActionStrip() {
+  // TODO: Integrar lógica da Faixa F4.x para ações dinâmicas (WhatsApp, Retenção).
+  // Função declarada para evitar ReferenceError (crash) durante o carregamento dos insights.
+  const actions = el('dashboardActionStrip');
+  if (!actions) return;
+}
+
 function setWidgetError(id, msg) {
   const node = el(id);
   if (node) node.innerHTML = `<div class="insight-empty error" style="color:var(--danger)">${escapeHtml(msg)}</div>`;
