@@ -1,6 +1,6 @@
 # HOPE OS → KortexOS™
 
-Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real), dashboard e cadastros conectados a backend real. **KortexOS™ é o nome canônico do produto** (HOPE OS é o legado interno); a promoção está governada por `KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` na raiz.
+Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real), dashboard e cadastros conectados a backend real. **KortexOS™ é o nome canônico do produto** (HOPE OS é o legado interno); a promoção está governada por `docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md`. Mapa completo da documentação: [`docs/INDEX.md`](docs/INDEX.md). Agentes de IA: ler [`AGENTS.md`](AGENTS.md) antes de qualquer tarefa.
 
 ## Estado atual (2026-07-08)
 
