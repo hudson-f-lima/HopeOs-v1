@@ -8,6 +8,7 @@ export const state = {
   currentWeekStart: startOfWeek(todayStr()),
   weekAgenda: {},
   currentPayload: null,
+  currentPreview: null,
   agendamentoIdParaCheckout: null,
   reagendarAlvoId: null,
   activeTab: 'agenda',
@@ -30,7 +31,7 @@ export const state = {
   checkoutTab: 'servicos', // ou 'produtos'
   tip: 0, // em centavos
   splitEnabled: false,
-  splits: [{ id: 's1', method: 'PIX', amount: '' }],
+  splits: [{ id: 's1', method: '', amount: '' }],
   cart: {
     servicos: [], // [{ servicoId, profissionalId, ... }]
     produtos: [], // [{ produtoId, quantidade, ... }]

@@ -164,6 +164,37 @@ test('10 bloqueia forma de pagamento inexistente antes do cálculo', () => {
   assert.strictEqual(code, 'PAYMENT_METHOD_NOT_FOUND');
 });
 
+test('11 split com 3 formas fecha com soma exata e taxa correta por pagamento (F4.1)', () => {
+  const out = runPreview({
+    itens: [{ tipo: 'servico', servicoId: S.corte, profissionalId: P.eduardo }],
+    payments: [
+      { formaCode: 'dinheiro', valorCentavos: 2000 },
+      { formaCode: 'credito', valorCentavos: 1500 },
+      { formaCode: 'pix_pos', valorCentavos: 1500 }
+    ]
+  });
+  assert.strictEqual(out.payments.length, 3);
+  assert.strictEqual(out.totals.totalRecebidoCentavos, 5000);
+  const soma = out.payments.reduce((acc, p) => acc + p.valorCentavos, 0);
+  assert.strictEqual(soma, out.totals.totalRecebidoCentavos);
+  assert.strictEqual(out.payments.find(p => p.formaCode === 'dinheiro').taxaTotalCentavos, 0);
+  assert.strictEqual(out.payments.find(p => p.formaCode === 'credito').taxaTotalCentavos, 30);
+  assert.strictEqual(out.payments.find(p => p.formaCode === 'pix_pos').taxaTotalCentavos, 41);
+  const taxaSoma = out.payments.reduce((acc, p) => acc + p.taxaTotalCentavos, 0);
+  assert.strictEqual(out.totals.taxaTotalCentavos, taxaSoma);
+});
+
+test('12 split com soma divergente do total do preview é bloqueado (F4.1)', () => {
+  const code = errCode(() => runPreview({
+    itens: [{ tipo: 'servico', servicoId: S.corte, profissionalId: P.eduardo }],
+    payments: [
+      { formaCode: 'dinheiro', valorCentavos: 2000 },
+      { formaCode: 'credito', valorCentavos: 1500 }
+    ]
+  }));
+  assert.strictEqual(code, 'PAYMENT_TOTAL_MISMATCH');
+});
+
 let passed = 0;
 for (const t of tests) {
   try {

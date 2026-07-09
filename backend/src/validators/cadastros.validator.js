@@ -300,6 +300,52 @@ function validateProfissionalServicoOverridePayload(payload = {}) {
   return { override };
 }
 
+// F4.4 — lista_espera (001_init.sql): sem coluna updated_at, nao usar withUpdatedAt aqui.
+const LISTA_ESPERA_STATUS = new Set(['aguardando', 'contatado', 'agendado', 'cancelado']);
+
+function dateOnlyField(value, field) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+    throw createAppError('INVALID_FIELD', `${field} deve estar no formato YYYY-MM-DD.`, 422, { field, value });
+  }
+  return String(value);
+}
+
+function validateCreateListaEsperaPayload(payload = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'status', 'created_at']);
+  const out = {
+    cliente_id: validateUUID(payload.clienteId ?? payload.cliente_id, 'clienteId'),
+    servico_id: validateUUID(payload.servicoId ?? payload.servico_id, 'servicoId'),
+    status: 'aguardando'
+  };
+  if (hasOwn(payload, 'profissionalId') || hasOwn(payload, 'profissional_id')) {
+    out.profissional_id = validateUUID(payload.profissionalId ?? payload.profissional_id, 'profissionalId');
+  }
+  const dataPreferencia = dateOnlyField(payload.dataPreferencia ?? payload.data_preferencia, 'dataPreferencia');
+  if (dataPreferencia !== undefined) out.data_preferencia = dataPreferencia;
+  optionalString(payload, 'observacoes', 'observacoes', out);
+  return out;
+}
+
+function validateUpdateListaEsperaPayload(payload = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'clienteId', 'cliente_id', 'servicoId', 'servico_id', 'created_at']);
+  const out = {};
+  if (hasOwn(payload, 'status')) {
+    const status = nonEmptyString(payload.status, 'status');
+    if (!LISTA_ESPERA_STATUS.has(status)) throw createAppError('INVALID_WAITLIST_STATUS', 'status invalido.', 422, { status });
+    out.status = status;
+  }
+  if (hasOwn(payload, 'profissionalId') || hasOwn(payload, 'profissional_id')) {
+    const raw = payload.profissionalId ?? payload.profissional_id;
+    out.profissional_id = raw === null ? null : validateUUID(raw, 'profissionalId');
+  }
+  const dataPreferencia = dateOnlyField(payload.dataPreferencia ?? payload.data_preferencia, 'dataPreferencia');
+  if (dataPreferencia !== undefined) out.data_preferencia = dataPreferencia;
+  optionalString(payload, 'observacoes', 'observacoes', out);
+  if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
+  return out;
+}
+
 module.exports = {
   validateUUID,
   validateCreateClientePayload,
@@ -314,5 +360,7 @@ module.exports = {
   validateCreateFormaPagamentoPayload,
   validateUpdateFormaPagamentoPayload,
   validateProfissionalServicosPayload,
-  validateProfissionalServicoOverridePayload
+  validateProfissionalServicoOverridePayload,
+  validateCreateListaEsperaPayload,
+  validateUpdateListaEsperaPayload
 };

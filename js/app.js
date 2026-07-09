@@ -12,15 +12,17 @@ import {
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
 import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js';
-import { initCheckout } from './ui/checkout.js';
+import { initCheckout, onServicoSelected } from './ui/checkout.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
-import { 
-  initCadastros, 
-  renderClientesList, 
-  renderServicosList, 
-  renderProfissionaisList, 
-  renderProdutosList, 
-  renderFormasList 
+import {
+  initCadastros,
+  renderClientesList,
+  renderServicosList,
+  renderProfissionaisList,
+  renderProdutosList,
+  renderFormasList,
+  renderListaEsperaList,
+  openListaEsperaModal
 } from './ui/cadastros.js';
 
 export function showTab(name) {
@@ -64,6 +66,7 @@ async function init() {
   
   document.getElementById('navAvatar').addEventListener('click', () => openModal('sheetGestao'));
   document.getElementById('btnFecharGestao').addEventListener('click', () => closeModal('sheetGestao'));
+  document.getElementById('btnAbrirListaEspera')?.addEventListener('click', openListaEsperaModal);
   
   // FAB (New Appointment)
   const fab = document.getElementById('fab');
@@ -107,6 +110,7 @@ async function init() {
     renderProfissionaisList();
     renderProdutosList();
     renderFormasList();
+    renderListaEsperaList();
 
     // Instantiate Fuzzy Fields and store them in the global state
     state.fuzzyCliente = new FuzzyField('coCliente', state.catalog.clientes, {
@@ -118,7 +122,7 @@ async function init() {
     state.fuzzyServico = new FuzzyField('coServico', state.catalog.servicos.filter(s => s.ativo !== false), {
       labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
       valueFn: s => s.id,
-      onSelect: () => {}
+      onSelect: (servicoId) => { onServicoSelected(servicoId); }
     });
 
     state.fuzzyProduto = new FuzzyField('coProduto', (state.catalog.produtos || []).filter(p => p.ativo !== false), {
@@ -186,6 +190,25 @@ async function init() {
         const linkedServiceIds = links.filter(l => l.profissional_id === profissionalId).map(l => l.servico_id);
         state.fuzzyReNovoServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
       }
+    });
+
+    // Fuzzy search fields (modal lista de espera, F4.4)
+    state.fuzzyLeCliente = new FuzzyField('leCliente', state.catalog.clientes, {
+      labelFn: c => c.nome,
+      valueFn: c => c.id,
+      onSelect: () => {}
+    });
+
+    state.fuzzyLeServico = new FuzzyField('leServico', state.catalog.servicos.filter(s => s.ativo !== false), {
+      labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
+      valueFn: s => s.id,
+      onSelect: () => {}
+    });
+
+    state.fuzzyLeProfissional = new FuzzyField('leProfissional', state.catalog.profissionais.filter(p => p.ativo !== false), {
+      labelFn: p => p.nome,
+      valueFn: p => p.id,
+      onSelect: () => {}
     });
 
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
