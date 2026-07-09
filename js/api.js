@@ -48,3 +48,25 @@ export async function api(path, options = {}) {
   }
   return json.data;
 }
+
+export function getInsightsOccupancy(from, to) {
+  const params = new URLSearchParams({ from, to });
+  return api('/insights/occupancy?' + params.toString());
+}
+
+export function getInsightsMargin(from, to) {
+  const params = new URLSearchParams({ from, to });
+  return api('/insights/margin?' + params.toString());
+}
+
+export function getInsightsCashflow(days = 30) {
+  return api('/insights/cashflow?days=' + encodeURIComponent(String(days)));
+}
+
+export function getInsightsRetention() {
+  return api('/insights/retention');
+}
+
+export function getInsightsAttach() {
+  return api('/insights/attach');
+}

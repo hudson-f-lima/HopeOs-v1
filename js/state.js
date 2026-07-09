@@ -15,6 +15,16 @@ export const state = {
   resizing: null,
   selectedDay: todayStr(),
   activeProfFilter: null, // null = "Todos"
+  insights: {
+    occupancy: null,
+    margin: null,
+    cashflow: null,
+    retention: null,
+    attach: null,
+    loading: false,
+    error: null,
+    updatedAt: null
+  },
 
   // V1.3 Checkout Premium
   checkoutTab: 'servicos', // ou 'produtos'

@@ -1,8 +1,8 @@
 # KORTEXOS™ 5.1 — COMPARATIVE PROPOSAL
 
-**Arquivo:** `docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md`
+**Arquivo:** `docs/canon/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md`
 **Passo canônico:** 4 de 10 (ver Master Briefing §21.1)
-**Base:** `docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md` (passo 3, concluído)
+**Base:** `docs/canon/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md` (passo 3, concluído)
 **Data:** 2026-07-08
 **Status:** CONCLUÍDO — desbloqueia Truth Map (passo 5) e Migration Map (passo 6)
 **Critérios (§22.3):** HERDAR / RENOMEAR / REFORÇAR / ADICIONAR AO BACKLOG / BLOQUEAR / DESCARTAR

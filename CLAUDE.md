@@ -1,6 +1,6 @@
 # HOPE OS — Contexto do projeto (V1.3 em produção; V1.4 em andamento)
 
-KortexOS™ é o nome canônico do produto (HOPE OS vira legado interno) — fonte única: `KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` na raiz.
+KortexOS™ é o nome canônico do produto (HOPE OS vira legado interno) — fonte única: `docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md`. Mapa de autoridade documental: `docs/INDEX.md`. Manifesto para agentes de IA: `AGENTS.md` (raiz). Fundação física: migrations 001–006 reais; SQL futuro 007+ planejado e BLOQUEADO; faixa 046–060 obsoleta.
 
 ## Stack
 
@@ -39,7 +39,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Cadastros reais (clientes, serviços, profissionais, produtos, formas de pagamento, vínculo serviço×profissional, overrides): REAL — endpoints, validações e RPCs atômicas implementados e em produção (ver seção Cadastros).
 - Hardening pós-auditoria aplicado: `overrides` bloqueado no POST/PATCH genérico de profissionais (só endpoint dedicado), `POST /formas-pagamento` não faz upsert silencioso (409 em duplicado), `CommissionEngine` bloqueia comissão fora de 0-100%, CHECK no banco para produto ativo não vender abaixo do custo, override de profissional via RPC atômica (`jsonb_set`, sem read-modify-write em Node), validação de UUID em params/listas, RPC de produto revalida `comissao_pct`/`modelo_comissao` internamente, erros de negócio da RPC (`P0001`) mapeados para HTTP 422, `POST/PATCH /clientes` validados (antes era passthrough cru).
 - `SupabaseRepository.list()` pagina além de 1000 linhas (limite padrão do PostgREST) — sem isso, tabelas grandes (`clientes` já passou de 1000 registros reais) perdiam linhas silenciosamente em toda leitura (snapshot, export, `GET /catalog`).
-- Testes: `npm run test:gate` — 58/58 verdes (Finance 10 + Product Foundation 8 + Schema Polymorphic 12 + RPC Permission 8 + Cadastros Reais 20).
+- Testes: `npm run test:gate` — 73/73 verdes (58 antigos + 15 checks de Insights V1.4).
 
 ### Frontend
 
@@ -47,7 +47,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Estrutura de abas: Agenda, Checkout, Dashboard, Mais.
 - Aba **Mais**: UI de Cadastros Reais implementada — CRUD de clientes, serviços, profissionais (+ vínculo com serviços + overrides por serviço), produtos (+ ajuste de estoque), formas de pagamento. Desativação sempre via `ativo=false`, nunca delete físico.
 - Checkout: preview reorganizado em blocos Bruto → Deduções → Resultado (mesmos campos que a API já retornava; nenhum cálculo novo no frontend).
-- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-3-11`.
+- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-1`.
 - `frontendCalculates: false` continua sendo a regra vigente — frontend só coleta intenção, chama API e exibe a resposta.
 
 ### Cadastros
@@ -70,15 +70,53 @@ Pendências herdadas: frontend segue sem testes (`test:gate` é 100% backend —
 
 ## V1.4 — KortexOS Now-Scope: Decision Intelligence (em andamento)
 
-Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Passos canônicos 3–4 do Master Briefing 5.1 concluídos (benchmark global + comparative proposal).
+Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Status:
 
-**Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência nova é derivada read-only do ledger existente; agregação em Node (services); thresholds/faixas definidos no backend e enviados na resposta; frontend só exibe. Únicas escritas novas: CRUD de `lista_espera` (tabela existente e ociosa) e rebooking via POST /agenda existente.
+| Fase | Nome | Status | Commits |
+|------|------|--------|---------|
+| F0 | Saneamento (esconder split) | ✅ CONCLUÍDA | bae1923 |
+| F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA | fb2478b |
+| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA | branch V1.4 |
+| F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA LOCALMENTE | pendente commit |
+| F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ⏳ PENDENTE | — |
+| F5 | QA + auditoria + deploy | ⏳ PENDENTE | — |
 
-Escopo (fases F0–F5, ~10 dias): F0 saneamento (esconder split quebrado) → F1 insights núcleo (`/insights/occupancy|margin|cashflow`) → F2 retenção (RFM, churn-risk, Reliability Score v0 shadow, attach) → F3 Dashboard bento ("Ação do dia", heatmap, caixa D+30, "quem chamar hoje") → F4 ação (rebooking pós-checkout, split completo, waitlist, WhatsApp one-tap manual via `wa.me`) → F5 QA + auditoria + deploy.
+**Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-Docs do ciclo: `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md` (escopo/KPIs), `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas/contratos de API), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas/DoD/riscos), `docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md` e `docs/KORTEXOS_5_1_COMPARATIVE_PROPOSAL.md` (base canônica).
+**Estado F3 (pronto para F4):**
+- ✅ 3 engines puras: `occupancy.js` (v0, refinada depois), `cashflow.js` (pronto), `margin.js` (pronto)
+- ✅ InsightsService orquestra com paginação real (>1000 linhas)
+- ✅ Rotas GET `/insights/{occupancy,margin,cashflow}` validadas
+- ✅ Engine pura `retention.js`: RFM, churn-risk, Reliability Score, rebooking e attach
+- ✅ RetentionService + rotas GET `/insights/retention`, `/insights/clients/:id/reliability`, `/insights/attach`, `/insights/rebooking/:clienteId`
+- ✅ Dashboard Bento frontend: helpers `/insights/*`, `state.insights`, widgets Ocupação/Dinheiro/Margem/Pessoas, ação do dia, `waLink`, refresh manual e listener `checkout:closed`
+- ✅ 73/73 testes verdes (58 antigos + 15 checks de Insights V1.4)
+- ✅ QA manual F3: smoke desktop/mobile local, sem erro de console; fallback 404 controlado enquanto backend remoto não expõe `/api/insights/*`
 
-Limites do V1.4: score NUNCA bloqueia/cobra (shadow); WhatsApp sempre manual um-a-um (não é marketing automático); assinatura só como analytics de candidatos (vender plano sem ledger/wallet = saldo paralelo = bloqueado).
+**Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD).
+
+## Seleção de Modelo de IA por Fase (V1.4 e além)
+
+**Por quê:** Cada fase tem requisitos distintos de custo, iteração e confiança. Usar o modelo certo economiza ~50% de budget sem comprometer qualidade.
+
+| Fase | Modelo recomendado | Justificativa | Custo estimado |
+|------|-------------------|---------------|-----------------|
+| **F0** (hotfix/saneamento) | Haiku 4.5 | Fixes pontuais, testes simples, sem ambiguidade | R$ 5–10 |
+| **F1** (insights: ocupação/caixa) | Haiku 4.5 | Funções puras + agregação em Node; matemática clara | R$ 15–20 |
+| **F2** (retenção: RFM/churn) | Haiku 4.5 | Engines determinísticas + fórmulas já na spec | R$ 15–20 |
+| **F3** (dashboard frontend) | Haiku 4.5 | Iteração UI/UX rápida; muitas rodadas de ajuste | R$ 15–20 |
+| **F4** (ação: rebooking/split) | Haiku 4.5→Sonnet 5 | Integração múltiplos sistemas; uma revisão final com Sonnet | R$ 25–35 |
+| **F5** (QA + auditoria final) | Sonnet 5 | Revisão multi-dimensional, confiança crítica antes de produção | R$ 20–30 |
+
+**Total V1.4 estimado:** ~R$ 100–150 em créditos de API.
+
+**Como trocar em Claude Code (interativo):**
+```bash
+/model haiku       # Haiku 4.5 (default econômico)
+/model sonnet      # Sonnet 5 (max capacidade)
+```
+
+**Automação:** Não há. A troca é manual (consciente) porque a decisão varia conforme contexto — urgência, complexidade, budget disponível. Documentar a recomendação por fase (tabela acima) permite decisão informada em cada sessão, sem overhead de automação.
 
 ## Próximo gate proibido
 

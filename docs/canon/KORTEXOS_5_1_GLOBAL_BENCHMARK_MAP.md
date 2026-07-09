@@ -1,7 +1,7 @@
 # KORTEXOS™ 5.1 — GLOBAL BENCHMARK MAP
 
-**Arquivo:** `docs/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md`
-**Passo canônico:** 3 de 10 (ver `KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` §21.1)
+**Arquivo:** `docs/canon/KORTEXOS_5_1_GLOBAL_BENCHMARK_MAP.md`
+**Passo canônico:** 3 de 10 (ver `docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md` §21.1)
 **Data:** 2026-07-08
 **Status:** CONCLUÍDO — desbloqueia o passo 4 (Comparative Proposal)
 **Método:** pesquisa web (jul/2026) + conhecimento de domínio. Todo número de mercado aqui é **referência, não verdade de produto** (RAGOV §19.4 — HARDCODED permitido apenas como dado de benchmark).

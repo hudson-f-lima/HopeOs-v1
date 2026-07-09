@@ -233,6 +233,53 @@
         </div>
       </div>
 
+      <div class="dashboard-status" id="dashboardInsightsStatus"></div>
+
+      <section class="dashboard-action-strip" id="dashboardActionStrip" aria-label="Acao do dia"></section>
+
+      <div class="dashboard-insights-grid">
+        <section class="dashboard-panel dashboard-panel-wide">
+          <div class="panel-head">
+            <div>
+              <h2>Ocupacao</h2>
+              <p>Semana atual por carga, buracos e profissionais.</p>
+            </div>
+            <span class="badge-light" id="dbOccRange">Semana</span>
+          </div>
+          <div id="dbOccupancyWidget" class="dashboard-widget-body"></div>
+        </section>
+
+        <section class="dashboard-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Dinheiro</h2>
+              <p>Recebiveis D+7/D+30 e custo de taxa.</p>
+            </div>
+          </div>
+          <div id="dbMoneyWidget" class="dashboard-widget-body"></div>
+        </section>
+
+        <section class="dashboard-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Margem</h2>
+              <p>Servicos, produtos e repasses por producao.</p>
+            </div>
+          </div>
+          <div id="dbMarginWidget" class="dashboard-widget-body"></div>
+        </section>
+
+        <section class="dashboard-panel dashboard-panel-wide">
+          <div class="panel-head">
+            <div>
+              <h2>Pessoas</h2>
+              <p>Segmentos RFM e clientes para contato manual.</p>
+            </div>
+          </div>
+          <div id="dbPeopleWidget" class="dashboard-widget-body"></div>
+        </section>
+      </div>
+
       <div class="dashboard-list-grid">
         <div class="card dashboard-list">
           <h2>Pagamentos por forma</h2>
