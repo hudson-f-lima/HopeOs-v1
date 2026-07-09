@@ -11,15 +11,8 @@
 
 ## 0. Regra de autoridade
 
-Este documento desenha as migrations da faixa **007+** sobre a base real **001–006**.
+Este documento desenha as migrations da faixa **007+** sobre a base real **001–006**. Não é SQL executável (todo bloco é DRAFT ONLY — nunca copiar para arquivo `.sql`, ver §5), não deve ser aplicado no Supabase, não substitui Red Team e não altera 001–006. A faixa 046–060 está obsoleta. Cadeia de autoridade completa: `AGENTS.md` §Documentation Authority; mapa de arquivos: [INDEX.md](../INDEX.md).
 
-Ele **não é SQL executável**, **não deve ser aplicado no Supabase**, **não substitui Red Team** e **não altera 001–006**.
-
-```text
-A faixa 046–060 está OBSOLETA. Este draft a substitui integralmente.
-Blueprint 4.0 (docs/legacy/) é referência de design, nunca sequência física.
-Todo bloco SQL aqui é DRAFT ONLY. Nunca copiar para arquivo .sql.
-```
 
 ---
 

@@ -23,6 +23,12 @@ Mapa completo: `docs/INDEX.md`. Hierarquia: Master Briefing 5.1 (`docs/canon/`) 
 - Calcular regra crítica (preço, comissão, saldo, estoque) no frontend.
 - IA executando ação soberana sobre dinheiro, agenda, score ou ledger.
 - Deletar documento sem registro no Correction Plan vigente.
+- Comprimir, resumir ou sobrescrever documentos de auditoria, prompts históricos de Red Team,
+  evidência de decisão do Owner ou legado sem preservar o conteúdo original — mesmo sob
+  justificativa de economia de tokens ("nanotoken" ou similar). Esses documentos podem ser
+  movidos para `legacy/`/`archive/`, nunca reduzidos, salvo autorização explícita e registrada
+  do Platform Owner. Compressão é permitida apenas em documentação operacional ativa
+  (README, INDEX, specs correntes) desde que preserve o estado real e nenhum guardrail crítico.
 
 ## Allowed Actions
 
