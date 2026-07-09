@@ -66,17 +66,6 @@ function activeAgendaItemsForDate(dateStr) {
   return (state.weekAgenda[dateStr] || []).filter(i => i.status !== 'cancelado' && i.status !== 'reagendado');
 }
 
-function occupancyForDate(dateStr) {
-  const activeProfs = Math.max(1, activeProfissionais().length);
-  return Math.min(100, Math.round((activeAgendaItemsForDate(dateStr).length / (activeProfs * CAPACITY_SLOTS_PER_PROF)) * 100));
-}
-
-function occupancyColor(percent) {
-  if (percent <= 25) return '#9490a3'; // gray
-  if (percent <= 50) return '#f59e0b'; // yellow
-  if (percent <= 75) return '#f97316'; // orange
-  return '#22c55e'; // green
-}
 
 function formatAgendaDate(dateStr) {
   const dt = new Date(dateStr + 'T12:00:00');
@@ -157,115 +146,120 @@ function renderAgBlock(item, color) {
     </div>`;
 }
 
-function renderProfCol(p) {
+function renderProfColInner(p) {
   const color = profColor(p.id);
   const emptyHtml = emptySlotsForProf(p.id).map(m => {
     const timeStr = minutesSinceStartToHHMM(m);
     return `<div class="slot-vazio" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
   const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item, color)).join('');
-  return `<div class="prof-col" data-prof-id="${p.id}">${emptyHtml}${blocksHtml}</div>`;
-}
-
-function renderRuler() {
-  const ruler = document.getElementById('timelineRuler');
-  if (!ruler) return;
-  ruler.style.height = TIMELINE_TOTAL_HEIGHT + 'px';
-  let html = '';
-  const totalMin = (HORA_FIM - HORA_INICIO) * 60;
-  for (let m = 0; m <= totalMin; m += GRID_MIN) {
-    html += `<div class="ruler-mark" style="top:${m * PX_POR_MIN}px;">${minutesSinceStartToHHMM(m)}</div>`;
-  }
-  ruler.innerHTML = html;
-}
-
-function renderGridLines() {
-  const gridEl = document.getElementById('timelineGridLines');
-  if (!gridEl) return;
-  gridEl.style.height = TIMELINE_TOTAL_HEIGHT + 'px';
-  let html = '';
-  const totalMin = (HORA_FIM - HORA_INICIO) * 60;
-  for (let m = 0; m <= totalMin; m += 30) {
-    const cls = m % 60 === 0 ? 'grid-line-hour' : 'grid-line-half';
-    html += `<div class="${cls}" style="top:${m * PX_POR_MIN}px;"></div>`;
-  }
-  gridEl.innerHTML = html;
+  return emptyHtml + blocksHtml;
 }
 
 export function applyProfFilter() {
-  const headers = document.getElementById('timelineHeadersInner')?.children;
+  const container = document.getElementById('timelineContainer');
+  const headers = document.querySelectorAll('.agenda-grid-header');
+  
   if (!state.activeProfFilter) {
-    if (headers) Array.from(headers).forEach(btn => btn.classList.remove('selected'));
-    document.querySelectorAll('.prof-col').forEach(col => col.classList.remove('col-hidden'));
+    headers.forEach(btn => {
+      btn.classList.remove('selected');
+      btn.style.opacity = '1';
+    });
+    document.querySelectorAll('.agenda-grid-col').forEach(col => {
+      col.style.opacity = '1';
+    });
     return;
   }
   
-  if (headers) {
-    Array.from(headers).forEach(btn => {
-      btn.classList.toggle('selected', btn.dataset.prof === state.activeProfFilter);
-    });
-  }
+  headers.forEach(btn => {
+    const isTarget = btn.dataset.prof === state.activeProfFilter;
+    btn.classList.toggle('selected', isTarget);
+    btn.style.opacity = isTarget ? '1' : '0.5';
+  });
   
-  document.querySelectorAll('.prof-col').forEach(col => {
-    col.classList.toggle('col-hidden', col.dataset.profId !== state.activeProfFilter);
+  document.querySelectorAll('.agenda-grid-col').forEach(col => {
+    const isTarget = col.dataset.profId === state.activeProfFilter;
+    col.style.opacity = isTarget ? '1' : '0.3';
   });
 
-  const targetCol = document.querySelector(`.prof-col[data-prof-id="${state.activeProfFilter}"]`);
-  const container = document.getElementById('timelineContainer');
-  if (targetCol && container) {
-    container.scrollTo({ left: targetCol.offsetLeft - 52, behavior: 'smooth' });
+  const targetHeader = document.querySelector(`.agenda-grid-header[data-prof="${state.activeProfFilter}"]`);
+  if (targetHeader && container) {
+    container.scrollTo({ left: targetHeader.offsetLeft - 52, behavior: 'smooth' });
   }
 }
 
 export function renderTimeline() {
-  renderRuler();
-  renderGridLines();
+  const container = document.getElementById('agendaGrid');
+  if (!container) return;
   const profs = activeProfissionais();
   
-  const headersInner = document.getElementById('timelineHeadersInner');
-  if (headersInner) {
-    if (!profs.length) {
-      headersInner.innerHTML = '';
-    } else {
-      headersInner.innerHTML = profs.map((p, i) => {
-        const color = PROF_COLORS[i % PROF_COLORS.length];
-        const isSelected = state.activeProfFilter === p.id ? 'selected' : '';
-        const initials = getInitials(p.nome);
-        const firstName = p.nome ? p.nome.split(' ')[0] : '?';
-        return `<div class="timeline-header-btn ${isSelected}" data-prof="${p.id}">
-            <div class="timeline-avatar" style="background:${color};">${initials}</div>
-            <div class="timeline-prof-name" style="color:${color};">${escapeHtml(firstName)}</div>
-          </div>`;
-      }).join('');
-      
-      Array.from(headersInner.children).forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const clickedId = e.currentTarget.dataset.prof;
-          state.activeProfFilter = (state.activeProfFilter === clickedId) ? null : clickedId;
-          applyProfFilter();
-        });
-      });
-    }
-  }
-
-  const cols = document.getElementById('timelineCols');
-  if (!cols) return;
-  cols.style.height = TIMELINE_TOTAL_HEIGHT + 'px';
   if (!profs.length) {
-    cols.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--md-outline);">Nenhum profissional ativo.</div>';
+    container.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--md-outline);grid-column: 1 / -1;">Nenhum profissional ativo.</div>';
     return;
   }
-  cols.innerHTML = profs.map(renderProfCol).join('');
   
+  container.style.setProperty('--prof-count', profs.length);
+
+  let html = '';
+  // Corner
+  html += `<div class="agenda-grid-corner"></div>`;
+  
+  // Headers
+  html += profs.map((p, i) => {
+    const color = PROF_COLORS[i % PROF_COLORS.length];
+    const isSelected = state.activeProfFilter === p.id ? 'selected' : '';
+    const initials = getInitials(p.nome);
+    const firstName = p.nome ? p.nome.split(' ')[0] : '?';
+    const count = profItemsForDay(p.id).length;
+    return `<div class="agenda-grid-header ${isSelected}" data-prof="${p.id}" style="grid-column: ${i + 2};">
+        <div class="timeline-avatar" style="background:${color};">${initials}</div>
+        <div class="timeline-prof-info">
+          <div class="timeline-prof-name" style="color:${color};">${escapeHtml(firstName)}</div>
+          <div class="timeline-prof-count">${count} agend.</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Ruler
+  html += `<div class="agenda-grid-ruler" style="height:${TIMELINE_TOTAL_HEIGHT}px;">`;
+  const totalMin = (HORA_FIM - HORA_INICIO) * 60;
+  for (let m = 0; m <= totalMin; m += GRID_MIN) {
+    html += `<div class="ruler-mark" style="top:${m * PX_POR_MIN}px;">${minutesSinceStartToHHMM(m)}</div>`;
+  }
+  html += `</div>`;
+
+  // Grid Lines Background (spans all columns)
+  html += `<div class="agenda-grid-lines" style="height:${TIMELINE_TOTAL_HEIGHT}px;">`;
+  for (let m = 0; m <= totalMin; m += 30) {
+    const cls = m % 60 === 0 ? 'grid-line-hour' : 'grid-line-half';
+    html += `<div class="${cls}" style="top:${m * PX_POR_MIN}px;"></div>`;
+  }
+  html += `</div>`;
+
+  // Prof Columns
+  html += profs.map((p, i) => {
+    return `<div class="agenda-grid-col" data-prof-id="${p.id}" style="grid-column: ${i + 2}; height:${TIMELINE_TOTAL_HEIGHT}px;">${renderProfColInner(p)}</div>`;
+  }).join('');
+
+  container.innerHTML = html;
+
+  // Listeners
+  Array.from(container.querySelectorAll('.agenda-grid-header')).forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const clickedId = e.currentTarget.dataset.prof;
+      state.activeProfFilter = (state.activeProfFilter === clickedId) ? null : clickedId;
+      applyProfFilter();
+    });
+  });
+
   if (state.activeProfFilter) applyProfFilter();
-  
   positionRedline();
 }
 
 export function positionRedline() {
-  const cols = document.getElementById('timelineCols');
-  if (!cols) return;
-  let line = cols.querySelector('.timeline-redline-abs');
+  const linesContainer = document.querySelector('.agenda-grid-lines');
+  if (!linesContainer) return;
+  let line = linesContainer.querySelector('.timeline-redline-abs');
   if (state.selectedDay !== todayStr()) {
     if (line) line.remove();
     return;
@@ -280,17 +274,16 @@ export function positionRedline() {
   if (!line) {
     line = document.createElement('div');
     line.className = 'timeline-redline-abs';
-    cols.appendChild(line);
+    linesContainer.appendChild(line);
   }
   line.style.top = top + 'px';
 }
 
 export function renderWeekStats() {
   const dates = weekDates(state.currentWeekStart);
-  const activeProfs = Math.max(1, activeProfissionais().length);
   let totalCounted = 0;
   dates.forEach(d => { totalCounted += activeAgendaItemsForDate(d).length; });
-  const occupancyPct = Math.min(100, Math.round((totalCounted / (activeProfs * CAPACITY_SLOTS_PER_PROF * 7)) * 100));
+  
   const weekCount = document.getElementById('weekCountLabel');
   const weekOccupancy = document.getElementById('weekOccupancyLabel');
   const weekRange = document.getElementById('weekRangeLabel');
@@ -302,24 +295,22 @@ export function renderWeekStats() {
   const first = dates[0];
   const last = dates[dates.length - 1];
   const selectedCount = activeAgendaItemsForDate(state.selectedDay).length;
-  const selectedOccupancy = occupancyForDate(state.selectedDay);
+  
   if (weekCount) weekCount.textContent = `${totalCounted} agend. na semana`;
   if (weekOccupancy) {
-    weekOccupancy.textContent = `${occupancyPct}% ocupação`;
-    weekOccupancy.style.color = occupancyColor(occupancyPct);
+    weekOccupancy.textContent = `—`; // Ocupação falsa removida (Truth Audit)
+    weekOccupancy.style.color = 'var(--md-outline)';
   }
   if (weekRange) weekRange.textContent = `${formatDDMM(first)} - ${formatDDMM(last)}`;
   if (agendaDate) agendaDate.textContent = formatAgendaDate(state.selectedDay);
   if (selectedDayLabel) selectedDayLabel.textContent = state.selectedDay === todayStr() ? 'Hoje' : formatAgendaDate(state.selectedDay);
   if (dayCountLabel) dayCountLabel.textContent = `${selectedCount} agend.`;
   if (dayOccupancyLabel) {
-    dayOccupancyLabel.textContent = `${selectedOccupancy}% Ocupacao`;
-    dayOccupancyLabel.style.color = occupancyColor(selectedOccupancy);
+    dayOccupancyLabel.textContent = `—`; // Ocupação falsa removida
+    dayOccupancyLabel.style.color = 'var(--md-outline)';
   }
   if (dayOccRing) {
-    const circumference = 50.2; // 2 * π * 8 (radius=8)
-    const dasharray = (selectedOccupancy / 100) * circumference;
-    dayOccRing.style.setProperty('--occ-dash', `${dasharray.toFixed(1)}`);
+    dayOccRing.style.setProperty('--occ-dash', `0`);
   }
 }
 
@@ -329,13 +320,13 @@ export function renderDayPills() {
   if (!dayPills) return;
   dayPills.innerHTML = dates.map(d => {
     const dt = new Date(d + 'T12:00:00');
-    const occupancy = occupancyForDate(d);
-    const occColor = occupancyColor(occupancy);
+    const count = activeAgendaItemsForDate(d).length;
+    const countStr = count === 0 ? '0 agend.' : `${count} agend.`;
     const isSelected = d === state.selectedDay;
     return `<button class="day-pill ${isSelected ? 'selected' : ''}" data-day="${d}" style="background:${isSelected ? '#7c6af7' : '#fff'};">
       <span class="pill-weekday" style="color:${isSelected ? '#fff' : '#9490a3'};">${WEEKDAY_LABELS[dt.getDay()]}</span>
       <span class="pill-daynum" style="color:${isSelected ? '#fff' : '#171620'};">${dt.getDate()}</span>
-      <span class="pill-occ" style="color:${occColor};font-weight:800;">${occupancy}%</span>
+      <span class="pill-occ" style="color:${isSelected ? '#fff' : '#49454f'};font-weight:700;">${countStr}</span>
     </button>`;
   }).join('');
 }
@@ -615,7 +606,7 @@ function proximoSlotLivre(profId, data, duracaoMin, aPartirDeMin) {
 
 function highlightSlot(profId, minC, temConflito) {
   clearHighlights();
-  const col = document.querySelector(`.prof-col[data-prof-id="${profId}"]`);
+  const col = document.querySelector(`.agenda-grid-col[data-prof-id="${profId}"]`);
   if (!col) return;
   const top = minC * PX_POR_MIN;
   const div = document.createElement('div');
@@ -963,9 +954,9 @@ export function initAgenda() {
     renderTimeline();
   });
 
-  const timelineCols = document.getElementById('timelineCols');
+  const timelineCols = document.getElementById('agendaGrid');
   timelineCols.addEventListener('click', onTimelineClick);
-  
+
   timelineCols.addEventListener('mousedown', e => {
     const handle = e.target.closest('.drag-handle');
     if (handle) {
@@ -1002,14 +993,6 @@ export function initAgenda() {
       clearTimeout(longPressTimer);
     }
   });
-
-  const timelineContainer = document.getElementById('timelineContainer');
-  const headersWrapper = document.getElementById('timelineHeadersWrapper');
-  if (timelineContainer && headersWrapper) {
-    timelineContainer.addEventListener('scroll', () => {
-      headersWrapper.scrollLeft = timelineContainer.scrollLeft;
-    });
-  }
 
   document.getElementById('agHorario').addEventListener('input', updateNovoAgendamentoPreview);
 

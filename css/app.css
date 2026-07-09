@@ -325,23 +325,153 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .agenda-android .day-pill.selected{background:#6750a4;color:#fff;transform:none;}
 .agenda-android .day-pill.selected .pill-weekday,.agenda-android .day-pill.selected .pill-daynum,.agenda-android .day-pill.selected .pill-occ{color:#fff;}
 
-.timeline-header-outer{display:flex;background:#f7f2fa;border:1px solid #e7e0ec;border-bottom:none;border-radius:16px 16px 0 0;overflow:hidden;margin-top:14px;height:72px;box-shadow:none;}
-.timeline-header-spacer{width:44px;flex:0 0 44px;background:#f7f2fa;border-right:1px solid #e7e0ec;}
-#timelineHeadersWrapper{flex:1;overflow:hidden;display:flex;}
-#timelineHeadersInner{display:flex;flex:1;}
-.timeline-container{position:relative;overflow:auto;height:600px;border-radius:0 0 12px 12px;box-shadow:var(--elevation-1);background:var(--md-surface);touch-action:pan-y pan-x;}
-.agenda-android .timeline-container{height:620px;border:1px solid #e7e0ec;border-top:none;border-radius:0 0 16px 16px;box-shadow:none;background:#fffbfe;margin-top:0;}
-.timeline-inner{display:flex;position:relative;}
-.timeline-ruler{position:sticky;left:0;top:0;z-index:10;width:52px;flex:0 0 52px;align-self:flex-start;background:var(--md-surface);border-right:1px solid var(--md-surface-variant);}
-.agenda-android .timeline-ruler{width:44px;flex-basis:44px;background:#fffbfe;border-right:1px solid #e7e0ec;}
-.ruler-mark{position:absolute;left:0;right:0;font-size:9px;color:var(--md-outline);font-weight:700;text-align:right;padding-right:6px;transform:translateY(-6px);}
-.agenda-android .ruler-mark{color:#79747e;font-size:10.5px;padding-right:6px;}
-.timeline-cols-area{position:relative;flex:1;}
-.timeline-grid-lines{position:absolute;top:0;left:0;right:0;pointer-events:none;z-index:1;}
-.grid-line-hour{position:absolute;left:0;right:0;height:1px;background:var(--md-surface-variant);opacity:0.8;}
-.grid-line-half{position:absolute;left:0;right:0;height:1px;background:var(--md-surface-variant);opacity:0.35;border-top:1px dashed var(--md-surface-variant);}
-.timeline-cols{display:flex;position:relative;z-index:2;}
-.prof-col{position:relative;flex:1 1 120px;min-width:120px;border-right:1px solid var(--md-surface-variant);}
+/* Agenda: Android/Material skin + real backend timeline com CSS Grid Unificado */
+.agenda-scroll-container {
+  overflow: auto;
+  height: 600px;
+  border-radius: 12px;
+  background: var(--md-surface);
+  position: relative;
+  border: 1px solid var(--border);
+  box-shadow: var(--elevation-1);
+}
+
+.agenda-android .agenda-scroll-container {
+  height: 620px;
+  border: 1px solid #e7e0ec;
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  background: #fffbfe;
+  box-shadow: none;
+  margin-top: 0;
+}
+
+.agenda-grid {
+  display: grid;
+  grid-template-columns: 52px repeat(var(--prof-count, 1), minmax(140px, 1fr));
+  min-width: max-content;
+  position: relative;
+}
+
+.agenda-android .agenda-grid {
+  grid-template-columns: 44px repeat(var(--prof-count, 1), minmax(140px, 1fr));
+}
+
+.agenda-grid-corner {
+  grid-row: 1;
+  grid-column: 1;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  background: #f7f2fa;
+  border-right: 1px solid #e7e0ec;
+  border-bottom: 1px solid #e7e0ec;
+}
+
+.agenda-grid-header {
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f7f2fa;
+  border-right: 1px solid #e7e0ec;
+  border-bottom: 1px solid #e7e0ec;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px 10px;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.agenda-grid-header.selected {
+  background: var(--bg-surface);
+}
+
+.timeline-prof-info {
+  text-align: center;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.timeline-prof-count {
+  font-size: 10px;
+  color: var(--md-outline);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.agenda-grid-ruler {
+  grid-row: 2;
+  grid-column: 1;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--md-surface);
+  border-right: 1px solid var(--md-surface-variant);
+}
+.agenda-android .agenda-grid-ruler { background: #fffbfe; border-right: 1px solid #e7e0ec; }
+
+.ruler-mark {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  color: var(--md-outline);
+  transform: translateY(-50%);
+  font-weight: 500;
+}
+
+.agenda-grid-lines {
+  grid-row: 2;
+  grid-column: 2 / -1;
+  position: relative;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.agenda-grid-col {
+  grid-row: 2;
+  position: relative;
+  border-right: 1px solid var(--md-surface-variant);
+  z-index: 2;
+  transition: opacity 0.2s;
+}
+
+.grid-line-hour, .grid-line-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.grid-line-hour { background: var(--md-surface-variant); }
+.grid-line-half { background: #f0f0f0; border-top: 1px dashed #e0e0e0; }
+
+.timeline-redline-abs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--md-error);
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(239,68,68,0.6);
+}
+.timeline-redline-abs::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--md-error);
+  transform: rotate(-45deg);
+  box-shadow: 0 0 8px rgba(239,68,68,0.6);
+}
+
 .prof-col.col-hidden{display:none;}
 .slot-vazio{position:absolute;left:2px;right:2px;border:1px dashed #d8d2e0;border-radius:6px;cursor:pointer;}
 .slot-vazio:hover{background:#f3e8ff;}
@@ -552,10 +682,10 @@ dialog {
 
 /* Responsive timeline: week ≥768px, day <768px */
 @media (max-width: 767px) {
-  .timeline-container { height: 450px; }
-  .prof-col { min-width: 100px; }
+  .agenda-scroll-container { height: 450px; }
+  .agenda-grid { grid-template-columns: 52px repeat(var(--prof-count, 1), minmax(100px, 1fr)); }
 }
 @media (min-width: 768px) {
-  .timeline-container { height: 600px; }
-  .prof-col { min-width: 120px; }
+  .agenda-scroll-container { height: 600px; }
+  .agenda-grid { grid-template-columns: 52px repeat(var(--prof-count, 1), minmax(120px, 1fr)); }
 }
