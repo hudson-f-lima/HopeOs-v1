@@ -48,6 +48,12 @@ export function nowHHMM() { const d = new Date(); return String(d.getHours()).pa
 
 export const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+export function waLink(numero, texto) {
+  const digits = String(numero || '').replace(/\D/g, '');
+  const normalized = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(texto || '')}`;
+}
+
 export function showBanner(message, type) {
   const el = document.getElementById('banner');
   if (el) {

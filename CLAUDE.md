@@ -47,7 +47,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Estrutura de abas: Agenda, Checkout, Dashboard, Mais.
 - Aba **Mais**: UI de Cadastros Reais implementada — CRUD de clientes, serviços, profissionais (+ vínculo com serviços + overrides por serviço), produtos (+ ajuste de estoque), formas de pagamento. Desativação sempre via `ativo=false`, nunca delete físico.
 - Checkout: preview reorganizado em blocos Bruto → Deduções → Resultado (mesmos campos que a API já retornava; nenhum cálculo novo no frontend).
-- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-0`.
+- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-1`.
 - `frontendCalculates: false` continua sendo a regra vigente — frontend só coleta intenção, chama API e exibe a resposta.
 
 ### Cadastros
@@ -76,20 +76,22 @@ Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Status:
 |------|------|--------|---------|
 | F0 | Saneamento (esconder split) | ✅ CONCLUÍDA | bae1923 |
 | F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA | fb2478b |
-| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA LOCALMENTE | pendente commit |
-| F3 | Dashboard bento (frontend) | ⏳ PRÓXIMA | — |
+| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA | branch V1.4 |
+| F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA LOCALMENTE | pendente commit |
 | F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ⏳ PENDENTE | — |
 | F5 | QA + auditoria + deploy | ⏳ PENDENTE | — |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado F2 (pronto para F3):**
+**Estado F3 (pronto para F4):**
 - ✅ 3 engines puras: `occupancy.js` (v0, refinada depois), `cashflow.js` (pronto), `margin.js` (pronto)
 - ✅ InsightsService orquestra com paginação real (>1000 linhas)
 - ✅ Rotas GET `/insights/{occupancy,margin,cashflow}` validadas
 - ✅ Engine pura `retention.js`: RFM, churn-risk, Reliability Score, rebooking e attach
 - ✅ RetentionService + rotas GET `/insights/retention`, `/insights/clients/:id/reliability`, `/insights/attach`, `/insights/rebooking/:clienteId`
+- ✅ Dashboard Bento frontend: helpers `/insights/*`, `state.insights`, widgets Ocupação/Dinheiro/Margem/Pessoas, ação do dia, `waLink`, refresh manual e listener `checkout:closed`
 - ✅ 73/73 testes verdes (58 antigos + 15 checks de Insights V1.4)
+- ✅ QA manual F3: smoke desktop/mobile local, sem erro de console; fallback 404 controlado enquanto backend remoto não expõe `/api/insights/*`
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD).
 
