@@ -89,6 +89,7 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 - ✅ Lista de Espera (Waitlist): backend completo (rotas + validadores + 21 testes) e UI frontend (subaba "Espera" em gestão, modal de cadastro e prompt ao cancelar agendamento).
 - ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
 - ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
+- ✅ Dashboard Progressive Rendering: widgets de insight agora carregam de forma assíncrona independente, sem travar por Promise.all.
 - ✅ Todos os testes verdes: `npm run test:gate` passa localmente.
 - ✅ Deploys em produção (Render + GitHub Pages) ativados e validados ativamente via testes de rede.
 
