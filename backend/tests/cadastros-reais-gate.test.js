@@ -15,7 +15,9 @@ const {
   validateCreateFormaPagamentoPayload,
   validateUpdateFormaPagamentoPayload,
   validateProfissionalServicosPayload,
-  validateProfissionalServicoOverridePayload
+  validateProfissionalServicoOverridePayload,
+  validateCreateListaEsperaPayload,
+  validateUpdateListaEsperaPayload
 } = require('../src/validators/cadastros.validator');
 const { resolveCheckoutInput } = require('../src/engines/CheckoutInputResolver');
 const { previewCheckout } = require('../src/engines/FinanceEngine');
@@ -326,6 +328,36 @@ test('20 cria payload valido de cliente, bloqueia campos de escopo e exige updat
   assert(routesSource.includes("router.post('/clientes'"), 'rota POST /clientes deve existir');
   assert(routesSource.includes("router.patch('/clientes/:id'"), 'rota PATCH /clientes/:id deve existir');
   assert(routesSource.includes('validateCreateClientePayload(req.body)'), 'POST /clientes deve validar o payload, nao ser passthrough cru');
+});
+
+test('21 F4.4 lista de espera: cria payload valido sem updated_at, bloqueia status invalido e rotas existem', () => {
+  const clienteId = '11111111-1111-1111-1111-111111111111';
+  const servicoId = '22222222-2222-2222-2222-222222222221';
+  const profissionalId = '33333333-3333-3333-3333-333333333331';
+
+  const out = validateCreateListaEsperaPayload({ clienteId, servicoId, dataPreferencia: '2026-08-01', observacoes: 'Prefere tarde' });
+  assert.strictEqual(out.cliente_id, clienteId);
+  assert.strictEqual(out.servico_id, servicoId);
+  assert.strictEqual(out.status, 'aguardando');
+  assert.strictEqual(out.data_preferencia, '2026-08-01');
+  // lista_espera (001_init.sql) nao tem coluna updated_at — payload nao pode inclui-la
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(out, 'updated_at'), false);
+
+  assert.strictEqual(errCode(() => validateCreateListaEsperaPayload({ servicoId })), 'INVALID_UUID');
+  assert.strictEqual(errCode(() => validateCreateListaEsperaPayload({ clienteId, servicoId, dataPreferencia: '01/08/2026' })), 'INVALID_FIELD');
+  assert.strictEqual(errCode(() => validateCreateListaEsperaPayload({ clienteId, servicoId, status: 'agendado' })), 'FORBIDDEN_FIELD');
+
+  const updated = validateUpdateListaEsperaPayload({ status: 'contatado', profissionalId });
+  assert.strictEqual(updated.status, 'contatado');
+  assert.strictEqual(updated.profissional_id, profissionalId);
+  assert.strictEqual(errCode(() => validateUpdateListaEsperaPayload({ status: 'inventado' })), 'INVALID_WAITLIST_STATUS');
+  assert.strictEqual(errCode(() => validateUpdateListaEsperaPayload({})), 'EMPTY_UPDATE');
+  assert.strictEqual(errCode(() => validateUpdateListaEsperaPayload({ clienteId })), 'FORBIDDEN_FIELD');
+
+  assert(routesSource.includes("router.get('/lista-espera'"), 'rota GET /lista-espera deve existir');
+  assert(routesSource.includes("router.post('/lista-espera'"), 'rota POST /lista-espera deve existir');
+  assert(routesSource.includes("router.patch('/lista-espera/:id'"), 'rota PATCH /lista-espera/:id deve existir');
+  assert(routesSource.includes('validateCreateListaEsperaPayload(req.body)'), 'POST /lista-espera deve validar o payload');
 });
 
 let passed = 0;

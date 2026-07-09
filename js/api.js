@@ -70,3 +70,26 @@ export function getInsightsRetention() {
 export function getInsightsAttach() {
   return api('/insights/attach');
 }
+
+export function getInsightsRebooking(clienteId, servicoId) {
+  const query = servicoId ? '?' + new URLSearchParams({ servicoId }).toString() : '';
+  return api(`/insights/rebooking/${clienteId}${query}`);
+}
+
+export function getClientReliability(clienteId) {
+  return api(`/insights/clients/${clienteId}/reliability`);
+}
+
+export function getListaEspera(params = {}) {
+  const query = new URLSearchParams(params);
+  const qs = query.toString();
+  return api('/lista-espera' + (qs ? '?' + qs : ''));
+}
+
+export function createListaEspera(body) {
+  return api('/lista-espera', { method: 'POST', body });
+}
+
+export function updateListaEspera(id, body) {
+  return api(`/lista-espera/${id}`, { method: 'PATCH', body });
+}

@@ -74,6 +74,7 @@
             <b id="dayOccupancyLabel">0% Ocupacao</b>
           </div>
         </div>
+        <button class="btn btn-secondary" id="btnAbrirListaEspera" style="margin:0 12px 10px;width:calc(100% - 24px);">+ Lista de espera</button>
         <div class="timeline-header-outer" id="timelineHeaderOuter">
           <div class="timeline-header-spacer"></div>
           <div id="timelineHeadersWrapper">
@@ -121,6 +122,10 @@
             <label for="coProduto">Produto (opcional)</label>
             <input id="coProduto" type="text" placeholder="🔍 Digite produto..." class="input-light"/>
           </div>
+          <div class="attach-suggestion hidden" id="attachSuggestion">
+            <span id="attachSuggestionText"></span>
+            <button type="button" class="btn btn-secondary" id="btnAttachSuggestionAdd" style="width:auto;padding:6px 12px;">Adicionar</button>
+          </div>
           <div class="field">
             <label for="coProfissional">Profissional</label>
             <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." class="input-light"/>
@@ -142,18 +147,6 @@
             <button class="split-toggle" id="splitToggle">
               <div class="toggle-knob"></div>
             </button>
-          </div>
-
-          <div id="paymentMethodsContainer" class="field hidden">
-            <label for="paymentMethod">Forma de pagamento</label>
-            <select id="paymentMethod" class="input-light">
-              <option value="">Selecione uma forma...</option>
-              <option value="pix">PIX</option>
-              <option value="dinheiro">Dinheiro</option>
-              <option value="debito">Débito</option>
-              <option value="credito">Crédito</option>
-              <option value="online">Online</option>
-            </select>
           </div>
 
           <div id="splitRowsContainer" class="hidden">
@@ -196,6 +189,15 @@
             <div class="row"><span>Status</span><b id="resStatus">—</b></div>
             <div class="row"><span>Itens / Pagamentos / Gorjetas</span><b id="resCounts">—</b></div>
             <div class="row"><span>Movimentos de caixa</span><b id="resCaixa">—</b></div>
+          </div>
+
+          <div class="card checkout-result hidden" id="rebookingCard">
+            <h2>Sugestão de reagendamento</h2>
+            <p id="rebookingText" class="body-sm text-tertiary"></p>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn btn-secondary" id="btnRebookingDismiss" style="flex:1;">Dispensar</button>
+              <button class="btn btn-primary" id="btnRebookingConfirm" style="flex:1;">Confirmar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -378,6 +380,34 @@
   </div>
 </div>
 
+<div class="modal-backdrop hidden" id="modalListaEspera">
+  <div class="modal-box">
+    <h2>Adicionar à lista de espera</h2>
+    <p class="modal-error hidden" id="leError"></p>
+    <div class="field">
+      <label for="leCliente">Cliente</label>
+      <input id="leCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+    </div>
+    <div class="field">
+      <label for="leServico">Serviço</label>
+      <input id="leServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+    </div>
+    <div class="field">
+      <label for="leProfissional">Profissional (opcional)</label>
+      <input id="leProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+    </div>
+    <div class="field">
+      <label for="leDataPreferencia">Data de preferência (opcional)</label>
+      <input id="leDataPreferencia" type="date"/>
+    </div>
+    <div class="field"><label for="leObservacoes">Observações (opcional)</label><input id="leObservacoes" type="text"/></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnCancelarListaEspera" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarListaEspera" style="flex:1;">Adicionar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop hidden" id="modalCliente">
   <div class="modal-box">
     <h2 id="modalClienteTitulo">Novo cliente</h2>
@@ -462,6 +492,7 @@
       <button class="subtab-btn" data-subtab="produtos">Produtos</button>
       <button class="subtab-btn" data-subtab="formas">Pagamentos</button>
       <button class="subtab-btn" data-subtab="clientes">Clientes</button>
+      <button class="subtab-btn" data-subtab="espera">Espera</button>
     </div>
 
     <div class="subtab-content hidden" id="subtab-clientes">
@@ -509,6 +540,17 @@
         </div>
         <label class="filter-inline"><input type="checkbox" id="chkProdutosInativos"/> Mostrar inativos</label>
         <div id="listProdutos"></div>
+      </div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-espera">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin-bottom:0;">Lista de espera</h2>
+          <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovaListaEspera">+ Novo</button>
+        </div>
+        <label class="filter-inline"><input type="checkbox" id="chkListaEsperaTodas"/> Mostrar contatados/agendados/cancelados</label>
+        <div id="listListaEspera"></div>
       </div>
     </div>
 
