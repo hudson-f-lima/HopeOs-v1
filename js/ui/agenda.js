@@ -10,8 +10,7 @@ import {
   findAgendaItemById, 
   computeEndTime, 
   loadWeekAgenda,
-  PROF_COLORS,
-  CAPACITY_SLOTS_PER_PROF
+  PROF_COLORS
 } from '../state.js';
 import {
   todayStr,
