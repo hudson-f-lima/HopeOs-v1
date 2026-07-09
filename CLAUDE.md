@@ -39,7 +39,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Cadastros reais (clientes, serviços, profissionais, produtos, formas de pagamento, vínculo serviço×profissional, overrides): REAL — endpoints, validações e RPCs atômicas implementados e em produção (ver seção Cadastros).
 - Hardening pós-auditoria aplicado: `overrides` bloqueado no POST/PATCH genérico de profissionais (só endpoint dedicado), `POST /formas-pagamento` não faz upsert silencioso (409 em duplicado), `CommissionEngine` bloqueia comissão fora de 0-100%, CHECK no banco para produto ativo não vender abaixo do custo, override de profissional via RPC atômica (`jsonb_set`, sem read-modify-write em Node), validação de UUID em params/listas, RPC de produto revalida `comissao_pct`/`modelo_comissao` internamente, erros de negócio da RPC (`P0001`) mapeados para HTTP 422, `POST/PATCH /clientes` validados (antes era passthrough cru).
 - `SupabaseRepository.list()` pagina além de 1000 linhas (limite padrão do PostgREST) — sem isso, tabelas grandes (`clientes` já passou de 1000 registros reais) perdiam linhas silenciosamente em toda leitura (snapshot, export, `GET /catalog`).
-- Testes: `npm run test:gate` — 63/63 verdes (58 antigos + 5 novos de Insights F1).
+- Testes: `npm run test:gate` — 73/73 verdes (58 antigos + 15 checks de Insights V1.4).
 
 ### Frontend
 
@@ -76,18 +76,20 @@ Autorizado em 2026-07-08. Branch: `codex/v1.4-dashboard-premium`. Status:
 |------|------|--------|---------|
 | F0 | Saneamento (esconder split) | ✅ CONCLUÍDA | bae1923 |
 | F1 | Insights backend (occupancy, cashflow, margin) | ✅ CONCLUÍDA | fb2478b |
-| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ⏳ PRÓXIMA | — |
-| F3 | Dashboard bento (frontend) | ⏳ PENDENTE | — |
+| F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA LOCALMENTE | pendente commit |
+| F3 | Dashboard bento (frontend) | ⏳ PRÓXIMA | — |
 | F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ⏳ PENDENTE | — |
 | F5 | QA + auditoria + deploy | ⏳ PENDENTE | — |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado F1 (pronto para F2):**
+**Estado F2 (pronto para F3):**
 - ✅ 3 engines puras: `occupancy.js` (v0, refinada depois), `cashflow.js` (pronto), `margin.js` (pronto)
 - ✅ InsightsService orquestra com paginação real (>1000 linhas)
 - ✅ Rotas GET `/insights/{occupancy,margin,cashflow}` validadas
-- ✅ 63/63 testes verdes (58 antigos + 5 novos)
+- ✅ Engine pura `retention.js`: RFM, churn-risk, Reliability Score, rebooking e attach
+- ✅ RetentionService + rotas GET `/insights/retention`, `/insights/clients/:id/reliability`, `/insights/attach`, `/insights/rebooking/:clienteId`
+- ✅ 73/73 testes verdes (58 antigos + 15 checks de Insights V1.4)
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD).
 
