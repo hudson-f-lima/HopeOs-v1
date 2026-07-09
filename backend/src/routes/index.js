@@ -27,6 +27,7 @@ const {
 const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
+const { RetentionService } = require('../services/RetentionService');
 
 const router = express.Router();
 
@@ -477,6 +478,42 @@ router.get('/insights/cashflow', async (req, res, next) => {
     const days = Math.min(parseInt(req.query.days || '30'), 90);
     const service = new InsightsService();
     const data = await service.loadCashflowInsights(days);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+// F2 Retencao - read-only, backend-only analytics
+router.get('/insights/retention', async (req, res, next) => {
+  try {
+    const service = new RetentionService();
+    const data = await service.loadRetentionInsights();
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.get('/insights/clients/:id/reliability', async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'id');
+    const service = new RetentionService();
+    const data = await service.loadClientReliability(id);
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.get('/insights/attach', async (req, res, next) => {
+  try {
+    const service = new RetentionService();
+    const data = await service.loadAttachInsights();
+    res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+router.get('/insights/rebooking/:clienteId', async (req, res, next) => {
+  try {
+    const clienteId = validateUUID(req.params.clienteId, 'clienteId');
+    const servicoId = req.query.servicoId ? validateUUID(req.query.servicoId, 'servicoId') : null;
+    const service = new RetentionService();
+    const data = await service.loadRebookingSuggestion(clienteId, servicoId);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });

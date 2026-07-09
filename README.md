@@ -8,10 +8,10 @@ Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real)
 Backend:  V1.2 cadastros reais + hardening — em produção no Render
 Frontend: V1.3 UI/UX premium (tema claro, agenda premium, checkout premium) — em produção no GitHub Pages
 Banco:    Supabase (migrations 001–006 aplicadas; projeto qosioymzswhkqkziocas)
-Ciclo em andamento: V1.4 "KortexOS Now-Scope: Decision Intelligence" — F0/F1 concluídas; próximo passo: F2 Retenção Backend
+Ciclo em andamento: V1.4 "KortexOS Now-Scope: Decision Intelligence" — F0/F1/F2 concluídas localmente; próximo passo: F3 Dashboard bento
 Branch de trabalho: codex/v1.4-dashboard-premium
 PWA cache atual: hope-os-shell-v1-4-0
-Testes: cd backend && npm run test:gate → 63/63 verdes
+Testes: cd backend && npm run test:gate → 73/73 verdes
 ```
 
 URLs:
@@ -32,8 +32,8 @@ Leia NESTA ORDEM antes de escrever qualquer código:
 3. docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md → visão canônica, domínios, bloqueios, ordem de construção
 4. docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md            → escopo do ciclo atual (V1.4), KPIs, governança
 5. docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                       → fórmulas determinísticas + contratos de API do V1.4
-6. docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md             → handoff operacional: F1 verde, retomar pela F2
-7. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md                → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F2.1)
+6. docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md                → tarefas F0–F5 com DoD — RETOME DAQUI (próxima tarefa: F3.1)
+7. docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md             → registro operacional usado para executar F2
 ```
 
 Mapa completo de documentação (incl. Truth Map, Migration Map, Blueprint 5.1, SQL Planning/Draft, Red Team): [`docs/INDEX.md`](docs/INDEX.md).
@@ -92,7 +92,7 @@ Backend:
 ```bash
 cd backend
 npm install
-npm run test:gate   # 63 testes — obrigatório verde antes de qualquer merge
+npm run test:gate   # 73 testes — obrigatório verde antes de qualquer merge
 npm start
 ```
 
@@ -153,7 +153,7 @@ docs/planning/KORTEXOS_5_1_MIGRATION_MAP.md          → fundação real 001–0
 docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md      → ciclo atual V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md                 → spec técnica V1.4
 docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md          → execução F0–F5
-docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md        → retomada operacional da F2
+docs/KORTEXOS_V1_4_SESSION_HANDOFF_F2_READY.md        → registro operacional da F2
 docs/SPEC_V1_3_AGENDA_CHECKOUT_PREMIUM.md            → spec do V1.3 (entregue)
 docs/HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md
 docs/HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md
@@ -167,5 +167,5 @@ docs/archive/legacy-v1/
 GitHub Pages: HTTP 200 (V1.3 + F0 cache V1.4)
 service-worker.js: hope-os-shell-v1-4-0
 Backend /api/health: HTTP 200
-test:gate: 63/63 verdes
+test:gate: 73/73 verdes
 ```
