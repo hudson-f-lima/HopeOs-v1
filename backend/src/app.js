@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const { env } = require('./config/env');
 const routes = require('./routes');
+const { requireAuth } = require('./middleware/auth');
 const { mapErrorForResponse } = require('./errors');
 
 const app = express();
@@ -41,6 +42,8 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: 'HOPE OS V1 API', time: new Date().toISOString() });
 });
 
+// Tudo abaixo desta linha exige credencial. `/` e `/api/health` ficam acima de proposito.
+app.use('/api', requireAuth);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {

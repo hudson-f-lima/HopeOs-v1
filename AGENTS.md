@@ -4,7 +4,7 @@ Manifesto para agentes de IA (Fable, Claude, Codex, Cursor, ChatGPT e similares)
 
 ## Project State
 
-- Produto em produção: HOPE OS V1.3 (PWA + backend Node/Express + Supabase). V1.4 mergeado em `main` com HOTFIX P0 EM VALIDAÇÃO (2026-07-10: renderers do Dashboard implementados, service worker unificado em `hope-os-shell-v1-4-3`; aguardando smoke test no PWA publicado), regra-mãe: **zero migration**.
+- Produto em produção: HOPE OS V1.3 + V1.4 (Dashboard Insights + split payment + waitlist + rebooking) + V1.4.1 HOTFIX PERIMETRO (Bearer token em `/api/*`, gate 82/82 testes verdes). Regra-mãe: **zero migration** (V1.4), perimeter auth temporário (V1.4.1). Próximas etapas: definir `API_ACCESS_TOKEN` no Render, rotacionar segredos (Tarefa B).
 - Promoção estratégica em curso: HOPE OS → **KortexOS™ 5.1** (fase documental; implementação bloqueada).
 - Contexto operacional detalhado do V1.x: `CLAUDE.md` (raiz).
 
@@ -60,7 +60,7 @@ OBSOLETO: 046–060.
 
 ## How to Read This Repo
 
-1. `AGENTS.md` (este arquivo) → 2. `CLAUDE.md` → 3. `docs/README.md` → 4. `docs/INDEX.md` → 5. docs da tarefa, na ordem de autoridade. Código: backend em `server/`/raiz Node, frontend `index.html` + `js/` + `css/`, testes via `npm run test:gate`.
+1. `AGENTS.md` (este arquivo) → 2. `CLAUDE.md` → 3. `docs/INDEX.md` → 4. `docs/audit_global/` (auditoria de 2026-07-10) → 5. docs da tarefa, na ordem de autoridade. Código: backend em `backend/src/`, frontend `index.html` + `js/` + `css/`, testes via `npm run test:gate` (82/82).
 
 ## Required Output Format for Agents
 

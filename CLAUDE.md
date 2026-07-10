@@ -39,7 +39,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Cadastros reais (clientes, serviços, profissionais, produtos, formas de pagamento, vínculo serviço×profissional, overrides): REAL — endpoints, validações e RPCs atômicas implementados e em produção (ver seção Cadastros).
 - Hardening pós-auditoria aplicado: `overrides` bloqueado no POST/PATCH genérico de profissionais (só endpoint dedicado), `POST /formas-pagamento` não faz upsert silencioso (409 em duplicado), `CommissionEngine` bloqueia comissão fora de 0-100%, CHECK no banco para produto ativo não vender abaixo do custo, override de profissional via RPC atômica (`jsonb_set`, sem read-modify-write em Node), validação de UUID em params/listas, RPC de produto revalida `comissao_pct`/`modelo_comissao` internamente, erros de negócio da RPC (`P0001`) mapeados para HTTP 422, `POST/PATCH /clientes` validados (antes era passthrough cru).
 - `SupabaseRepository.list()` pagina além de 1000 linhas (limite padrão do PostgREST) — sem isso, tabelas grandes (`clientes` já passou de 1000 registros reais) perdiam linhas silenciosamente em toda leitura (snapshot, export, `GET /catalog`).
-- Testes: `npm run test:gate` — 73/73 verdes (58 antigos + 15 checks de Insights V1.4).
+- Testes: `npm run test:gate` — 82/82 verdes (V1.4: 58 antigos + 15 Insights; V1.4.1: 9 auth gate).
 
 ### Frontend
 
@@ -84,7 +84,12 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Status final: V1.4 CONCLUÍDO (2026-07-10).** Hotfix P0 validado em produção (GitHub Pages). Auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado (4 renderers ausentes) e SW divergentes; hotfix aplicado com sucesso. Smoke test no PWA publicado confirmou: SW v1-4-3 ativo, 4 cards renderizam dados reais (Ocupação 755 min, Caixa R$ 667,77, Ticket R$ 74,89, Rebooking 14,3%), 3 reloads consecutivos sem erro. Backend gates: REAL — 73/73 verdes.
+> ⚠️ **RESSALVA DE SEGURANÇA (auditoria global 2026-07-10) — veredito CRÍTICO.**
+> "V1.4 concluído" refere-se a **funcionalidade**, não a prontidão de produção. A API em `/api/*` está pública **sem autenticação**: qualquer pessoa lê a base de clientes (PII de 1481+ titulares — incidente LGPD reportável), fecha checkouts reais, ajusta estoque e altera cadastros. Há também PII versionada em `data/*.json` e segredos vivos no `backend/.env` distribuído no zip.
+> **BLOQUEADO:** V1.5, migrations 007+, escala global e qualquer feature nova, até o escopo V1.4.1 (rotação de segredos + remoção de PII do git + auth mínima com `empresa_id` derivado do token + fechamento dos 5 furos de escopo).
+> Relatórios: `docs/audit_global/` — `10_EXECUTIVE_SUMMARY.md`, `06_SECURITY_AUTH_RLS_AUDIT.md`, `08_DEV_HANDOFF_NEXT_SCOPE.md`, `09_RED_TEAM_FINAL_REPORT.md`.
+
+**Status final: V1.4 CONCLUÍDO em funcionalidade (2026-07-10); BLOQUEADO para expansão por P0 de segurança (ver ressalva acima).** Hotfix P0 de runtime validado em produção (GitHub Pages). Auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado (4 renderers ausentes) e SW divergentes; hotfix aplicado com sucesso. Smoke test no PWA publicado confirmou: SW v1-4-3 ativo, 4 cards renderizam dados reais (Ocupação 755 min, Caixa R$ 667,77, Ticket R$ 74,89, Rebooking 14,3%), 3 reloads consecutivos sem erro. Backend gates: REAL — 73/73 verdes.
 
 **Estado V1.4 (entregas do ciclo — TODAS VALIDADAS):**
 - ✅ Split Payment completo (frontend + backend): 2 novos testes no finance-gate, reescrita de UI no `checkout.js`, cálculo automático e validação client-side.
@@ -93,7 +98,7 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 - ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
 - ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
 - ✅ Dashboard Progressive Rendering: 4 renderers implementados no hotfix P0 de 2026-07-10, validado em produção (GitHub Pages), sem erros em 3 reloads consecutivos.
-- ✅ Todos os testes verdes: `npm run test:gate` 73/73 passando.
+- ✅ Todos os testes verdes: `npm run test:gate` 82/82 passando (V1.4 + V1.4.1).
 - ✅ Deploys em produção (Render + GitHub Pages) validados; smoke test do Dashboard no PWA publicado confirmado.
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD), `docs/QA_V1_4_CHECKLIST.md`.

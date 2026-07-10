@@ -8,11 +8,11 @@ Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real)
 Backend:  V1.2 cadastros reais + hardening — em produção no Render
 Frontend: V1.3 UI/UX premium (tema claro, agenda premium, checkout premium) — em produção no GitHub Pages
 Banco:    Supabase (migrations 001–006 aplicadas; projeto qosioymzswhkqkziocas)
-Ciclo:    V1.4 HOTFIX P0 EM VALIDAÇÃO — Dashboard Insights corrigido localmente (renderers ausentes),
-          aguardando smoke test no PWA publicado antes de declarar o ciclo concluído
+Ciclo:    V1.4 CONCLUÍDO (Dashboard Insights + renderers + split payment) + V1.4.1 HOTFIX PERIMETRO
+          (API requer Bearer token; gate de autenticação + fail-closed sem config)
 Branch de trabalho: main
 PWA cache atual: hope-os-shell-v1-4-3 (unificado root + frontend)
-Testes: cd backend && npm run test:gate → todos verdes (76 testes / 134 checks)
+Testes: cd backend && npm run test:gate → todos verdes (82/82: 12+8+12+8+21+73/58+15=insights+9/auth)
 MANIFEST_SHA256: regenerado após hotfix
 ```
 
@@ -94,7 +94,7 @@ Backend:
 ```bash
 cd backend
 npm install
-npm run test:gate   # 73 testes — obrigatório verde antes de qualquer merge
+npm run test:gate   # 82/82 verdes (V1.4 + V1.4.1) — obrigatório antes de qualquer merge
 npm start
 ```
 
@@ -148,11 +148,22 @@ Consulte a lista completa e a hierarquia de todos os documentos ativos e histór
 ## Última validação conhecida
 
 ```txt
-V1.4 HOTFIX P0 EM VALIDAÇÃO (2026-07-10)
-Dashboard Insights: renderers (renderOccupancy/renderMoney/renderMargin/renderPeople) implementados,
-                    aguardando validação no PWA publicado
+V1.4 CONCLUÍDO (2026-07-10)
+Dashboard Insights: 4 renderers implementados + validado em produção no PWA publicado
 service-worker.js: hope-os-shell-v1-4-3 (root e frontend/ sincronizados)
-Backend /api/health: HTTP 200
-test:gate: 73/73 verdes
-MANIFEST_SHA256: regenerado após hotfix
+split payment: completo (frontend UI + backend RPC + ledger)
+waitlist, rebooking, attach, retention: REAL — 73/73 testes backend
+
+V1.4.1 SECURITY PERIMETER HOTFIX (2026-07-10)
+API requer Bearer token em todas as rotas /api/* (exceto GET /api/health)
+Gate de autenticação: 9/9 verdes (sem token → 401, token válido atravessa)
+Fail-closed: sem API_ACCESS_TOKEN configurado o backend responde 503 (não serve dados)
+Frontend login mínimo: prompt simples, localStorage, no UI premium
+NOTA: V1.4.1 é hotfix de perímetro, não autenticação real por usuário.
+      Não libera V1.5, não resolve RBAC, não resolve multi-tenant seguro.
+      Próximas etapas: definir API_ACCESS_TOKEN no Render + rotação de segredos (Tarefa B).
+
+test:gate: 82/82 verdes (V1.4 + V1.4.1)
+MANIFEST_SHA256: regenerado
+Auditoria: docs/audit_global/ (10 entregáveis — gap analysis, arquitetura global, red team, etc)
 ```

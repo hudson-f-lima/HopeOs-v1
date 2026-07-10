@@ -1,6 +1,25 @@
 export let API_BASE = null;
 
 const FETCH_TIMEOUT_MS = 30000;
+const TOKEN_KEY = 'hopeos.apiToken';
+
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || null; } catch { return null; }
+}
+
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* modo privado sem storage: sessao vive so em memoria */ }
+}
+
+export class AuthError extends Error {
+  constructor(message) {
+    super(message || 'Credencial ausente ou inválida.');
+    this.name = 'AuthError';
+  }
+}
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
@@ -34,14 +53,23 @@ export async function api(path, options = {}) {
   if (!API_BASE) {
     throw new Error('API_BASE não configurada. Chame loadConfig() primeiro.');
   }
+  const token = getToken();
   const res = await fetchWithTimeout(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(options.headers || {})
+    },
     method: options.method || 'GET',
     body: options.body ? JSON.stringify(options.body) : undefined,
     timeoutMs: options.timeoutMs
   });
   let json;
   try { json = await res.json(); } catch { json = {}; }
+  if (res.status === 401) {
+    setToken(null);
+    throw new AuthError((json.error && json.error.message) || undefined);
+  }
   if (!res.ok || json.ok === false) {
     const msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
     throw new Error(msg);

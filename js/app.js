@@ -1,4 +1,4 @@
-import { loadConfig } from './api.js';
+import { loadConfig, getToken, setToken, AuthError } from './api.js';
 import { 
   state, 
   stateBus, 
@@ -53,6 +53,25 @@ function showFatalError() {
   if (fatal) fatal.classList.remove('hidden');
 }
 
+// Login minimo: pede o token e revalida chamando a propria API. Sem token nao ha catalogo,
+// entao a primeira chamada autenticada e o teste da credencial.
+async function withAuthRetry(fn) {
+  let aviso = '';
+  for (;;) {
+    if (!getToken()) {
+      const informado = window.prompt(aviso + 'Token de acesso do HOPE OS:');
+      if (!informado || !informado.trim()) throw new Error('Acesso cancelado: token obrigatório.');
+      setToken(informado.trim());
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      if (!(err instanceof AuthError)) throw err;
+      aviso = 'Token inválido. ';
+    }
+  }
+}
+
 async function init() {
   const loadingMessage = document.getElementById('loadingMessage') || document.querySelector('#loadingScreen div:last-child');
   const slowBootTimer = setTimeout(() => {
@@ -103,7 +122,7 @@ async function init() {
 
   try {
     await loadConfig();
-    await loadCatalog();
+    await withAuthRetry(() => loadCatalog());
 
     renderClientesList();
     renderServicosList();
