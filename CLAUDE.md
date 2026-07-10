@@ -69,7 +69,7 @@ Entregue: tema claro + design system CSS (variáveis + utilities), Agenda Premiu
 
 Pendências herdadas: frontend segue sem testes (`test:gate` é 100% backend — QA manual obrigatório); lista de Clientes (1481+) sem paginação/busca na UI.
 
-## V1.4 — KortexOS Now-Scope: Decision Intelligence (em andamento)
+## V1.4 — KortexOS Now-Scope: Decision Intelligence (CONCLUÍDO)
 
 Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `codex/v1.4-dashboard-premium` (F0-F3); F0–F3 mergeados em `main` via PR [#11](https://github.com/hudson-f-lima/HopeOs-v1/pull/11) em 2026-07-09 (merge commit `324bc5c`). Status:
 
@@ -80,21 +80,21 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 | F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA — em main | 2df93b3 |
 | F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA — em main | 57b4a2c |
 | F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ✅ CONCLUÍDA — em main | ae95cf5 |
-| F5 | QA + auditoria + deploy | ⚠️ REABERTA — hotfix P0 em validação (Dashboard quebrado no runtime; ver status abaixo) | c07a834 |
+| F5 | QA + auditoria + deploy | ✅ CONCLUÍDA — hotfix P0 validado em produção (2026-07-10) | c60f6fd |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Status atual: V1.4 HOTFIX P0 EM VALIDAÇÃO (2026-07-10).** Auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado no runtime (`renderOccupancy/renderMoney/renderMargin/renderPeople is not defined` em `js/ui/dashboard.js` — chamadas existiam sem definição) e service workers com versões divergentes (root v1-4-2 vs `frontend/` v1-4-1). Hotfix aplicado: 4 renderers implementados (defensivos, lendo só `state.insights.*`, sem cálculo financeiro), SW unificado em `hope-os-shell-v1-4-3`, manifesto regenerado. O ciclo V1.4 só volta a "concluído" após smoke test no PWA publicado (SW v1-4-3 confirmado + 4 cards sem erro + 3 reloads limpos). Backend gates: REAL — 73/73 verdes.
+**Status final: V1.4 CONCLUÍDO (2026-07-10).** Hotfix P0 validado em produção (GitHub Pages). Auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado (4 renderers ausentes) e SW divergentes; hotfix aplicado com sucesso. Smoke test no PWA publicado confirmou: SW v1-4-3 ativo, 4 cards renderizam dados reais (Ocupação 755 min, Caixa R$ 667,77, Ticket R$ 74,89, Rebooking 14,3%), 3 reloads consecutivos sem erro. Backend gates: REAL — 73/73 verdes.
 
-**Estado V1.4 (entregas do ciclo — frontend Dashboard aguardando validação publicada):**
+**Estado V1.4 (entregas do ciclo — TODAS VALIDADAS):**
 - ✅ Split Payment completo (frontend + backend): 2 novos testes no finance-gate, reescrita de UI no `checkout.js`, cálculo automático e validação client-side.
 - ✅ Rebooking pós-checkout: card sugestão de rebooking de 1 clique, integração com agenda.
 - ✅ Lista de Espera (Waitlist): backend completo (rotas + validadores + 21 testes) e UI frontend (subaba "Espera" em gestão, modal de cadastro e prompt ao cancelar agendamento).
 - ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
 - ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
-- ⚠️ Dashboard Progressive Rendering: widgets carregam de forma assíncrona independente, mas o merge veio sem os 4 renderers (`renderOccupancy/renderMoney/renderMargin/renderPeople`) — corrigido no hotfix P0 de 2026-07-10, aguardando validação no PWA publicado.
-- ✅ Todos os testes verdes: `npm run test:gate` passa localmente.
-- ⚠️ Deploys em produção (Render + GitHub Pages) ativos; smoke test do Dashboard no PWA publicado pendente após o hotfix P0.
+- ✅ Dashboard Progressive Rendering: 4 renderers implementados no hotfix P0 de 2026-07-10, validado em produção (GitHub Pages), sem erros em 3 reloads consecutivos.
+- ✅ Todos os testes verdes: `npm run test:gate` 73/73 passando.
+- ✅ Deploys em produção (Render + GitHub Pages) validados; smoke test do Dashboard no PWA publicado confirmado.
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD), `docs/QA_V1_4_CHECKLIST.md`.
 
