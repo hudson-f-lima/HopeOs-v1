@@ -4,7 +4,7 @@ Manifesto para agentes de IA (Fable, Claude, Codex, Cursor, ChatGPT e similares)
 
 ## Project State
 
-- Produto em produção: HOPE OS V1.3 (PWA + backend Node/Express + Supabase). V1.4 em andamento (branch `codex/v1.4-dashboard-premium`), regra-mãe: **zero migration**.
+- Produto em produção: HOPE OS V1.3 (PWA + backend Node/Express + Supabase). V1.4 mergeado em `main` com HOTFIX P0 EM VALIDAÇÃO (2026-07-10: renderers do Dashboard implementados, service worker unificado em `hope-os-shell-v1-4-3`; aguardando smoke test no PWA publicado), regra-mãe: **zero migration**.
 - Promoção estratégica em curso: HOPE OS → **KortexOS™ 5.1** (fase documental; implementação bloqueada).
 - Contexto operacional detalhado do V1.x: `CLAUDE.md` (raiz).
 

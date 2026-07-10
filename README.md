@@ -2,16 +2,18 @@
 
 Sistema operacional para beauty tech: agenda, comanda (checkout financeiro real), dashboard e cadastros conectados a backend real. **KortexOS™ é o nome canônico do produto** (HOPE OS é o legado interno); a promoção está governada por `docs/canon/KORTEXOS_5_1_MASTER_BRIEFING_CANONICO_REWRITE.md`. Mapa completo da documentação: [`docs/INDEX.md`](docs/INDEX.md). Agentes de IA: ler [`AGENTS.md`](AGENTS.md) antes de qualquer tarefa.
 
-## Estado atual (2026-07-09)
+## Estado atual (2026-07-10)
 
 ```txt
 Backend:  V1.2 cadastros reais + hardening — em produção no Render
 Frontend: V1.3 UI/UX premium (tema claro, agenda premium, checkout premium) — em produção no GitHub Pages
 Banco:    Supabase (migrations 001–006 aplicadas; projeto qosioymzswhkqkziocas)
-Ciclo concluído: V1.4 "KortexOS Now-Scope: Decision Intelligence" — 100% entregue e em produção
+Ciclo:    V1.4 HOTFIX P0 EM VALIDAÇÃO — Dashboard Insights corrigido localmente (renderers ausentes),
+          aguardando smoke test no PWA publicado antes de declarar o ciclo concluído
 Branch de trabalho: main
-PWA cache atual: hope-os-shell-v1-4-1
+PWA cache atual: hope-os-shell-v1-4-3 (unificado root + frontend)
 Testes: cd backend && npm run test:gate → todos verdes (76 testes / 134 checks)
+MANIFEST_SHA256: regenerado após hotfix
 ```
 
 URLs:
@@ -146,8 +148,11 @@ Consulte a lista completa e a hierarquia de todos os documentos ativos e histór
 ## Última validação conhecida
 
 ```txt
-Local F3 preview: desktop/mobile smoke OK; produção pode exibir fallback 404 em `/api/insights/*` até backend redeploy
-service-worker.js: hope-os-shell-v1-4-1
+V1.4 HOTFIX P0 EM VALIDAÇÃO (2026-07-10)
+Dashboard Insights: renderers (renderOccupancy/renderMoney/renderMargin/renderPeople) implementados,
+                    aguardando validação no PWA publicado
+service-worker.js: hope-os-shell-v1-4-3 (root e frontend/ sincronizados)
 Backend /api/health: HTTP 200
 test:gate: 73/73 verdes
+MANIFEST_SHA256: regenerado após hotfix
 ```

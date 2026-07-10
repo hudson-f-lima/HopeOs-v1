@@ -47,7 +47,7 @@ O frontend não calcula financeiro, comissão, margem, taxa, repasse, baixa de e
 - Estrutura de abas: Agenda, Checkout, Dashboard, Mais.
 - Aba **Mais**: UI de Cadastros Reais implementada — CRUD de clientes, serviços, profissionais (+ vínculo com serviços + overrides por serviço), produtos (+ ajuste de estoque), formas de pagamento. Desativação sempre via `ativo=false`, nunca delete físico.
 - Checkout: preview reorganizado em blocos Bruto → Deduções → Resultado (mesmos campos que a API já retornava; nenhum cálculo novo no frontend).
-- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-1`.
+- Service worker: cache do shell HTML corrigido para network-first (antes usava stale-while-revalidate e podia servir HTML desatualizado por um reload inteiro). `/api/*` e métodos não-GET nunca são cacheados. Versão de cache atual: `hope-os-shell-v1-4-3` (unificada — root e `frontend/service-worker.js` sincronizados no hotfix P0 de 2026-07-10; antes divergiam entre v1-4-1 e v1-4-2).
 - `frontendCalculates: false` continua sendo a regra vigente — frontend só coleta intenção, chama API e exibe a resposta.
 
 ### Cadastros
@@ -80,19 +80,21 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 | F2 | Retenção backend (RFM, churn-risk, Reliability Score) | ✅ CONCLUÍDA — em main | 2df93b3 |
 | F3 | Dashboard bento (frontend) | ✅ CONCLUÍDA — em main | 57b4a2c |
 | F4 | Ação (rebooking, split, waitlist, WhatsApp one-tap) | ✅ CONCLUÍDA — em main | ae95cf5 |
-| F5 | QA + auditoria + deploy | ✅ CONCLUÍDA — em main | c07a834 |
+| F5 | QA + auditoria + deploy | ⚠️ REABERTA — hotfix P0 em validação (Dashboard quebrado no runtime; ver status abaixo) | c07a834 |
 
 **Regra-mãe do V1.4: ZERO migration.** Nenhuma tabela/coluna/RPC nova. Toda inteligência derivada read-only do ledger; agregação em Node; frontend só exibe.
 
-**Estado V1.4 (Ciclo Concluído & Publicado):**
+**Status atual: V1.4 HOTFIX P0 EM VALIDAÇÃO (2026-07-10).** Auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado no runtime (`renderOccupancy/renderMoney/renderMargin/renderPeople is not defined` em `js/ui/dashboard.js` — chamadas existiam sem definição) e service workers com versões divergentes (root v1-4-2 vs `frontend/` v1-4-1). Hotfix aplicado: 4 renderers implementados (defensivos, lendo só `state.insights.*`, sem cálculo financeiro), SW unificado em `hope-os-shell-v1-4-3`, manifesto regenerado. O ciclo V1.4 só volta a "concluído" após smoke test no PWA publicado (SW v1-4-3 confirmado + 4 cards sem erro + 3 reloads limpos). Backend gates: REAL — 73/73 verdes.
+
+**Estado V1.4 (entregas do ciclo — frontend Dashboard aguardando validação publicada):**
 - ✅ Split Payment completo (frontend + backend): 2 novos testes no finance-gate, reescrita de UI no `checkout.js`, cálculo automático e validação client-side.
 - ✅ Rebooking pós-checkout: card sugestão de rebooking de 1 clique, integração com agenda.
 - ✅ Lista de Espera (Waitlist): backend completo (rotas + validadores + 21 testes) e UI frontend (subaba "Espera" em gestão, modal de cadastro e prompt ao cancelar agendamento).
 - ✅ Badge de Reliability na agenda: fetch lazy do score do cliente e tooltip explicativo.
 - ✅ Attach de produto no checkout: sugestão inteligente baseada nos dados do backend.
-- ✅ Dashboard Progressive Rendering: widgets de insight agora carregam de forma assíncrona independente, sem travar por Promise.all.
+- ⚠️ Dashboard Progressive Rendering: widgets carregam de forma assíncrona independente, mas o merge veio sem os 4 renderers (`renderOccupancy/renderMoney/renderMargin/renderPeople`) — corrigido no hotfix P0 de 2026-07-10, aguardando validação no PWA publicado.
 - ✅ Todos os testes verdes: `npm run test:gate` passa localmente.
-- ✅ Deploys em produção (Render + GitHub Pages) ativados e validados ativamente via testes de rede.
+- ⚠️ Deploys em produção (Render + GitHub Pages) ativos; smoke test do Dashboard no PWA publicado pendente após o hotfix P0.
 
 **Docs do ciclo:** `docs/KORTEXOS_NOW_SCOPE_V1_4_MASTER_BRIEFING.md`, `docs/KORTEXOS_NOW_SCOPE_V1_4_SPEC.md` (fórmulas + contratos), `docs/KORTEXOS_NOW_SCOPE_V1_4_DEV_HANDOFF.md` (tarefas F0–F5 com DoD), `docs/QA_V1_4_CHECKLIST.md`.
 

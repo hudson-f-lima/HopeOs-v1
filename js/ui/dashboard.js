@@ -86,6 +86,184 @@ function renderActionStrip() {
   if (!actions) return;
 }
 
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function pctText(value) {
+  const n = safeNumber(value, null);
+  return n === null ? '—' : `${n.toFixed(1).replace('.', ',')}%`;
+}
+
+function topRows(rows, mapper, empty = 'Sem dados para exibir.') {
+  const list = safeArray(rows).slice(0, 5);
+  if (!list.length) return emptyState(empty);
+  return list.map(mapper).join('');
+}
+
+function safeDDMM(dateStr) {
+  return (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) ? formatDDMM(dateStr) : '—';
+}
+
+function formaLabel(code) {
+  const forma = safeArray(state.catalog && state.catalog.formas_pagamento).find(f => f.code === code);
+  return forma ? forma.label : (code || '—');
+}
+
+// Renderers dos widgets de Insights.
+// Regra-mãe: só exibem valores já calculados pelo backend (state.insights.*),
+// toleram payload vazio e nunca lançam exceção.
+
+function renderOccupancy() {
+  const node = el('dbOccupancyWidget');
+  if (!node) return;
+  const occ = state.insights.occupancy;
+  if (!occ) {
+    node.innerHTML = emptyState('Ocupacao ainda nao carregada.');
+    return;
+  }
+
+  const range = occ.range || {};
+  if (range.from && range.to) {
+    setText('dbOccRange', `${safeDDMM(range.from)} - ${safeDDMM(range.to)}`);
+  }
+
+  const loadPct = safeNumber(occ.loadFactorPct, null);
+  const vendidos = safeNumber(occ.minutosVendidos);
+  const disponiveis = safeNumber(occ.minutosDisponiveis);
+
+  const profRows = topRows(occ.porProfissional, p => `
+    <div class="row">
+      <span>${escapeHtml(p.profissionalNome || findProfissionalNome(p.profissionalId))}</span>
+      <b>${pctText(p.surPct)}</b>
+    </div>
+  `, 'Sem dados por profissional.');
+
+  const buracos = safeArray(occ.buracos).slice(0, 3);
+  const buracosHtml = buracos.length
+    ? buracos.map(b => `
+        <div class="row">
+          <span>${escapeHtml(safeDDMM(b.data))} ${escapeHtml(b.inicio || '')}-${escapeHtml(b.fim || '')}</span>
+          <b>${escapeHtml(b.profissionalNome || findProfissionalNome(b.profissionalId))}</b>
+        </div>
+      `).join('')
+    : '';
+
+  node.innerHTML = `
+    <div class="row"><span>Carga da semana</span><b style="color:${colorForPct(loadPct, occ.faixas)}">${pctText(loadPct)}</b></div>
+    <div class="row"><span>Minutos vendidos</span><b>${vendidos}</b></div>
+    <div class="row"><span>Minutos disponiveis</span><b>${disponiveis}</b></div>
+    <h4 class="insight-subtitle">Por profissional</h4>
+    ${profRows}
+    ${buracosHtml ? `<h4 class="insight-subtitle">Buracos na agenda</h4>${buracosHtml}` : ''}
+  `;
+}
+
+function renderMoney() {
+  const node = el('dbMoneyWidget');
+  if (!node) return;
+  const cf = state.insights.cashflow;
+  if (!cf) {
+    node.innerHTML = emptyState('Fluxo de caixa ainda nao carregado.');
+    return;
+  }
+
+  const formasHtml = topRows(cf.porForma, f => `
+    <div class="row">
+      <span>${escapeHtml(formaLabel(f.formaCode))}</span>
+      <b>${centsToBRL(safeNumber(f.liquidoCentavos))}</b>
+    </div>
+  `, 'Sem recebiveis por forma.');
+
+  const proximas = safeArray(cf.curva).filter(c => safeNumber(c.liquidoCentavos) > 0).slice(0, 3);
+  const curvaHtml = proximas.length
+    ? proximas.map(c => `
+        <div class="row">
+          <span>${escapeHtml(safeDDMM(c.data))}</span>
+          <b>${centsToBRL(safeNumber(c.liquidoCentavos))}</b>
+        </div>
+      `).join('')
+    : '';
+
+  node.innerHTML = `
+    <div class="row"><span>Acumulado 7 dias</span><b>${centsToBRL(safeNumber(cf.acumulado7dCentavos))}</b></div>
+    <div class="row"><span>Acumulado 30 dias</span><b>${centsToBRL(safeNumber(cf.acumulado30dCentavos))}</b></div>
+    ${curvaHtml ? `<h4 class="insight-subtitle">Proximas entradas</h4>${curvaHtml}` : ''}
+    <h4 class="insight-subtitle">Liquido por forma</h4>
+    ${formasHtml}
+  `;
+}
+
+function renderMargin() {
+  const node = el('dbMarginWidget');
+  if (!node) return;
+  const margin = state.insights.margin;
+  if (!margin) {
+    node.innerHTML = emptyState('Margem ainda nao carregada.');
+    return;
+  }
+
+  const servicosHtml = topRows(margin.porServico, s => `
+    <div class="row">
+      <span>${escapeHtml(s.servicoNome || '—')} (${pctText(s.margemPct)})</span>
+      <b>${centsToBRL(safeNumber(s.receitaEmpresaCentavos))}</b>
+    </div>
+  `, 'Sem dados por servico.');
+
+  const profHtml = topRows(margin.porProfissional, p => `
+    <div class="row">
+      <span>${escapeHtml(findProfissionalNome(p.profissionalId) || p.profissionalNome || '—')}</span>
+      <b>${centsToBRL(safeNumber(p.producaoCentavos))}</b>
+    </div>
+  `, 'Sem dados por profissional.');
+
+  node.innerHTML = `
+    <div class="row"><span>Ticket medio</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
+    <h4 class="insight-subtitle">Top servicos</h4>
+    ${servicosHtml}
+    <h4 class="insight-subtitle">Por profissional</h4>
+    ${profHtml}
+  `;
+}
+
+function renderPeople() {
+  const node = el('dbPeopleWidget');
+  if (!node) return;
+  const ret = state.insights.retention;
+  if (!ret) {
+    node.innerHTML = emptyState('Retencao ainda nao carregada.');
+    return;
+  }
+
+  const novosPct = ret.novosRetencao && ret.novosRetencao.pct;
+
+  const chamarHtml = topRows(ret.quemChamar, c => {
+    const nome = escapeHtml(c.nome || '—');
+    const dias = safeNumber(c.diasDesdeUltima, null);
+    const detalhe = [c.risco ? escapeHtml(c.risco) : '', dias !== null ? `${dias}d` : ''].filter(Boolean).join(' · ');
+    const link = c.whatsapp ? ` <a href="${waLink(c.whatsapp, `Oi ${c.nome || ''}! Sentimos sua falta, vamos agendar um horario?`)}" target="_blank" rel="noopener">WhatsApp</a>` : '';
+    return `<div class="row"><span>${nome}</span><b>${detalhe}${link}</b></div>`;
+  }, 'Ninguem para chamar agora.');
+
+  const candidatos = safeArray(ret.assinaturaCandidatos).slice(0, 5);
+  const candidatosHtml = candidatos.length
+    ? candidatos.map(c => `<div class="row"><span>${escapeHtml(c.nome || '—')}</span><b>${safeNumber(c.visitas180d)} visitas · ${centsToBRL(safeNumber(c.gastoMensalMedioCentavos))}/mes</b></div>`).join('')
+    : '';
+
+  node.innerHTML = `
+    <div class="row"><span>Taxa de rebooking</span><b>${pctText(ret.rebookingRatePct)}</b></div>
+    <div class="row"><span>Retencao de novos</span><b>${pctText(novosPct)}</b></div>
+    <h4 class="insight-subtitle">Quem chamar</h4>
+    ${chamarHtml}
+    ${candidatosHtml ? `<h4 class="insight-subtitle">Candidatos a assinatura</h4>${candidatosHtml}` : ''}
+  `;
+}
+
 function setWidgetError(id, msg) {
   const node = el(id);
   if (node) node.innerHTML = `<div class="insight-empty error" style="color:var(--danger)">${escapeHtml(msg)}</div>`;

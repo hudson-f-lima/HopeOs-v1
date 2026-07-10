@@ -1,8 +1,8 @@
-# KortexOS V1.4 Session Handoff — V1.4 Completed
+# KortexOS V1.4 Session Handoff
 
-**Última atualização:** 2026-07-09
-**Branch:** `main` (Ciclo V1.4 100% mergeado via PR #11 e PR #12)
-**Status:** ✅ V1.4 CONCLUÍDO E PUBLICADO
+**Última atualização:** 2026-07-10
+**Branch:** `main` (código do ciclo V1.4 mergeado via PR #11 e PR #12)
+**Status:** ⚠️ V1.4 HOTFIX P0 EM VALIDAÇÃO — auditoria de 2026-07-10 encontrou o Dashboard Insights quebrado no runtime (`renderOccupancy/renderMoney/renderMargin/renderPeople is not defined`) e service workers divergentes (v1-4-1 vs v1-4-2). Hotfix aplicado in-place (renderers implementados, SW unificado em `hope-os-shell-v1-4-3`, docs e manifesto regenerados). O ciclo só volta a "concluído" após smoke test no PWA publicado.
 
 ---
 
@@ -41,6 +41,15 @@
 
 ---
 
+## Hotfix P0 (2026-07-10) — em validação
+
+- `js/ui/dashboard.js`: implementados `renderOccupancy`, `renderMoney`, `renderMargin` e `renderPeople` (+ helpers defensivos `safeArray`/`safeNumber`/`pctText`/`topRows`). Renderers leem somente `state.insights.*`, toleram payload vazio e não calculam regra financeira.
+- `service-worker.js` e `frontend/service-worker.js`: unificados em `hope-os-shell-v1-4-3` (mesmo conteúdo).
+- Docs (`README.md`, `CLAUDE.md`, `AGENTS.md`, este arquivo): status corrigido para "HOTFIX P0 EM VALIDAÇÃO".
+- `MANIFEST_SHA256.txt`: regenerado após o hotfix.
+- Pendente: smoke test no PWA publicado (SW v1-4-3 confirmado, 4 cards sem erro, 3 reloads limpos).
+
 ## Próximos Passos
+- Validar o hotfix P0 no PWA publicado e então retornar o status do ciclo para "concluído".
 - Avaliar necessidades do core e feedbacks pós-produção do V1.4.
 - Iniciar preparação da faixa 007+ (KortexOS™ 5.1 físico) conforme os planos de design e Red Team, mantendo a governança e o bloqueio de SQL executável até nova aprovação formal.
