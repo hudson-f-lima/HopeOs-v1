@@ -121,6 +121,23 @@ Autorizado em 2026-07-08. Desenvolvido na branch `codex/v1.4-f4-acao` (F4) e `co
 
 **Automação:** Não há. A troca é manual (consciente) porque a decisão varia conforme contexto — urgência, complexidade, budget disponível. Documentar a recomendação por fase (tabela acima) permite decisão informada em cada sessão, sem overhead de automação.
 
+## Segurança & Conformidade
+
+### PII — Dados Sensíveis (2026-07-11)
+
+**Status:** ✅ Limpeza concluída — nenhum dado de cliente em git history.
+
+**O que foi feito:**
+- Removido do versionamento: 15 arquivos JSON contendo clientes, agendamentos, comandos, movimentos de caixa, etc.
+- Atualizado `.gitignore`: `data/*.json` + `data/backups/` bloqueados permanentemente.
+- Commit `eed9bd1` — histórico limpo, dados locais preservados (para operação).
+- Autenticação SSH configurada (via chave RSA 4096-bit, `hudson_v1_pc`).
+
+**Regra:**
+- Dados sensíveis vivem em `data/` — **nunca** versionados.
+- Backend (Supabase Postgres) é a fonte de verdade; dados locais são cache/scratch apenas.
+- Qualquer novo JSON de dados de negócio deve entrar direto em `.gitignore`.
+
 ## Próximo gate proibido
 
 Não avançar para, sem decisão explícita do usuário:
