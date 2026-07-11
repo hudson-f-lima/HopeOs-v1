@@ -1,19 +1,19 @@
-import { loadConfig } from './api.js?v=ts1783742622';
+import { loadConfig } from './api.js';
 import { 
   state, 
   stateBus, 
   loadCatalog, 
   loadWeekAgenda 
-} from './state.js?v=ts1783742622';
+} from './state.js';
 import { 
   centsToBRL, 
   openModal, 
   closeModal 
-} from './utils.js?v=ts1783742622';
-import { FuzzyField } from './components/fuzzy-field.js?v=ts1783742622';
-import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js?v=ts1783742622';
-import { initCheckout, onServicoSelected } from './ui/checkout.js?v=ts1783742622';
-import { initDashboard, atualizarDashboard } from './ui/dashboard.js?v=ts1783742622';
+} from './utils.js';
+import { FuzzyField } from './components/fuzzy-field.js';
+import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js';
+import { initCheckout, onServicoSelected } from './ui/checkout.js';
+import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
   initCadastros,
   renderClientesList,
@@ -23,7 +23,7 @@ import {
   renderFormasList,
   renderListaEsperaList,
   openListaEsperaModal
-} from './ui/cadastros.js?v=ts1783742622';
+} from './ui/cadastros.js';
 
 export function showTab(name) {
   state.activeTab = name;

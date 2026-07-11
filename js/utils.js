@@ -1,4 +1,4 @@
-import { api } from './api.js?v=ts1783742622';
+import { api } from './api.js';
 import { loadCatalog } from './state.js';
 import { showToast } from './ui/toast.js';
 

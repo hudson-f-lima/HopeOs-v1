@@ -1,4 +1,4 @@
-import { api, getInsightsRebooking, getInsightsAttach } from '../api.js?v=ts1783742622';
+import { api, getInsightsRebooking, getInsightsAttach } from '../api.js';
 import { state, stateBus } from '../state.js';
 import {
   centsToBRL,
