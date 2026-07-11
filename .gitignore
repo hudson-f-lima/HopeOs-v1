@@ -4,7 +4,9 @@ node_modules/
 .codex/
 .DS_Store
 backend/node_modules/
-data/backups/*.json
+# PII e dados sensíveis (nunca versionado)
+data/*.json
+data/backups/
 *.log
 *.xlsx
 _ai__index/
