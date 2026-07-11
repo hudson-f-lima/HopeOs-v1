@@ -37,19 +37,35 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 export async function loadConfig() {
+  // Etapa 1: Ler parâmetros de URL primeiro (antes de qualquer requisição)
   const tokenOverride = new URLSearchParams(window.location.search).get('apiToken');
-  if (tokenOverride && tokenOverride.trim()) setToken(tokenOverride.trim());
-
-  const override = new URLSearchParams(window.location.search).get('apiBase');
-  if (override) {
-    API_BASE = override.replace(/\/+$/, '');
-    return;
+  if (tokenOverride && tokenOverride.trim()) {
+    setToken(tokenOverride.trim());
+    console.log('[Auth] Token recebido via URL (apiToken param)');
   }
-  const res = await fetchWithTimeout('./config.json', { cache: 'no-store', timeoutMs: 12000 });
-  if (!res.ok) throw new Error('Configuracao do app indisponivel (HTTP ' + res.status + ')');
-  const cfg = await res.json();
-  if (!cfg || !cfg.apiBase) throw new Error('Configuracao do app incompleta.');
-  API_BASE = String(cfg.apiBase).replace(/\/+$/, '');
+
+  const apiBaseOverride = new URLSearchParams(window.location.search).get('apiBase');
+  if (apiBaseOverride) {
+    API_BASE = apiBaseOverride.replace(/\/+$/, '');
+    console.log('[Config] API_BASE configurado via URL:', API_BASE);
+    return; // Sucesso: saiar sem carregar config.json
+  }
+
+  // Etapa 2: Carregar config.json do servidor (fallback padrão)
+  try {
+    const res = await fetchWithTimeout('./config.json', { cache: 'no-store', timeoutMs: 12000 });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ao carregar config.json`);
+    }
+    const cfg = await res.json();
+    if (!cfg || !cfg.apiBase) {
+      throw new Error('config.json incompleto (apiBase ausente)');
+    }
+    API_BASE = String(cfg.apiBase).replace(/\/+$/, '');
+    console.log('[Config] API_BASE carregado de config.json:', API_BASE);
+  } catch (err) {
+    throw new Error(`Falha ao carregar configuracao: ${err.message}. Use ?apiBase=URL&apiToken=TOKEN para override.`);
+  }
 }
 
 export async function api(path, options = {}) {
