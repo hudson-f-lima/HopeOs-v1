@@ -1,4 +1,4 @@
-import { loadConfig } from './api.js';
+import { loadConfig } from './api.js?v=auth2';
 import { 
   state, 
   stateBus, 
