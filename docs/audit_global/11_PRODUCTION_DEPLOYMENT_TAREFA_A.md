@@ -11,7 +11,7 @@
 
 - [ ] Commit `af02521` está em `main` (git log | head -1)
 - [ ] Backend local compila: `cd backend && node src/app.js` → sem erro
-- [ ] Backend testes passam: `npm run test:gate` → 82/82 verdes
+- [ ] Backend testes passam: `npm run test:gate` → 73/73 verdes
 - [ ] Você tem acesso ao dashboard do Render (https://dashboard.render.com)
 - [ ] Você tem acesso ao GitHub do projeto para validar artefatos distribuídos
 

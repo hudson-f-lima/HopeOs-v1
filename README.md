@@ -22,7 +22,7 @@ Banco:    Supabase (migrations 001–006 aplicadas; projeto qosioymzswhkqkziocas
 Ciclo:    V1.4.1 Security Perimeter — código CONCLUÍDO; produção PENDENTE (Tarefas A e B)
 Branch:   main
 SW cache: hope-os-shell-v1-4-7
-Testes:   cd backend && npm run test:gate → 82/82 verdes
+Testes:   cd backend && npm run test:gate → 73/73 verdes
 ```
 
 URLs:
@@ -54,7 +54,7 @@ npm start
 
 # Testes (obrigatório verde antes de qualquer merge)
 cd backend && npm run test:gate
-# Esperado: 82/82 verdes
+# Esperado: 73/73 verdes
 
 # Frontend local (preview)
 npx --yes serve . -l 5500
@@ -79,7 +79,7 @@ curl -H "Authorization: Bearer <SEU_TOKEN>" https://hopeos-v1.onrender.com/api/c
 |------|--------|
 | Middleware auth Bearer `API_ACCESS_TOKEN` em `/api/*` (exceto `/api/health`) | ✅ REAL |
 | Frontend envia Bearer em todas as chamadas | ✅ REAL |
-| `npm run test:gate` = 82/82 | ✅ REAL |
+| `npm run test:gate` = 73/73 | ✅ REAL |
 | PII removida do git index | ✅ REAL |
 | `API_ACCESS_TOKEN` configurado no Render | ⛔ PENDENTE |
 | Segredos rotacionados | ⛔ PENDENTE |
