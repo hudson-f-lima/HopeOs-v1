@@ -64,7 +64,7 @@ O frontend apenas: coleta intenção, chama API, exibe resposta do backend, form
 | Middleware `requireAuth` Bearer `API_ACCESS_TOKEN` em todas as rotas `/api/*` (exceto `/api/health`) | REAL | `b70de84` |
 | Frontend envia `Authorization: Bearer <token>` em todas as chamadas | REAL | `e894179` |
 | Bootstrap de token via `?token=` + `AuthError` handler com prompt | REAL | `ff1bb9e` |
-| `npm run test:gate` = 73/73 verdes | REAL | `af02521` |
+| `npm run test:gate` = 82/82 verdes | REAL | `af02521` |
 | Remoção de PII do git index + `.gitignore` atualizado | REAL | `eed9bd1` |
 | `SECURITY_PII_POLICY.md` documentado | REAL | `512f1fc` |
 | `docs/audit_global/` (auditoria global 01–12) | REAL | `af02521` / `fa746ac` |
@@ -88,7 +88,7 @@ Agenda e Dashboard carregam após inserir token.
 
 ### V1.4 — Decision Intelligence (CONCLUÍDO — 2026-07-10)
 
-- 73/73 testes verdes no ciclo V1.4.
+- 73/73 testes verdes no ciclo V1.4 (expandido para 82/82 no V1.4.1).
 - Hotfix P0 validado: SW ativo, 4 cards Dashboard renderizam dados reais.
 - Split payment completo, rebooking, waitlist, dashboard bento, badge de reliability, attach de produto.
 - Zero migration no ciclo inteiro.
@@ -100,7 +100,7 @@ Agenda e Dashboard carregam após inserir token.
 - Checkout preview/close, baixa de estoque via RPC, ledger distribuído: REAL.
 - Cadastros reais (clientes, serviços, profissionais, produtos, formas de pagamento, vínculos, overrides): REAL.
 - `SupabaseRepository.list()` pagina além de 1000 linhas: REAL.
-- `npm run test:gate` = 73/73: REAL.
+- `npm run test:gate` = 82/82: REAL.
 
 ### Frontend
 
@@ -150,7 +150,7 @@ Checklist completo: `docs/audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md`
 ```bash
 # Testes (obrigatório verde antes de qualquer merge)
 cd backend && npm run test:gate
-# Esperado: 73/73 verdes
+# Esperado: 82/82 verdes
 
 # Backend local
 cd backend && npm start

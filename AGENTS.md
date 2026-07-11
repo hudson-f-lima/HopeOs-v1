@@ -19,7 +19,7 @@ Nunca assumir que um documento é verdade sem verificar o código/teste correspo
 - Produto em produção: HOPE OS V1 / KortexOS™.
 - V1.4 CONCLUÍDO (2026-07-10): Dashboard Insights, split payment, rebooking, waitlist — validados em produção.
 - V1.4.1 Security Perimeter IMPLEMENTADO (código); **produção PENDENTE** (Tarefa A e B em aberto).
-- `npm run test:gate` = 73/73 verdes.
+- `npm run test:gate` = 82/82 verdes.
 - Commits de referência: auth gate `af02521`, checklists `fa746ac`.
 - Promoção estratégica em curso: HOPE OS → **KortexOS™ 5.1** (fase documental; implementação bloqueada).
 

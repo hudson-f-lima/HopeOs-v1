@@ -11,7 +11,7 @@
 ```text
 Produto:   HOPE OS V1 em produção
 Ciclo:     V1.4 CONCLUÍDO + V1.4.1 Security Perimeter IMPLEMENTADO (código)
-Gate:      npm run test:gate → 73/73 verdes
+Gate:      npm run test:gate → 82/82 verdes
 Branch:    main
 ```
 
@@ -31,7 +31,7 @@ Branch:    main
 | Checklists de deploy Tarefa A e B | REAL | `fa746ac` |
 | Remoção de PII do git index + `.gitignore` atualizado | REAL | `eed9bd1` |
 | `SECURITY_PII_POLICY.md` | REAL | `512f1fc` |
-| Gate `npm run test:gate` = 73/73 verdes | REAL | `af02521` |
+| Gate `npm run test:gate` = 82/82 verdes | REAL | `af02521` |
 
 ### O que está PENDENTE (BLOQUEADOR P0)
 
@@ -50,8 +50,8 @@ Branch:    main
 
 ```bash
 cd backend && npm run test:gate
-# Esperado: 73/73 verdes
-# (58 backend base + 15 insights V1.4)
+# Esperado: 82/82 verdes
+# (58 backend base + 15 insights V1.4 + 9 auth V1.4.1)
 ```
 
 ---
@@ -76,7 +76,7 @@ Liberação: apenas após **Tarefa A validada em produção** E **Tarefa B concl
 |--------|-----------|
 | `c60f6fd` | hotfix V1.4-P0: renderers Dashboard + SW unificado |
 | `95eddb3` | V1.4 declarado concluído em produção |
-| `af02521` | V1.4.1: auth gate + auditoria de segurança (73/73 testes) |
+| `af02521` | V1.4.1: auth gate + auditoria de segurança (82/82 testes) |
 | `fa746ac` | Checklists Tarefa A e B |
 | `eed9bd1` | Remoção de PII + .gitignore |
 | `512f1fc` | SECURITY_PII_POLICY.md |
