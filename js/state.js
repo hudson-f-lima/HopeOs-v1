@@ -1,4 +1,4 @@
-import { api } from './api.js?v=auth3';
+import { api } from './api.js?v=auth4';
 import { startOfWeek, todayStr, weekDates } from './utils.js';
 
 export const stateBus = new EventTarget();

@@ -1,4 +1,4 @@
-import { api, getClientReliability, getListaEspera } from '../api.js?v=auth3';
+import { api, getClientReliability, getListaEspera } from '../api.js?v=auth4';
 import { 
   state, 
   stateBus, 

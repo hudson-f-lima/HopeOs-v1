@@ -1,4 +1,4 @@
-import { api } from './api.js?v=auth3';
+import { api } from './api.js?v=auth4';
 import { loadCatalog } from './state.js';
 import { showToast } from './ui/toast.js';
 
