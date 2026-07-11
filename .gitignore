@@ -7,6 +7,7 @@ backend/node_modules/
 # PII e dados sensíveis (nunca versionado)
 data/*.json
 data/backups/
+data/schemas/
 *.log
 *.xlsx
 _ai__index/
@@ -17,4 +18,13 @@ supabase/.temp/
 backend/supabase.exe
 backend/supabase-go.exe
 backend/supabase.tar.gz
+
+# SSH keys / local credentials
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+ssh-*
+gh auth login
+gh auth login.pub
 

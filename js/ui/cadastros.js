@@ -1,4 +1,4 @@
-import { api, getListaEspera, createListaEspera, updateListaEspera } from '../api.js';
+import { api, getListaEspera, createListaEspera, updateListaEspera } from '../api.js?v=auth3';
 import { state, stateBus } from '../state.js';
 import {
   centsToBRL,

@@ -1,19 +1,19 @@
-import { loadConfig } from './api.js?v=auth2';
+import { loadConfig } from './api.js?v=auth3';
 import { 
   state, 
   stateBus, 
   loadCatalog, 
   loadWeekAgenda 
-} from './state.js';
+} from './state.js?v=auth3';
 import { 
   centsToBRL, 
   openModal, 
   closeModal 
-} from './utils.js';
-import { FuzzyField } from './components/fuzzy-field.js';
-import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js';
-import { initCheckout, onServicoSelected } from './ui/checkout.js';
-import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
+} from './utils.js?v=auth3';
+import { FuzzyField } from './components/fuzzy-field.js?v=auth3';
+import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js?v=auth3';
+import { initCheckout, onServicoSelected } from './ui/checkout.js?v=auth3';
+import { initDashboard, atualizarDashboard } from './ui/dashboard.js?v=auth3';
 import {
   initCadastros,
   renderClientesList,
@@ -23,7 +23,7 @@ import {
   renderFormasList,
   renderListaEsperaList,
   openListaEsperaModal
-} from './ui/cadastros.js';
+} from './ui/cadastros.js?v=auth3';
 
 export function showTab(name) {
   state.activeTab = name;
