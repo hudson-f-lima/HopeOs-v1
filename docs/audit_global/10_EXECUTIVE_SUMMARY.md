@@ -10,7 +10,7 @@
 
 # ⚠️ CRÍTICO
 
-O **produto** funciona e o núcleo financeiro é REAL, bem construído e validado em produção (V1.4 concluído, 73/73 testes verdes, ledger conferido). Porém o **perímetro de segurança é inexistente**: a API de produção está pública na internet **sem qualquer autenticação**, expondo PII de 1481+ clientes (incidente LGPD reportável) e permitindo a qualquer pessoa fechar checkouts financeiros reais, ajustar estoque e alterar cadastros. Há ainda PII real versionada no git e segredos vivos no zip distribuído. **Nenhum novo escopo de feature deve avançar antes do escopo V1.4.1 (auth mínima + higiene de segredos)** — ver `08_DEV_HANDOFF_NEXT_SCOPE.md`.
+O **produto** funciona e o núcleo financeiro é REAL, bem construído e validado em produção (V1.4 concluído, 73/73 testes verdes, ledger conferido). V1.4.1 corrigiu o perímetro emergencial e a rotação de segredos foi executada. Autenticação final por usuário, RBAC, actor_id e multi-tenant seguro continuam pendentes.
 
 ---
 
