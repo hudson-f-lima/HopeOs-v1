@@ -1,6 +1,6 @@
 # KortexOS 5.1 — Documentation Index
 
-**Atualizado:** 2026-07-09 · **Regra:** este índice é o mapa único de autoridade documental. Em conflito, vence a hierarquia da seção 1.
+**Atualizado:** 2026-07-11 · **Regra:** este índice é o mapa único de autoridade documental. Em conflito, vence a hierarquia da seção 1.
 
 ## 1. Current Source of Truth
 
@@ -19,6 +19,7 @@
 - [architecture/KORTEXOS_5_1_BLUEPRINT_UNIFICADO_CANONICO.md](architecture/KORTEXOS_5_1_BLUEPRINT_UNIFICADO_CANONICO.md) — organiza arquitetura técnica 5.1. Suporte; não autoriza SQL.
 - Docs de produto V1.x ativos (em `docs/`): `API_CONTRACT.md`, `DATA_CONTRACT.md`, `HOPE_OS_V1_2_BACKEND_CADASTROS_REAIS_BLUEPRINT.md`, `HOPE_OS_V1_3_FRONTEND_UI_UX_PREMIUM_BLUEPRINT.md`, `SPEC_V1_3_AGENDA_CHECKOUT_PREMIUM.md`, `KORTEXOS_NOW_SCOPE_V1_4_{MASTER_BRIEFING,SPEC,DEV_HANDOFF}.md`, `KORTEXOS_V1_4_SESSION_HANDOFF_COMPLETE.md`, `GATE_REAL_SUPABASE_CHECKLIST.md`, `AI_MODEL_SELECTION_RATIONALE.md`, `PLAN_V1_3_TASKS.md`, `FRONTEND_V1_3_*.md`, `DILEMA_EXCLUIR_VS_DESATIVAR_SNAPSHOT.md`, `QA_V1_4_CHECKLIST.md`.
 - [SECURITY_PII_POLICY.md](SECURITY_PII_POLICY.md) — Política de PII e segurança de dados. Nenhum dado de cliente em git. Implementado 2026-07-11.
+- `CODEX.md` (raiz) — guia específico para agente de código: como rodar, testar, onde mexer, padrões de commit, gates.
 
 ## 3. Planning
 
@@ -26,6 +27,26 @@
 - [planning/KORTEXOS_5_1_MIGRATION_MAP.md](planning/KORTEXOS_5_1_MIGRATION_MAP.md) — impacto e faixa futura 007–023.
 - [planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md](planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md) — planejamento da faixa (não é SQL).
 - [planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md](planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md) — rascunho técnico DRAFT ONLY (não executar).
+
+## 3b. Auditoria Global V1.4.1 (CANÔNICO — ler antes de qualquer tarefa nova)
+
+`docs/audit_global/` — auditoria global completa executada em 2026-07-10. **Estes documentos definem os bloqueios ativos.**
+
+| Arquivo | Função | Status |
+|---------|--------|--------|
+| [audit_global/00_STATUS_EXECUCAO.md](audit_global/00_STATUS_EXECUCAO.md) | Estado atual, bloqueios P0, commits de referência | CANÔNICO |
+| [audit_global/01_AUDITORIA_GLOBAL_ESCALA_KORTEXOS.md](audit_global/01_AUDITORIA_GLOBAL_ESCALA_KORTEXOS.md) | Auditoria de escala global | REFERÊNCIA |
+| [audit_global/02_CURRENT_STATE_TRUTH_MAP_RECONCILED.md](audit_global/02_CURRENT_STATE_TRUTH_MAP_RECONCILED.md) | Truth map reconciliado | REFERÊNCIA |
+| [audit_global/03_GAP_ANALYSIS_HOPEOS_V1_TO_KORTEXOS.md](audit_global/03_GAP_ANALYSIS_HOPEOS_V1_TO_KORTEXOS.md) | Gap analysis V1 → KortexOS | REFERÊNCIA |
+| [audit_global/04_ARQUITETURA_GLOBAL_KORTEXOS.md](audit_global/04_ARQUITETURA_GLOBAL_KORTEXOS.md) | Arquitetura target global | REFERÊNCIA |
+| [audit_global/05_DATABASE_STRATEGY_POOL_SILO_BRIDGE.md](audit_global/05_DATABASE_STRATEGY_POOL_SILO_BRIDGE.md) | Estratégia de banco (pool/silo/bridge) | REFERÊNCIA |
+| [audit_global/06_SECURITY_AUTH_RLS_AUDIT.md](audit_global/06_SECURITY_AUTH_RLS_AUDIT.md) | Auditoria de segurança, auth e RLS | CANÔNICO |
+| [audit_global/07_HOTFIX_REQUIRED_OR_COMPLETED.md](audit_global/07_HOTFIX_REQUIRED_OR_COMPLETED.md) | Hotfixes necessários e concluídos | REFERÊNCIA |
+| [audit_global/08_DEV_HANDOFF_NEXT_SCOPE.md](audit_global/08_DEV_HANDOFF_NEXT_SCOPE.md) | Handoff V1.4.1 para dev | CANÔNICO |
+| [audit_global/09_RED_TEAM_FINAL_REPORT.md](audit_global/09_RED_TEAM_FINAL_REPORT.md) | Red Team final da auditoria global | CANÔNICO |
+| [audit_global/10_EXECUTIVE_SUMMARY.md](audit_global/10_EXECUTIVE_SUMMARY.md) | Sumário executivo com veredito | CANÔNICO |
+| [audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md](audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md) | Checklist execução — auth produção | CANÔNICO — **PENDENTE** |
+| [audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md](audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md) | Checklist execução — segredos + PII | CANÔNICO — **PENDENTE** |
 
 ## 4. Red Team
 
