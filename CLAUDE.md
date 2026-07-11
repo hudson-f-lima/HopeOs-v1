@@ -68,8 +68,8 @@ O frontend apenas: coleta intenção, chama API, exibe resposta do backend, form
 | Remoção de PII do git index + `.gitignore` atualizado | REAL | `eed9bd1` |
 | `SECURITY_PII_POLICY.md` documentado | REAL | `512f1fc` |
 | `docs/audit_global/` (auditoria global 01–12) | REAL | `af02521` / `fa746ac` |
-| `API_ACCESS_TOKEN` definido no Render | ⛔ PENDENTE — **Tarefa A** | — |
-| PWA funcionando com Bearer token em produção | ⛔ PENDENTE — **Tarefa A** | — |
+| `API_ACCESS_TOKEN` definido no Render | ✅ REAL | `af02521` |
+| PWA funcionando com Bearer token em produção | ✅ REAL | `ff1bb9e` |
 | Rotação de segredos (Supabase, GH_TOKEN, Render hook) | ⛔ PENDENTE — **Tarefa B** | — |
 | Histórico git reescrito sem PII | ⛔ PENDENTE — **Tarefa B** | — |
 

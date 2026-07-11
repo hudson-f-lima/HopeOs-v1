@@ -5,7 +5,6 @@ node_modules/
 .DS_Store
 backend/node_modules/
 # PII e dados sensíveis (nunca versionado)
-data/*.json
 data/backups/
 data/schemas/
 *.log
