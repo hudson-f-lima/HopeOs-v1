@@ -11,7 +11,14 @@ export function setToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
-  } catch { /* private mode: token is not persisted */ }
+  } catch { /* modo privado sem storage: sessao vive so em memoria */ }
+}
+
+export class AuthError extends Error {
+  constructor(message) {
+    super(message || 'Credencial ausente ou invalida.');
+    this.name = 'AuthError';
+  }
 }
 
 async function fetchWithTimeout(url, options = {}) {
@@ -30,6 +37,9 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 export async function loadConfig() {
+  const tokenOverride = new URLSearchParams(window.location.search).get('apiToken');
+  if (tokenOverride && tokenOverride.trim()) setToken(tokenOverride.trim());
+
   const override = new URLSearchParams(window.location.search).get('apiBase');
   if (override) {
     API_BASE = override.replace(/\/+$/, '');
@@ -42,49 +52,24 @@ export async function loadConfig() {
   API_BASE = String(cfg.apiBase).replace(/\/+$/, '');
 }
 
-function buildHeaders(options = {}) {
+export async function api(path, options = {}) {
+  if (!API_BASE) {
+    throw new Error('API_BASE nao configurada. Chame loadConfig() primeiro.');
+  }
   const token = getToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: 'Bearer ' + token } : {}),
-    ...(options.headers || {})
-  };
-}
-
-async function requestJson(path, options = {}) {
   const res = await fetchWithTimeout(API_BASE + path, {
-    headers: buildHeaders(options),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(options.headers || {})
+    },
     method: options.method || 'GET',
     body: options.body ? JSON.stringify(options.body) : undefined,
     timeoutMs: options.timeoutMs
   });
   let json;
   try { json = await res.json(); } catch { json = {}; }
-  return { res, json };
-}
-
-export async function api(path, options = {}) {
-  if (!API_BASE) {
-    throw new Error('API_BASE nao configurada. Chame loadConfig() primeiro.');
-  }
-
-  let { res, json } = await requestJson(path, options);
-
-  if (res.status === 401) {
-    setToken(null);
-    const token = window.prompt('Token de acesso do HOPE OS:');
-    if (!token || !token.trim()) {
-      throw new Error('Credencial ausente ou invalida.');
-    }
-    setToken(token.trim());
-    ({ res, json } = await requestJson(path, options));
-  }
-
-  if (res.status === 401) {
-    setToken(null);
-    throw new Error((json.error && json.error.message) || 'Credencial ausente ou invalida.');
-  }
-
+  if (res.status === 401) throw new AuthError((json.error && json.error.message) || undefined);
   if (!res.ok || json.ok === false) {
     const msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
     throw new Error(msg);
