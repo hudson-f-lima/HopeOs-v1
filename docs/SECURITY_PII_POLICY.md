@@ -35,6 +35,12 @@ data/*.json
 data/backups/
 ```
 
+### Script de reescrita de historico
+- **Arquivo:** `.git-rewrite.sh`
+- **Status:** evidencia operacional versionada da Tarefa B; execucao manual somente com aprovacao explicita do Platform Owner.
+- **Escopo:** remover `data/clientes.json`, `data/backups/`, `.env` e `backend/.env` do historico, se necessario.
+- **Risco:** reescreve historico Git; exige coordenacao com todos os clones.
+
 ---
 
 ## Regras Invioláveis

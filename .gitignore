@@ -6,6 +6,7 @@ node_modules/
 backend/node_modules/
 # PII e dados sensíveis (nunca versionado)
 data/backups/
+data/*.json
 data/schemas/
 *.log
 *.xlsx
