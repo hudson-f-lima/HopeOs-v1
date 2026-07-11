@@ -219,6 +219,16 @@ async function init() {
   } catch (err) {
     console.error('Falha ao inicializar:', err);
     clearTimeout(slowBootTimer);
+    
+    if (err.name === 'AuthError') {
+      const token = window.prompt('Acesso negado. Insira o token de acesso da API:');
+      if (token && token.trim()) {
+        localStorage.setItem('hopeos.apiToken', token.trim());
+        window.location.reload();
+        return;
+      }
+    }
+    
     showFatalError();
     return;
   }
