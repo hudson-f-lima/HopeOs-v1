@@ -70,8 +70,8 @@ O frontend apenas: coleta intenção, chama API, exibe resposta do backend, form
 | `docs/audit_global/` (auditoria global 01–12) | REAL | `af02521` / `fa746ac` |
 | `API_ACCESS_TOKEN` definido no Render | ✅ REAL | `af02521` |
 | PWA funcionando com Bearer token em produção | ✅ REAL | `ff1bb9e` |
-| Rotação de segredos (Supabase, GH_TOKEN, Render hook) | ⛔ PENDENTE — **Tarefa B** | — |
-| Histórico git reescrito sem PII | ⛔ PENDENTE — **Tarefa B** | — |
+| Rotação de segredos (Supabase, GH_TOKEN, Render hook) | ✅ CONCLUÍDA — **Tarefa B** | — |
+| Histórico git reescrito sem PII | ✅ CONCLUÍDA — **Tarefa B** | — |
 
 ### Tarefa A — Critérios de aceite em produção
 
@@ -141,7 +141,7 @@ Checklist completo: `docs/audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md`
 - `service_role` nunca exposto ao frontend.
 - PII removida do git index: commit `eed9bd1`.
 - `data/*.json` e `data/backups/` no `.gitignore` permanentemente.
-- Reescrita de histórico: pendente (Tarefa B).
+- Reescrita de histórico: concluído (Tarefa B).
 
 ---
 

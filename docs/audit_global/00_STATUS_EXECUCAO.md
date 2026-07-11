@@ -38,7 +38,7 @@ Branch:    main
 | Tarefa | Status | Critério de aceitação |
 |--------|--------|----------------------|
 | **Tarefa A** — Definir `API_ACCESS_TOKEN` no Render + redeploy + validação de curls | ✅ CONCLUÍDA | `/api/health` = 200 sem token; `/api/clientes` = 401 sem token; `/api/clientes` com token válido = 200; PWA abre e carrega |
-| **Tarefa B** — Rotação de segredos (Supabase, GH_TOKEN, Render hook) + reescrita de histórico git | ⛔ PENDENTE | Clone limpo sem `data/clientes.json`; segredos novos em produção; backend funcional após rotação |
+| **Tarefa B** — Rotação de segredos (Supabase, GH_TOKEN, Render hook) + reescrita de histórico git | ✅ CONCLUÍDA | Clone limpo sem `data/clientes.json`; segredos novos em produção; backend funcional após rotação |
 
 **Ver detalhes de execução:**
 - Tarefa A: `docs/audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md`

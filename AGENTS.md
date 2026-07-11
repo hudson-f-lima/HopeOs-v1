@@ -27,7 +27,7 @@ Nunca assumir que um documento é verdade sem verificar o código/teste correspo
 
 ```text
 Tarefa A: API_ACCESS_TOKEN não configurado no Render → PWA em fail-closed.
-Tarefa B: Segredos não rotacionados; histórico git com PII não reescrito.
+Tarefa B: Segredos não rotacionados; histórico git com PII não reescrito (✅ CONCLUÍDA).
 
 NÃO AVANÇAR PARA V1.5.
 NÃO CRIAR MIGRATIONS 007+.
