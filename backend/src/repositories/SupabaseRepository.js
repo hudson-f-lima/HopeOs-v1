@@ -4,9 +4,9 @@ const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 
 class SupabaseRepository {
-  constructor() {
+  constructor(empresaId = env.DEFAULT_EMPRESA_ID) {
     this.supabase = getSupabase();
-    this.empresaId = env.DEFAULT_EMPRESA_ID;
+    this.empresaId = empresaId;
   }
 
   async list(table, filters = {}) {
@@ -47,7 +47,13 @@ class SupabaseRepository {
   }
 
   async insert(table, payload) {
-    const row = { id: payload.id || randomUUID(), empresa_id: payload.empresa_id || payload.empresaId || this.empresaId, ...payload };
+    if (!this.empresaId || typeof this.empresaId !== 'string') {
+      throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente ou invalido no repositorio; insercao bloqueada.', 500);
+    }
+    // empresa_id nunca vem do payload: this.empresaId (do req.auth) e a unica autoridade,
+    // mesmo que um chamador futuro inclua empresa_id/empresaId no objeto.
+    const { empresa_id: _ignoredEmpresaId, empresaId: _ignoredEmpresaIdCamel, ...safePayload } = payload;
+    const row = { id: payload.id || randomUUID(), ...safePayload, empresa_id: this.empresaId };
     const { data, error } = await this.supabase.from(table).insert(row).select('*').single();
     if (error) throw error;
     return data;
