@@ -46,6 +46,7 @@
 - `DEFAULT_EMPRESA_ID` é HARDCODED e não constitui isolamento multi-tenant.
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
+## Próxima ação única
 - Definir roadmap e escopo exato do V1.4.2 (foco em auth final e multi-tenant).
 
 ## Handoff
