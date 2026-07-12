@@ -6,7 +6,7 @@
 ## Identificação
 - Versão: V1.4.1 Security Perimeter; V1.4 entregue no código/documentação
 - Branch: `main`
-- Último commit de código validado: `b4897ca`
+- Último commit de código validado: `2e3bc01` (`chore: adiciona render.yaml com backend e frontend PWA`)
 - Estado de produção: REAL (auth de perímetro validado manualmente por curl)
 
 ## Estado confirmado
@@ -15,7 +15,7 @@
 | API_ACCESS_TOKEN | REAL / TEMPORÁRIO | perímetro atual via middleware |
 | Auth middleware | REAL | `backend/src/middleware/auth.js`, 9 testes |
 | Fail-closed sem token | REAL | auth-gate 08 (503) e sem token (401) |
-| Gate integrado | REAL — 82/82 | `cd backend && npm run test:gate` |
+| Gate integrado | REAL — 82/82 (revalidado em 2026-07-12) | `cd backend && npm run test:gate` |
 | Auth por usuário | PENDENTE | requer JWT/Sessão |
 | RBAC | PENDENTE | requer roles no banco |
 | Tenant por identidade | PENDENTE | requer extração de tenant do token |
@@ -42,7 +42,7 @@
 | Produção E2E (Curl) | REAL | validado (health=200, protegida=401) |
 
 ## Riscos residuais
-- Produção pode permanecer inacessível até a configuração/validação do Render.
+- Render: PARCIAL / BLOQUEADO — `render.yaml` presente; Render CLI e MCP não disponíveis localmente; deploy e validação remota pendentes.
 - `DEFAULT_EMPRESA_ID` é HARDCODED e não constitui isolamento multi-tenant.
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
@@ -50,10 +50,10 @@
 - Definir roadmap e escopo exato do V1.4.2 (foco em auth final e multi-tenant).
 
 ## Handoff
-- Concluído: V1.4.1 auth gate (82/82).
+- Concluído: V1.4.1 auth gate (82/82), revalidado em 2026-07-12; `render.yaml` versionado.
 - Pendente: Auth final por usuário, RBAC, actor_id, multi-tenant.
-- Arquivos alterados: docs/PROJECT_STATE.md (refatoração de governança).
-- Testes: 82/82 verdes (`npm run test:gate`).
-- Riscos: Uso do `DEFAULT_EMPRESA_ID` hardcoded sem validação final.
+- Arquivos alterados: docs/PROJECT_STATE.md (estado e handoff atualizados).
+- Testes: 82/82 verdes (`npm run test:gate`, execução local em 2026-07-12).
+- Riscos: Render ainda sem validação remota; uso do `DEFAULT_EMPRESA_ID` hardcoded sem validação final.
 - Próxima ação: Planejar V1.4.2.
-- Não fazer: Commit, Push, V1.5, migrations 007+.
+- Não fazer: V1.5, migrations 007+; não tocar migrations 001–006.
