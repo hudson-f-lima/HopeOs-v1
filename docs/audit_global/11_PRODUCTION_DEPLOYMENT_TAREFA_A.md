@@ -2,8 +2,12 @@
 
 **Data:** 2026-07-10
 **Tarefa:** Finalizar Tarefa A em produção (API_ACCESS_TOKEN + redeploy + validação)
-**Bloqueador:** Até completar isto, PWA está **fail-closed** (503) — é seguro mas inacessível
-**Próximo passo:** Tarefa B (rotação de segredos + remoção de PII) após validação
+**Status do doc:** HISTÓRICO — todos os checkboxes abaixo estão `[ ]` (não executados/evidenciados)
+
+> **AVISO:** O veredito ao final deste documento ("TAREFA A CONCLUÍDA EM PRODUÇÃO") foi gerado sem evidência de execução — os checkboxes permanecem não marcados. Status canônico: DESCONHECIDO — consultar [`docs/PROJECT_STATE.md`](../PROJECT_STATE.md).
+
+**Bloqueador original:** Até completar isto, PWA está **fail-closed** (503) — é seguro mas inacessível
+**Próximo passo original:** Tarefa B (rotação de segredos + remoção de PII) após validação
 
 ---
 

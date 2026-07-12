@@ -2,7 +2,9 @@
 
 **Arquivo:** `docs/audit_global/00_STATUS_EXECUCAO.md`
 **Última atualização:** 2026-07-11
-**Status do doc:** CANÔNICO — atualizar in-place a cada sessão
+**Status do doc:** HISTÓRICO — não atualizar; consultar [`docs/PROJECT_STATE.md`](../PROJECT_STATE.md) para o estado atual
+
+> **AVISO:** Este documento é histórico e contém valores superados. O gate `82/82` referenciado abaixo não é o gate canônico atual. Gate canônico: `73/73` verdes em `cd backend && npm run test:gate` (executado 2026-07-12, registrado em `PROJECT_STATE.md`). Tarefa A: ver `PROJECT_STATE.md` — status de produção permanece DESCONHECIDO.
 
 ---
 
