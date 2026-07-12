@@ -4,9 +4,9 @@
 **Fonte canônica do estado operacional atual.**
 
 ## Identificação
-- Versão: V1.4.2 Identity/Tenant Boundary — fundação parcial concluída e mesclada; ADR-005 (modelo canônico de identidade/RBAC/autoria, com principals `user`/`integration` separados): PROPOSTA CONCLUÍDA — aguardando nova revisão e aprovação do Platform Owner; V1.4.1 Security Perimeter concluído; V1.4 entregue no código/documentação
-- Branch: `docs/adr-identity-auth-model` (documental, sem código) — `main` em `c5a2914`
-- Último commit de código validado: `c5a2914` (`fix(security): enforce server-owned tenant context (#13)`, PR #13 squash-merged em `main`)
+- Versão: V1.4.2 Identity/Tenant Boundary — fundação parcial concluída e mesclada; ADR-005 (modelo canônico de identidade/RBAC/autoria, com principals `user`/`integration` separados) — aprovada e mesclada em `main` (PR #14, commit `31b128d`); Migration 007 (bloco único, schema completo da ADR-005): BLOQUEADA — decisão de 2026-07-12 substitui a implantação em bloco único por plano faseado (Fase 1: identidade mínima; Fase 2: tenant/memberships; Fase 3: RBAC; Fase 4: integrações/autoria/tenant boundary); V1.4.1 Security Perimeter concluído; V1.4 entregue no código/documentação
+- Branch: `docs/migration-007-identity-model` (documental, sem código/SQL executável) — `main` em `31b128d`
+- Último commit de código validado: `c5a2914` (`fix(security): enforce server-owned tenant context (#13)`, PR #13 squash-merged em `main`) — `31b128d` é documental (ADR-005), não altera código
 - Estado de produção: REAL (auth de perímetro validado manualmente por curl); multi-tenant seguro continua BLOQUEADO
 
 ## Estado confirmado
@@ -26,20 +26,25 @@
 | unit_id / unidades | BLOQUEADO | não existe no schema; migration 007+ necessária |
 | Multi-tenant seguro | BLOQUEADO | regras em `AGENTS.md` |
 | `DEFAULT_EMPRESA_ID` | HARDCODED | `backend/src/config/env.js`; única fonte de tenant hoje, agora centralizada em `req.auth.empresa_id` |
-| ADR-005 (Supabase Auth/JWT, membership, RBAC, actor_id, principals user/integration) | PROPOSTA CONCLUÍDA — aguardando nova revisão e aprovação do Platform Owner (revisão anterior bloqueada pelo Red Team por falta de separação user/integration; corrigida nesta revisão) | `docs/adr/ADR-005-identity-tenant-rbac-actor.md`; nenhum código/migration alterado |
+| ADR-005 (Supabase Auth/JWT, membership, RBAC, actor_id, principals user/integration) | APROVADA e MESCLADA em `main` (PR #14, `31b128d`) | `docs/adr/ADR-005-identity-tenant-rbac-actor.md`; decisão registrada, nenhuma implementação de código ainda |
+| Migration 007 (bloco único: 8 tabelas novas + colunas de autoria) | BLOQUEADA — rejeitada como implantação única em 2026-07-12; substituída por plano faseado | `docs/migrations/MIGRATION-007-IDENTITY-MODEL-DRAFT.md` + `docs/migrations/sql/007_identity_model_DRAFT_ONLY.sql`; nenhum SQL aplicado, nenhuma migration física criada em `supabase/migrations/` |
+| Trigger `auth.users → app_users` | REAL no SQL (como rascunho escrito); DESCONHECIDO funcionando em banco (aguarda validação real e tratamento de erros do GoTrue) | `docs/migrations/sql/fase1_identidade_minima_DRAFT_ONLY.sql` |
+| Fase 1 (identidade mínima: `app_users`, trigger `auth.users → app_users`) | Pronta para execução: BLOQUEADA (falta validação empírica); Documentação da Fase 1: REAL (consistente e isolada) | `docs/migrations/sql/fase1_identidade_minima_DRAFT_ONLY.sql` |
 | CI remoto | AUSENTE — débito P1 | sem `.github/workflows`; sem proteção automática antes de merge |
 | Rotação de segredos | REAL | confirmação prévia |
 | Histórico Git limpo | REAL | purga efetuada |
 
 ## Trabalho atual
-- Ciclo: V1.4.2 parcial concluída e mesclada (PR #13); ciclo atual é a ADR-005 (arquitetura de identidade/tenant/RBAC/autoria), somente documental
-- Objetivo: obter decisão e autorização arquitetural antes de qualquer migration ou código de identidade real
-- Estado: PROPOSTA (ADR redigida, não implementada); V1.4.2 (rotas + repositório) segue REAL e mesclada
+- Ciclo: V1.4.2 parcial concluída e mesclada (PR #13); ADR-005 aprovada e mesclada (PR #14); desenho técnico da Migration 007 em bloco único documentado e commitado (`5c82e04`, `a5cf73b`); em 2026-07-12 o Platform Owner decidiu rejeitar a implantação da 007 como bloco único e substituí-la por um plano faseado
+- Objetivo: especificar e validar isoladamente a Fase 1 (identidade mínima) antes de qualquer fase seguinte — sem redesenhar o que já está pronto para a Fase 4 (tenant boundary, FKs compostas, triggers de integração)
+- Estado: Migration 007 (bloco único) BLOQUEADA por decisão de faseamento; Fase 1 extraída para rascunho próprio (`fase1_identidade_minima_DRAFT_ONLY.sql`, bloqueada); nenhuma migration física `007+` (nem `007a`/`007b`/etc.) foi ou será criada — o faseamento existe só como etapas documentais até autorização explícita de conversão em migration pelo responsável do projeto; ADR-005 e V1.4.2 seguem aprovadas/REAL e mescladas
 
 ## Bloqueadores
 - P0: NENHUM
-- P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (arquitetura definida na ADR-005, implementação exige migration 007+ autorizada)
-- P1 separado: ausência de CI remoto (`.github/workflows`) — não implementar no branch da ADR
+- P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (arquitetura definida na ADR-005; execução de qualquer fase exige autorização explícita do Platform Owner e banco descartável, nunca produção)
+- P1 separado: ausência de CI remoto (`.github/workflows`) — não implementar neste branch
+- Trigger `auth.users → app_users` foi extraído para script isolado da Fase 1; classificado REAL como rascunho escrito e DESCONHECIDO no banco. Documentação classificada REAL (sem contradições residuais). 007 como bloco único está BLOQUEADA.
+- Decisão pendente do Platform Owner sobre autoria em `agendamento_eventos` e `lista_espera` (classificadas `DESCONHECIDA` no draft da Migration 007) — escopo da Fase 4; não bloqueia Fase 1 nem Fase 2
 - V1.5: BLOQUEADA
 
 ## Gates
@@ -57,13 +62,13 @@
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
 ## Próxima ação única
-- Platform Owner revisar e autorizar (ou pedir revisão de) a ADR-005 (`docs/adr/ADR-005-identity-tenant-rbac-actor.md`); só então iniciar a migration 007 desenhada nela.
+- Aguardar autorização do Platform Owner para iniciar a execução da Fase 1 (identidade mínima) — escopo: `app_users`, trigger `auth.users → app_users`, validação JWT. Não executar SQL sem esta autorização.
 
 ## Handoff
-- Concluído: V1.4.2 parcial mesclada em `main` via PR #13 (squash, commit `c5a2914`) — `req.auth` estrutural, 4 correções cross-tenant nas rotas, invariante de tenant no `SupabaseRepository.insert`, `unit_id`/`unitId` bloqueados, gate `tenant-boundary-gate.test.js` (12/12). ADR-005 redigida e revisada três vezes em `docs/adr/ADR-005-identity-tenant-rbac-actor.md` (branch `docs/adr-identity-auth-model`, PR #14, sem código/migration): decide Supabase Auth/JWT, membership, RBAC por role fixa, origem de `actor_id`, compatibilidade com `API_ACCESS_TOKEN`, desenho da migration 007, rollout/rollback e gates futuros. Revisão Red Team bloqueou a primeira versão por falta de separação entre principal `user` e principal `integration`; a segunda revisão corrigiu isso adicionando os dois formatos distintos de `req.auth` e o modelo de credencial de integração (`integrations`/`integration_credentials`/`integration_scopes`/`integration_audit_events`); a terceira revisão fechou as últimas garantias explícitas: segredo S2S exibido uma única vez e irrecuperável depois; comparação de credencial resistente a timing attack (mesmo padrão de `safeEquals`/`crypto.timingSafeEqual` já usado no `API_ACCESS_TOKEN`); scopes controlados exclusivamente pelo servidor, nunca autoconcedidos pela integração; autoria fail-closed estendida de "evento imutável" para também cobrir "estado mutável" (`created_by`/`updated_by`/`cancelled_by`); cache de validação de JWT declarado como exclusivo da etapa de identidade, nunca incluindo membership/role/unit access (que são sempre resolvidos frescos no banco a cada requisição); e política mínima de rotação de credenciais S2S (sobreposição curta configurável, máximo de duas credenciais ativas, revogação automática ao fim da janela, revogação emergencial sempre disponível).
-- Pendente: Revisão final curta do Platform Owner sobre a ADR-005 corrigida; autorização para a migration 007 nela desenhada; implementação de Supabase Auth, `app_users`/`empresa_memberships`/`membership_units`, modelo de integração e RBAC — todos BLOQUEADOS até essa autorização.
-- Arquivos alterados neste ciclo (documental, branch `docs/adr-identity-auth-model`): `docs/adr/ADR-005-identity-tenant-rbac-actor.md`, `docs/DECISIONS.md` (D-005), `docs/PROJECT_STATE.md`. Nenhum código, migration ou dado alterado.
+- Concluído: V1.4.2 parcial mesclada em `main` via PR #13 (squash, commit `c5a2914`). ADR-005 aprovada e mesclada em `main` via PR #14 (squash, commit `31b128d`). Desenho técnico da Migration 007 em bloco único documentado e commitado neste branch (`5c82e04` docs, `a5cf73b` chmod do runner) — 8 tabelas novas, constraints de tenant boundary via FK composta, triggers de imutabilidade/limite/append-only, classificação de autoria, backfill em fases, Red Team de 12 cenários. Planejamento de ambiente de validação (Preview Branch vs. projeto descartável vs. Supabase local) documentado só em conversa, sem arquivo criado. Em 2026-07-12, por decisão do Platform Owner: (1) confirmada por inspeção direta a ausência do trigger `auth.users → app_users` no SQL DRAFT; (2) rejeitada a implantação da 007 como bloco único; (3) adotado plano faseado (Fase 1 identidade mínima, Fase 2 tenant/memberships, Fase 3 RBAC, Fase 4 integrações/autoria/tenant boundary), mantido documental — nenhuma migration física `007+` (nem `007a`/`007b`) será criada sem autorização explícita de conversão pelo responsável do projeto.
+- Pendente: Autorização explícita para executar a Fase 1 e criação de ambiente descartável para os testes; decisão explícita sobre autoria em `agendamento_eventos`/`lista_espera` (hoje `DESCONHECIDA`, escopo da Fase 4); confirmação de RLS mínima; implementação de backend (middleware JWT, resolução de `req.auth`, RPCs de integração) — tudo BLOQUEADO até autorização específica de cada fase.
+- Arquivos alterados neste ciclo (documental, branch `docs/migration-007-identity-model`): `docs/PROJECT_STATE.md` — atualização de status e extração da Fase 1. `docs/migrations/sql/fase1_identidade_minima_DRAFT_ONLY.sql` — arquivo criado isolando a Fase 1 com tratamento do nome vazio. `docs/migrations/sql/007_identity_model_DRAFT_ONLY.sql` — removida a Fase 1. `MIGRATION-007-IDENTITY-MODEL-DRAFT.md` — correção de classificações contraditórias. Nenhum arquivo em `supabase/migrations/` alterado; nenhum SQL executado contra banco real.
 - Testes: nenhum gate novo nesta entrega (documental); gates de código seguem em 94/94 desde o merge do PR #13.
-- Riscos: `DEFAULT_EMPRESA_ID` continua sendo a única fonte de tenant até a ADR-005 ser implementada; ausência de CI remoto é débito P1 separado, não resolvido aqui; Render ainda sem validação remota.
-- Próxima ação: revisão final curta do Platform Owner da ADR-005 corrigida antes de autorizar push adicional ou merge do PR #14.
-- Não fazer: V1.5, migrations 007+, implementação de código de identidade/RBAC/actor_id/integração neste branch; não tocar migrations 001–006.
+- Riscos: `DEFAULT_EMPRESA_ID` continua sendo a única fonte de tenant até a Fase 1+ e o backend da ADR-005 serem implementados; ausência de CI remoto é débito P1 separado, não resolvido aqui; Render ainda sem validação remota.
+- Próxima ação: aguardar autorização do Platform Owner para execução isolada da Fase 1.
+- Não fazer: V1.5, execução de SQL, alteração de `supabase/migrations/001` a `006`, criação de qualquer migration física `007+` (incluindo `007a`/`007b`/etc.), implementação de backend de identidade/RBAC/actor_id/integração neste branch, redesenho do que já está pronto para a Fase 4.
