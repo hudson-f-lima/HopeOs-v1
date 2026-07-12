@@ -15,7 +15,8 @@
     "test:cadastros": "node tests/cadastros-reais-gate.test.js",
     "test:insights": "node tests/insights-gate.test.js",
     "test:auth": "node tests/auth-gate.test.js",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth",
+    "test:tenant-boundary": "node tests/tenant-boundary-gate.test.js",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js"
   },

@@ -83,13 +83,13 @@ router.get('/financeiro/resumo', async (req, res, next) => {
 });
 
 router.get('/clientes', async (req, res, next) => {
-  try { res.json({ ok: true, data: await new SupabaseRepository().list('clientes') }); }
+  try { res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('clientes', { empresa_id: req.auth.empresa_id }) }); }
   catch (err) { next(err); }
 });
 
 router.post('/clientes', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateClientePayload(req.body);
     res.status(201).json({ ok: true, data: await repo.insertScoped('clientes', payload) });
   } catch (err) { next(err); }
@@ -97,7 +97,7 @@ router.post('/clientes', async (req, res, next) => {
 
 router.patch('/clientes/:id', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'clientes', id, 'Cliente', 'CLIENT_NOT_FOUND');
     const payload = validateUpdateClientePayload(req.body);
@@ -107,7 +107,7 @@ router.patch('/clientes/:id', async (req, res, next) => {
 
 router.get('/servicos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('servicos', { empresa_id: repo.empresaId }) });
   }
   catch (err) { next(err); }
@@ -115,7 +115,7 @@ router.get('/servicos', async (req, res, next) => {
 
 router.post('/servicos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateServicoPayload(req.body);
     res.status(201).json({ ok: true, data: await repo.insertScoped('servicos', payload) });
   } catch (err) { next(err); }
@@ -123,7 +123,7 @@ router.post('/servicos', async (req, res, next) => {
 
 router.patch('/servicos/:id', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'servicos', id, 'Serviço', 'SERVICE_NOT_FOUND');
     const payload = validateUpdateServicoPayload(req.body);
@@ -133,7 +133,7 @@ router.patch('/servicos/:id', async (req, res, next) => {
 
 router.get('/profissionais', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('profissionais', { empresa_id: repo.empresaId }) });
   }
   catch (err) { next(err); }
@@ -141,7 +141,7 @@ router.get('/profissionais', async (req, res, next) => {
 
 router.post('/profissionais', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateProfissionalPayload(req.body);
     res.status(201).json({ ok: true, data: await repo.insertScoped('profissionais', payload) });
   } catch (err) { next(err); }
@@ -149,7 +149,7 @@ router.post('/profissionais', async (req, res, next) => {
 
 router.patch('/profissionais/:id', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     const payload = validateUpdateProfissionalPayload(req.body);
@@ -159,7 +159,7 @@ router.patch('/profissionais/:id', async (req, res, next) => {
 
 router.get('/produtos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('produtos', { empresa_id: repo.empresaId }) });
   }
   catch (err) { next(err); }
@@ -167,7 +167,7 @@ router.get('/produtos', async (req, res, next) => {
 
 router.post('/produtos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const { produto, estoqueInicial } = validateCreateProdutoPayload(req.body);
     const data = await repo.createProdutoComEstoque({
       produto,
@@ -180,7 +180,7 @@ router.post('/produtos', async (req, res, next) => {
 
 router.patch('/produtos/:id', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     const existing = await requireScopedEntity(repo, 'produtos', id, 'Produto', 'PRODUCT_NOT_FOUND');
     const payload = validateUpdateProdutoPayload(req.body);
@@ -201,7 +201,7 @@ router.patch('/produtos/:id', async (req, res, next) => {
 
 router.post('/produtos/:id/estoque/ajuste', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'produtos', id, 'Produto', 'PRODUCT_NOT_FOUND');
     const payload = validateEstoqueAjustePayload(req.body);
@@ -211,7 +211,7 @@ router.post('/produtos/:id/estoque/ajuste', async (req, res, next) => {
 
 router.get('/formas-pagamento', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('formas_pagamento', { empresa_id: repo.empresaId }) });
   }
   catch (err) { next(err); }
@@ -219,7 +219,7 @@ router.get('/formas-pagamento', async (req, res, next) => {
 
 router.post('/formas-pagamento', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateFormaPagamentoPayload(req.body);
     const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: payload.code });
     if (existing[0]) {
@@ -231,7 +231,7 @@ router.post('/formas-pagamento', async (req, res, next) => {
 
 router.patch('/formas-pagamento/:code', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: req.params.code });
     if (!existing[0]) throw createAppError('PAYMENT_METHOD_NOT_FOUND', `Forma de pagamento não encontrada: ${req.params.code}`, 404, { code: req.params.code });
     const payload = validateUpdateFormaPagamentoPayload(req.body);
@@ -241,7 +241,7 @@ router.patch('/formas-pagamento/:code', async (req, res, next) => {
 
 router.get('/profissionais/:id/servicos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     res.json({ ok: true, data: await repo.list('profissional_servicos', { empresa_id: repo.empresaId, profissional_id: id }) });
@@ -250,7 +250,7 @@ router.get('/profissionais/:id/servicos', async (req, res, next) => {
 
 router.put('/profissionais/:id/servicos', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     const profissional = await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     const { servicoIds } = validateProfissionalServicosPayload(req.body);
@@ -264,7 +264,7 @@ router.put('/profissionais/:id/servicos', async (req, res, next) => {
 
 router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     const servicoId = validateUUID(req.params.servicoId, 'servicoId');
     await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
@@ -287,15 +287,16 @@ router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res,
 
 router.get('/agenda', async (req, res, next) => {
   try {
-    const filters = req.query.data ? { data: req.query.data } : {};
-    res.json({ ok: true, data: await new SupabaseRepository().list('agendamentos', filters) });
+    const filters = { empresa_id: req.auth.empresa_id };
+    if (req.query.data) filters.data = req.query.data;
+    res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('agendamentos', filters) });
   } catch (err) { next(err); }
 });
 
 router.post('/agenda', async (req, res, next) => {
   try {
     const payload = validateCreateAgendamentoPayload(req.body);
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
 
     if (payload.clienteId) await requireActiveEntity(repo, 'clientes', payload.clienteId, 'Cliente', 'CLIENT_NOT_FOUND');
     const servico = await requireActiveEntity(repo, 'servicos', payload.servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
@@ -333,7 +334,7 @@ router.post('/agenda', async (req, res, next) => {
 router.patch('/agenda/:id/status', async (req, res, next) => {
   try {
     const { novoStatus } = validateStatusChangePayload(req.body);
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
 
     const existing = await repo.list('agendamentos', { id: req.params.id, empresa_id: repo.empresaId });
     const original = existing[0];
@@ -389,8 +390,10 @@ router.patch('/agenda/:id/duracao', async (req, res, next) => {
     if (!Number.isInteger(duracaoMin) || duracaoMin < 10 || duracaoMin > 480) {
       throw createAppError('INVALID_DURATION', 'Duração deve ser um inteiro entre 10 e 480 minutos.', 422);
     }
-    const repo = new SupabaseRepository();
-    const updated = await repo.update('agendamentos', req.params.id, {
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const id = validateUUID(req.params.id, 'id');
+    await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
+    const updated = await repo.updateScoped('agendamentos', id, {
       duracao_min: duracaoMin,
       updated_at: new Date().toISOString()
     });
@@ -400,7 +403,7 @@ router.patch('/agenda/:id/duracao', async (req, res, next) => {
 
 router.get('/catalog', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const [clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos] = await Promise.all([
       repo.list('clientes', { empresa_id: repo.empresaId }),
       repo.list('servicos', { empresa_id: repo.empresaId }),
@@ -415,7 +418,7 @@ router.get('/catalog', async (req, res, next) => {
 
 router.post('/checkout/preview', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const { resolved } = await buildServerResolvedCheckout(repo, req.body);
     res.json({ ok: true, data: previewCheckout(resolved) });
   } catch (err) { next(err); }
@@ -423,7 +426,7 @@ router.post('/checkout/preview', async (req, res, next) => {
 
 router.post('/checkout/close', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
     const preview = previewCheckout(resolved);
     const saved = await repo.saveCheckoutClose({ payload, resolved, preview });
@@ -434,7 +437,8 @@ router.post('/checkout/close', async (req, res, next) => {
     let agendamentoConcluido = null;
     if (req.body && req.body.agendamentoId) {
       try {
-        agendamentoConcluido = await repo.update('agendamentos', req.body.agendamentoId, {
+        const agendamentoId = validateUUID(req.body.agendamentoId, 'agendamentoId');
+        agendamentoConcluido = await repo.updateScoped('agendamentos', agendamentoId, {
           status: 'concluido',
           updated_at: new Date().toISOString()
         });
@@ -523,7 +527,7 @@ router.get('/insights/rebooking/:clienteId', async (req, res, next) => {
 // F4.4 — lista de espera (tabela ja existe desde 001_init.sql; zero migration nova)
 router.get('/lista-espera', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const filters = { empresa_id: repo.empresaId };
     if (req.query.servicoId) filters.servico_id = validateUUID(req.query.servicoId, 'servicoId');
     if (req.query.status) filters.status = req.query.status;
@@ -533,7 +537,7 @@ router.get('/lista-espera', async (req, res, next) => {
 
 router.post('/lista-espera', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateListaEsperaPayload(req.body);
     await requireActiveEntity(repo, 'clientes', payload.cliente_id, 'Cliente', 'CLIENT_NOT_FOUND');
     await requireActiveEntity(repo, 'servicos', payload.servico_id, 'Serviço', 'SERVICE_NOT_FOUND');
@@ -544,7 +548,7 @@ router.post('/lista-espera', async (req, res, next) => {
 
 router.patch('/lista-espera/:id', async (req, res, next) => {
   try {
-    const repo = new SupabaseRepository();
+    const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'lista_espera', id, 'Item da lista de espera', 'WAITLIST_ITEM_NOT_FOUND');
     const payload = validateUpdateListaEsperaPayload(req.body);

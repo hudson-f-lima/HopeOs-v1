@@ -16,6 +16,18 @@ function extractBearer(req) {
   return value.trim() || null;
 }
 
+function buildAuthContext() {
+  // Sem tabela de identidade/sessao ainda: empresa_id vem so do env (V1.4.2 pendencia
+  // conhecida), e user_id/actor_id/role/unit_ids ficam null/[] em vez de simulados.
+  return {
+    user_id: null,
+    actor_id: null,
+    empresa_id: env.DEFAULT_EMPRESA_ID,
+    role: null,
+    unit_ids: []
+  };
+}
+
 function requireAuth(req, res, next) {
   if (req.method === 'OPTIONS') return next();
 
@@ -28,7 +40,8 @@ function requireAuth(req, res, next) {
     return next(createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401));
   }
 
+  req.auth = buildAuthContext();
   return next();
 }
 
-module.exports = { requireAuth, safeEquals, extractBearer };
+module.exports = { requireAuth, safeEquals, extractBearer, buildAuthContext };

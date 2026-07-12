@@ -112,7 +112,7 @@ function rejectOverridesField(payload) {
 }
 
 function validateCreateClientePayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   const out = {
     nome: nonEmptyString(payload.nome, 'nome'),
     faltas: intField(payload.faltas ?? 0, 'faltas', { min: 0 }),
@@ -124,7 +124,7 @@ function validateCreateClientePayload(payload = {}) {
 }
 
 function validateUpdateClientePayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   const out = {};
   if (hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
   optionalString(payload, 'whatsapp', 'whatsapp', out);
@@ -136,7 +136,7 @@ function validateUpdateClientePayload(payload = {}) {
 }
 
 function validateCreateServicoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   const out = {
     nome: nonEmptyString(payload.nome, 'nome'),
     categoria: payload.categoria ? String(payload.categoria).trim() : 'Sem categoria',
@@ -150,7 +150,7 @@ function validateCreateServicoPayload(payload = {}) {
 }
 
 function validateUpdateServicoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   const out = {};
   if (hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
   optionalString(payload, 'categoria', 'categoria', out);
@@ -164,7 +164,7 @@ function validateUpdateServicoPayload(payload = {}) {
 }
 
 function validateCreateProfissionalPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   rejectOverridesField(payload);
   const out = {
     nome: nonEmptyString(payload.nome, 'nome'),
@@ -178,7 +178,7 @@ function validateCreateProfissionalPayload(payload = {}) {
 }
 
 function validateUpdateProfissionalPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   rejectOverridesField(payload);
   const out = {};
   if (hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
@@ -191,7 +191,7 @@ function validateUpdateProfissionalPayload(payload = {}) {
 }
 
 function validateCreateProdutoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'estoque_atual', 'estoqueAtual']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'estoque_atual', 'estoqueAtual']);
   const custo = intField(payload.custoCentavos ?? payload.custo_centavos, 'custoCentavos', { min: 0, required: true });
   const preco = intField(payload.precoVendaCentavos ?? payload.preco_venda_centavos, 'precoVendaCentavos', { min: 0, required: true });
   const ativo = payload.ativo === undefined ? true : boolField(payload.ativo, 'ativo');
@@ -216,7 +216,7 @@ function validateCreateProdutoPayload(payload = {}) {
 }
 
 function validateUpdateProdutoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'estoque_atual', 'estoqueAtual', 'estoqueInicial']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'estoque_atual', 'estoqueAtual', 'estoqueInicial']);
   const out = {};
   if (hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
   optionalString(payload, 'sku', 'sku', out);
@@ -238,7 +238,7 @@ function validateUpdateProdutoPayload(payload = {}) {
 }
 
 function validateEstoqueAjustePayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'estoque_atual', 'estoqueAtual']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'estoque_atual', 'estoqueAtual']);
   const tipo = nonEmptyString(payload.tipo, 'tipo');
   if (!ESTOQUE_TIPOS.has(tipo)) throw createAppError('INVALID_STOCK_ADJUSTMENT_TYPE', 'Tipo de ajuste de estoque invalido.', 422, { tipo });
   return {
@@ -250,7 +250,7 @@ function validateEstoqueAjustePayload(payload = {}) {
 }
 
 function validateCreateFormaPagamentoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   return {
     code: codeForma(payload.code),
     label: nonEmptyString(payload.label ?? payload.nome, 'label'),
@@ -263,7 +263,7 @@ function validateCreateFormaPagamentoPayload(payload = {}) {
 }
 
 function validateUpdateFormaPagamentoPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'code']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'code']);
   const out = {};
   if (hasOwn(payload, 'label') || hasOwn(payload, 'nome')) out.label = nonEmptyString(payload.label ?? payload.nome, 'label');
   if (hasOwn(payload, 'icon')) out.icon = payload.icon ? String(payload.icon) : null;
@@ -290,7 +290,7 @@ function validateProfissionalServicosPayload(payload = {}) {
 }
 
 function validateProfissionalServicoOverridePayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'servico_id', 'profissional_id']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'servico_id', 'profissional_id']);
   if (payload.remover === true) return { remover: true };
   const override = {};
   if (hasOwn(payload, 'valorCentavos') || hasOwn(payload, 'valor_centavos')) override.valor_centavos = intField(payload.valorCentavos ?? payload.valor_centavos, 'valorCentavos', { min: 0 });
@@ -312,7 +312,7 @@ function dateOnlyField(value, field) {
 }
 
 function validateCreateListaEsperaPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'status', 'created_at']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'status', 'created_at']);
   const out = {
     cliente_id: validateUUID(payload.clienteId ?? payload.cliente_id, 'clienteId'),
     servico_id: validateUUID(payload.servicoId ?? payload.servico_id, 'servicoId'),
@@ -328,7 +328,7 @@ function validateCreateListaEsperaPayload(payload = {}) {
 }
 
 function validateUpdateListaEsperaPayload(payload = {}) {
-  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'clienteId', 'cliente_id', 'servicoId', 'servico_id', 'created_at']);
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'clienteId', 'cliente_id', 'servicoId', 'servico_id', 'created_at']);
   const out = {};
   if (hasOwn(payload, 'status')) {
     const status = nonEmptyString(payload.status, 'status');
