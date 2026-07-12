@@ -42,7 +42,7 @@
 | Produção E2E (Curl) | REAL | validado (health=200, protegida=401) |
 
 ## Riscos residuais
-- Render: PARCIAL / BLOQUEADO — `render.yaml` presente; Render CLI e MCP não disponíveis localmente; deploy e validação remota pendentes.
+- Render: REAL (config local validada 2026-07-12) + BLOQUEADO (deploy remoto pendente). Ver `RENDER_DEPLOYMENT_VALIDATION.md` para checklist.
 - `DEFAULT_EMPRESA_ID` é HARDCODED e não constitui isolamento multi-tenant.
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
