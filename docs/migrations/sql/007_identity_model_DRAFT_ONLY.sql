@@ -43,6 +43,9 @@
 -- =====================================================================
 -- Nota: a tabela app_users e o trigger auth.users -> app_users foram
 -- extraidos para a Fase 1 (fase1_identidade_minima_DRAFT_ONLY.sql).
+-- PRÉ-REQUISITO EXPLICÍCITO: Este script (Fase 4) passa a depender da
+-- aplicação prévia do script da Fase 1, já que as tabelas abaixo criam
+-- chaves estrangeiras apontando para app_users.id.
 -- =====================================================================
 
 -- CREATE TYPE has no native IF NOT EXISTS in Postgres — guard manually so
