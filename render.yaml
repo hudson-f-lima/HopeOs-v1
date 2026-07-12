@@ -1,0 +1,43 @@
+services:
+  # Backend — Node.js/Express API
+  - type: web
+    name: hopeos-v1
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: API_ACCESS_TOKEN
+        sync: false
+      - key: DEFAULT_EMPRESA_ID
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+  # Frontend — PWA estático
+  - type: web
+    name: hopeos-v1-frontend
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /service-worker.js
+        name: Cache-Control
+        value: no-cache
+      - path: /manifest.json
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
