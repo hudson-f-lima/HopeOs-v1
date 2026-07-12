@@ -4,9 +4,9 @@
 **Fonte canônica do estado operacional atual.**
 
 ## Identificação
-- Versão: V1.4.2 Identity/Tenant Boundary — fundação parcial; V1.4.1 Security Perimeter concluído; V1.4 entregue no código/documentação
-- Branch: `main`
-- Último commit de código validado: `2e3bc01` (`chore: adiciona render.yaml com backend e frontend PWA`) — alterações do V1.4.2 ainda não commitadas (ver Handoff)
+- Versão: V1.4.2 Identity/Tenant Boundary — fundação parcial concluída e mesclada; ADR-005 (modelo canônico de identidade/RBAC/autoria): PROPOSTA CONCLUÍDA — aguardando revisão e aprovação do Platform Owner; V1.4.1 Security Perimeter concluído; V1.4 entregue no código/documentação
+- Branch: `docs/adr-identity-auth-model` (documental, sem código) — `main` em `c5a2914`
+- Último commit de código validado: `c5a2914` (`fix(security): enforce server-owned tenant context (#13)`, PR #13 squash-merged em `main`)
 - Estado de produção: REAL (auth de perímetro validado manualmente por curl); multi-tenant seguro continua BLOQUEADO
 
 ## Estado confirmado
@@ -26,17 +26,20 @@
 | unit_id / unidades | BLOQUEADO | não existe no schema; migration 007+ necessária |
 | Multi-tenant seguro | BLOQUEADO | regras em `AGENTS.md` |
 | `DEFAULT_EMPRESA_ID` | HARDCODED | `backend/src/config/env.js`; única fonte de tenant hoje, agora centralizada em `req.auth.empresa_id` |
+| ADR-005 (Supabase Auth/JWT, membership, RBAC, actor_id) | PROPOSTA CONCLUÍDA — aguardando revisão e aprovação do Platform Owner | `docs/adr/ADR-005-identity-tenant-rbac-actor.md`; nenhum código/migration alterado |
+| CI remoto | AUSENTE — débito P1 | sem `.github/workflows`; sem proteção automática antes de merge |
 | Rotação de segredos | REAL | confirmação prévia |
 | Histórico Git limpo | REAL | purga efetuada |
 
 ## Trabalho atual
-- Ciclo: V1.4.2 — fundação de identidade/tenant/actor auditada e parcialmente implementada
-- Objetivo: fechar os 4 riscos cross-tenant CRÍTICOS nas rotas e o invariante de tenant na camada de repositório, sem abrir migration nova
-- Estado: REAL (correções aplicadas e testadas nas rotas e no `SupabaseRepository`); autoria (`actor_id`) e RBAC seguem BLOQUEADOS por dependerem de migration 007+
+- Ciclo: V1.4.2 parcial concluída e mesclada (PR #13); ciclo atual é a ADR-005 (arquitetura de identidade/tenant/RBAC/autoria), somente documental
+- Objetivo: obter decisão e autorização arquitetural antes de qualquer migration ou código de identidade real
+- Estado: PROPOSTA (ADR redigida, não implementada); V1.4.2 (rotas + repositório) segue REAL e mesclada
 
 ## Bloqueadores
 - P0: NENHUM
-- P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (todos exigem migration 007+ ou integração de identidade, fora de escopo autorizado)
+- P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (arquitetura definida na ADR-005, implementação exige migration 007+ autorizada)
+- P1 separado: ausência de CI remoto (`.github/workflows`) — não implementar no branch da ADR
 - V1.5: BLOQUEADA
 
 ## Gates
@@ -54,13 +57,13 @@
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
 ## Próxima ação única
-- Obter autorização do Platform Owner para migration 007 (colunas `actor_id`) e decidir o mecanismo de identidade real (JWT/Supabase Auth) antes de destravar RBAC e tenant por identidade.
+- Platform Owner revisar e autorizar (ou pedir revisão de) a ADR-005 (`docs/adr/ADR-005-identity-tenant-rbac-actor.md`); só então iniciar a migration 007 desenhada nela.
 
 ## Handoff
-- Concluído: auditoria V1.4.2 (`docs/audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md`); `req.auth` introduzido no middleware; `SupabaseRepository` passa a receber `empresaId` explícito; 4 rotas com risco cross-tenant corrigidas (`GET /clientes`, `GET /agenda`, `PATCH /agenda/:id/duracao`, vínculo agenda em `checkout/close`); `unit_id`/`unitId` bloqueados nos validators de cadastro; `SupabaseRepository.insert` corrigido para nunca aceitar `empresa_id`/`empresaId` do payload e falhar fechado sem tenant válido; gate `tenant-boundary-gate.test.js` (12/12) integrado ao `test:gate`.
-- Pendente: Auth final por usuário, RBAC, `actor_id`, tenant por identidade real, multi-tenant seguro — todos BLOQUEADOS por exigirem migration 007+ ou integração de identidade fora do escopo autorizado.
-- Arquivos alterados: `backend/src/middleware/auth.js`, `backend/src/repositories/SupabaseRepository.js`, `backend/src/routes/index.js`, `backend/src/validators/cadastros.validator.js`, `backend/package.json`, `backend/tests/tenant-boundary-gate.test.js` (novo), `docs/audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md` (novo), `docs/PROJECT_STATE.md`.
-- Testes: 94/94 verdes (`npm run test:gate`, execução local em 2026-07-12); `git diff --check` limpo; `npm audit --omit=dev` com 1 HIGH pré-existente sem fix (`xlsx`).
-- Riscos: Render ainda sem validação remota; `DEFAULT_EMPRESA_ID` continua sendo a única fonte de tenant (agora centralizada, não corrigida na origem); `actor_id`/RBAC/`unit_id` seguem sem implementação por falta de migration autorizada.
-- Próxima ação: decidir migration 007 (actor_id) e mecanismo de identidade real com o Platform Owner.
-- Não fazer: V1.5, migrations 007+; não tocar migrations 001–006. Nada foi commitado nem enviado (push) nesta tarefa.
+- Concluído: V1.4.2 parcial mesclada em `main` via PR #13 (squash, commit `c5a2914`) — `req.auth` estrutural, 4 correções cross-tenant nas rotas, invariante de tenant no `SupabaseRepository.insert`, `unit_id`/`unitId` bloqueados, gate `tenant-boundary-gate.test.js` (12/12). ADR-005 redigida em `docs/adr/ADR-005-identity-tenant-rbac-actor.md` (branch `docs/adr-identity-auth-model`, sem código/migration): decide Supabase Auth/JWT, membership, RBAC por role fixa, origem de `actor_id`, compatibilidade com `API_ACCESS_TOKEN`, desenho da migration 007, rollout/rollback e gates futuros.
+- Pendente: Autorização do Platform Owner para a ADR-005 e para a migration 007 nela desenhada; implementação de Supabase Auth, `app_users`/`empresa_memberships`/`membership_units`, RBAC e `actor_id` real — todos BLOQUEADOS até essa autorização.
+- Arquivos alterados neste ciclo (documental, branch `docs/adr-identity-auth-model`): `docs/adr/ADR-005-identity-tenant-rbac-actor.md` (novo), `docs/DECISIONS.md` (D-005, índice/resumo), `docs/PROJECT_STATE.md`. Nenhum código, migration ou dado alterado.
+- Testes: nenhum gate novo nesta entrega (documental); gates de código seguem em 94/94 desde o merge do PR #13.
+- Riscos: `DEFAULT_EMPRESA_ID` continua sendo a única fonte de tenant até a ADR-005 ser implementada; ausência de CI remoto é débito P1 separado, não resolvido aqui; Render ainda sem validação remota.
+- Próxima ação: obter autorização do Platform Owner para a ADR-005 e, então, a migration 007.
+- Não fazer: V1.5, migrations 007+, implementação de código de identidade/RBAC/actor_id neste branch; não tocar migrations 001–006. Nada foi commitado nem enviado (push) nesta tarefa.
