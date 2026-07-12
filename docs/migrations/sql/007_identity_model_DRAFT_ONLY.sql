@@ -40,13 +40,10 @@
 -- STEP 2 — new tables (app_users -> empresa_memberships -> ... -> integration_audit_events)
 -- =====================================================================
 
-create table if not exists app_users (
-  id uuid primary key references auth.users(id) on delete restrict,
-  nome text not null,
-  ativo boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+-- =====================================================================
+-- Nota: a tabela app_users e o trigger auth.users -> app_users foram
+-- extraidos para a Fase 1 (fase1_identidade_minima_DRAFT_ONLY.sql).
+-- =====================================================================
 
 -- CREATE TYPE has no native IF NOT EXISTS in Postgres — guard manually so
 -- this file can be re-run after a partial failure without erroring out.

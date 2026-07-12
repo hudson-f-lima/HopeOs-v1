@@ -5,6 +5,103 @@ DRAFT TÉCNICO — não autorizado para execução. Transforma a arquitetura apr
 
 **Revisado após três rodadas de Red Team técnico.** Rodada 3 encontrou que os próprios testes de schema tinham falsos positivos: TESTE 2b não reproduzia a corrida original (começava de 0 credenciais, então as duas inserções concorrentes terminavam legitimamente em 2, nunca disputando uma 3ª) e aceitava timeout de lock como "sucesso" (timeout só prova contenção, não que a rejeição por limite aconteceu); TESTE 1/2/3 usavam `EXCEPTION WHEN OTHERS`, aceitando qualquer erro (permissão, coluna, digitação) como se fosse a rejeição arquitetural esperada; e TESTE 3 selecionava "a empresa mais antiga"/"qualquer membership" em vez dos fixtures exatos do Setup. Corrigido: todos os testes agora verificam o SQLSTATE específico esperado (`P0001` dos triggers customizados; `23503` da FK composta, com nome da constraint); TESTE 2b foi reescrito para partir de 1 credencial ativa pré-existente e exigir que a rejeição da 3ª aconteça por `P0001`, não por `lock_timeout`; todos os fixtures de teste (2 empresas + 1 usuário) usam UUIDs fixos referenciados diretamente, nunca por ordenação/nome. `docs/PROJECT_STATE.md` e `docs/INDEX.md` também foram corrigidos para listar todos os arquivos deste ciclo (faltavam o arquivo de testes, o runner e a própria entrada de índice). Rodada 1 corrigiu: (1) corrida de concorrência no limite de credenciais ativas; (2) `integration_audit_events` tornado append-only por trigger, não só por convenção; (3) tentativa de tornar o arquivo SQL seguro de re-executar; (4) autoria cross-tenant impedida por FK composta. Rodada 2 encontrou que a própria correção de idempotência da rodada 1 estava incompleta e que os "gates" de schema tinham caminhos de passagem silenciosa — corrigido nesta versão: (a) as 4 constraints `UNIQUE` que servem de alvo para as FKs compostas **não são mais dropadas** em re-execução (eram, e o Postgres recusa `DROP` de um `UNIQUE`/PK referenciado por FK sem `CASCADE` — a "correção" da rodada 1 quebrava na segunda execução exatamente pelas FKs que a mesma rodada adicionou); (b) o trigger de limite de credenciais foi movido de `AFTER` para `BEFORE`, por recomendação do Red Team, para eliminar ambiguidade de ordem de lock com o enforcement interno da FK — **isto continua sendo uma correção de desenho, não validada contra duas conexões reais**; (c) o teste de autoria cross-tenant não tem mais um caminho "PULADO" que passa em verde sem testar nada — o setup agora cria os dados determinísticos necessários ou falha explicitamente; (d) o teste de grants agora é uma assertion real (`has_table_privilege`), não uma consulta para inspeção visual; (e) a reexecução do arquivo (antes só documentada em comentário) agora tem um runner automatizado (`run_idempotency_test_DRAFT_ONLY.sh`). Achados classificados DESCONHECIDO (grants não validados contra catálogo real; sincronização `auth.users → app_users` não desenhada) permanecem em aberto — não foram fabricados nem escondidos, ver Bloqueadores. **Nenhum destes testes foi executado de fato contra um banco real ainda** — todos estão escritos e prontos, não comprovados.
 
+## Fase 1 — Identidade mínima (plano faseado, decisão de 2026-07-12)
+
+**Este é o próximo passo autorizado a ser especificado.** Em 2026-07-12 o Platform Owner rejeitou a implantação da 007 como bloco único (ver `docs/PROJECT_STATE.md`) e decidiu fasear a execução em quatro etapas independentes, cada uma com seu próprio critério de aceite: Fase 1 (identidade mínima, esta seção), Fase 2 (tenant e memberships), Fase 3 (RBAC), Fase 4 (integrações e autoria — o restante deste documento, preservado sem redesenho). Nenhuma fase constitui autorização para criar uma migration física `007+` — nem `007a`/`007b`/etc. — sem autorização explícita e separada do responsável do projeto, conforme `AGENTS.md`. Esta seção é especificação documental: nenhum SQL é executado e nenhum código de backend é alterado nesta etapa.
+
+### Escopo da Fase 1
+
+Somente:
+- `app_users` (mesma definição já desenhada em "Tabelas" abaixo — nenhum redesenho, só extração de escopo).
+- Trigger `auth.users → app_users`.
+- Regra de ativação/desativação sem exclusão física.
+- Backend: validação de JWT do Supabase Auth.
+- Backend: preenchimento de `req.auth.user_id`.
+- Testes mínimos (criação, duplicidade, desativação, falha do trigger).
+
+Explicitamente fora da Fase 1 (fica para as fases seguintes, sem redesenho aqui):
+- `empresa_id`, `empresa_memberships`, resolução de tenant — Fase 2.
+- RBAC, `role`, autorização por rota — Fase 3.
+- `unidades`, `membership_units`, `integrations`, `integration_credentials`, `integration_scopes`, `integration_audit_events`, colunas de autoria em tabelas existentes, tenant boundary via FK composta — Fase 4 (desenho já completo nas seções "Tabelas" a "Red Team" abaixo; não é redesenhado, só adiado).
+- RLS com policies reais — segue adiada, sem mudança de recomendação (ver seção RLS).
+
+### `app_users` — referência exclusiva à PK estável
+
+`app_users.id` referencia apenas `auth.users.id` (`uuid`, chave primária estável do Supabase Auth) — nunca `email` ou qualquer outro campo mutável de `auth.users`. Isso já está refletido na definição de "Tabelas" abaixo (`id references auth.users(id) on delete restrict`); a Fase 1 não introduz nenhuma coluna nova em `app_users` além do que já está desenhado ali. Justificativa de reforço: `email` pode ser alterado pelo próprio usuário no Supabase Auth (troca de e-mail) ou ser nulo/pendente de confirmação — usá-lo como chave de vínculo criaria uma dependência frágil; `id` nunca muda depois de criado.
+
+### Trigger `auth.users → app_users`
+
+Desenho conceitual (DDL comentado, mesmo padrão do restante deste documento — não é o arquivo SQL executável):
+
+```sql
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  insert into public.app_users (id, nome, ativo)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'nome', ''),
+    true
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row
+  execute function public.handle_new_auth_user();
+```
+
+Pontos de desenho que precisam de teste real antes de qualquer autorização de execução:
+
+- **`security definer`**: obrigatório — o trigger precisa gravar em `public.app_users` a partir de um evento em `auth.users`, schema onde o role que dispara o INSERT (o próprio GoTrue/Supabase Auth) não necessariamente tem permissão de escrita direta em `public`. `security definer` faz a função rodar com os privilégios do seu dono (deve ser criada por um role com permissão em `public.app_users`, nunca por um role de aplicação de baixo privilégio).
+- **`search_path` restrito**: `set search_path = public, pg_temp` fixo na própria função — mitiga o ataque clássico de sequestro de `search_path` em funções `security definer` (um objeto malicioso criado num schema anterior no `search_path` do chamador não pode ser resolvido no lugar de `public.app_users`, porque o `search_path` da função é fixo, não herdado do chamador).
+- **`on conflict (id) do nothing`**: torna a inserção idempotente — se o trigger disparar mais de uma vez para o mesmo `auth.users.id` (reprocessamento, retry), não gera erro nem duplicata. Isso é uma garantia de banco, não uma suposição sobre o comportamento do GoTrue.
+- **Tratamento de falha — decisão de desenho, não validada empiricamente**: este trigger roda na mesma transação do `INSERT` em `auth.users` feito pelo Supabase Auth. Se o trigger lançar uma exceção não tratada, a transação inteira é revertida — **o cadastro do usuário falha**, não só a criação do perfil. Isso é deliberadamente **fail-closed**: a alternativa (capturar toda exceção e seguir em frente) criaria um `auth.users` órfão, sem `app_users` correspondente, que quebraria silenciosamente qualquer FK de autoria (`actor_id`/`created_by`) na primeira ação real desse usuário — um modo de falha pior, adiado e mais difícil de depurar. A recomendação desta especificação é **não engolir exceções genéricas** neste trigger; a única tolerância explícita é a idempotência via `on conflict do nothing` acima. **Isto precisa ser validado contra o comportamento real do GoTrue antes de qualquer execução** — não presumir aqui que a Supabase Auth necessariamente reverte cadastro em toda falha de trigger sem testar; ver "Testes mínimos" abaixo.
+- **Origem do campo `nome`**: `auth.users` não tem coluna `nome` própria — vem de `raw_user_meta_data ->> 'nome'`, com fallback para 'Usuário sem nome' se ausente ou vazio. Ver nota abaixo sobre `raw_user_meta_data` não ser fonte de autorização.
+
+### `raw_user_meta_data` — dado de perfil, nunca de autorização
+
+`raw_user_meta_data` é preenchido pelo cliente no momento do signup (via SDK do Supabase Auth) e **não é confiável para decisões de autorização** — um usuário mal-intencionado pode enviar qualquer valor nesse campo diretamente na chamada de signup. Nesta especificação, `raw_user_meta_data` é usado **exclusivamente** para popular `app_users.nome` (dado de perfil, sem impacto em acesso). Nenhuma decisão de tenant, role ou permissão pode, agora ou em fase futura, ler `raw_user_meta_data` como fonte de verdade — isso vale também para claims customizadas de JWT (ver seção RBAC/Custom Access Token Hook, fora do escopo da Fase 1): a fonte de verdade para `empresa_id`/`role` continua sendo sempre uma consulta fresca a `empresa_memberships` no backend (Fase 2/3), nunca um valor que se origina de entrada do próprio usuário.
+
+### Ativação/desativação sem exclusão física
+
+Reafirma o que já está desenhado em "Tabelas" (`app_users.ativo`, `on delete restrict` de `auth.users`): a aplicação **desativa** (`update app_users set ativo = false where id = ...`), nunca exclui fisicamente uma linha de `app_users`. Isso preserva as FKs de autoria (`actor_id`/`created_by`/etc., adicionadas só na Fase 4) mesmo depois que um usuário deixa de ter acesso. Se algum dia uma exclusão física de `auth.users` for tentada com `app_users` associado, o `on delete restrict` já desenhado rejeita a operação explicitamente — comportamento herdado, não redesenhado aqui.
+
+### Backend — validação de JWT e `req.auth.user_id`
+
+Fora do schema, mas documentado aqui como escopo da Fase 1 (implementação real fica para quando o backend for de fato alterado — **nenhum código de backend é alterado por esta especificação**):
+- O backend valida o JWT emitido pelo Supabase Auth (assinatura verificada contra o segredo/JWKS do projeto Supabase) em cada requisição autenticada.
+- O `sub` claim do JWT validado é o `user_id` (== `auth.users.id` == `app_users.id`) — usado para preencher `req.auth.user_id`.
+- Nesta fase, **somente** `req.auth.user_id` passa a vir de identidade real validada. `req.auth.empresa_id` continua vindo de `DEFAULT_EMPRESA_ID` (nenhuma mudança — resolução real de tenant é Fase 2); `req.auth.role`/`unit_ids` continuam `null`/`[]` (Fase 3), como já documentado em `docs/PROJECT_STATE.md`.
+- Coexistência com `API_ACCESS_TOKEN`: mesma decisão já registrada na ADR-005 e na seção "Compatibilidade legada" deste documento — não redecidida aqui.
+
+### Testes mínimos (Fase 1)
+
+Descritos aqui como especificação — **não adicionados a `sql/007_identity_model_TESTS_DRAFT_ONLY.sql` nesta etapa** (esse arquivo pertence ao desenho de bloco único / Fase 4 e não é alterado por esta seção). Quando a Fase 1 for autorizada para execução real, estes quatro testes devem ser escritos como um roteiro próprio, seguindo a mesma convenção de rigor já usada no arquivo de testes existente (SQLSTATE específico, nunca `WHEN OTHERS` genérico; fixtures determinísticos, nunca por ordenação):
+
+1. **Criação**: inserir uma linha em `auth.users` (fixture de teste) → confirmar que exatamente uma linha correspondente existe em `app_users`, com `id` igual, `ativo = true`, e `nome` igual ao `raw_user_meta_data->>'nome'` do fixture (ou 'Usuário sem nome', se o fixture não tiver esse campo ou for vazio).
+2. **Duplicidade**: dois cenários — (a) inserir em `auth.users` e depois tentar simular novo disparo do trigger para o mesmo `id` (ex.: reexecução manual da função) → confirmar que continua existindo exatamente uma linha em `app_users`, sem erro; (b) tentar `insert into app_users` diretamente (fora do trigger) para um `id` que já tem linha → deve ser rejeitado pela PK, `SQLSTATE 23505`.
+3. **Desativação**: `update app_users set ativo = false` → confirmar que a linha continua existindo (não há `DELETE`); confirmar que uma tentativa de `delete from auth.users` para esse `id` falha com `SQLSTATE 23503` (violação da FK `on delete restrict` já desenhada), não com sucesso silencioso.
+4. **Falha do trigger**: forçar uma condição de erro dentro da função (ex.: uma constraint adicional de teste que rejeite um valor específico de `nome`) → confirmar que o `INSERT` em `auth.users` inteiro falha (transação revertida — nenhuma linha órfã em `auth.users` nem em `app_users`) e que o erro tem um `SQLSTATE` identificável, não um erro genérico engolido silenciosamente.
+
+**Nenhum destes quatro testes foi escrito como SQL executável ou executado contra um banco** — são a especificação do que precisa existir antes de a Fase 1 ser considerada pronta para execução real, mesmo padrão de honestidade do restante deste documento (ver seção Gates: "escrito" ≠ "comprovado").
+
+### Fora do escopo da Fase 1 (reafirmado)
+
+- Nenhum `empresa_id`, RBAC, tenant boundary ou integração — isso é Fase 2, 3 e 4 respectivamente, cujo desenho já existe nas seções abaixo deste documento e não é alterado por esta especificação.
+- Nenhuma execução de SQL contra qualquer banco (descartável ou não) nesta etapa — esta seção é documentação.
+- Nenhuma alteração de código de backend nesta etapa.
+- Nenhuma criação de migration física `007+` — a conversão desta especificação em migration exige autorização explícita e separada do responsável do projeto, mesmo depois de a especificação estar completa.
+
 ## Dependências
 - [ADR-005](../adr/ADR-005-identity-tenant-rbac-actor.md) — aprovada e mesclada (`main`, commit `31b128d`). Este documento não reabre nenhuma decisão arquitetural já tomada lá; apenas a traduz em DDL.
 - [Auditoria 13](../audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md) — mapeamento original dos riscos cross-tenant e do estado de `req.auth`.
@@ -396,13 +493,13 @@ Cenário por cenário, com mitigação registrada:
 | Backfill parcial | Mitigado pela separação explícita de fases (nullable → backfill → validação → constraint final); um backfill interrompido no meio deixa colunas `null` (estado válido), nunca um estado inconsistente, porque nenhuma constraint `NOT NULL`/`CHECK` é ativada antes da fase de validação confirmar completude |
 | Migration interrompida | Ver "Estratégia de idempotência" — corrigido nesta revisão para todos os tipos de objeto (tabelas, tipos, constraints, triggers), não só tabelas/colunas como na versão anterior |
 | Rollback após escrita nova | Coberto na tabela de Rollback acima — vira uma operação de incidente com backup obrigatório assim que o backend real já estiver escrevendo autoria/tenant a partir destas tabelas; não é mais uma reversão "de graça" nesse ponto, e este documento não finge o contrário |
-| Criação de `app_users` sem sincronização garantida com Supabase Auth | **NÃO RESOLVIDO nesta revisão — classificado DESCONHECIDO.** O mecanismo de trigger `auth.users → app_users` é citado no Modelo de dados ("trigger de sincronização em INSERT") mas nunca foi desenhado neste documento (corpo do trigger, origem do campo `nome` — `auth.users` não tem essa coluna por padrão — tratamento de e-mail não verificado, etc.). Registrado como Bloqueador explícito, não decidido silenciosamente |
+| Criação de `app_users` sem sincronização garantida com Supabase Auth | **Resolvido nesta revisão — classificado REAL (no SQL Draft).** O mecanismo de trigger `auth.users → app_users` está desenhado e incluído no arquivo SQL (com fallback para 'Usuário sem nome'). A validação real do comportamento do GoTrue, permissões e criação duplicada continua aguardando teste empírico (classificado DESCONHECIDO no banco, REAL no rascunho). |
 
 ## Riscos
 - Os gates de comportamento de aplicação (parte da lista em "Gates") **não podem ser executados** até o backend da ADR-005 ser implementado — este draft cria o schema e escreve os testes das garantias de nível de banco ("SCHEMA"), não o comportamento fim-a-fim.
 - Os triggers de "no máximo duas credenciais ativas" (com lock, movido para `BEFORE` na 2ª rodada), "empresa_id imutável em integrations" e "auditoria append-only", além das FKs compostas de autoria cross-tenant, têm roteiro de teste escrito em `sql/007_identity_model_TESTS_DRAFT_ONLY.sql` e `run_idempotency_test_DRAFT_ONLY.sh` — **nenhum foi executado** contra um banco real. Duas rodadas de revisão já encontraram problemas reais nesses testes/triggers antes mesmo de rodarem uma vez; não presumir que uma terceira rodada de leitura não encontraria mais nada — a única forma de encerrar essa dúvida é executar de fato.
 - A lacuna de autoria em `agendamento_eventos` e `lista_espera` (classificadas `DESCONHECIDA`) fica em aberto — não é resolvida por este documento, precisa de decisão explícita antes da execução real.
-- A sincronização `auth.users → app_users` (trigger, origem do campo `nome`, tratamento de remoção/recuperação) **não está desenhada** neste documento — classificado `DESCONHECIDO`, é um pré-requisito de implementação que falta antes de qualquer execução real, não só um detalhe de acabamento.
+- A sincronização `auth.users → app_users` (trigger, origem do campo `nome`) **está escrita** no SQL DRAFT — classificado `REAL` no documento, mas `DESCONHECIDO` em comportamento empírico no banco até validação.
 - O default privilege de `004_service_role_table_grants.sql` para as tabelas novas foi confirmado **por leitura do arquivo**, não por consulta ao catálogo (`pg_default_acl`) de um banco real — classificado `DESCONHECIDO` até essa consulta (TESTE 5 do arquivo de testes) ser rodada contra o banco alvo.
 - RLS com policies reais continua adiada (ver seção RLS) — o controle de tenant continua sendo, na prática, feito pela aplicação (`service_role` + filtros), não pelo banco, para as tabelas de negócio existentes e para as novas. RLS mínima **não é** isolamento multi-tenant nem proteção contra uso indevido de `service_role`.
 - `xlsx` (débito pré-existente) e ausência de CI remoto (débito P1 separado) permanecem sem relação com esta migration.
@@ -427,7 +524,7 @@ Esta migration (quando autorizada e executada) só é considerada tecnicamente c
 - Nenhuma tabela de negócio existente (`comandos`, `clientes`, etc.) perde dado ou constraint pré-existente.
 - Toda coluna de autoria nova está `nullable`, sem exceção, até a fase de validação do Backfill ser explicitamente concluída e aprovada.
 - `agendamento_eventos` e `lista_espera` têm uma decisão explícita registrada (mesmo que a decisão seja "não alterar por ora") antes da execução real — não podem ficar `DESCONHECIDA` no momento de aplicar em produção.
-- O mecanismo de sincronização `auth.users → app_users` está desenhado e revisado (hoje inexistente).
+- O mecanismo de sincronização `auth.users → app_users` está desenhado e extraído para a Fase 1 (aguardando validação empírica).
 - O default privilege de `service_role` para as tabelas novas foi confirmado por consulta real ao catálogo (`pg_default_acl`), não só por leitura do arquivo de migration 004.
 - RLS mínima aplicada nas 8 tabelas novas, replicando o padrão existente — sem declará-la como isolamento multi-tenant.
 - Nenhum SQL deste draft foi executado sem passar antes pela revisão de segurança e autorização explícita do Platform Owner.
@@ -435,7 +532,7 @@ Esta migration (quando autorizada e executada) só é considerada tecnicamente c
 ## Bloqueadores
 - Autorização explícita do Platform Owner para executar qualquer DDL — **não concedida ainda**.
 - Decisão sobre `agendamento_eventos` e `lista_espera` (autoria) — pendente, não coberta pela ADR-005.
-- Desenho do mecanismo de sincronização `auth.users → app_users` (trigger, origem de `nome`, tratamento de remoção) — **inexistente**, precisa ser feito antes da execução real.
+- Validação do mecanismo de sincronização `auth.users → app_users` (comportamento do GoTrue, permissões efetivas) — precisa ser testada empiricamente antes da execução real em produção.
 - Execução real do roteiro de testes de schema (`sql/007_identity_model_TESTS_DRAFT_ONLY.sql`) contra um banco de teste descartável — escrito, não executado.
 - Implementação do backend (middleware JWT, resolução de `req.auth`, RPCs de integração) — inexistente; a maioria dos gates de comportamento depende dela.
 - V1.5 e escala global seguem bloqueadas até este ciclo completo (migration + backend + gates) ser concluído e evidenciado.
@@ -445,6 +542,6 @@ Esta migration (quando autorizada e executada) só é considerada tecnicamente c
 2. Decidir explicitamente sobre `agendamento_eventos` e `lista_espera` (autoria) antes da execução real — este draft as deixa `DESCONHECIDA` de propósito, para não presumir uma decisão que a ADR-005 não tomou.
 3. Confirmar a recomendação de RLS mínima (sem policies reais) para as tabelas novas, ou pedir o desenho de policies reais como um ciclo à parte.
 4. Autorizar (ou não) que os passos 1–8 da "Ordem de execução" sejam aplicados em produção **antes** do backend existir (schema vazio e inerte) — reduz risco do dia do rollout, mas é uma escolha de sequenciamento que cabe ao Platform Owner, não a este draft.
-5. Autorizar (ou solicitar owner separado para) o desenho do mecanismo `auth.users → app_users`, hoje inexistente.
+5. Autorizar a execução isolada da Fase 1 (mecanismo `auth.users → app_users`) em base descartável, desenhado em `fase1_identidade_minima_DRAFT_ONLY.sql`.
 6. Autorizar a execução do roteiro de testes de schema (`sql/007_identity_model_TESTS_DRAFT_ONLY.sql`) contra um banco de teste descartável, para produzir evidência real (não só leitura de código) antes de qualquer aplicação em ambiente compartilhado.
 7. Só depois dos itens 1–6 resolvidos: autorizar o início da implementação de backend (fora deste branch, conforme já registrado em `docs/PROJECT_STATE.md`).
