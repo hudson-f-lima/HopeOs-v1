@@ -116,6 +116,27 @@ export function selectEmpresa(empresaId) {
   if (s) setSession({ ...s, empresa_id: empresaId });
 }
 
+// Link de convite/recuperação do Supabase chega com a sessão no fragmento da URL.
+export function consumeAuthLink() {
+  const hash = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+  const type = hash.get('type');
+  const access = hash.get('access_token');
+  if (!access || !['invite', 'recovery', 'signup', 'magiclink'].includes(type)) return null;
+  setToken(null);
+  keepSession({ access_token: access, refresh_token: hash.get('refresh_token'), expires_in: hash.get('expires_in') }, null);
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  return type;
+}
+
+export async function definirSenha(password) {
+  const s = getSession();
+  return postJson('/auth/password', { password }, s ? { Authorization: 'Bearer ' + s.access_token } : {});
+}
+
+export function recuperarSenha(email) {
+  return postJson('/auth/recover', { email });
+}
+
 export function fetchMe() {
   return api('/me');
 }

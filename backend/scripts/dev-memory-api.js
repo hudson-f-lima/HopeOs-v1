@@ -6,7 +6,8 @@
 //   python3 -m http.server 5599 --bind 127.0.0.1      # na raiz, serve a PWA
 //   abrir http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
 //
-// Logins (senha dev12345): admin@dev.local, recepcao@dev.local, profissional@dev.local
+// Logins (senha dev12345): admin@dev.local, recepcao@dev.local, profissional@dev.local,
+// novo@dev.local (conta sem vínculo: testa Gestão > Equipe)
 // Token legado (modo antigo): ?apiToken=dev
 // GET /__db/:tabela devolve o estado em memória (para asserts de E2E).
 process.env.API_ACCESS_TOKEN = process.env.API_ACCESS_TOKEN || 'dev';
@@ -59,13 +60,14 @@ const db = installMemoryBackend({
 const contas = [
   { email: 'admin@dev.local', nome: 'Admin Dev', role: 'admin' },
   { email: 'recepcao@dev.local', nome: 'Recepção Dev', role: 'recepcao' },
-  { email: 'profissional@dev.local', nome: 'Ana (profissional)', role: 'profissional', profissional_id: PROF }
+  { email: 'profissional@dev.local', nome: 'Ana (profissional)', role: 'profissional', profissional_id: PROF },
+  { email: 'novo@dev.local', nome: 'Conta sem vínculo', role: null } // para testar Gestão > Equipe
 ].map(c => ({ ...c, id: randomUUID() }));
 
 const store = createMemoryIdentityStore({
   app_users: contas.map(c => ({ id: c.id, email: c.email, nome: c.nome, ativo: true })),
   unidades: [{ id: UNIDADE, empresa_id: E, nome: 'Unidade principal', ativo: true }],
-  empresa_memberships: contas.map(c => ({ id: randomUUID(), empresa_id: E, user_id: c.id, role: c.role, status: 'ativo', profissional_id: c.profissional_id || null }))
+  empresa_memberships: contas.filter(c => c.role).map(c => ({ id: randomUUID(), empresa_id: E, user_id: c.id, role: c.role, status: 'ativo', profissional_id: c.profissional_id || null }))
 });
 store.db.membership_units = store.db.empresa_memberships.filter(m => ['recepcao', 'profissional'].includes(m.role)).map(m => ({ membership_id: m.id, unit_id: UNIDADE }));
 setIdentityStore(store);
@@ -79,6 +81,14 @@ const novaSessao = conta => {
   sessoes.set(`r:${refresh}`, { userId: conta.id });
   return { access_token: access, refresh_token: refresh, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: conta.id, email: conta.email } };
 };
+const links = [];
+function registrarLink(conta, type, redirectTo) {
+  const sess = novaSessao(conta);
+  const base = redirectTo || 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api';
+  const link = `${base}#access_token=${sess.access_token}&refresh_token=${sess.refresh_token}&expires_in=3600&type=${type}`;
+  links.push({ email: conta.email, type, link });
+  console.log(`[dev] link de ${type} para ${conta.email}: ${link}`);
+}
 const invalida = () => createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
 setAuthProvider({
   async getUser(token) {
@@ -89,8 +99,25 @@ setAuthProvider({
   },
   async signIn(email, password) {
     const c = contas.find(x => x.email === email);
-    if (!c || password !== 'dev12345') throw invalida();
+    if (!c || password !== (c.password || 'dev12345')) throw invalida();
     return novaSessao(c);
+  },
+  // Convite/recuperação: em vez de e-mail, o link vai para o console e para GET /__links.
+  async inviteUser(email, redirectTo) {
+    if (contas.some(c => c.email === email)) throw createAppError('USER_ALREADY_EXISTS', 'Já existe conta com este e-mail.', 409);
+    const conta = { id: randomUUID(), email, nome: email.split('@')[0], password: randomBytes(16).toString('hex') };
+    contas.push(conta);
+    store.db.app_users.push({ id: conta.id, email, nome: conta.nome, ativo: true }); // papel do trigger da 007
+    registrarLink(conta, 'invite', redirectTo);
+    return { id: conta.id, email };
+  },
+  async recoverPassword(email, redirectTo) {
+    const conta = contas.find(c => c.email === email);
+    if (conta) registrarLink(conta, 'recovery', redirectTo);
+  },
+  async setPassword(token, password) {
+    const u = await this.getUser(token);
+    contas.find(c => c.id === u.id).password = password;
   },
   async refresh(rt) {
     const s = sessoes.get(`r:${rt}`);
@@ -102,6 +129,7 @@ setAuthProvider({
 });
 
 const { app } = require('../src/app');
+app.get('/__links', (req, res) => res.json(links));
 app.get('/__db/:tabela', (req, res) => res.json(db[req.params.tabela] || store.db[req.params.tabela] || []));
 const port = Number(process.env.PORT || 3399);
 app.listen(port, '127.0.0.1', () => console.log(`dev-memory-api em http://127.0.0.1:${port}/api — logins *@dev.local / dev12345, token legado: ${process.env.API_ACCESS_TOKEN}`));

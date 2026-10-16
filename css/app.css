@@ -810,3 +810,11 @@ dialog {
 .session-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw;}
 .session-sair{font-size:12px;font-weight:700;color:var(--md-primary);padding:6px 10px;border-radius:16px;background:var(--md-surface-variant);min-height:32px;}
 .widget-restrito{padding:12px;font-size:12px;color:var(--md-outline);}
+
+/* Gestão > Equipe */
+.eq-row{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--md-surface-variant);}
+.eq-row:last-child{border-bottom:0;}
+.eq-quem{display:flex;flex-direction:column;min-width:0;}
+.eq-quem span{font-size:12px;color:var(--md-outline);overflow:hidden;text-overflow:ellipsis;}
+.eq-ctrl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.eq-ctrl select{width:auto;flex:1 1 140px;}

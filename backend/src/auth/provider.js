@@ -55,6 +55,28 @@ const supabaseProvider = {
     if (error) throw providerError(error);
     return sessionOut(data);
   },
+  // Convite: o provedor cria a conta e envia o e-mail com link para definir a senha.
+  // O trigger da 007 cria app_users na mesma transação do insert em auth.users.
+  async inviteUser(email, redirectTo) {
+    const { data, error } = await withTimeout(supabaseAuthClient().auth.admin.inviteUserByEmail(email, { redirectTo }), env.AUTH_TIMEOUT_MS);
+    if (error) {
+      if (Number(error.status) === 422 || /already/i.test(error.message || '')) throw createAppError('USER_ALREADY_EXISTS', 'Já existe conta com este e-mail.', 409);
+      throw providerError(error);
+    }
+    return { id: data.user.id, email: data.user.email };
+  },
+  async recoverPassword(email, redirectTo) {
+    // Resultado ignorado de propósito: a resposta não revela se o e-mail existe.
+    try { await withTimeout(supabaseAuthClient().auth.resetPasswordForEmail(email, { redirectTo }), env.AUTH_TIMEOUT_MS); } catch (_) { /* idem */ }
+  },
+  async setPassword(jwt, password) {
+    const user = await this.getUser(jwt);
+    const { error } = await withTimeout(supabaseAuthClient().auth.admin.updateUserById(user.id, { password }), env.AUTH_TIMEOUT_MS);
+    if (error) {
+      if (Number(error.status) === 422) throw createAppError('WEAK_PASSWORD', 'Senha fraca: use ao menos 8 caracteres.', 422);
+      throw providerError(error);
+    }
+  },
   async signOut(jwt) {
     // Revoga a sessão do usuário (refresh tokens). Falha aqui não deve impedir o logout local.
     try { await withTimeout(supabaseAuthClient().auth.admin.signOut(jwt), env.AUTH_TIMEOUT_MS); } catch (_) { /* best effort */ }

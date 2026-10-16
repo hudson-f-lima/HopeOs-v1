@@ -14,7 +14,8 @@ const SHELL_ASSETS = [
   './js/ui/agenda.js',
   './js/ui/checkout.js',
   './js/ui/dashboard.js',
-  './js/ui/cadastros.js'
+  './js/ui/cadastros.js',
+  './js/ui/equipe.js'
 ];
 
 self.addEventListener('install', (event) => {

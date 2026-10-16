@@ -1,4 +1,4 @@
-import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, selectEmpresa } from './api.js';
+import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
 import { 
   state, 
   stateBus, 
@@ -26,6 +26,7 @@ import {
   renderListaEsperaList,
   openListaEsperaModal
 } from './ui/cadastros.js';
+import { initEquipe } from './ui/equipe.js';
 
 export function showTab(name) {
   state.activeTab = name;
@@ -75,9 +76,42 @@ function runLogin(mensagem) {
         btn.disabled = false; btn.textContent = 'Entrar';
       }
     };
+    document.getElementById('btnEsqueciSenha').onclick = async () => {
+      const email = document.getElementById('loginEmail').value.trim() || window.prompt('Seu e-mail:') || '';
+      if (!email.trim()) return;
+      try {
+        const r = await recuperarSenha(email.trim());
+        erro.textContent = r.message;
+      } catch (err) { erro.textContent = err.message; }
+    };
     document.getElementById('btnTokenLegado').onclick = () => {
       const token = window.prompt('Token de acesso da API:');
       if (token && token.trim()) { setToken(token.trim()); resolve('legacy'); }
+    };
+  });
+}
+
+// Chegou pelo link de convite/recuperação: define a senha antes de entrar.
+function runDefinirSenha() {
+  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
+  hide('loginForm'); show('senhaForm');
+  const erro = document.getElementById('senhaErro');
+  const btn = document.getElementById('btnSalvarSenha');
+  return new Promise(resolve => {
+    document.getElementById('senhaForm').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const a = document.getElementById('novaSenha').value;
+      const b = document.getElementById('novaSenha2').value;
+      if (a.length < 8) { erro.textContent = 'Use ao menos 8 caracteres.'; return; }
+      if (a !== b) { erro.textContent = 'As senhas não conferem.'; return; }
+      btn.disabled = true; erro.textContent = '';
+      try {
+        await definirSenha(a);
+        hide('senhaForm'); show('loginForm');
+        resolve();
+      } catch (err) {
+        erro.textContent = err.message || 'Não foi possível salvar a senha.';
+      } finally { btn.disabled = false; }
     };
   });
 }
@@ -192,6 +226,7 @@ async function init() {
 
   try {
     await loadConfig();
+    if (consumeAuthLink()) await runDefinirSenha();
     if (!getSession() && !getToken()) await runLogin();
     await carregarSessao();
     aplicarSessaoNaUI();
@@ -305,6 +340,8 @@ async function init() {
       onSelect: () => {}
     });
 
+    initEquipe();
+
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
     await Promise.all([
       loadWeekAgenda(),
@@ -337,6 +374,12 @@ async function init() {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
   }
 }
+
+// Link de convite/recuperação aberto numa aba onde o app já está: só o fragmento
+// muda e a página não recarrega. Recarrega para o boot consumir o token.
+window.addEventListener('hashchange', () => {
+  if (/(^|[#&])access_token=/.test(window.location.hash)) window.location.reload();
+});
 
 // Listen to Tab Change event from event bus
 stateBus.addEventListener('tab:change', (e) => {

@@ -88,8 +88,22 @@ setAuthProvider({
     if (!users[name]) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
     return { access_token: jwt(name), refresh_token: rt, expires_in: 3600, user: { id: users[name] } };
   },
-  async signOut() {}
+  async signOut() {},
+  async inviteUser(email) {
+    if (store.db.app_users.some(u => u.email === email)) throw createAppError('USER_ALREADY_EXISTS', 'Já existe conta com este e-mail.', 409);
+    const id = require('crypto').randomUUID();
+    store.db.app_users.push({ id, email, nome: email.split('@')[0], ativo: true }); // trigger da 007
+    convites.push(email);
+    return { id, email };
+  },
+  async recoverPassword(email) { recuperacoes.push(email); },
+  async setPassword(token, password) {
+    const name = token.split('.')[1];
+    if (!users[name]) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+    senhas[name] = password;
+  }
 });
+const convites = []; const recuperacoes = []; const senhas = {};
 
 const db = installMemoryBackend({
   empresas: [{ id: EA, nome: 'A' }, { id: EB, nome: 'B' }],
@@ -294,6 +308,33 @@ test('A01 admin cria vínculo por e-mail; protege o último admin', async () => 
   const outra = await request('PATCH', `/api/admin/memberships/${M1}`, { token: jwt('adminB'), body: { role: 'gestor' } });
   assert.strictEqual(code(outra), 'MEMBERSHIP_NOT_FOUND', 'admin de B não edita vínculo da empresa A');
   assert.strictEqual(store.db.empresa_memberships.find(m => m.id === M1).role, 'admin');
+});
+
+test('A02 convite: cria conta pelo provedor + vínculo; conta existente só ganha vínculo', async () => {
+  const novo = await request('POST', '/api/admin/invites', { token: jwt('admin'), body: { email: 'Nova@Gate.test', role: 'recepcao', unitIds: [UNIT_A] } });
+  assert.strictEqual(novo.status, 201); assert.strictEqual(novo.data.data.convidado, true);
+  assert.deepStrictEqual(convites, ['nova@gate.test'], 'e-mail normalizado e convite enviado');
+  const existente = await request('POST', '/api/admin/invites', { token: jwt('admin'), body: { email: 'semvinculo@gate.test', role: 'gestor' } });
+  assert.strictEqual(existente.status, 201); assert.strictEqual(existente.data.data.convidado, false);
+  assert.strictEqual(convites.length, 1, 'conta existente não recebe novo convite');
+  const semProf = await request('POST', '/api/admin/invites', { token: jwt('admin'), body: { email: 'x@gate.test', role: 'profissional' } });
+  assert.strictEqual(code(semProf), 'PROFESSIONAL_REQUIRED');
+  const naoAdmin = await request('POST', '/api/admin/invites', { token: jwt('recepcao'), headers: { 'x-empresa-id': EA }, body: { email: 'y@gate.test', role: 'admin' } });
+  assert.strictEqual(code(naoAdmin), 'INSUFFICIENT_ROLE');
+  store.db.empresa_memberships = store.db.empresa_memberships.filter(m => m.user_id !== users.semVinculo); // restaura U04
+});
+test('S03 recuperação de senha responde igual para e-mail existente ou não', async () => {
+  resetRateLimit();
+  const a = await request('POST', '/api/auth/recover', { body: { email: 'admin@gate.test' } });
+  const b = await request('POST', '/api/auth/recover', { body: { email: 'naoexiste@gate.test' } });
+  assert.strictEqual(a.status, 200); assert.deepStrictEqual(a.data, b.data);
+});
+test('S04 definir senha exige token do link e mínimo de 8 caracteres', async () => {
+  assert.strictEqual((await request('POST', '/api/auth/password', { body: { password: '12345678' } })).status, 401);
+  assert.strictEqual(code(await request('POST', '/api/auth/password', { token: jwt('recepcao'), body: { password: '123' } })), 'WEAK_PASSWORD');
+  assert.strictEqual((await request('POST', '/api/auth/password', { token: jwt('ninguem'), body: { password: '12345678' } })).status, 401);
+  const ok = await request('POST', '/api/auth/password', { token: jwt('recepcao'), body: { password: 'nova-senha-1' } });
+  assert.strictEqual(ok.status, 200); assert.strictEqual(senhas.recepcao, 'nova-senha-1');
 });
 
 // ---------- principal integration ----------

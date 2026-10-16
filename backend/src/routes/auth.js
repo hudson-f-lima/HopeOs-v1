@@ -51,6 +51,29 @@ router.post('/auth/logout', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Recuperação de senha: sempre 200, para não revelar quais e-mails têm conta.
+router.post('/auth/recover', async (req, res, next) => {
+  try {
+    const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+    if (!email) throw createAppError('EMAIL_REQUIRED', 'Informe o e-mail.', 422);
+    if (rateLimited(`${req.ip}|recover|${email}`)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
+    await getAuthProvider().recoverPassword(email, env.APP_PUBLIC_URL || undefined);
+    res.json({ ok: true, data: { message: 'Se houver conta com este e-mail, enviamos um link para definir a senha.' } });
+  } catch (err) { next(err); }
+});
+
+// Define a senha com o token do link de convite/recuperação (Bearer).
+router.post('/auth/password', async (req, res, next) => {
+  try {
+    const token = extractBearer(req);
+    if (!token || !looksLikeJwt(token)) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+    const password = String((req.body && req.body.password) || '');
+    if (password.length < 8) throw createAppError('WEAK_PASSWORD', 'Senha fraca: use ao menos 8 caracteres.', 422);
+    await getAuthProvider().setPassword(token, password);
+    res.json({ ok: true, data: null });
+  } catch (err) { next(err); }
+});
+
 // Quem sou eu + empresas disponíveis. Funciona sem X-Empresa-Id (usuário com várias empresas).
 router.get('/me', async (req, res, next) => {
   try {

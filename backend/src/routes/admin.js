@@ -7,6 +7,7 @@ const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { getIdentityStore } = require('../auth/identityStore');
 const { generateCredential } = require('../auth/credentials');
+const { getAuthProvider } = require('../auth/provider');
 const { ACTIONS } = require('../auth/rbac');
 const { metrics } = require('../middleware/auth');
 const { validateUUID } = require('../validators/cadastros.validator');
@@ -84,6 +85,41 @@ router.post('/admin/memberships', async (req, res, next) => {
     }
     if (unitIds) await store.replaceMembershipUnits(m.id, unitIds);
     res.status(201).json({ ok: true, data: { ...m, unit_ids: unitIds || [] } });
+  } catch (err) { next(err); }
+});
+
+// Convite: cria a conta (se ainda não existir) e o vínculo de uma vez. A pessoa
+// recebe o e-mail do provedor e define a própria senha; nada de senha pelo admin.
+router.post('/admin/invites', async (req, res, next) => {
+  try {
+    const body = pick(req.body, ['email', 'role', 'profissionalId', 'unitIds']);
+    const store = getIdentityStore();
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw createAppError('INVALID_EMAIL', 'E-mail inválido.', 422);
+    if (!ROLES.includes(body.role)) throw createAppError('INVALID_ROLE', 'role inválida.', 422, { allowed: ROLES });
+    if (body.role === 'profissional' && !body.profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'Vincule o cadastro de profissional.', 422);
+    const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
+    const profissionalId = await validateProfissional(req, body.profissionalId);
+    let user = await store.findAppUserByEmail(email);
+    let convidado = false;
+    if (!user) {
+      const criado = await getAuthProvider().inviteUser(email, env.APP_PUBLIC_URL || undefined);
+      user = await store.getAppUser(criado.id);
+      if (!user) throw createAppError('USER_SYNC_PENDING', 'Conta criada, mas ainda não sincronizada. Tente de novo.', 503);
+      convidado = true;
+    }
+    let m;
+    try {
+      m = await store.insertMembership({
+        empresa_id: req.auth.empresa_id, user_id: user.id, role: body.role,
+        profissional_id: profissionalId || null, created_by: req.auth.actor_id
+      });
+    } catch (err) {
+      if (err.code === '23505') throw createAppError('MEMBERSHIP_EXISTS', 'Usuário já vinculado a esta empresa.', 409);
+      throw err;
+    }
+    if (unitIds) await store.replaceMembershipUnits(m.id, unitIds);
+    res.status(201).json({ ok: true, data: { ...m, unit_ids: unitIds || [], convidado } });
   } catch (err) { next(err); }
 });
 
