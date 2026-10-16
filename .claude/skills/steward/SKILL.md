@@ -12,6 +12,7 @@ description: Como trabalhar no HOPE OS / KortexOS sem violar as regras do projet
 ## 2. Bloqueios que nenhuma autonomia genérica libera
 Exigem autorização **explícita e específica** do Platform Owner:
 - Criar migration 008+ ou tocar 001–007 (007 autorizada em D-007); executar SQL em qualquer banco. SQL de rascunho só em Markdown marcado `DRAFT ONLY`.
+- Usar o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`): é OUTRO projeto, não misturar com o HOPE OS.
 - Aplicar a 007 em produção fora do `docs/RUNBOOK_MIGRATION_007.md` (backup → migration → deploy, nessa ordem).
 - Declarar multi-tenant seguro ou tratar `API_ACCESS_TOKEN` como auth final.
 - Avançar V1.5.

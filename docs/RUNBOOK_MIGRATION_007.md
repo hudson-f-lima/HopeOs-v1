@@ -10,7 +10,8 @@ Tempo estimado: 30–45 min. Rollback: seção 8.
 ## 0. Bloqueios encontrados (por que não foi aplicado automaticamente)
 | Item | Situação | O que destrava |
 |---|---|---|
-| Supabase de produção (`qosioymzswhkqkziocas`, citado em `docs/audit_global/12_*`) | DESCONHECIDO — não aparece na conta conectada à sessão (só `kortex-os-v2-staging`, pausado) | Executar este runbook com acesso ao projeto, ou conectar a conta certa ao conector Supabase do Claude |
+| Supabase de produção (`qosioymzswhkqkziocas`, citado em `docs/audit_global/12_*`) | DESCONHECIDO — não aparece na conta conectada à sessão | Executar este runbook com acesso ao projeto, ou conectar a conta certa ao conector Supabase do Claude |
+| `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) | **OUTRO PROJETO — nunca usar para o HOPE OS** (decisão do Platform Owner, 2026-10-16). Foi reativado e pausado de novo em 2026-10-16; só uma consulta de leitura rodou nele, sem escrita | — |
 | Backend Render `hopeos-v1` | BLOQUEADO — `https://hopeos-v1.onrender.com/api/health` responde 503 "Service suspended by its owner" | Reativar o serviço no painel do Render |
 
 ## 1. Pré-requisitos

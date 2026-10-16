@@ -7,6 +7,7 @@
 - Versão: identidade/RBAC/autoria (ADR-005 + migration 007) IMPLEMENTADA no código, **não aplicada em produção**; slots-âncora (D-006); V1.4.2 mesclada; V1.5 BLOQUEADA
 - Branch de trabalho: `ccr-9854814d-ialzxj` → PR #16 (draft) — `main` em `c5a2914` + ADR-005 (#14)
 - Fundação física: migrations 001–007 (007 autorizada em D-007); 008+ não autorizada
+- Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
 - Estado de produção: BLOQUEADO — backend Render `hopeos-v1` suspenso pelo dono (HTTP 503 "Service suspended", 2026-10-16); Supabase de produção (`qosioymzswhkqkziocas`) fora do alcance da sessão. Procedimento: `docs/RUNBOOK_MIGRATION_007.md`
 
 ## Estado confirmado
