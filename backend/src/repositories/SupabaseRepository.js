@@ -128,12 +128,15 @@ class SupabaseRepository {
     return data;
   }
 
-  async createProdutoComEstoque(payload) {
-    const { data, error } = await this.supabase.rpc('produto_criar_com_estoque', {
+  // autoria = { actorId, integrationId } de autoriaDe(req.auth); gravada pelo wrapper da 007.
+  async createProdutoComEstoque(payload, autoria = {}) {
+    const { data, error } = await this.supabase.rpc('produto_criar_com_estoque_autoria', {
       p_empresa_id: this.empresaId,
       p_produto: payload.produto,
       p_estoque_inicial: payload.estoqueInicial || 0,
-      p_motivo: payload.motivo || null
+      p_motivo: payload.motivo || null,
+      p_actor_id: autoria.actorId || null,
+      p_integration_id: autoria.integrationId || null
     });
     if (error) throw error;
     return data;
@@ -151,14 +154,16 @@ class SupabaseRepository {
     return data;
   }
 
-  async adjustProdutoEstoque(produtoId, payload) {
-    const { data, error } = await this.supabase.rpc('produto_estoque_ajuste', {
+  async adjustProdutoEstoque(produtoId, payload, autoria = {}) {
+    const { data, error } = await this.supabase.rpc('produto_estoque_ajuste_autoria', {
       p_empresa_id: this.empresaId,
       p_produto_id: produtoId,
       p_tipo: payload.tipo,
       p_quantidade: payload.quantidade,
       p_custo_unitario_centavos: payload.custo_unitario_centavos || 0,
-      p_motivo: payload.motivo || null
+      p_motivo: payload.motivo || null,
+      p_actor_id: autoria.actorId || null,
+      p_integration_id: autoria.integrationId || null
     });
     if (error) throw error;
     return data;
@@ -215,7 +220,7 @@ class SupabaseRepository {
     return { servicos, produtos, profissionais, profissionalServicos, formasPagamento };
   }
 
-  async saveCheckoutClose({ payload, resolved, preview }) {
+  async saveCheckoutClose({ payload, resolved, preview, autoria = {} }) {
     const rpcPayload = {
       id: payload.id || null,
       idempotencyKey: payload.idempotencyKey || payload.idempotency_key || null,
@@ -231,12 +236,35 @@ class SupabaseRepository {
       }
     };
 
-    const { data, error } = await this.supabase.rpc('checkout_close', {
+    const { data, error } = await this.supabase.rpc('checkout_close_autoria', {
       p_empresa_id: this.empresaId,
       p_payload: rpcPayload,
-      p_preview: preview
+      p_preview: preview,
+      p_actor_id: autoria.actorId || null,
+      p_integration_id: autoria.integrationId || null
     });
     if (error) throw error;
+    return data;
+  }
+
+  // Checagem de conflito + insert numa transação sob lock (migration 007):
+  // dois pedidos simultâneos para o mesmo horário não gravam os dois.
+  async criarAgendamento({ agendamento, permitirConflito = false, ignorarId = null, createdBy = null }) {
+    const { data, error } = await this.supabase.rpc('agendamento_criar', {
+      p_empresa_id: this.empresaId,
+      p_agendamento: agendamento,
+      p_permitir_conflito: !!permitirConflito,
+      p_ignorar_id: ignorarId,
+      p_created_by: createdBy
+    });
+    if (error) {
+      if (error.code === 'HS409') {
+        let conflitos = [];
+        try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
+        throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda para o profissional neste horário.', 409, { conflitos });
+      }
+      throw error;
+    }
     return data;
   }
 }

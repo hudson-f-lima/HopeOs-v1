@@ -22,6 +22,17 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false
+      # ADR-005 / migration 007 (ver docs/RUNBOOK_MIGRATION_007.md)
+      - key: APP_PUBLIC_URL
+        sync: false
+      - key: LEGACY_TOKEN_AUTH_ENABLED
+        value: "true"
+      - key: AUTH_TIMEOUT_MS
+        value: "5000"
+      - key: INTEGRATION_ROTATION_OVERLAP_MIN
+        value: "60"
+      - key: APP_TIMEZONE
+        value: America/Sao_Paulo
 
   # Frontend — PWA estático
   - type: web

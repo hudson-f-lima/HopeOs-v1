@@ -7,7 +7,7 @@ const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
-const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
+const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery } = require('../validators/agenda.validator');
 const {
   validateUUID,
   validateCreateClientePayload,
@@ -26,12 +26,27 @@ const {
   validateCreateListaEsperaPayload,
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
-const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
+const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
 
+const { authorize, assertOwn } = require('../auth/rbac');
+const { autoriaDe } = require('../middleware/auth');
+
 const router = express.Router();
+
+// Autoria nunca vem do cliente (ADR-005): recusa explícita em qualquer escrita.
+const AUTHORSHIP_FIELDS = ['actor_id', 'actorId', 'actor_integration_id', 'integration_id', 'integrationId',
+  'created_by', 'createdBy', 'updated_by', 'updatedBy', 'cancelled_by', 'cancelledBy'];
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && typeof req.body === 'object') {
+    const field = AUTHORSHIP_FIELDS.find(f => Object.prototype.hasOwnProperty.call(req.body, f));
+    if (field) return next(createAppError('FORBIDDEN_FIELD', `Campo proibido no payload: ${field}`, 422, { field }));
+  }
+  next();
+});
 
 async function buildServerResolvedCheckout(repo, rawBody) {
   const payload = validateCheckoutPayload(rawBody);
@@ -46,6 +61,20 @@ async function requireActiveEntity(repo, table, id, label, notFoundCode) {
   if (!row) throw createAppError(notFoundCode, `${label} não encontrado: ${id}`, 422, { id });
   if (row.ativo === false) throw createAppError(notFoundCode.replace('_NOT_FOUND', '_INACTIVE'), `${label} inativo: ${id}`, 422, { id });
   return row;
+}
+
+// Escopo "Próprio" no checkout: toda linha de serviço precisa ser do profissional
+// do usuário, e produto só pode ser atribuído a ele (ou a ninguém).
+function assertOwnCheckout(req, body) {
+  if (!req.authz || !req.authz.own) return;
+  const itens = Array.isArray(body && body.itens) ? body.itens : [];
+  const servicos = itens.filter(i => (i.tipo || i.type) === 'servico');
+  if (!servicos.length) throw createAppError('NOT_OWN_RESOURCE', 'Comanda sem atendimento do próprio profissional.', 403);
+  for (const item of itens) {
+    const prof = item.profissionalId || item.profissional_id || null;
+    const tipo = item.tipo || item.type;
+    if (tipo === 'servico' || prof) assertOwn(req, prof);
+  }
 }
 
 async function requireScopedEntity(repo, table, id, label, notFoundCode) {
@@ -63,49 +92,51 @@ function assertProdutoEconomics(produto) {
   }
 }
 
-router.get('/data-contract', (req, res) => {
+router.get('/data-contract', authorize('cadastros:read'), (req, res) => {
   res.json({ ok: true, data: loadDataContract() });
 });
 
-router.get('/snapshot', async (req, res, next) => {
-  try { res.json({ ok: true, data: await getSnapshot() }); }
+router.get('/snapshot', authorize('relatorios:full'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await getSnapshot(req.auth.empresa_id) }); }
   catch (err) { next(err); }
 });
 
-router.get('/dashboard', async (req, res, next) => {
-  try { res.json({ ok: true, data: buildDashboard(await getSnapshot()) }); }
+router.get('/dashboard', authorize('relatorios:operacional'), async (req, res, next) => {
+  try { res.json({ ok: true, data: buildDashboard(await getSnapshot(req.auth.empresa_id)) }); }
   catch (err) { next(err); }
 });
 
-router.get('/financeiro/resumo', async (req, res, next) => {
-  try { res.json({ ok: true, data: buildFinanceReadModel(await getSnapshot()) }); }
+router.get('/financeiro/resumo', authorize('relatorios:full'), async (req, res, next) => {
+  try { res.json({ ok: true, data: buildFinanceReadModel(await getSnapshot(req.auth.empresa_id)) }); }
   catch (err) { next(err); }
 });
 
-router.get('/clientes', async (req, res, next) => {
+router.get('/clientes', authorize('clientes:read'), async (req, res, next) => {
   try { res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('clientes', { empresa_id: req.auth.empresa_id }) }); }
   catch (err) { next(err); }
 });
 
-router.post('/clientes', async (req, res, next) => {
+router.post('/clientes', authorize('clientes:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateClientePayload(req.body);
-    res.status(201).json({ ok: true, data: await repo.insertScoped('clientes', payload) });
+    const { actorId } = autoriaDe(req.auth);
+    res.status(201).json({ ok: true, data: await repo.insertScoped('clientes', { ...payload, created_by: actorId }) });
   } catch (err) { next(err); }
 });
 
-router.patch('/clientes/:id', async (req, res, next) => {
+router.patch('/clientes/:id', authorize('clientes:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'clientes', id, 'Cliente', 'CLIENT_NOT_FOUND');
     const payload = validateUpdateClientePayload(req.body);
-    res.json({ ok: true, data: await repo.updateScoped('clientes', id, payload) });
+    const { actorId } = autoriaDe(req.auth);
+    res.json({ ok: true, data: await repo.updateScoped('clientes', id, { ...payload, updated_by: actorId }) });
   } catch (err) { next(err); }
 });
 
-router.get('/servicos', async (req, res, next) => {
+router.get('/servicos', authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('servicos', { empresa_id: repo.empresaId }) });
@@ -113,7 +144,7 @@ router.get('/servicos', async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/servicos', async (req, res, next) => {
+router.post('/servicos', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateServicoPayload(req.body);
@@ -121,7 +152,7 @@ router.post('/servicos', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/servicos/:id', async (req, res, next) => {
+router.patch('/servicos/:id', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -131,7 +162,7 @@ router.patch('/servicos/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/profissionais', async (req, res, next) => {
+router.get('/profissionais', authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('profissionais', { empresa_id: repo.empresaId }) });
@@ -139,7 +170,7 @@ router.get('/profissionais', async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/profissionais', async (req, res, next) => {
+router.post('/profissionais', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateProfissionalPayload(req.body);
@@ -147,7 +178,7 @@ router.post('/profissionais', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/profissionais/:id', async (req, res, next) => {
+router.patch('/profissionais/:id', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -157,7 +188,7 @@ router.patch('/profissionais/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/produtos', async (req, res, next) => {
+router.get('/produtos', authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('produtos', { empresa_id: repo.empresaId }) });
@@ -165,7 +196,7 @@ router.get('/produtos', async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/produtos', async (req, res, next) => {
+router.post('/produtos', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { produto, estoqueInicial } = validateCreateProdutoPayload(req.body);
@@ -173,12 +204,12 @@ router.post('/produtos', async (req, res, next) => {
       produto,
       estoqueInicial,
       motivo: 'Estoque inicial do cadastro de produto'
-    });
+    }, autoriaDe(req.auth));
     res.status(201).json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.patch('/produtos/:id', async (req, res, next) => {
+router.patch('/produtos/:id', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -199,17 +230,17 @@ router.patch('/produtos/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/produtos/:id/estoque/ajuste', async (req, res, next) => {
+router.post('/produtos/:id/estoque/ajuste', authorize('estoque:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'produtos', id, 'Produto', 'PRODUCT_NOT_FOUND');
     const payload = validateEstoqueAjustePayload(req.body);
-    res.status(201).json({ ok: true, data: await repo.adjustProdutoEstoque(id, payload) });
+    res.status(201).json({ ok: true, data: await repo.adjustProdutoEstoque(id, payload, autoriaDe(req.auth)) });
   } catch (err) { next(err); }
 });
 
-router.get('/formas-pagamento', async (req, res, next) => {
+router.get('/formas-pagamento', authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('formas_pagamento', { empresa_id: repo.empresaId }) });
@@ -217,7 +248,7 @@ router.get('/formas-pagamento', async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/formas-pagamento', async (req, res, next) => {
+router.post('/formas-pagamento', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateFormaPagamentoPayload(req.body);
@@ -229,7 +260,7 @@ router.post('/formas-pagamento', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/formas-pagamento/:code', async (req, res, next) => {
+router.patch('/formas-pagamento/:code', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: req.params.code });
@@ -239,7 +270,7 @@ router.patch('/formas-pagamento/:code', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/profissionais/:id/servicos', async (req, res, next) => {
+router.get('/profissionais/:id/servicos', authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -248,7 +279,7 @@ router.get('/profissionais/:id/servicos', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/profissionais/:id/servicos', async (req, res, next) => {
+router.put('/profissionais/:id/servicos', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -262,7 +293,7 @@ router.put('/profissionais/:id/servicos', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res, next) => {
+router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -285,69 +316,102 @@ router.patch('/profissionais/:id/servicos/:servicoId/override', async (req, res,
   } catch (err) { next(err); }
 });
 
-router.get('/agenda', async (req, res, next) => {
+router.get('/agenda', authorize('agenda:read'), async (req, res, next) => {
   try {
     const filters = { empresa_id: req.auth.empresa_id };
     if (req.query.data) filters.data = req.query.data;
+    if (req.authz.own) filters.profissional_id = req.authz.profissionalId;
     res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('agendamentos', filters) });
   } catch (err) { next(err); }
 });
 
-router.post('/agenda', async (req, res, next) => {
+// Sugestão de horários livres (slots-âncora). Somente leitura: o POST /agenda
+// continua revalidando conflito na gravação.
+router.get('/agenda/slots', authorize('agenda:read'), async (req, res, next) => {
+  try {
+    const query = validateSlotsQuery(req.query);
+    assertOwn(req, query.profissionalId);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [profissional, servico] = await Promise.all([
+      requireActiveEntity(repo, 'profissionais', query.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND'),
+      requireActiveEntity(repo, 'servicos', query.servicoId, 'Serviço', 'SERVICE_NOT_FOUND')
+    ]);
+    const [empresas, servicos, agendamentos] = await Promise.all([
+      repo.list('empresas', { id: repo.empresaId }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data: query.data })
+    ]);
+    const result = buildSlotsDoDia({
+      data: query.data,
+      profissional,
+      empresa: empresas[0] || {},
+      servico,
+      servicosAtivos: servicos.filter(s => s.ativo !== false),
+      agendamentos,
+      duracaoMin: query.duracaoMin,
+      agora: agoraNoFuso(env.APP_TIMEZONE)
+    });
+    res.json({ ok: true, data: { ...result, profissionalId: profissional.id, servicoId: servico.id } });
+  } catch (err) { next(err); }
+});
+
+router.post('/agenda', authorize('agenda:write'), async (req, res, next) => {
   try {
     const payload = validateCreateAgendamentoPayload(req.body);
+    assertOwn(req, payload.profissionalId);
+    const { actorId } = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
 
     if (payload.clienteId) await requireActiveEntity(repo, 'clientes', payload.clienteId, 'Cliente', 'CLIENT_NOT_FOUND');
     const servico = await requireActiveEntity(repo, 'servicos', payload.servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
-    await requireActiveEntity(repo, 'profissionais', payload.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const profissional = await requireActiveEntity(repo, 'profissionais', payload.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
-    const duracaoMin = payload.duracaoMin ?? servico.duracao_min ?? 30;
+    // Mesma regra do GET /agenda/slots: override do profissional > serviço > 30.
+    const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
 
-    if (!payload.permitirConflito) {
-      const existentes = await repo.list('agendamentos', {
-        empresa_id: repo.empresaId,
+    // Conflito checado e gravado atomicamente no banco (agendamento_criar, migration 007).
+    const created = await repo.criarAgendamento({
+      agendamento: {
+        cliente_id: payload.clienteId,
+        servico_id: payload.servicoId,
         profissional_id: payload.profissionalId,
-        data: payload.data
-      });
-      assertNoScheduleConflict({
-        agendamento: { id: null, profissionalId: payload.profissionalId, data: payload.data, horario: payload.horario, duracaoMin },
-        existing: existentes
-      });
-    }
-
-    const created = await repo.insert('agendamentos', {
-      cliente_id: payload.clienteId,
-      servico_id: payload.servicoId,
-      profissional_id: payload.profissionalId,
-      data: payload.data,
-      horario: payload.horario,
-      duracao_min: duracaoMin,
-      valor_centavos: servico.valor_centavos || 0,
-      status: 'agendado'
+        data: payload.data,
+        horario: payload.horario,
+        duracao_min: duracaoMin,
+        valor_centavos: servico.valor_centavos || 0,
+        status: 'agendado'
+      },
+      permitirConflito: payload.permitirConflito,
+      createdBy: actorId
     });
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }
 });
 
-router.patch('/agenda/:id/status', async (req, res, next) => {
+router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, next) => {
   try {
     const { novoStatus } = validateStatusChangePayload(req.body);
+    const id = validateUUID(req.params.id, 'id');
+    const { actorId } = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
 
-    const existing = await repo.list('agendamentos', { id: req.params.id, empresa_id: repo.empresaId });
-    const original = existing[0];
-    if (!original) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${req.params.id}`, 404, { id: req.params.id });
+    const original = await repo.getByIdScoped('agendamentos', id);
+    if (!original) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${id}`, 404, { id });
+    assertOwn(req, original.profissional_id);
 
+    const now = new Date().toISOString();
     if (novoStatus !== 'reagendado') {
-      const updated = await repo.update('agendamentos', original.id, { status: novoStatus, updated_at: new Date().toISOString() });
+      const patch = { status: novoStatus, updated_at: now, updated_by: actorId };
+      if (novoStatus === 'cancelado') patch.cancelled_by = actorId;
+      const updated = await repo.updateScoped('agendamentos', original.id, patch);
       return res.json({ ok: true, data: { original: updated } });
     }
 
     const reagendamento = validateReagendamentoPayload(req.body);
     const novoServicoId = reagendamento.novoServicoId || original.servico_id;
     const novoProfissionalId = reagendamento.novoProfissionalId || original.profissional_id;
+    assertOwn(req, novoProfissionalId);
 
     let servico = null;
     if (reagendamento.novoServicoId) servico = await requireActiveEntity(repo, 'servicos', novoServicoId, 'Serviço', 'SERVICE_NOT_FOUND');
@@ -355,36 +419,30 @@ router.patch('/agenda/:id/status', async (req, res, next) => {
 
     const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
 
-    if (!reagendamento.permitirConflito) {
-      const existentes = await repo.list('agendamentos', {
-        empresa_id: repo.empresaId,
+    // O original ainda está ativo neste momento: é ignorado na checagem de conflito.
+    const novo = await repo.criarAgendamento({
+      agendamento: {
+        cliente_id: original.cliente_id,
+        servico_id: novoServicoId,
         profissional_id: novoProfissionalId,
-        data: reagendamento.novaData
-      });
-      assertNoScheduleConflict({
-        agendamento: { id: original.id, profissionalId: novoProfissionalId, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo },
-        existing: existentes
-      });
-    }
-
-    const novo = await repo.insert('agendamentos', {
-      cliente_id: original.cliente_id,
-      servico_id: novoServicoId,
-      profissional_id: novoProfissionalId,
-      data: reagendamento.novaData,
-      horario: reagendamento.novoHorario,
-      duracao_min: duracaoMinNovo,
-      valor_centavos: servico ? (servico.valor_centavos ?? original.valor_centavos) : original.valor_centavos,
-      status: 'agendado'
+        data: reagendamento.novaData,
+        horario: reagendamento.novoHorario,
+        duracao_min: duracaoMinNovo,
+        valor_centavos: servico ? (servico.valor_centavos ?? original.valor_centavos) : original.valor_centavos,
+        status: 'agendado'
+      },
+      permitirConflito: reagendamento.permitirConflito,
+      ignorarId: original.id,
+      createdBy: actorId
     });
 
-    const updatedOriginal = await repo.update('agendamentos', original.id, { status: 'reagendado', updated_at: new Date().toISOString() });
+    const updatedOriginal = await repo.updateScoped('agendamentos', original.id, { status: 'reagendado', updated_at: now, updated_by: actorId });
 
     res.json({ ok: true, data: { original: updatedOriginal, novo } });
   } catch (err) { next(err); }
 });
 
-router.patch('/agenda/:id/duracao', async (req, res, next) => {
+router.patch('/agenda/:id/duracao', authorize('agenda:write'), async (req, res, next) => {
   try {
     const duracaoMin = Number(req.body && req.body.duracaoMin);
     if (!Number.isInteger(duracaoMin) || duracaoMin < 10 || duracaoMin > 480) {
@@ -392,16 +450,19 @@ router.patch('/agenda/:id/duracao', async (req, res, next) => {
     }
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
-    await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
+    const agendamento = await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
+    assertOwn(req, agendamento.profissional_id);
+    const { actorId } = autoriaDe(req.auth);
     const updated = await repo.updateScoped('agendamentos', id, {
       duracao_min: duracaoMin,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      updated_by: actorId
     });
     res.json({ ok: true, data: { id: updated.id, duracaoMin: updated.duracao_min } });
   } catch (err) { next(err); }
 });
 
-router.get('/catalog', async (req, res, next) => {
+router.get('/catalog', authorize('clientes:read'), authorize('cadastros:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos] = await Promise.all([
@@ -416,20 +477,23 @@ router.get('/catalog', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/checkout/preview', async (req, res, next) => {
+router.post('/checkout/preview', authorize('checkout:write'), async (req, res, next) => {
   try {
+    assertOwnCheckout(req, req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { resolved } = await buildServerResolvedCheckout(repo, req.body);
     res.json({ ok: true, data: previewCheckout(resolved) });
   } catch (err) { next(err); }
 });
 
-router.post('/checkout/close', async (req, res, next) => {
+router.post('/checkout/close', authorize('checkout:write'), async (req, res, next) => {
   try {
+    assertOwnCheckout(req, req.body);
+    const autoria = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
     const preview = previewCheckout(resolved);
-    const saved = await repo.saveCheckoutClose({ payload, resolved, preview });
+    const saved = await repo.saveCheckoutClose({ payload, resolved, preview, autoria });
 
     // Vínculo opcional checkout → agenda. Não faz parte da RPC nem do ledger:
     // é só uma atualização de status feita depois que o checkout já fechou.
@@ -438,9 +502,14 @@ router.post('/checkout/close', async (req, res, next) => {
     if (req.body && req.body.agendamentoId) {
       try {
         const agendamentoId = validateUUID(req.body.agendamentoId, 'agendamentoId');
+        if (req.authz.own) {
+          const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
+          assertOwn(req, ag && ag.profissional_id);
+        }
         agendamentoConcluido = await repo.updateScoped('agendamentos', agendamentoId, {
           status: 'concluido',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          updated_by: autoria.actorId
         });
       } catch (linkErr) {
         console.error('Falha ao marcar agendamento como concluído:', linkErr.message || linkErr);
@@ -452,7 +521,7 @@ router.post('/checkout/close', async (req, res, next) => {
 });
 
 // F1 Insights — read-only, serão cacheáveis depois
-router.get('/insights/occupancy', async (req, res, next) => {
+router.get('/insights/occupancy', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
     const from = req.query.from || new Date().toISOString().split('T')[0];
     const to = req.query.to || new Date().toISOString().split('T')[0];
@@ -460,72 +529,72 @@ router.get('/insights/occupancy', async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
     }
-    const service = new InsightsService();
+    const service = new InsightsService(req.auth.empresa_id);
     const data = await service.loadOccupancyInsights(from, to);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.get('/insights/margin', async (req, res, next) => {
+router.get('/insights/margin', authorize('relatorios:full'), async (req, res, next) => {
   try {
     const from = req.query.from || new Date().toISOString().split('T')[0];
     const to = req.query.to || new Date().toISOString().split('T')[0];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
     }
-    const service = new InsightsService();
+    const service = new InsightsService(req.auth.empresa_id);
     const data = await service.loadMarginInsights(from, to);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.get('/insights/cashflow', async (req, res, next) => {
+router.get('/insights/cashflow', authorize('relatorios:full'), async (req, res, next) => {
   try {
     const days = Math.min(parseInt(req.query.days || '30'), 90);
-    const service = new InsightsService();
+    const service = new InsightsService(req.auth.empresa_id);
     const data = await service.loadCashflowInsights(days);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
 // F2 Retencao - read-only, backend-only analytics
-router.get('/insights/retention', async (req, res, next) => {
+router.get('/insights/retention', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
-    const service = new RetentionService();
+    const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadRetentionInsights();
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.get('/insights/clients/:id/reliability', async (req, res, next) => {
+router.get('/insights/clients/:id/reliability', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
     const id = validateUUID(req.params.id, 'id');
-    const service = new RetentionService();
+    const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadClientReliability(id);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.get('/insights/attach', async (req, res, next) => {
+router.get('/insights/attach', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
-    const service = new RetentionService();
+    const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadAttachInsights();
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
-router.get('/insights/rebooking/:clienteId', async (req, res, next) => {
+router.get('/insights/rebooking/:clienteId', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
     const clienteId = validateUUID(req.params.clienteId, 'clienteId');
     const servicoId = req.query.servicoId ? validateUUID(req.query.servicoId, 'servicoId') : null;
-    const service = new RetentionService();
+    const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadRebookingSuggestion(clienteId, servicoId);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
 // F4.4 — lista de espera (tabela ja existe desde 001_init.sql; zero migration nova)
-router.get('/lista-espera', async (req, res, next) => {
+router.get('/lista-espera', authorize('lista_espera:read'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filters = { empresa_id: repo.empresaId };
@@ -535,7 +604,7 @@ router.get('/lista-espera', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/lista-espera', async (req, res, next) => {
+router.post('/lista-espera', authorize('lista_espera:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateListaEsperaPayload(req.body);
@@ -546,7 +615,7 @@ router.post('/lista-espera', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/lista-espera/:id', async (req, res, next) => {
+router.patch('/lista-espera/:id', authorize('lista_espera:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');

@@ -6,7 +6,7 @@ import {
   getInsightsOccupancy,
   getInsightsRetention
 } from '../api.js';
-import { state, findProfissionalNome, stateBus } from '../state.js';
+import { state, findProfissionalNome, stateBus, sessionRoleIn } from '../state.js';
 import { addDays, centsToBRL, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, waLink, WEEKDAY_LABELS } from '../utils.js';
 
 const SEGMENT_COLORS = ['#7c6af7', '#14b8a6', '#3b82f6', '#f59e0b', '#ff7a68', '#b794f6', '#22c55e', '#9490a3'];
@@ -337,10 +337,18 @@ async function atualizarInsights() {
 
   // Carregamento independente - Progressive Rendering
   // Não trava a UI num Promise.all bloqueante.
+  // Margem e caixa são relatório gerencial (RBAC: admin/gestor). Recepção vê o operacional.
+  const financeiro = sessionRoleIn('admin', 'gestor');
+  if (!financeiro) {
+    for (const id of ['dbMarginWidget', 'dbMoneyWidget']) {
+      const node = el(id);
+      if (node) node.innerHTML = '<div class="widget-restrito">Disponível para administração e gestão.</div>';
+    }
+  }
   await Promise.allSettled([
     loadOccupancy(from, to),
-    loadMargin(from, to),
-    loadCashflow(),
+    financeiro ? loadMargin(from, to) : Promise.resolve(),
+    financeiro ? loadCashflow() : Promise.resolve(),
     loadRetentionAndAttach()
   ]);
 

@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-4-7';
+const CACHE_NAME = 'hope-os-shell-v1-5-0-auth';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
@@ -14,7 +14,8 @@ const SHELL_ASSETS = [
   './js/ui/agenda.js',
   './js/ui/checkout.js',
   './js/ui/dashboard.js',
-  './js/ui/cadastros.js'
+  './js/ui/cadastros.js',
+  './js/ui/equipe.js'
 ];
 
 self.addEventListener('install', (event) => {

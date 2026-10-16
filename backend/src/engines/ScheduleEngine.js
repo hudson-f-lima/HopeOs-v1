@@ -9,6 +9,9 @@ function minutesToTime(total) {
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
+// Status que não ocupam a agenda do profissional.
+const INACTIVE_STATUSES = ['cancelado', 'no_show', 'reagendado'];
+
 function overlaps(a, b) {
   return a.start < b.end && b.start < a.end;
 }
@@ -21,7 +24,7 @@ function findScheduleConflicts({ agendamento, existing }) {
     if (a.id === agendamento.id) return false;
     if (a.profissional_id !== agendamento.profissionalId && a.profissionalId !== agendamento.profissionalId) return false;
     if (a.data !== agendamento.data) return false;
-    if (['cancelado', 'no_show', 'reagendado'].includes(a.status)) return false;
+    if (INACTIVE_STATUSES.includes(a.status)) return false;
     const otherStart = timeToMinutes(a.horario);
     const otherEnd = otherStart + Number(a.duracao_min || a.duracaoMin || 30);
     return overlaps(current, { start: otherStart, end: otherEnd });
@@ -41,4 +44,4 @@ function assertNoScheduleConflict({ agendamento, existing }) {
   }
 }
 
-module.exports = { timeToMinutes, minutesToTime, overlaps, findScheduleConflicts, assertNoScheduleConflict };
+module.exports = { INACTIVE_STATUSES, timeToMinutes, minutesToTime, overlaps, findScheduleConflicts, assertNoScheduleConflict };

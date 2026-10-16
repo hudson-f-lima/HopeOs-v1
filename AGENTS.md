@@ -15,7 +15,7 @@ O estado atual e o handoff vivem exclusivamente em `docs/PROJECT_STATE.md`. Este
 ## Bloqueios permanentes
 
 - Não avançar para V1.5.
-- Não criar migrations 007+ nem tocar 001–006.
+- Não criar migrations 008+ nem tocar 001–007 (007 autorizada em D-007).
 - Não implementar escala global, novas features ou regras de negócio.
 - Não tratar `API_ACCESS_TOKEN` como autenticação final.
 - Não declarar multi-tenant seguro.
@@ -36,8 +36,8 @@ Todo achado deve ser classificado como `REAL`, `PARCIAL`, `MOCKADO`, `HARDCODED`
 
 ## Migrações e documentação
 
-- Fundação física: `supabase/migrations/001–006`.
-- Faixa 007+ é futura e não autorizada; 046–060 é obsoleta.
+- Fundação física: `supabase/migrations/001–007` (rollback da 007 em `supabase/rollback/`).
+- Faixa 008+ é futura e não autorizada; 046–060 é obsoleta.
 - Correções documentais são in-place e entram no índice.
 - SQL draft só em Markdown com `DRAFT ONLY`.
 

@@ -111,8 +111,9 @@ function computeRebookingRate(comandos, agendamentos) {
 }
 
 class RetentionService {
-  constructor() {
-    this.repo = new SupabaseRepository();
+  constructor(empresaId) {
+    if (!empresaId) throw new Error('RetentionService exige empresaId');
+    this.repo = new SupabaseRepository(empresaId);
   }
 
   async loadRetentionInsights(hoje = todaySaoPaulo()) {
