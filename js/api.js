@@ -93,6 +93,11 @@ export async function api(path, options = {}) {
   return json.data;
 }
 
+export function getAgendaSlots({ data, profissionalId, servicoId }) {
+  const params = new URLSearchParams({ data, profissionalId, servicoId });
+  return api('/agenda/slots?' + params.toString());
+}
+
 export function getInsightsOccupancy(from, to) {
   const params = new URLSearchParams({ from, to });
   return api('/insights/occupancy?' + params.toString());

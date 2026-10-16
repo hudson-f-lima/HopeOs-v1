@@ -11,6 +11,7 @@ export const state = {
   currentPreview: null,
   agendamentoIdParaCheckout: null,
   reagendarAlvoId: null,
+  agSlotsInfo: null,
   activeTab: 'agenda',
   dragging: null,
   resizing: null,

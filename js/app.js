@@ -11,7 +11,7 @@ import {
   closeModal 
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
-import { initAgenda, updateNovoAgendamentoPreview } from './ui/agenda.js';
+import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots } from './ui/agenda.js';
 import { initCheckout, onServicoSelected } from './ui/checkout.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
@@ -158,6 +158,7 @@ async function init() {
         const linkedProfIds = links.filter(l => l.servico_id === servicoId).map(l => l.profissional_id);
         state.fuzzyAgProfissional.setItems(state.catalog.profissionais.filter(p => p.ativo !== false && linkedProfIds.includes(p.id)));
         updateNovoAgendamentoPreview();
+        refreshAgendaSlots();
       }
     });
 
@@ -168,6 +169,7 @@ async function init() {
         const links = state.catalog.profissional_servicos || [];
         const linkedServiceIds = links.filter(l => l.profissional_id === profissionalId).map(l => l.servico_id);
         state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false && linkedServiceIds.includes(s.id)));
+        refreshAgendaSlots();
       }
     });
 
