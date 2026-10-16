@@ -1,6 +1,6 @@
 # PROJECT STATE — KortexOS
 
-**Atualizado:** 2026-07-12  
+**Atualizado:** 2026-10-16  
 **Fonte canônica do estado operacional atual.**
 
 ## Identificação
@@ -18,7 +18,8 @@
 | `req.auth` (empresa_id/user_id/actor_id/role/unit_ids) | PARCIAL | populado pelo middleware; só `empresa_id` tem valor (do env), demais `null`/`[]` — `docs/audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md` |
 | Tenant boundary em rotas críticas (clientes, agenda, checkout) | REAL — corrigidos 4 pontos sem filtro de tenant | tenant-boundary-gate 12/12 |
 | Tenant boundary na camada de repositório (`SupabaseRepository.insert`) | REAL — `empresa_id`/`empresaId` do payload são descartados; grava sempre `this.empresaId`; falha fechado sem tenant válido | tenant-boundary-gate 12/12 (testes 10–12) |
-| Gate integrado | REAL — 94/94 (revalidado em 2026-07-12) | `cd backend && npm run test:gate` |
+| Gate integrado | DESCONHECIDO desde ~2026-07 — o insights-gate falhava por bomba-relógio de data (corrigida em 2026-10-16); `test:gate` completo não revalidado (requer Supabase real + `data/*.json`) | `cd backend && npm run test:gate` |
+| Gate offline | REAL — 141/141 (2026-10-16) | `cd backend && npm run test:offline`; roda no CI |
 | Auth por usuário | PENDENTE | requer JWT/Sessão |
 | RBAC | BLOQUEADO | requer tabela de papéis (migration 007+, não autorizada) |
 | Tenant por identidade | BLOQUEADO | requer extração de tenant de identidade real; hoje `empresa_id` vem só do env |
@@ -27,9 +28,10 @@
 | Multi-tenant seguro | BLOQUEADO | regras em `AGENTS.md` |
 | `DEFAULT_EMPRESA_ID` | HARDCODED | `backend/src/config/env.js`; única fonte de tenant hoje, agora centralizada em `req.auth.empresa_id` |
 | ADR-005 (Supabase Auth/JWT, membership, RBAC, actor_id, principals user/integration) | PROPOSTA CONCLUÍDA — aguardando nova revisão e aprovação do Platform Owner (revisão anterior bloqueada pelo Red Team por falta de separação user/integration; corrigida nesta revisão) | `docs/adr/ADR-005-identity-tenant-rbac-actor.md`; nenhum código/migration alterado |
-| Sugestão de slots-âncora (`GET /agenda/slots`) | REAL no backend / PENDENTE na PWA | `backend/src/engines/SlotEngine.js`; gate `schedule-slots-gate` 18/18; sem migration |
+| Sugestão de slots-âncora (`GET /agenda/slots`) | REAL no backend e na PWA (modal de novo agendamento) — validado E2E com repositório em memória; PENDENTE validação contra Supabase real | `backend/src/engines/SlotEngine.js`, `js/ui/agenda.js`; gate `schedule-slots-gate` 18/18; D-006; sem migration |
 | Double-booking concorrente em `POST /agenda` | PARCIAL — checagem de conflito é na aplicação (lista → insere), não atômica; duas reservas simultâneas no mesmo horário podem passar | `backend/src/routes/index.js` (`POST /agenda`); correção definitiva = exclusion constraint no banco → migration 007+ não autorizada |
-| CI remoto | AUSENTE — débito P1 | sem `.github/workflows`; sem proteção automática antes de merge |
+| CI remoto | REAL — PARCIAL | `.github/workflows/ci.yml` roda `npm run test:offline` (141 testes, sem banco); finance/product/tenant-boundary integrados seguem só locais (Supabase real + `data/*.json` com PII) |
+| Insights cashflow acumulado | REAL — corrigido | `computeAccumulatedCashflow` usava o relógio do servidor; o insights-gate quebrava sozinho com o tempo (gate 94/94 já não era verdade); agora 73/73 |
 | Rotação de segredos | REAL | confirmação prévia |
 | Histórico Git limpo | REAL | purga efetuada |
 
@@ -42,13 +44,14 @@
 - P0: NENHUM
 - P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (arquitetura definida na ADR-005, implementação exige migration 007+ autorizada)
 - P1 separado: corrida de double-booking em `POST /agenda` (PARCIAL; correção exige migration 007+ autorizada)
-- P1 separado: ausência de CI remoto (`.github/workflows`) — não implementar no branch da ADR
+- P1 separado: CI remoto PARCIAL — gates integrados (Supabase real) ainda não rodam no Actions
 - V1.5: BLOQUEADA
 
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:gate` | REAL — 94/94 (82 anteriores + 12 de tenant-boundary) | execução local 2026-07-12 |
+| `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12; precisa rodar local com `.env` | — |
+| `npm run test:offline` | REAL — 141/141 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18) | CI + execução local 2026-10-16 |
 | Produção E2E (Curl) | REAL | validado (health=200, protegida=401) |
 | `npm audit --omit=dev` | 1 vulnerabilidade HIGH pré-existente (`xlsx`, sem fix disponível) | não relacionada a este ciclo; risco residual |
 
@@ -60,9 +63,11 @@
 - Auditorias antigas têm vereditos não comprovados; são históricas, não autoridade de estado.
 
 ## Próxima ação única
+- Rodar `cd backend && npm run test:gate` localmente com `.env` real e registrar o resultado (gate integrado está DESCONHECIDO). Em paralelo, a revisão da ADR-005 pelo Platform Owner segue como pré-requisito da migration 007.
 - Platform Owner revisar e autorizar (ou pedir revisão de) a ADR-005 (`docs/adr/ADR-005-identity-tenant-rbac-actor.md`); só então iniciar a migration 007 desenhada nela.
 
 ## Handoff
+- Ciclo 2026-10-16 (branch `ccr-9854814d-ialzxj`, PR #16): slots-âncora backend + PWA (D-006), fix do cashflow acumulado, CI offline, skill `.claude/skills/steward`. Sem migration/SQL. Corrida de double-booking registrada como P1 PARCIAL.
 - Concluído: V1.4.2 parcial mesclada em `main` via PR #13 (squash, commit `c5a2914`) — `req.auth` estrutural, 4 correções cross-tenant nas rotas, invariante de tenant no `SupabaseRepository.insert`, `unit_id`/`unitId` bloqueados, gate `tenant-boundary-gate.test.js` (12/12). ADR-005 redigida e revisada três vezes em `docs/adr/ADR-005-identity-tenant-rbac-actor.md` (branch `docs/adr-identity-auth-model`, PR #14, sem código/migration): decide Supabase Auth/JWT, membership, RBAC por role fixa, origem de `actor_id`, compatibilidade com `API_ACCESS_TOKEN`, desenho da migration 007, rollout/rollback e gates futuros. Revisão Red Team bloqueou a primeira versão por falta de separação entre principal `user` e principal `integration`; a segunda revisão corrigiu isso adicionando os dois formatos distintos de `req.auth` e o modelo de credencial de integração (`integrations`/`integration_credentials`/`integration_scopes`/`integration_audit_events`); a terceira revisão fechou as últimas garantias explícitas: segredo S2S exibido uma única vez e irrecuperável depois; comparação de credencial resistente a timing attack (mesmo padrão de `safeEquals`/`crypto.timingSafeEqual` já usado no `API_ACCESS_TOKEN`); scopes controlados exclusivamente pelo servidor, nunca autoconcedidos pela integração; autoria fail-closed estendida de "evento imutável" para também cobrir "estado mutável" (`created_by`/`updated_by`/`cancelled_by`); cache de validação de JWT declarado como exclusivo da etapa de identidade, nunca incluindo membership/role/unit access (que são sempre resolvidos frescos no banco a cada requisição); e política mínima de rotação de credenciais S2S (sobreposição curta configurável, máximo de duas credenciais ativas, revogação automática ao fim da janela, revogação emergencial sempre disponível).
 - Pendente: Revisão final curta do Platform Owner sobre a ADR-005 corrigida; autorização para a migration 007 nela desenhada; implementação de Supabase Auth, `app_users`/`empresa_memberships`/`membership_units`, modelo de integração e RBAC — todos BLOQUEADOS até essa autorização.
 - Arquivos alterados neste ciclo (documental, branch `docs/adr-identity-auth-model`): `docs/adr/ADR-005-identity-tenant-rbac-actor.md`, `docs/DECISIONS.md` (D-005), `docs/PROJECT_STATE.md`. Nenhum código, migration ou dado alterado.
