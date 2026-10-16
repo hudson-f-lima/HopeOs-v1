@@ -17,8 +17,9 @@
     "test:auth": "node tests/auth-gate.test.js",
     "test:tenant-boundary": "node tests/tenant-boundary-gate.test.js",
     "test:slots": "node tests/schedule-slots-gate.test.js",
-    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots",
+    "test:identity": "node tests/identity-gate.test.js",
+    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js"
   },

@@ -148,8 +148,9 @@ test('09 rotas reais V1.2 existem sem frontend novo', () => {
 test('10 repositorio usa escopo por empresa e RPCs atomicas', () => {
   assert(repoSource.includes('updateScoped(table, id, payload)'));
   assert(repoSource.includes(".eq('empresa_id', this.empresaId)"));
-  assert(repoSource.includes("rpc('produto_estoque_ajuste'"));
-  assert(repoSource.includes("rpc('produto_criar_com_estoque'"));
+  // Desde a 007 o backend chama os wrappers de autoria, que delegam às mesmas RPCs atômicas.
+  assert(repoSource.includes("rpc('produto_estoque_ajuste_autoria'"));
+  assert(repoSource.includes("rpc('produto_criar_com_estoque_autoria'"));
   assert(repoSource.includes("rpc('profissional_servicos_replace'"));
   assert(repoSource.includes('replaceProfissionalServicos'));
   assert(repoSource.includes('setProfissionalServicoOverride'));

@@ -19,6 +19,13 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '',
   DEFAULT_EMPRESA_ID: process.env.DEFAULT_EMPRESA_ID || '00000000-0000-0000-0000-000000000001',
   API_ACCESS_TOKEN: process.env.API_ACCESS_TOKEN || '',
+  // ADR-005: desliga o Bearer legado (API_ACCESS_TOKEN) sem remover o código.
+  LEGACY_TOKEN_AUTH_ENABLED: String(process.env.LEGACY_TOKEN_AUTH_ENABLED ?? 'true').toLowerCase() !== 'false',
+  AUTH_TIMEOUT_MS: Number(process.env.AUTH_TIMEOUT_MS || 5000),
+  // Janela em que a credencial antiga de integração continua válida após rotação.
+  INTEGRATION_ROTATION_OVERLAP_MIN: Number(process.env.INTEGRATION_ROTATION_OVERLAP_MIN || 60),
+  LOGIN_RATE_LIMIT_MAX: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
+  LOGIN_RATE_LIMIT_WINDOW_MIN: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MIN || 15),
   APP_TIMEZONE: process.env.APP_TIMEZONE || 'America/Sao_Paulo',
   CORS_ORIGIN: splitCsv(process.env.CORS_ORIGIN || 'null,http://localhost:5173,http://127.0.0.1:5500')
 };

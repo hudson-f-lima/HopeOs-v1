@@ -3,6 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const { env } = require('./config/env');
 const routes = require('./routes');
+const { authRouter } = require('./routes/auth');
+const { adminRouter } = require('./routes/admin');
 const { requireAuth } = require('./middleware/auth');
 const { mapErrorForResponse } = require('./errors');
 
@@ -31,6 +33,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.set('trust proxy', 1); // Render: req.ip do cliente real (rate limit de login)
 app.use(express.json({ limit: '5mb' }));
 app.use(morgan('dev'));
 
@@ -42,7 +45,10 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: 'HOPE OS V1 API', time: new Date().toISOString() });
 });
 
+// Sessão (login/refresh/logout/me) antes do perímetro; o resto exige principal.
+app.use('/api', authRouter);
 app.use('/api', requireAuth);
+app.use('/api', adminRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {
