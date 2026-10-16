@@ -171,5 +171,19 @@ do $$ begin
   ), '11 empresa pré-existente sem unidade';
 end $$;
 
+-- 12 Red Team: no Supabase quem insere em auth.users é supabase_auth_admin (sem
+--    superusuário, sem privilégio em public). O trigger precisa funcionar assim.
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'supabase_auth_admin') then create role supabase_auth_admin nologin noinherit; end if;
+end $$;
+grant usage on schema auth to supabase_auth_admin;
+grant insert, select on auth.users to supabase_auth_admin;
+set local role supabase_auth_admin;
+insert into auth.users (id, email) values ('c0000000-0000-4000-8000-0000000000ff', 'via-auth-admin@a.test');
+reset role;
+do $$ begin
+  assert exists (select 1 from app_users where id = 'c0000000-0000-4000-8000-0000000000ff'), '12 trigger não rodou como supabase_auth_admin';
+end $$;
+
 rollback;
-\echo 'OK gate_007 (11 blocos)'
+\echo 'OK gate_007 (12 blocos)'

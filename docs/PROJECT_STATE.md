@@ -47,7 +47,7 @@
 | Gate | Resultado | Evidência |
 |---|---|---|
 | `npm run test:offline` | REAL — 179/179 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38) | CI + local 2026-10-16 |
-| `supabase/tests/run.sh` | REAL — 001–007 + gate_007 (11 blocos) + concorrência + rollback/reaplicação | CI (Postgres 16) + local |
+| `supabase/tests/run.sh` | REAL — 001–007 + gate_007 (12 blocos) + concorrência + rollback/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
 | `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12, antes da bomba-relógio do insights | precisa Supabase real com 007 |
 | Produção (curl) | BLOQUEADO — `/api/health` 503 "Service suspended" | 2026-10-16 |
