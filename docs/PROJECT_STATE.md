@@ -27,6 +27,8 @@
 | Multi-tenant seguro | BLOQUEADO | regras em `AGENTS.md` |
 | `DEFAULT_EMPRESA_ID` | HARDCODED | `backend/src/config/env.js`; única fonte de tenant hoje, agora centralizada em `req.auth.empresa_id` |
 | ADR-005 (Supabase Auth/JWT, membership, RBAC, actor_id, principals user/integration) | PROPOSTA CONCLUÍDA — aguardando nova revisão e aprovação do Platform Owner (revisão anterior bloqueada pelo Red Team por falta de separação user/integration; corrigida nesta revisão) | `docs/adr/ADR-005-identity-tenant-rbac-actor.md`; nenhum código/migration alterado |
+| Sugestão de slots-âncora (`GET /agenda/slots`) | REAL no backend / PENDENTE na PWA | `backend/src/engines/SlotEngine.js`; gate `schedule-slots-gate` 18/18; sem migration |
+| Double-booking concorrente em `POST /agenda` | PARCIAL — checagem de conflito é na aplicação (lista → insere), não atômica; duas reservas simultâneas no mesmo horário podem passar | `backend/src/routes/index.js` (`POST /agenda`); correção definitiva = exclusion constraint no banco → migration 007+ não autorizada |
 | CI remoto | AUSENTE — débito P1 | sem `.github/workflows`; sem proteção automática antes de merge |
 | Rotação de segredos | REAL | confirmação prévia |
 | Histórico Git limpo | REAL | purga efetuada |
@@ -39,6 +41,7 @@
 ## Bloqueadores
 - P0: NENHUM
 - P1: PENDENTE/BLOQUEADO — auth por usuário, RBAC, tenant por identidade real e `actor_id` (arquitetura definida na ADR-005, implementação exige migration 007+ autorizada)
+- P1 separado: corrida de double-booking em `POST /agenda` (PARCIAL; correção exige migration 007+ autorizada)
 - P1 separado: ausência de CI remoto (`.github/workflows`) — não implementar no branch da ADR
 - V1.5: BLOQUEADA
 

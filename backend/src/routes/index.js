@@ -7,7 +7,7 @@ const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
-const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload } = require('../validators/agenda.validator');
+const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery } = require('../validators/agenda.validator');
 const {
   validateUUID,
   validateCreateClientePayload,
@@ -27,6 +27,8 @@ const {
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
 const { assertNoScheduleConflict } = require('../engines/ScheduleEngine');
+const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
@@ -293,6 +295,35 @@ router.get('/agenda', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Sugestão de horários livres (slots-âncora). Somente leitura: o POST /agenda
+// continua revalidando conflito na gravação.
+router.get('/agenda/slots', async (req, res, next) => {
+  try {
+    const query = validateSlotsQuery(req.query);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [profissional, servico] = await Promise.all([
+      requireActiveEntity(repo, 'profissionais', query.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND'),
+      requireActiveEntity(repo, 'servicos', query.servicoId, 'Serviço', 'SERVICE_NOT_FOUND')
+    ]);
+    const [empresas, servicos, agendamentos] = await Promise.all([
+      repo.list('empresas', { id: repo.empresaId }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data: query.data })
+    ]);
+    const result = buildSlotsDoDia({
+      data: query.data,
+      profissional,
+      empresa: empresas[0] || {},
+      servico,
+      servicosAtivos: servicos.filter(s => s.ativo !== false),
+      agendamentos,
+      duracaoMin: query.duracaoMin,
+      agora: agoraNoFuso(env.APP_TIMEZONE)
+    });
+    res.json({ ok: true, data: { ...result, profissionalId: profissional.id, servicoId: servico.id } });
+  } catch (err) { next(err); }
+});
+
 router.post('/agenda', async (req, res, next) => {
   try {
     const payload = validateCreateAgendamentoPayload(req.body);
@@ -300,9 +331,10 @@ router.post('/agenda', async (req, res, next) => {
 
     if (payload.clienteId) await requireActiveEntity(repo, 'clientes', payload.clienteId, 'Cliente', 'CLIENT_NOT_FOUND');
     const servico = await requireActiveEntity(repo, 'servicos', payload.servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
-    await requireActiveEntity(repo, 'profissionais', payload.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const profissional = await requireActiveEntity(repo, 'profissionais', payload.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
-    const duracaoMin = payload.duracaoMin ?? servico.duracao_min ?? 30;
+    // Mesma regra do GET /agenda/slots: override do profissional > serviço > 30.
+    const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
 
     if (!payload.permitirConflito) {
       const existentes = await repo.list('agendamentos', {
