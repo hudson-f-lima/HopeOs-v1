@@ -5,6 +5,7 @@ const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { getAuthProvider } = require('../auth/provider');
 const { getIdentityStore } = require('../auth/identityStore');
+const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { requireAuth, extractBearer, resolveUserIdentity, looksLikeJwt, safeEquals } = require('../middleware/auth');
 
 const router = express.Router();
@@ -59,6 +60,7 @@ router.get('/me', async (req, res, next) => {
       const store = getIdentityStore();
       const empresas = await Promise.all(memberships.map(async m => ({
         empresa_id: m.empresa_id, role: m.role, membership_id: m.id, profissional_id: m.profissional_id || null,
+        nome: ((await new SupabaseRepository(m.empresa_id).list('empresas', { id: m.empresa_id }))[0] || {}).nome || null,
         unidades: (await store.listUnidades(m.empresa_id)).filter(u => u.ativo !== false).map(u => ({ id: u.id, nome: u.nome }))
       })));
       return res.json({ ok: true, data: { principal_type: 'user', user: { id: appUser.id, email: appUser.email, nome: appUser.nome }, empresas } });

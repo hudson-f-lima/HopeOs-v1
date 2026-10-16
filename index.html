@@ -28,8 +28,33 @@
   <p class="body-lg">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
 </div>
 
+<div id="loginScreen" class="login-screen hidden">
+  <form id="loginForm" class="card login-card" novalidate>
+    <h1 class="login-title">HOPE OS</h1>
+    <p class="login-sub">Entre com seu e-mail e senha.</p>
+    <div class="field">
+      <label for="loginEmail">E-mail</label>
+      <input id="loginEmail" type="email" autocomplete="username" inputmode="email" required/>
+    </div>
+    <div class="field">
+      <label for="loginSenha">Senha</label>
+      <input id="loginSenha" type="password" autocomplete="current-password" required/>
+    </div>
+    <p id="loginErro" class="login-erro" role="alert"></p>
+    <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
+    <div id="loginEmpresas" class="login-empresas hidden" aria-live="polite"></div>
+    <button id="btnTokenLegado" class="login-link" type="button">Usar token de acesso (modo antigo)</button>
+  </form>
+</div>
+
 <div id="appRoot" class="hidden">
-  <header class="topbar"><h1>HOPE OS</h1></header>
+  <header class="topbar">
+    <h1>HOPE OS</h1>
+    <div id="sessionChip" class="session-chip hidden">
+      <span id="sessionLabel"></span>
+      <button id="btnLogout" type="button" class="session-sair">Sair</button>
+    </div>
+  </header>
 
   <main>
     <div id="banner"></div>

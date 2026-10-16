@@ -1,14 +1,16 @@
-import { loadConfig } from './api.js';
+import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, selectEmpresa } from './api.js';
 import { 
   state, 
   stateBus, 
   loadCatalog, 
-  loadWeekAgenda 
+  loadWeekAgenda,
+  sessionRoleIn
 } from './state.js';
 import { 
   centsToBRL, 
   openModal, 
-  closeModal 
+  closeModal,
+  escapeHtml
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
 import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots } from './ui/agenda.js';
@@ -42,6 +44,87 @@ export function showSubtab(name) {
   if (target) target.classList.remove('hidden');
   
   document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.subtab === name));
+}
+
+const ROLE_LABEL = { admin: 'Admin', gestor: 'Gestão', recepcao: 'Recepção', profissional: 'Profissional' };
+
+function hide(id) { document.getElementById(id)?.classList.add('hidden'); }
+function show(id) { document.getElementById(id)?.classList.remove('hidden'); }
+
+// Tela de login: resolve quando o login dá certo (ou quando o usuário opta pelo token legado).
+function runLogin(mensagem) {
+  hide('loadingScreen'); hide('appRoot'); hide('fatalError'); show('loginScreen');
+  const form = document.getElementById('loginForm');
+  const erro = document.getElementById('loginErro');
+  const btn = document.getElementById('btnLogin');
+  erro.textContent = mensagem || '';
+  return new Promise(resolve => {
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim();
+      const senha = document.getElementById('loginSenha').value;
+      if (!email || !senha) { erro.textContent = 'Informe e-mail e senha.'; return; }
+      btn.disabled = true; btn.textContent = 'Entrando…'; erro.textContent = '';
+      try {
+        await login(email, senha);
+        document.getElementById('loginSenha').value = '';
+        resolve('user');
+      } catch (err) {
+        erro.textContent = err.status === 401 ? 'E-mail ou senha incorretos.' : (err.message || 'Não foi possível entrar.');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Entrar';
+      }
+    };
+    document.getElementById('btnTokenLegado').onclick = () => {
+      const token = window.prompt('Token de acesso da API:');
+      if (token && token.trim()) { setToken(token.trim()); resolve('legacy'); }
+    };
+  });
+}
+
+function escolherEmpresa(empresas) {
+  const box = document.getElementById('loginEmpresas');
+  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
+  document.getElementById('loginErro').textContent = 'Escolha a empresa:';
+  box.innerHTML = empresas.map(e => `<button type="button" class="btn" data-empresa="${escapeHtml(e.empresa_id)}">${escapeHtml(e.nome || e.empresa_id)} · ${escapeHtml(ROLE_LABEL[e.role] || e.role)}</button>`).join('');
+  show('loginEmpresas');
+  return new Promise(resolve => {
+    box.onclick = (ev) => {
+      const b = ev.target.closest('[data-empresa]');
+      if (!b) return;
+      hide('loginEmpresas');
+      resolve(empresas.find(e => e.empresa_id === b.dataset.empresa));
+    };
+  });
+}
+
+// Contexto da sessão: quem é, em qual empresa e com qual papel (só para a UI).
+async function carregarSessao() {
+  if (!getSession()) {
+    state.session = { principal: 'legacy', role: null };
+    return;
+  }
+  const me = await fetchMe();
+  const empresas = me.empresas || [];
+  if (!empresas.length) {
+    await logout();
+    throw Object.assign(new Error('Sua conta ainda não tem acesso a nenhuma empresa. Peça ao administrador.'), { name: 'NoAccessError' });
+  }
+  let atual = empresas.find(e => e.empresa_id === getSession().empresa_id);
+  if (!atual) atual = empresas.length === 1 ? empresas[0] : await escolherEmpresa(empresas);
+  selectEmpresa(atual.empresa_id);
+  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas };
+  hide('loginScreen');
+}
+
+function aplicarSessaoNaUI() {
+  const s = state.session;
+  if (s && s.principal === 'user') {
+    document.getElementById('sessionLabel').textContent = `${s.nome} · ${ROLE_LABEL[s.role] || s.role}`;
+    show('sessionChip');
+  }
+  // Dashboard é relatório operacional/gerencial: profissional não tem acesso no backend.
+  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) hide('navDashboard');
 }
 
 function showFatalError() {
@@ -84,6 +167,7 @@ async function init() {
       const defaultTime = String(new Date().getHours()).padStart(2, '0') + ':00';
       document.getElementById('agHorario').value = defaultTime;
       updateNovoAgendamentoPreview();
+      refreshAgendaSlots();
       openModal('modalNovoAgendamento');
     });
   }
@@ -101,8 +185,16 @@ async function init() {
   initDashboard();
   initCadastros();
 
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
+    await logout();
+    window.location.reload();
+  });
+
   try {
     await loadConfig();
+    if (!getSession() && !getToken()) await runLogin();
+    await carregarSessao();
+    aplicarSessaoNaUI();
     await loadCatalog();
 
     renderClientesList();
@@ -216,19 +308,18 @@ async function init() {
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
     await Promise.all([
       loadWeekAgenda(),
-      atualizarDashboard()
+      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve()
     ]);
   } catch (err) {
     console.error('Falha ao inicializar:', err);
     clearTimeout(slowBootTimer);
     
-    if (err.name === 'AuthError') {
-      const token = window.prompt('Acesso negado. Insira o token de acesso da API:');
-      if (token && token.trim()) {
-        localStorage.setItem('hopeos.apiToken', token.trim());
-        window.location.reload();
-        return;
-      }
+    // Credencial inválida/expirada ou conta sem acesso: volta para o login.
+    if (err.name === 'AuthError' || err.name === 'NoAccessError') {
+      setToken(null);
+      await runLogin(err.name === 'NoAccessError' ? err.message : 'Sua sessão expirou. Entre novamente.');
+      window.location.reload();
+      return;
     }
     
     showFatalError();

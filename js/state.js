@@ -3,6 +3,12 @@ import { startOfWeek, todayStr, weekDates } from './utils.js';
 
 export const stateBus = new EventTarget();
 
+// Legado/integração não têm papel: a UI mostra tudo, como antes do login.
+export function sessionRoleIn(...roles) {
+  const s = state && state.session;
+  return !s || s.principal !== 'user' || roles.includes(s.role);
+}
+
 export const state = {
   catalog: { clientes: [], servicos: [], produtos: [], profissionais: [], formas_pagamento: [] },
   currentWeekStart: startOfWeek(todayStr()),
@@ -12,6 +18,9 @@ export const state = {
   agendamentoIdParaCheckout: null,
   reagendarAlvoId: null,
   agSlotsInfo: null,
+  // Sessão atual: { principal: 'user'|'legacy', nome, role, empresa_id }. Só dica de UI;
+  // quem decide acesso é o backend (RBAC).
+  session: null,
   activeTab: 'agenda',
   dragging: null,
   resizing: null,
