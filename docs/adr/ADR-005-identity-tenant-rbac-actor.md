@@ -1,7 +1,20 @@
 # ADR-005 — Identity, Tenant, RBAC and Actor Model
 
 ## Status
-PROPOSTA CONCLUÍDA — aguardando nova revisão e aprovação do Platform Owner. Revisão anterior (Red Team) bloqueou a aprovação por ausência de separação formal entre principal humano e principal de integração; esta revisão endereça esse bloqueador. Nenhum código, migration ou dado foi alterado por esta ADR. V1.5 permanece bloqueada até implementação completa e gates verdes.
+APROVADA pelo Platform Owner em 2026-10-16 (D-007) e IMPLEMENTADA no código (PR #16, branch `ccr-9854814d-ialzxj`): migration 007, backend e PWA, com gates verdes (identity-gate 38/38, gate SQL 007 + concorrência no CI). **Aplicação em produção PENDENTE** — ver `docs/RUNBOOK_MIGRATION_007.md`. Histórico: a revisão anterior (Red Team) bloqueou a aprovação por ausência de separação formal entre principal humano e principal de integração; endereçado antes da aprovação.
+
+### Desvios e limites da implementação (2026-10-16)
+| Ponto | Decisão na implementação | Classificação |
+|---|---|---|
+| Login | Backend faz proxy do Supabase Auth (`/api/auth/*`); a PWA não carrega SDK nem chave do Supabase | REAL |
+| Agenda | Migration 007 inclui `agendamento_criar` (checagem + insert sob advisory lock) para fechar a corrida de double-booking; não previsto na ADR | REAL |
+| RLS | Item 10 antecipado na forma mínima: RLS deny-all + revogação de `anon`/`authenticated` em todo `public`; backend usa `service_role` | REAL |
+| Unidades | `unit_ids` resolvidos, seletor `X-Unidade-Id` validado e fail-closed sem unidade; tabelas de negócio ainda não têm `unit_id`, então dados não são particionados por unidade | PARCIAL |
+| Relatórios do profissional | "Leitura própria" ainda não existe: profissional fica sem relatórios (negado) | PARCIAL |
+| Autoria de integração em estado mutável | `created_by`/`updated_by` ficam nulos; a ação fica em `integration_audit_events` | PARCIAL |
+| Fim da janela de rotação | Credencial antiga recebe `expires_at` (expira sozinha, sem job); revogação explícita só no limite de duas e na emergencial | REAL |
+| Cache de validação de JWT | Não implementado: toda requisição valida no provedor (sem janela de revogação tardia) | REAL |
+| Contas | Criadas por convite do admin (o provedor envia o link); sem cadastro livre | REAL |
 
 ## Contexto
 - V1.4.2 parcial (commit `c5a2914`, merged em `main`) introduziu `req.auth` estrutural e fechou 4 riscos cross-tenant nas rotas e no `SupabaseRepository`, mas `empresa_id` ainda deriva exclusivamente de `DEFAULT_EMPRESA_ID` (env), não de identidade real.

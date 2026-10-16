@@ -1,5 +1,13 @@
 # Changelog
 
+## Identidade, RBAC e autoria (ADR-005, migration 007) — código pronto, produção pendente
+- Migration 007: `app_users` (sincronizado de `auth.users`), `empresa_memberships` com papel fixo, `unidades`, `membership_units`, principal de integração (`integrations`, credenciais só em hash, scopes, auditoria), autoria em comandos/estoque/agenda/clientes, `agendamento_criar` atômico (fecha a corrida de double-booking) e RLS deny-all + revogação de `anon`/`authenticated` em todo `public`. Rollback em `supabase/rollback/007_down.sql`.
+- Backend: três mecanismos de autenticação coexistentes (usuário JWT, integração `kxi_…`, legado desligável), RBAC em todas as rotas de negócio, escopo "Próprio" do profissional, autoria injetada pelo servidor, convite por e-mail, recuperação de senha, administração de equipe/unidades/integrações e métricas de adoção.
+- CRÍTICO corrigido: dashboard, financeiro, snapshot e insights liam a empresa padrão em vez da empresa do usuário.
+- PWA: login, "Defina sua senha" (convite/recuperação), "Esqueci minha senha", seleção de empresa, Gestão > Equipe, UI por papel; token legado continua funcionando.
+- Testes: identity-gate 38/38, gate SQL da 007 + teste de concorrência real (com controle negativo) no CI em Postgres 16, E2E Playwright versionados.
+- Produção: ver `docs/RUNBOOK_MIGRATION_007.md` (Supabase de produção fora do alcance desta sessão; Render suspenso).
+
 ## Agenda — slots-âncora (backend, sem migration)
 - Novo `GET /api/agenda/slots?data=&profissionalId=&servicoId=[&duracaoMin=]`: sugere horários livres e marca `ancora`/`recomendado` (encaixes que encostam em abertura, fechamento, almoço ou outro atendimento e deixam a menor sobra inutilizável). Somente leitura; tenant vem de `req.auth`.
 - Novo motor puro `backend/src/engines/SlotEngine.js`; aceita os dois formatos de horário existentes (`{seg:{ativo,inicio,fim}}` e `{1:{start,end}}`) e falha fechado sem horário configurado.
