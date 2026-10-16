@@ -8,6 +8,7 @@
 - Branch de trabalho: `ccr-9854814d-ialzxj` → PR #16 (draft) — `main` em `c5a2914` + ADR-005 (#14)
 - Fundação física: migrations 001–007 (007 autorizada em D-007); 008+ não autorizada
 - Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
+- Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. Migrations 001–005 aplicadas via conector; 006 e 007 PENDENTES (o conector cancela SQL com `delete`/`drop` que exige confirmação; aplicar no SQL Editor). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo).
 - Estado de produção: BLOQUEADO — backend Render `hopeos-v1` suspenso pelo dono (HTTP 503 "Service suspended", 2026-10-16); Supabase de produção (`qosioymzswhkqkziocas`) fora do alcance da sessão. Procedimento: `docs/RUNBOOK_MIGRATION_007.md`
 
 ## Estado confirmado
