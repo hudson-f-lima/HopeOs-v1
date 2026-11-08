@@ -146,3 +146,16 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 
 - Comissão no checkout: `itens[].comissaoPct` + `comissaoOrigem` (`override_profissional`, `cargo`, `categoria` ou `servico`).
 - `GET /api/agenda/slots` devolve `bufferMin`; cada atendimento ocupa até o fim + buffer (mesma regra do `agendamento_criar`).
+
+## Lembretes e transições de status (D-011)
+`GET /api/agenda/lembretes[?data=YYYY-MM-DD]` (`agenda:read`; profissional vê só os próprios). Sem `data` = amanhã no `APP_TIMEZONE`. Só leitura, não envia nada.
+```json
+{ "data": "2026-11-10", "pendentes": 3, "comLink": 2, "confirmados": 1,
+  "itens": [{ "agendamentoId": "uuid", "horario": "09:30", "status": "agendado", "clienteNome": "João Silva",
+              "servicoNome": "Corte", "profissionalNome": "Robson", "texto": "Olá, João! Lembrete…",
+              "link": "https://wa.me/5511988887777?text=…", "motivo": null }] }
+```
+- Pendentes = `agendado`/`aguardando`, ordenados por horário. `link: null` com `motivo`: `sem_whatsapp`, `whatsapp_invalido` (precisa de DDD + 8/9 dígitos) ou `sem_cliente`.
+- Data fora do formato → 422 `INVALID_DATE`.
+
+`PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).

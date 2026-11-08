@@ -28,6 +28,7 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
+import { initLembretes } from './ui/lembretes.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
@@ -218,6 +219,7 @@ async function init() {
 
   // Initialize UI sub-modules
   initAgenda();
+  initLembretes();
   initCheckout();
   initDashboard();
   initCadastros();

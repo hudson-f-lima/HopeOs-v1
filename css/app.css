@@ -851,3 +851,12 @@ dialog {
 .regua-aviso.exigir_sinal{background:#fde8e8;color:var(--md-error);}
 .cota-linha{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;font-variant-numeric:tabular-nums;}
 .onb-sub{font-size:14px;font-weight:800;margin-top:12px;}
+
+/* Lembretes de confirmação (D-011) */
+.agenda-lembretes-pill{left:88px;}
+.lembretes-dialog{margin:auto;width:min(560px,calc(100vw - 32px));max-height:85vh;border:none;border-radius:16px;padding:16px;}
+.lembretes-dialog::backdrop{background:rgba(0,0,0,.35);}
+.lembretes-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.lembretes-dialog .eq-ctrl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.lembretes-dialog .btn{width:auto;padding:6px 12px;}
+.lembrete-zap{text-decoration:none;text-align:center;}

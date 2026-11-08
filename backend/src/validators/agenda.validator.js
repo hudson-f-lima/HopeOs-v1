@@ -2,6 +2,16 @@ const { createAppError } = require('../errors');
 const { validateUUID } = require('./cadastros.validator');
 
 const STATUS_TRANSITIONS = ['no_show', 'cancelado', 'reagendado', 'confirmado', 'concluido'];
+// Estados finais: checkout feito (concluido/fechado) ou substituído por outro
+// agendamento (reagendado). Mudá-los reescreveria o histórico que alimenta
+// régua de faltas, retenção e confiabilidade — o backend recusa.
+const STATUS_FINAIS = ['concluido', 'fechado', 'reagendado'];
+
+function assertTransicaoStatus(statusAtual, novoStatus) {
+  if (STATUS_FINAIS.includes(statusAtual)) {
+    throw createAppError('INVALID_STATUS_TRANSITION', `Agendamento ${statusAtual} não muda de status.`, 409, { de: statusAtual, para: novoStatus });
+  }
+}
 
 function validateCreateAgendamentoPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
@@ -61,4 +71,4 @@ function validateSlotsQuery(query) {
   return { data: String(data), profissionalId: validateUUID(profissionalId, 'profissionalId'), servicoId: validateUUID(servicoId, 'servicoId'), duracaoMin: dur };
 }
 
-module.exports = { STATUS_TRANSITIONS, validateSlotsQuery, validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload };
+module.exports = { STATUS_TRANSITIONS, STATUS_FINAIS, assertTransicaoStatus, validateSlotsQuery, validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload };

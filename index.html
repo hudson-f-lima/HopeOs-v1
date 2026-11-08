@@ -135,6 +135,7 @@
         </div>
       </div>
       <button class="agenda-today-pill" id="btnAgendaToday" type="button">Hoje</button>
+      <button class="agenda-today-pill agenda-lembretes-pill" id="btnAgendaLembretes" type="button">Lembretes</button>
     </section>
 
     <section id="tab-checkout" class="tab-content hidden">
@@ -748,6 +749,16 @@
 </div>
 
 <dialog id="conflict-dialog"></dialog>
+
+<dialog id="lembretesDialog" class="lembretes-dialog" aria-labelledby="lembretesTitulo">
+  <div class="lembretes-head">
+    <h2 id="lembretesTitulo" class="m-0">Lembretes</h2>
+    <button class="btn" type="button" id="btnFecharLembretes" aria-label="Fechar">✕</button>
+  </div>
+  <label class="body-sm">Dia <input type="date" id="lembretesData"/></label>
+  <p class="body-sm text-tertiary">Abra o WhatsApp de cada cliente, envie a mensagem pronta e marque "Confirmou" quando a resposta chegar.</p>
+  <div id="lembretesConteudo"></div>
+</dialog>
 
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 

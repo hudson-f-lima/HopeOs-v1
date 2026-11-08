@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- Auditoria de estado + benchmark (D-011): `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`. Corrigidos: dependências vulneráveis, CORS por substring, transição de status de atendimento pago. Novo: lembretes de confirmação via wa.me.
 - PR #16 mesclado; banco de produção com 001–008. Trava de migrations no CI (D-010).
 - Falta (dono): Auth URLs, reativar o Render com as variáveis, convidar o primeiro admin (runbook 5–7).
 
@@ -46,20 +47,22 @@
 - P1: publicar o backend (Render suspenso por decisão do dono); revalidar `test:gate` integrado contra o `hopeos-v1` (precisa da chave secreta do projeto)
 - P1: tornar o check de CI obrigatório na proteção da `main` — sem isso a trava de migrations só avisa (D-010)
 - P1: CI PARCIAL — gates integrados (Supabase real) não rodam no Actions
+- P1 (antes do 1º cliente pagante): infra gratuita para sistema de caixa — Supabase Free pausa após ~7 dias sem atividade e não tem backup baixável; Render Free dorme quando ocioso
+- P1: estorno de comanda AUSENTE (ledger imutável exige lançamento de estorno → migration 009, não autorizada)
 - P2: 41 FKs sem índice (advisor de performance, INFO; banco vazio, sem impacto hoje — exigiria migration 009); unidades sem particionar dados; relatórios próprios do profissional; autoria de integração em estado mutável
 - V1.5: BLOQUEADA
 
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 197/197 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 9) | CI + local 2026-11-08 |
+| `npm run test:offline` | REAL — 204/204 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 9, lembretes 7) | CI + local 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
 | `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12, antes da bomba-relógio do insights | precisa Supabase real com 007 |
 | Banco de produção (verificação do runbook) | REAL — 12/12 `true`, migrations 001–008 | `hopeos-v1`, 2026-11-08 |
 | Produção (curl) | BLOQUEADO — `/api/health` 503 "Service suspended" | 2026-11-08 |
-| `npm audit --omit=dev` | 1 HIGH pré-existente (`xlsx`, sem fix) | risco residual |
+| `npm audit --omit=dev` | REAL — 0 vulnerabilidades (D-011: `express` 4.22.3, `morgan` 1.12.1; `xlsx` movido para dev, só scripts locais) | 2026-11-08 |
 
 ## Riscos residuais
 - Aplicar a 007 sem backup ou fora da ordem (backend novo antes da migration quebra agenda/checkout/estoque): o runbook fixa a ordem e o backup.

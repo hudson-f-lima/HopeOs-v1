@@ -1,5 +1,12 @@
 # Changelog
 
+## Auditoria, segurança e lembretes (D-011)
+- Lembretes de confirmação: na Agenda, botão "Lembretes" lista os horários de amanhã (ou do dia escolhido) ainda não confirmados, com a mensagem pronta no WhatsApp do cliente e o botão "Confirmou".
+- Segurança: dependências de produção sem vulnerabilidades conhecidas (antes: 1 crítica, 2 altas); CORS passa a comparar a origem exata.
+- Agenda: atendimento já pago (concluído) ou reagendado não pode mais virar cancelado/falta.
+- Auditoria de estado e benchmark de mercado em `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`.
+- lembretes-gate 7/7 (com controle negativo); offline 204/204; E2E dos lembretes.
+
 ## Produção do banco e trava de migrations (D-010)
 - Banco `hopeos-v1` com 001–008 aplicadas pela integração GitHub do Supabase no merge do PR #16; verificação do runbook 12/12.
 - `supabase/migrations.lock` + `check_migrations.sh` no CI: migration não autorizada, editada ou apagada reprova o PR, porque o merge na `main` agora executa SQL em produção.

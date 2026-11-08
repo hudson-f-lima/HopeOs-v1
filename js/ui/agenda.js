@@ -670,7 +670,7 @@ async function patchAgendaStatus(id, novoStatus) {
   clearBanner();
   try {
     await api(`/agenda/${id}/status`, { method: 'PATCH', body: { novoStatus } });
-    showBanner('Agendamento updated.', 'ok');
+    showBanner('Agendamento atualizado.', 'ok');
     await loadWeekAgenda();
   } catch (err) {
     showBanner(err.message, 'error');

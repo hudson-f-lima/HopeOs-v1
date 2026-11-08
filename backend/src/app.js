@@ -16,6 +16,9 @@ const app = express();
 // 172.16-31.x.x) cuja porta muda a cada sessao de teste; nao da pra fixar no CORS_ORIGIN.
 const LAN_ORIGIN = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
 
+const GITHUB_PAGES_ORIGIN = 'https://hudson-f-lima.github.io';
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 const corsOptions = {
   origin(origin, callback) {
     // Permitir arquivos locais (file://) que enviam origin nula ou indefinida
@@ -24,11 +27,9 @@ const corsOptions = {
     // Permitir origens configuradas nas variaveis de ambiente
     if (env.CORS_ORIGIN.includes('*') || env.CORS_ORIGIN.includes(origin)) return callback(null, true);
 
-    // Permitir GitHub Pages do usuario
-    if (origin.includes('hudson-f-lima.github.io')) return callback(null, true);
-
-    // Permitir localhost e rede local LAN
-    if (LAN_ORIGIN.test(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) return callback(null, true);
+    // GitHub Pages do usuario, localhost e rede local LAN — comparação exata
+    // (antes era substring: https://hudson-f-lima.github.io.atacante.com passava).
+    if (origin === GITHUB_PAGES_ORIGIN || LOCAL_ORIGIN.test(origin) || LAN_ORIGIN.test(origin)) return callback(null, true);
 
     return callback(null, false);
   }
