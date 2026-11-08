@@ -845,3 +845,9 @@ dialog {
 .onb-res-linha.liquido b{color:#0b6b48;font-size:16px;}
 .onb-acoes{display:flex;gap:8px;}
 .onb-acoes .btn{flex:1;}
+
+/* Régua de faltas (alerta, Onda B) */
+.regua-aviso{margin-top:6px;padding:8px 10px;border-radius:10px;font-size:12px;font-weight:600;background:#fff4e5;color:#8a4b00;}
+.regua-aviso.exigir_sinal{background:#fde8e8;color:var(--md-error);}
+.cota-linha{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;font-variant-numeric:tabular-nums;}
+.onb-sub{font-size:14px;font-weight:800;margin-top:12px;}

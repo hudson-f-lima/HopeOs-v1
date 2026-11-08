@@ -36,7 +36,7 @@ const semana = { dom: dia, seg: dia, ter: dia, qua: dia, qui: dia, sex: dia, sab
 const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
 
 const db = installMemoryBackend({
-  empresas: [{ id: E, nome: 'Salão Dev', whatsapp: '11999990000', slot_padrao: 30, horario_por_dia: semana, intervalo_almoco: false }],
+  empresas: [{ id: E, nome: 'Salão Dev', whatsapp: '11999990000', slot_padrao: 30, horario_por_dia: semana, intervalo_almoco: false, buffer_min: 0, regua_alerta_faltas: 2, regua_sinal_faltas: 3, salao_parceiro: false }],
   clientes: [{ id: CLIENTE, empresa_id: E, nome: 'Cliente Teste', ativo: true }],
   servicos: [
     { id: CORTE, empresa_id: E, nome: 'Corte', valor_centavos: 6000, duracao_min: 60, ativo: true },
@@ -53,9 +53,12 @@ const db = installMemoryBackend({
   ],
   agendamentos: [
     { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: hoje, horario: '10:00:00', duracao_min: 30, status: 'agendado', valor_centavos: 4000 },
-    { id: randomUUID(), empresa_id: E, profissional_id: PROF2, servico_id: CORTE, cliente_id: CLIENTE, data: hoje, horario: '11:00:00', duracao_min: 60, status: 'agendado', valor_centavos: 6000 }
+    { id: randomUUID(), empresa_id: E, profissional_id: PROF2, servico_id: CORTE, cliente_id: CLIENTE, data: hoje, horario: '11:00:00', duracao_min: 60, status: 'agendado', valor_centavos: 6000 },
+    // Duas faltas seguidas no passado: a régua de faltas (Onda B) mostra alerta para a Cliente Teste.
+    { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: '2026-01-05', horario: '10:00:00', duracao_min: 30, status: 'no_show', valor_centavos: 4000 },
+    { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: '2026-01-12', horario: '10:00:00', duracao_min: 30, status: 'no_show', valor_centavos: 4000 }
   ],
-  produtos: [], lista_espera: [],
+  produtos: [], lista_espera: [], cargos: [], servico_categorias: [], comandos: [], comando_itens: [],
   formas_pagamento: [{ empresa_id: E, code: 'pix', label: 'Pix', taxa_pct: 0, taxa_fixa_centavos: 0, dias_recebimento: 0, ativo: true }]
 });
 

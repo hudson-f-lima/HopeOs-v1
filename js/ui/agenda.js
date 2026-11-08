@@ -366,6 +366,7 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || state.selectedDay || todayStr();
 
   state.fuzzyAgCliente.clear();
+  avisarReguaCliente(null);
   state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));
   state.fuzzyAgServico.clear();
   state.fuzzyAgProfissional.setItems(state.catalog.profissionais.filter(p => p.ativo !== false));
@@ -567,8 +568,25 @@ async function loadReliabilityBadge(clienteId) {
     valueEl.textContent = `${r.score} · ${label}`;
     valueEl.style.color = reliabilityColor(r.faixa);
     valueEl.title = `No-shows (365d): ${r.fatores.noShows365d} · Cancelamentos tardios: ${r.fatores.cancelTardios365d} · Sequência de comparecimentos: ${r.fatores.streakConcluidos}`;
+    if (r.regua && ['alerta', 'exigir_sinal'].includes(r.regua.nivel)) valueEl.textContent += ` · ⚠ ${r.regua.faltasSeguidas} faltas seguidas`;
   } catch (err) {
     rowEl.classList.add('hidden');
+  }
+}
+
+// Régua de faltas (só alerta): avisa ao escolher o cliente no novo agendamento.
+export async function avisarReguaCliente(clienteId) {
+  const aviso = document.getElementById('agReguaAviso');
+  if (!aviso) return;
+  aviso.className = 'regua-aviso hidden';
+  if (!clienteId) return;
+  try {
+    const r = await getClientReliability(clienteId);
+    if (!r.regua || !['alerta', 'exigir_sinal'].includes(r.regua.nivel)) return;
+    aviso.textContent = r.regua.mensagem;
+    aviso.className = `regua-aviso ${r.regua.nivel}`;
+  } catch {
+    // Sem permissão de relatório (profissional) ou falha: agendar segue normal.
   }
 }
 

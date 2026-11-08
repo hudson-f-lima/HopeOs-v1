@@ -13,7 +13,7 @@ import {
   escapeHtml
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
-import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots } from './ui/agenda.js';
+import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots, avisarReguaCliente } from './ui/agenda.js';
 import { initCheckout, onServicoSelected } from './ui/checkout.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
@@ -27,6 +27,7 @@ import {
   openListaEsperaModal
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
+import { initComissoes } from './ui/comissoes.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
@@ -193,6 +194,7 @@ async function init() {
       // Trigger new agendamento modal opening via stateBus or custom event
       const date = state.selectedDay || new Date().toISOString().slice(0, 10);
       state.fuzzyAgCliente.clear();
+      avisarReguaCliente(null);
       state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));
       state.fuzzyAgServico.clear();
       state.fuzzyAgProfissional.setItems(state.catalog.profissionais.filter(p => p.ativo !== false));
@@ -278,7 +280,7 @@ async function init() {
     state.fuzzyAgCliente = new FuzzyField('agCliente', state.catalog.clientes, {
       labelFn: c => c.nome,
       valueFn: c => c.id,
-      onSelect: () => {}
+      onSelect: (clienteId) => { avisarReguaCliente(clienteId); }
     });
 
     state.fuzzyAgServico = new FuzzyField('agServico', state.catalog.servicos.filter(s => s.ativo !== false), {
@@ -345,6 +347,7 @@ async function init() {
     });
 
     initEquipe();
+    initComissoes();
     if (sessionRoleIn('admin', 'gestor')) {
       const btnAssistente = document.getElementById('btnAbrirAssistente');
       btnAssistente.classList.remove('hidden');

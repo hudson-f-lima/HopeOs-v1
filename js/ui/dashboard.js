@@ -323,6 +323,27 @@ async function loadRetentionAndAttach() {
   }
 }
 
+// Cota-parte do mês corrente (Lei do Salão-Parceiro): só gestão.
+async function loadCotaParte() {
+  const panel = el('dbCotaPartePanel');
+  const node = el('dbCotaParteWidget');
+  if (!panel || !node) return;
+  const mes = todayStr().slice(0, 7);
+  try {
+    const r = await api(`/relatorios/cota-parte?mes=${mes}`);
+    panel.classList.remove('hidden');
+    const linha = (rotulo, v) => `<div class="cota-linha"><span>${escapeHtml(rotulo)}</span><b>${centsToBRL(v)}</b></div>`;
+    node.innerHTML = `
+      ${r.salaoParceiro ? '' : '<p class="body-sm text-tertiary">Regime de salão-parceiro desligado no cadastro da empresa.</p>'}
+      ${linha('Cota-parte do salão', r.cotaParteSalaoCentavos)}
+      ${linha('Cota-parte dos profissionais', r.cotaParteProfissionaisCentavos)}
+      ${r.profissionais.map(p => linha(`· ${p.nome}`, p.cotaParteCentavos)).join('')}
+      <p class="body-sm text-tertiary">${r.comandas} comanda(s) em ${escapeHtml(mes)}. Confirme o enquadramento com seu contador.</p>`;
+  } catch (err) {
+    panel.classList.add('hidden');
+  }
+}
+
 async function atualizarInsights() {
   state.insights.loading = true;
   state.insights.error = null;
@@ -345,6 +366,7 @@ async function atualizarInsights() {
       if (node) node.innerHTML = '<div class="widget-restrito">Disponível para administração e gestão.</div>';
     }
   }
+  if (financeiro) loadCotaParte();
   await Promise.allSettled([
     loadOccupancy(from, to),
     financeiro ? loadMargin(from, to) : Promise.resolve(),

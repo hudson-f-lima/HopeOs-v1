@@ -25,13 +25,18 @@ const shot = name => require('path').join(require('os').tmpdir(), `hopeos-onb-${
   // Fase 1 — validação e dados
   await p.fill('#onbNome', 'Barbearia Teste'); await proximo();
   console.log('SEM TELEFONE:', await p.textContent('#onbErro'));
-  await p.fill('#onbWhats', '11988887777'); await proximo();
+  await p.fill('#onbWhats', '11988887777');
+  await p.fill('#onbCnpj', '11.222.333/0001-82'); await proximo();
+  console.log('CNPJ ERRADO:', await p.textContent('#onbErro'));
+  await p.fill('#onbCnpj', '11.222.333/0001-81'); await p.check('#onbParceiro'); await proximo();
   console.log('FASE:', await fase());
   // Fase 2 — horários padrão + grade 15 + almoço
-  await p.selectOption('#onbSlot', '15'); await p.check('#onbAlmoco'); await proximo();
+  await p.selectOption('#onbSlot', '15'); await p.selectOption('#onbBuffer', '10'); await p.check('#onbAlmoco'); await proximo();
   console.log('FASE:', await fase());
   // Fase 3 — formas padrão, ajusta taxa do crédito
-  await p.fill('[data-code="credito"] [data-campo="taxa"]', '3.5'); await proximo();
+  await p.fill('[data-code="credito"] [data-campo="taxa"]', '3.5');
+  console.log('CARGOS OFERECIDOS:', await p.locator('[data-cargo]').count());
+  await proximo();
   console.log('FASE:', await fase());
   // Fase 4 — cardápio de barbearia
   await p.screenshot({ path: shot('catalogo') });
@@ -41,11 +46,12 @@ const shot = name => require('path').join(require('os').tmpdir(), `hopeos-onb-${
   await proximo();
   console.log('SEM EQUIPE:', await p.textContent('#onbErro'));
   await p.fill('#onbProfNome', 'Robson'); await p.fill('#onbProfWhats', '11977776666');
+  await p.selectOption('#onbProfCargo', { label: 'Barbeiro (50%)' });
+  console.log('MODELO PELO CARGO:', await p.inputValue('#onbProfModelo'));
   const corte = p.locator('[data-servico]', { hasText: 'Corte masculino' }).first();
   await corte.locator('summary').click();
   await corte.locator('[data-campo="valor"]').fill('70');
   await corte.locator('[data-campo="duracao"]').fill('45');
-  await corte.locator('[data-campo="comissao"]').fill('60');
   await p.click('#onbProfForm button[type=submit]'); await p.waitForTimeout(1200);
   console.log('EQUIPE:', (await p.locator('.onb-equipe b').allTextContents()).join(', '), '| link WhatsApp:', await p.locator('.onb-equipe a').count());
   await proximo();
@@ -64,7 +70,11 @@ const shot = name => require('path').join(require('os').tmpdir(), `hopeos-onb-${
   const servicos = await db('servicos');
   const corteId = servicos.find(s => s.nome === 'Corte masculino').id;
   console.log('BANCO:', JSON.stringify({
-    empresa: [empresa.nome, empresa.whatsapp, empresa.slot_padrao, empresa.intervalo_almoco],
+    empresa: [empresa.nome, empresa.whatsapp, empresa.slot_padrao, empresa.intervalo_almoco, empresa.cnpj, empresa.salao_parceiro, empresa.buffer_min],
+    cargos: (await db('cargos')).map(c => `${c.nome}:${c.comissao_pct}:${c.modelo_comissao}`),
+    robsonCargo: ((await db('cargos')).find(c => c.id === robson.cargo_id) || {}).nome,
+    corteHeranca: servicos.find(s => s.nome === 'Corte masculino').modelo_heranca,
+    categorias: (await db('servico_categorias')).map(c => c.nome),
     diasAbertos: Object.values(empresa.horario_por_dia).filter(d => d.ativo).length,
     formas: (await db('formas_pagamento')).map(f => `${f.code}:${f.taxa_pct}`),
     servicos: servicos.length,

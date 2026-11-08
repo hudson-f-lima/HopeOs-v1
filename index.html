@@ -314,6 +314,16 @@
           <div id="dbMarginWidget" class="dashboard-widget-body"></div>
         </section>
 
+        <section class="dashboard-panel hidden" id="dbCotaPartePanel">
+          <div class="panel-head">
+            <div>
+              <h2>Cota-parte do mês</h2>
+              <p>Salão × profissionais parceiros, para a contabilidade.</p>
+            </div>
+          </div>
+          <div id="dbCotaParteWidget" class="dashboard-widget-body"></div>
+        </section>
+
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
             <div>
@@ -372,6 +382,7 @@
     <div class="field">
       <label for="agCliente">Cliente (opcional)</label>
       <input id="agCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <p id="agReguaAviso" class="regua-aviso hidden" role="status"></p>
     </div>
     <div class="field">
       <label for="agServico">Serviço</label>
@@ -539,6 +550,11 @@
       <button class="subtab-btn" data-subtab="clientes">Clientes</button>
       <button class="subtab-btn" data-subtab="espera">Espera</button>
       <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
+      <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-comissoes">
+      <div id="comissoesConteudo"></div>
     </div>
 
     <div class="subtab-content hidden" id="subtab-equipe">

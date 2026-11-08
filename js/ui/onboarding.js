@@ -13,6 +13,7 @@ const MODELOS = [
   ['bruto_salao', 'Salão assume a taxa', 'Comissão sobre o valor cheio; o salão paga a taxa.'],
   ['bruto_staff', 'Profissional assume a taxa', 'Comissão sobre o valor cheio; a taxa sai da comissão do profissional.']
 ];
+const ORIGEM = { override_profissional: 'ajuste do profissional', cargo: 'do cargo', categoria: 'da categoria', servico: 'do serviço' };
 const DIAS = [['seg', 'Segunda'], ['ter', 'Terça'], ['qua', 'Quarta'], ['qui', 'Quinta'], ['sex', 'Sexta'], ['sab', 'Sábado'], ['dom', 'Domingo']];
 
 let ctx = null; // { status, presets, empresa, catalogo, fase, resolver }
@@ -25,8 +26,8 @@ function adiado() {
 }
 
 async function recarregar() {
-  const [status, empresa, catalogo] = await Promise.all([api('/onboarding/status'), api('/empresa'), api('/catalog')]);
-  Object.assign(ctx, { status, empresa, catalogo });
+  const [status, empresa, catalogo, cargos] = await Promise.all([api('/onboarding/status'), api('/empresa'), api('/catalog'), api('/cargos')]);
+  Object.assign(ctx, { status, empresa, catalogo, cargos });
 }
 
 function render() {
@@ -60,7 +61,11 @@ function renderEmpresa() {
     ${campo('onbWhats', 'WhatsApp do salão', e.whatsapp, 'tel', 'inputmode="tel" placeholder="(11) 99999-9999"')}
     ${campo('onbTel', 'Telefone fixo (opcional)', e.telefone, 'tel', 'inputmode="tel"')}
     ${campo('onbEnd', 'Endereço (opcional)', e.endereco)}
-    ${campo('onbCidade', 'Cidade (opcional)', e.cidade)}`;
+    ${campo('onbCidade', 'Cidade (opcional)', e.cidade)}
+    ${campo('onbCnpj', 'CNPJ (opcional)', e.cnpj, 'text', 'inputmode="numeric" placeholder="00.000.000/0000-00"')}
+    ${campo('onbRazao', 'Razão social (opcional)', e.razao_social)}
+    <label class="filter-inline"><input type="checkbox" id="onbParceiro" ${e.salao_parceiro ? 'checked' : ''}/> Trabalho com profissionais parceiros (Lei do Salão-Parceiro)</label>
+    <p class="onb-ajuda">Com esta opção, o painel mostra todo mês a cota-parte do salão separada da dos profissionais, para a sua contabilidade. O enquadramento depende de contrato de parceria e do seu contador.</p>`;
 }
 async function salvarEmpresa() {
   const nome = el('onbNome').value.trim();
@@ -68,7 +73,13 @@ async function salvarEmpresa() {
   const telefone = el('onbTel').value.trim();
   if (!nome) throw new Error('Informe o nome do estabelecimento.');
   if (!whatsapp && !telefone) throw new Error('Informe ao menos um telefone de contato.');
-  await api('/empresa', { method: 'PATCH', body: { nome, whatsapp: whatsapp || null, telefone: telefone || null, endereco: el('onbEnd').value.trim() || null, cidade: el('onbCidade').value.trim() || null } });
+  await api('/empresa', {
+    method: 'PATCH',
+    body: {
+      nome, whatsapp: whatsapp || null, telefone: telefone || null, endereco: el('onbEnd').value.trim() || null, cidade: el('onbCidade').value.trim() || null,
+      cnpj: el('onbCnpj').value.trim() || null, razaoSocial: el('onbRazao').value.trim() || null, salaoParceiro: el('onbParceiro').checked
+    }
+  });
 }
 
 // ---------- Fase 2: horários ----------
@@ -87,6 +98,9 @@ function renderHorarios() {
     }).join('')}</div>
     <div class="field"><label for="onbSlot">Intervalo da grade da agenda</label>
       <select id="onbSlot">${[10, 15, 20, 30, 45, 60].map(n => `<option value="${n}" ${Number(e.slot_padrao || 30) === n ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
+    <div class="field"><label for="onbBuffer">Intervalo de higienização entre atendimentos</label>
+      <select id="onbBuffer">${[0, 5, 10, 15].map(n => `<option value="${n}" ${Number(e.buffer_min || 0) === n ? 'selected' : ''}>${n ? `${n} min` : 'Sem intervalo'}</option>`).join('')}</select>
+      <p class="onb-ajuda">Reservado depois de cada atendimento. O cliente não vê; a agenda não oferece esse tempo.</p></div>
     <label class="filter-inline"><input type="checkbox" id="onbAlmoco" ${e.intervalo_almoco ? 'checked' : ''}/> Fechar para almoço</label>
     <div class="onb-linha" id="onbAlmocoHoras">
       <input type="time" id="onbAlmocoIni" value="${escapeHtml(e.almoco_inicio || '12:00')}" aria-label="Início do almoço"/>
@@ -103,7 +117,7 @@ async function salvarHorarios() {
   const almoco = el('onbAlmoco').checked;
   await api('/empresa', {
     method: 'PATCH',
-    body: { horarioPorDia, slotPadrao: Number(el('onbSlot').value), intervaloAlmoco: almoco, almocoInicio: el('onbAlmocoIni').value || null, almocoFim: el('onbAlmocoFim').value || null }
+    body: { horarioPorDia, slotPadrao: Number(el('onbSlot').value), bufferMin: Number(el('onbBuffer').value), intervaloAlmoco: almoco, almocoInicio: el('onbAlmocoIni').value || null, almocoFim: el('onbAlmocoFim').value || null }
   });
 }
 
@@ -117,7 +131,19 @@ function renderPagamentos() {
         <label class="filter-inline"><input type="checkbox" ${existentes.has(f.code) ? 'checked disabled' : 'checked'}/> ${escapeHtml(f.label)}${existentes.has(f.code) ? ' (já cadastrada)' : ''}</label>
         <label class="onb-mini">Taxa % <input type="number" step="0.01" min="0" data-campo="taxa" value="${f.taxaPct}" ${existentes.has(f.code) ? 'disabled' : ''}/></label>
         <label class="onb-mini">Recebe em (dias) <input type="number" min="0" data-campo="dias" value="${f.diasRecebimento}" ${existentes.has(f.code) ? 'disabled' : ''}/></label>
-      </div>`).join('')}`;
+      </div>`).join('')}
+    <h3 class="onb-sub">Cargos da equipe</h3>
+    <p class="onb-ajuda">Comissão e taxa da maquininha padrão de cada função. Cada profissional herda do seu cargo; exceções se ajustam depois.</p>
+    ${ctx.presets.cargos.map((c, i) => {
+      const ja = ctx.cargos.some(x => x.nome.trim().toLowerCase() === c.nome.toLowerCase());
+      return `<div class="onb-item" data-cargo="${i}">
+        <label class="filter-inline"><input type="checkbox" ${ja ? 'checked disabled' : 'checked'}/> ${escapeHtml(c.nome)}${ja ? ' (já cadastrado)' : ''}</label>
+        <div class="onb-linha">
+          <label class="onb-mini">comissão % <input type="number" min="0" max="100" data-campo="comissao" value="${c.comissaoPct}" ${ja ? 'disabled' : ''}/></label>
+          <label class="onb-mini">taxa da maquininha <select data-campo="modelo" ${ja ? 'disabled' : ''}>${MODELOS.map(([v, l]) => `<option value="${v}" ${v === c.modeloComissao ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>
+      </div>`;
+    }).join('')}`;
 }
 async function salvarPagamentos() {
   const itens = [];
@@ -129,6 +155,14 @@ async function salvarPagamentos() {
   });
   if (itens.length) await api('/onboarding/formas', { method: 'POST', body: { itens } });
   else if (!(ctx.catalogo.formas_pagamento || []).length) throw new Error('Escolha ao menos uma forma de pagamento.');
+  const cargos = [];
+  el('onbBody').querySelectorAll('[data-cargo]').forEach(linha => {
+    const marcado = linha.querySelector('input[type=checkbox]');
+    if (!marcado.checked || marcado.disabled) return;
+    const base = ctx.presets.cargos[Number(linha.dataset.cargo)];
+    cargos.push({ nome: base.nome, comissaoPct: Number(linha.querySelector('[data-campo=comissao]').value || 0), modeloComissao: linha.querySelector('[data-campo=modelo]').value });
+  });
+  if (cargos.length) await api('/onboarding/cargos', { method: 'POST', body: { itens: cargos } });
 }
 
 // ---------- Fase 4: catálogo ----------
@@ -137,7 +171,7 @@ function renderCatalogo() {
   const existentes = new Set((ctx.catalogo.servicos || []).map(s => s.nome.trim().toLowerCase()));
   const lista = ctx.presets.nichos.find(n => n.id === nicho).servicos;
   el('onbBody').innerHTML = `
-    <p class="onb-ajuda">Comece por um cardápio pronto e ajuste preço, tempo e comissão. Depois dá para editar tudo em Gestão.</p>
+    <p class="onb-ajuda">Comece por um cardápio pronto e ajuste preço e tempo. A comissão vem do cargo de quem atende; o número abaixo vale para quem estiver sem cargo. Depois dá para editar tudo em Gestão.</p>
     <div class="onb-nichos">${ctx.presets.nichos.map(n => `<button type="button" class="chip${n.id === nicho ? ' selected' : ''}" data-nicho="${n.id}">${escapeHtml(n.nome)}</button>`).join('')}</div>
     ${(ctx.catalogo.servicos || []).length ? `<p class="onb-ajuda">Você já tem ${(ctx.catalogo.servicos || []).length} serviço(s) cadastrado(s).</p>` : ''}
     ${lista.map((s, i) => {
@@ -147,7 +181,7 @@ function renderCatalogo() {
         <div class="onb-linha">
           <label class="onb-mini">R$ <input type="number" step="0.01" min="0" data-campo="valor" value="${reais(s.valorCentavos)}" ${ja ? 'disabled' : ''}/></label>
           <label class="onb-mini">min <input type="number" min="5" step="5" data-campo="duracao" value="${s.duracaoMin}" ${ja ? 'disabled' : ''}/></label>
-          <label class="onb-mini">comissão % <input type="number" min="0" max="100" data-campo="comissao" value="${s.comissaoPct}" ${ja ? 'disabled' : ''}/></label>
+          <label class="onb-mini">comissão sem cargo % <input type="number" min="0" max="100" data-campo="comissao" value="${s.comissaoPct}" ${ja ? 'disabled' : ''}/></label>
         </div>
       </div>`;
     }).join('')}`;
@@ -160,7 +194,7 @@ async function salvarCatalogo() {
     if (!marcado.checked || marcado.disabled) return;
     const s = lista[Number(linha.dataset.idx)];
     const v = c => linha.querySelector(`[data-campo="${c}"]`).value;
-    itens.push({ nome: s.nome, categoria: s.categoria, valorCentavos: centavos(v('valor')), duracaoMin: Number(v('duracao')), comissaoPct: Number(v('comissao')) });
+    itens.push({ nome: s.nome, categoria: s.categoria, valorCentavos: centavos(v('valor')), duracaoMin: Number(v('duracao')), comissaoPct: Number(v('comissao')), modeloHeranca: s.modeloHeranca || 'FIXED_SERVICE' });
   });
   if (itens.length) await api('/onboarding/servicos', { method: 'POST', body: { itens } });
   else if (!(ctx.catalogo.servicos || []).length) throw new Error('Escolha ao menos um serviço.');
@@ -184,6 +218,8 @@ function renderEquipe() {
       <div class="field"><label for="onbProfNome">Nome</label><input id="onbProfNome" required/></div>
       <div class="field"><label for="onbProfWhats">WhatsApp (opcional)</label><input id="onbProfWhats" type="tel" inputmode="tel"/></div>
       ${sessionRoleIn('admin') && state.session && state.session.principal === 'user' ? `<div class="field"><label for="onbProfEmail">E-mail para acesso ao app (opcional)</label><input id="onbProfEmail" type="email"/></div>` : ''}
+      <div class="field"><label for="onbProfCargo">Cargo</label>
+        <select id="onbProfCargo"><option value="">Sem cargo</option>${(ctx.cargos || []).filter(c => c.ativo !== false).map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (${Number(c.comissao_pct)}%)</option>`).join('')}</select></div>
       <div class="field"><label for="onbProfModelo">Taxa da maquininha</label>
         <select id="onbProfModelo">${MODELOS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
         <p class="onb-ajuda" id="onbModeloAjuda">${MODELOS[0][2]}</p></div>
@@ -199,6 +235,11 @@ function renderEquipe() {
       <button type="submit" class="btn btn-secondary">Adicionar à equipe</button>
     </form>`;
   el('onbProfModelo').onchange = () => { el('onbModeloAjuda').textContent = MODELOS.find(m => m[0] === el('onbProfModelo').value)[2]; };
+  // Cargo traz a taxa padrão da função; dá para trocar depois.
+  el('onbProfCargo').onchange = () => {
+    const cargo = (ctx.cargos || []).find(c => c.id === el('onbProfCargo').value);
+    if (cargo) { el('onbProfModelo').value = cargo.modelo_comissao; el('onbProfModelo').onchange(); }
+  };
   el('onbProfForm').onsubmit = ev => { ev.preventDefault(); adicionarProfissional().catch(err => { el('onbErro').textContent = err.message; }); };
 }
 async function adicionarProfissional() {
@@ -207,7 +248,7 @@ async function adicionarProfissional() {
   const escolhidos = [...el('onbBody').querySelectorAll('[data-servico]')].filter(l => l.querySelector('input[type=checkbox]').checked);
   if (!escolhidos.length) throw new Error('Marque ao menos um serviço.');
   const email = el('onbProfEmail') ? el('onbProfEmail').value.trim() : '';
-  const prof = await api('/profissionais', { method: 'POST', body: { nome, whatsapp: el('onbProfWhats').value.trim() || undefined, modeloComissao: el('onbProfModelo').value } });
+  const prof = await api('/profissionais', { method: 'POST', body: { nome, whatsapp: el('onbProfWhats').value.trim() || undefined, modeloComissao: el('onbProfModelo').value, cargoId: el('onbProfCargo').value || null } });
   await api(`/profissionais/${prof.id}/servicos`, { method: 'PUT', body: { servicoIds: escolhidos.map(l => l.dataset.servico) } });
   for (const linha of escolhidos) {
     const v = c => linha.querySelector(`[data-campo="${c}"]`).value.trim();
@@ -270,7 +311,7 @@ async function simular() {
       <div class="onb-ajuda">${escapeHtml(servico.nome)} com ${escapeHtml(prof.nome)} · ${duracao} min</div>
       ${linha('Cliente paga', t.totalRecebidoCentavos)}
       ${linha('Taxa da forma de pagamento', -t.taxaTotalCentavos, 'saida')}
-      ${linha(`Comissão de ${prof.nome}`, t.totalComissaoCentavos)}
+      ${linha(`Comissão de ${prof.nome} (${r.itens[0].comissaoPct}% · ${ORIGEM[r.itens[0].comissaoOrigem] || 'serviço'})`, t.totalComissaoCentavos)}
       ${linha('Fica para o salão', t.receitaEmpresaCentavos, 'liquido')}`;
   } catch (err) {
     out.innerHTML = `<span class="login-erro">${escapeHtml(err.message)}</span>`;

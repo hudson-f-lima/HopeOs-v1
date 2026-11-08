@@ -3,7 +3,7 @@
 const FASES = [
   { id: 'empresa', titulo: 'Dados do estabelecimento' },
   { id: 'horarios', titulo: 'Horário de funcionamento' },
-  { id: 'pagamentos', titulo: 'Formas de pagamento' },
+  { id: 'pagamentos', titulo: 'Pagamentos e cargos' },
   { id: 'catalogo', titulo: 'Serviços' },
   { id: 'equipe', titulo: 'Equipe' },
   { id: 'simulacao', titulo: 'Simulação de atendimento' }
