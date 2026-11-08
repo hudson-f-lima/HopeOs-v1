@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 (async()=>{
  const b=await chromium.launch(); const p=await b.newPage({viewport:{width:390,height:844}});
- const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+ const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error'&&!/40[13]|Failed to load/.test(m.text()))errs.push(m.text())});
  await p.goto('http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api&apiToken=dev');
  await p.waitForTimeout(2500);
  await p.click('#fab'); await p.waitForTimeout(500);
@@ -21,5 +21,5 @@ const { chromium } = require('playwright');
  await p.click('#btnConfirmarNovoAgendamento'); await p.waitForTimeout(1500);
  const db=await (await fetch('http://127.0.0.1:3399/__db/agendamentos')).json();
  console.log('DB:', JSON.stringify(db.map(a=>[a.horario,a.duracao_min,a.servico_id.slice(-1)])));
- console.log('ERRS:', JSON.stringify(errs));
- await b.close();})();
+ console.log('ERRS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
+ await b.close();})().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });

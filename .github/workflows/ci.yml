@@ -53,3 +53,36 @@ jobs:
       # Merge na main aplica as migrations em produção (D-010): só passam as autorizadas.
       - run: supabase/tests/check_migrations.sh
       - run: supabase/tests/run.sh
+
+  e2e-pwa:
+    name: E2E da PWA (Playwright + CSP do render.yaml)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: backend
+      # Playwright fica FORA do backend/package.json (não entra no deploy do Render):
+      # instalado num diretório temporário e exposto aos E2E via NODE_PATH.
+      - name: Playwright + Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm i --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      # PWA servida com os headers do render.yaml (CSP incluída) + uma
+      # dev-memory-api nova por script. Falha se um E2E sair ≠ 0 ou imprimir
+      # lista de erros/violações de CSP não vazia.
+      - run: node backend/tests/e2e/run-all.js
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: /tmp/hopeos-*.png
+          if-no-files-found: ignore

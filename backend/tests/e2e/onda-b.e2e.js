@@ -51,7 +51,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   // Cota-parte no Dashboard (gestão)
   await p.click('#navDashboard'); await p.waitForTimeout(1500);
   console.log('COTA-PARTE:', await p.isVisible('#dbCotaPartePanel'), '|', (await p.textContent('#dbCotaParteWidget')).replace(/\s+/g, ' ').trim().slice(0, 140));
-  console.log('ERROS:', JSON.stringify(errs));
+  console.log('ERROS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
 
   // Recepção: não vê a aba Comissões nem a cota-parte
   const r = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();

@@ -39,7 +39,7 @@ async function entrar(p, email, senha = 'dev12345') {
   const users = await (await fetch('http://127.0.0.1:3399/__db/app_users')).json();
   const novo = ags[ags.length - 1];
   out('ADMIN gravou:', novo.horario, novo.duracao_min, 'created_by=', (users.find(u => u.id === novo.created_by) || {}).email);
-  out('ADMIN erros:', JSON.stringify(p.errs));
+  out('ADMIN erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // logout
   await p.click('#btnLogout'); await p.waitForSelector('#loginScreen:not(.hidden)', { timeout: 15000 });
   out('LOGOUT → tela de login:', await p.isVisible('#loginScreen'));
@@ -51,7 +51,7 @@ async function entrar(p, email, senha = 'dev12345') {
   const cards = await p.locator('.ag-line1').allTextContents();
   out('PROF agenda (cards):', JSON.stringify(cards.map(t => t.trim())));
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-prof.png') });
-  out('PROF erros:', JSON.stringify(p.errs));
+  out('PROF erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // 4. recepção: dashboard sem financeiro
   p = await novaPagina(b);
   await entrar(p, 'recepcao@dev.local');
@@ -59,7 +59,7 @@ async function entrar(p, email, senha = 'dev12345') {
   await p.click('#navDashboard'); await p.waitForTimeout(1500);
   out('RECEP margem:', (await p.textContent('#dbMarginWidget')).trim(), '| caixa:', (await p.textContent('#dbMoneyWidget')).trim());
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-recep.png'), fullPage: false });
-  out('RECEP erros:', JSON.stringify(p.errs));
+  out('RECEP erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // 5. legado continua
   p = await novaPagina(b);
   await p.goto(BASE + '&apiToken=dev');

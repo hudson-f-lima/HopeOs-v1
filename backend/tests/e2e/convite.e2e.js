@@ -14,7 +14,7 @@ async function ultimoLink(email, type) { const ls = await (await fetch(API + '/_
   await p.fill('#eqEmail', 'maria@dev.local'); await p.selectOption('#eqRole', 'recepcao');
   await p.click('#formEquipe button[type=submit]'); await p.waitForTimeout(1000);
   console.log('TOAST convite:', (await p.textContent('body')).includes('Convite enviado por e-mail.'));
-  console.log('ADMIN erros:', JSON.stringify(p.errs));
+  console.log('ADMIN erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // Maria abre o link do convite
   p = await pagina(b);
   await p.goto(await ultimoLink('maria@dev.local', 'invite'));
@@ -37,6 +37,6 @@ async function ultimoLink(email, type) { const ls = await (await fetch(API + '/_
   await p.fill('#novaSenha', 'Outra12345'); await p.fill('#novaSenha2', 'Outra12345'); await p.click('#btnSalvarSenha');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
   console.log('RECUPERAÇÃO concluída, entrou:', await p.textContent('#sessionLabel'));
-  console.log('MARIA erros:', JSON.stringify(p.errs));
+  console.log('MARIA erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   await b.close();
 })().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });
