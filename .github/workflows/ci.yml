@@ -50,4 +50,6 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+      # Merge na main aplica as migrations em produção (D-010): só passam as autorizadas.
+      - run: supabase/tests/check_migrations.sh
       - run: supabase/tests/run.sh

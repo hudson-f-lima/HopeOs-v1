@@ -1,0 +1,13 @@
+# Migrations autorizadas pelo Platform Owner (sha256 do arquivo + decisão).
+# Merge na main aplica supabase/migrations em PRODUÇÃO (integração GitHub do
+# Supabase, D-010). Mudar este arquivo é pedir autorização: nova linha = nova
+# migration autorizada (registrar a decisão em docs/DECISIONS.md); hash
+# diferente = migration já aplicada foi editada, o que é proibido.
+4762296af0fbbdfeb1b9b6b82fae28166befe2ebff24bdaf0aaf9d6efe06f28b  001_init.sql  pre-D-007
+d9b7692765f1a25e26612359c00c35959605901ac9bf052ca0abb6d068d610c3  002_checkout_close_rpc.sql  pre-D-007
+6341bf98df5555ec9a206719f901cc5316235a1c8d287eeb3b475026d6bd7d7c  003_lock_rpc_permissions.sql  pre-D-007
+41a4be9a4d4fe863f7207b3d46dee84e553c786cf5c1f2d342fad2980c6def6b  004_service_role_table_grants.sql  pre-D-007
+3388abf41585c31d2e14edd51d26b53cb59f0122c67eb808b446da9d3572e5a8  005_agenda_status_reagendado.sql  pre-D-007
+2f180e88dfa0a11b913c65432d4da8e2dea062d737e87847be8337370b746a7f  006_produto_estoque_ajuste_rpc.sql  pre-D-007
+2865239b79c5a3b3fffc36f65dd9ceee8b654a45aa010d477475dff8b55413fe  007_identity_tenant_rbac_actor.sql  D-007
+095e2835c479afb60f481ac6c28ded062243a67d81f48cd3af78e0257e7f1bfc  008_empresa_fiscal_buffer_cargos_categorias.sql  D-009

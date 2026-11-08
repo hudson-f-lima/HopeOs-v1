@@ -1,5 +1,9 @@
 # Changelog
 
+## Produção do banco e trava de migrations (D-010)
+- Banco `hopeos-v1` com 001–008 aplicadas pela integração GitHub do Supabase no merge do PR #16; verificação do runbook 12/12.
+- `supabase/migrations.lock` + `check_migrations.sh` no CI: migration não autorizada, editada ou apagada reprova o PR, porque o merge na `main` agora executa SQL em produção.
+
 ## Onda B (D-009, migration 008)
 - Empresa com CNPJ (dígito verificador), razão social e regime de salão-parceiro; relatório mensal de cota-parte (salão × profissionais) no Dashboard da gestão.
 - Intervalo de higienização entre atendimentos (0/5/10/15 min), respeitado na sugestão de horários e na trava de agenda do banco.
