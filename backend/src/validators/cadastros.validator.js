@@ -95,6 +95,25 @@ function codeForma(value) {
   return code;
 }
 
+const MODELOS_HERANCA = new Set(['FIXED_SERVICE', 'BY_CATEGORY', 'BY_ROLE']);
+
+// Referência opcional a outra tabela da empresa (cargo, categoria): UUID ou null.
+function optionalRef(payload, keys, field, column, out) {
+  const key = keys.find(k => hasOwn(payload, k));
+  if (!key) return;
+  const value = payload[key];
+  out[column] = value === null || value === '' ? null : validateUUID(value, field);
+}
+
+function optionalModeloHeranca(payload, out) {
+  const key = ['modeloHeranca', 'modelo_heranca'].find(k => hasOwn(payload, k));
+  if (!key) return;
+  if (!MODELOS_HERANCA.has(payload[key])) {
+    throw createAppError('INVALID_FIELD', 'modeloHeranca deve ser FIXED_SERVICE, BY_CATEGORY ou BY_ROLE.', 422, { field: 'modeloHeranca' });
+  }
+  out.modelo_heranca = payload[key];
+}
+
 function withUpdatedAt(out) {
   out.updated_at = new Date().toISOString();
   return out;
@@ -146,6 +165,8 @@ function validateCreateServicoPayload(payload = {}) {
     comissao_pct: numberField(payload.comissaoPct ?? payload.comissao_pct ?? 0, 'comissaoPct', { min: 0, max: 100 }),
     ativo: payload.ativo === undefined ? true : boolField(payload.ativo, 'ativo')
   };
+  optionalRef(payload, ['categoriaId', 'categoria_id'], 'categoriaId', 'categoria_id', out);
+  optionalModeloHeranca(payload, out);
   return withUpdatedAt(out);
 }
 
@@ -159,6 +180,8 @@ function validateUpdateServicoPayload(payload = {}) {
   if (hasOwn(payload, 'slotMin') || hasOwn(payload, 'slot_min')) out.slot_min = intField(payload.slotMin ?? payload.slot_min, 'slotMin', { min: 5, max: 480 });
   if (hasOwn(payload, 'comissaoPct') || hasOwn(payload, 'comissao_pct')) out.comissao_pct = numberField(payload.comissaoPct ?? payload.comissao_pct, 'comissaoPct', { min: 0, max: 100 });
   if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
+  optionalRef(payload, ['categoriaId', 'categoria_id'], 'categoriaId', 'categoria_id', out);
+  optionalModeloHeranca(payload, out);
   if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
   return withUpdatedAt(out);
 }
@@ -174,6 +197,7 @@ function validateCreateProfissionalPayload(payload = {}) {
     ativo: payload.ativo === undefined ? true : boolField(payload.ativo, 'ativo')
   };
   optionalString(payload, 'whatsapp', 'whatsapp', out);
+  optionalRef(payload, ['cargoId', 'cargo_id'], 'cargoId', 'cargo_id', out);
   return withUpdatedAt(out);
 }
 
@@ -186,6 +210,7 @@ function validateUpdateProfissionalPayload(payload = {}) {
   if (hasOwn(payload, 'modeloComissao') || hasOwn(payload, 'modelo_comissao')) out.modelo_comissao = modeloComissao(payload.modeloComissao ?? payload.modelo_comissao);
   if (hasOwn(payload, 'horario')) out.horario = jsonObjectField(payload.horario, 'horario');
   if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
+  optionalRef(payload, ['cargoId', 'cargo_id'], 'cargoId', 'cargo_id', out);
   if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
   return withUpdatedAt(out);
 }
@@ -300,6 +325,36 @@ function validateProfissionalServicoOverridePayload(payload = {}) {
   return { override };
 }
 
+// Cargos (migration 008): comissão e modelo de taxa padrão por função.
+function validateCargoPayload(payload = {}, { parcial = false } = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
+  const out = {};
+  if (!parcial || hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
+  if (!parcial || hasOwn(payload, 'comissaoPct') || hasOwn(payload, 'comissao_pct')) {
+    out.comissao_pct = numberField(payload.comissaoPct ?? payload.comissao_pct, 'comissaoPct', { min: 0, max: 100, required: true });
+  }
+  if (!parcial || hasOwn(payload, 'modeloComissao') || hasOwn(payload, 'modelo_comissao')) {
+    out.modelo_comissao = modeloComissao(payload.modeloComissao ?? payload.modelo_comissao ?? 'dividido');
+  }
+  if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
+  if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
+  return withUpdatedAt(out);
+}
+
+// Categorias de serviço (migration 008): comissão opcional usada por BY_CATEGORY.
+function validateCategoriaPayload(payload = {}, { parcial = false } = {}) {
+  rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
+  const out = {};
+  if (!parcial || hasOwn(payload, 'nome')) out.nome = nonEmptyString(payload.nome, 'nome');
+  if (hasOwn(payload, 'comissaoPct') || hasOwn(payload, 'comissao_pct')) {
+    const v = payload.comissaoPct ?? payload.comissao_pct;
+    out.comissao_pct = v === null || v === '' ? null : numberField(v, 'comissaoPct', { min: 0, max: 100 });
+  }
+  if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
+  if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
+  return withUpdatedAt(out);
+}
+
 // F4.4 — lista_espera (001_init.sql): sem coluna updated_at, nao usar withUpdatedAt aqui.
 const LISTA_ESPERA_STATUS = new Set(['aguardando', 'contatado', 'agendado', 'cancelado']);
 
@@ -362,5 +417,7 @@ module.exports = {
   validateProfissionalServicosPayload,
   validateProfissionalServicoOverridePayload,
   validateCreateListaEsperaPayload,
-  validateUpdateListaEsperaPayload
+  validateUpdateListaEsperaPayload,
+  validateCargoPayload,
+  validateCategoriaPayload
 };

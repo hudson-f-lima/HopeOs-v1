@@ -16,9 +16,10 @@ function overlaps(a, b) {
   return a.start < b.end && b.start < a.end;
 }
 
-function findScheduleConflicts({ agendamento, existing }) {
+// bufferMin: higienização após cada atendimento (mesma regra do agendamento_criar).
+function findScheduleConflicts({ agendamento, existing, bufferMin = 0 }) {
   const start = timeToMinutes(agendamento.horario);
-  const end = start + Number(agendamento.duracaoMin || 30);
+  const end = start + Number(agendamento.duracaoMin || 30) + bufferMin;
   const current = { start, end };
   return (existing || []).filter(a => {
     if (a.id === agendamento.id) return false;
@@ -26,7 +27,7 @@ function findScheduleConflicts({ agendamento, existing }) {
     if (a.data !== agendamento.data) return false;
     if (INACTIVE_STATUSES.includes(a.status)) return false;
     const otherStart = timeToMinutes(a.horario);
-    const otherEnd = otherStart + Number(a.duracao_min || a.duracaoMin || 30);
+    const otherEnd = otherStart + Number(a.duracao_min || a.duracaoMin || 30) + bufferMin;
     return overlaps(current, { start: otherStart, end: otherEnd });
   });
 }

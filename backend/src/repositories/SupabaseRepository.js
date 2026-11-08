@@ -219,14 +219,16 @@ class SupabaseRepository {
   }
 
   async loadCheckoutContext() {
-    const [servicos, produtos, profissionais, profissionalServicos, formasPagamento] = await Promise.all([
+    const [servicos, produtos, profissionais, profissionalServicos, formasPagamento, cargos, categorias] = await Promise.all([
       this.list('servicos', { empresa_id: this.empresaId }),
       this.list('produtos', { empresa_id: this.empresaId }),
       this.list('profissionais', { empresa_id: this.empresaId }),
       this.list('profissional_servicos', { empresa_id: this.empresaId }),
-      this.list('formas_pagamento', { empresa_id: this.empresaId })
+      this.list('formas_pagamento', { empresa_id: this.empresaId }),
+      this.list('cargos', { empresa_id: this.empresaId }),
+      this.list('servico_categorias', { empresa_id: this.empresaId })
     ]);
-    return { servicos, produtos, profissionais, profissionalServicos, formasPagamento };
+    return { servicos, produtos, profissionais, profissionalServicos, formasPagamento, cargos, categorias };
   }
 
   async saveCheckoutClose({ payload, resolved, preview, autoria = {} }) {

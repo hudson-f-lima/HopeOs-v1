@@ -63,26 +63,30 @@ function resolveDuracaoMin({ servico, profissional, duracaoMin }) {
   return base > 0 ? base : 30;
 }
 
-function intervalosOcupados(agendamentos, profissionalId, data) {
+// bufferMin (higienização, migration 008): cada atendimento ocupa até o fim + buffer,
+// a mesma regra do agendamento_criar no banco.
+function intervalosOcupados(agendamentos, profissionalId, data, bufferMin = 0) {
   return (agendamentos || [])
     .filter(a => (a.profissional_id ?? a.profissionalId) === profissionalId)
     .filter(a => a.data === data && !INACTIVE_STATUSES.includes(a.status))
     .map(a => {
       const start = timeToMinutes(a.horario);
-      return { start, end: start + Number(a.duracao_min ?? a.duracaoMin ?? 30) };
+      return { start, end: start + Number(a.duracao_min ?? a.duracaoMin ?? 30) + bufferMin, atendimento: true };
     });
 }
 
 function janelasLivres(janela, ocupados) {
   const busy = ocupados
-    .map(o => ({ start: Math.max(o.start, janela.inicio), end: Math.min(o.end, janela.fim) }))
+    .map(o => ({ start: Math.max(o.start, janela.inicio), end: Math.min(o.end, janela.fim), atendimento: Boolean(o.atendimento) }))
     .filter(o => o.end > o.start)
     .sort((a, b) => a.start - b.start);
 
+  // antesDeAtendimento: a janela livre termina num atendimento (o novo precisa do
+  // buffer antes dele); fechamento e almoço não exigem buffer.
   const livres = [];
   let cursor = janela.inicio;
   for (const o of busy) {
-    if (o.start > cursor) livres.push({ start: cursor, end: o.start });
+    if (o.start > cursor) livres.push({ start: cursor, end: o.start, antesDeAtendimento: o.atendimento });
     cursor = Math.max(cursor, o.end);
   }
   if (cursor < janela.fim) livres.push({ start: cursor, end: janela.fim });
@@ -102,7 +106,7 @@ function desperdicio(sobra, minUtilMin) {
  * @param {number} [p.minUtilMin] menor bloco vendável; sobra menor que isso é tempo perdido
  * @param {number} [p.inicioMinimoMin] não sugerir antes deste minuto (ex.: agora, se hoje)
  */
-function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inicioMinimoMin }) {
+function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inicioMinimoMin, bufferMin = 0 }) {
   const dur = Number(duracaoMin);
   const passo = Number(passoMin) > 0 ? Number(passoMin) : 30;
   const minUtil = Number(minUtilMin) > 0 ? Number(minUtilMin) : passo;
@@ -116,7 +120,8 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
       const k = Math.ceil((inicioMinimoMin - janela.inicio) / passo);
       start = Math.max(start, janela.inicio + k * passo);
     }
-    const ultimo = livre.end - dur;
+    const fimUtil = livre.end - (livre.antesDeAtendimento ? Number(bufferMin) || 0 : 0);
+    const ultimo = fimUtil - dur;
     if (ultimo < start) continue;
 
     // Grade + bordas da janela livre: a borda pode estar fora da grade
@@ -127,7 +132,7 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
 
     const daJanela = [...candidatos].sort((a, b) => a - b).map(t => {
       const antes = t - start;
-      const depois = livre.end - (t + dur);
+      const depois = fimUtil - (t + dur);
       return {
         inicioMin: t,
         horario: minutesToTime(t),
@@ -169,15 +174,17 @@ function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos,
     .filter(d => d > 0);
   const minUtilMin = duracoes.length ? Math.min(...duracoes) : passoMin;
 
+  const bufferMin = Number(empresa && empresa.buffer_min) || 0;
   const slots = computeSlots({
     janela,
-    ocupados: [...intervalosOcupados(agendamentos, profissional.id, data), ...bloqueiosEmpresa(empresa)],
+    ocupados: [...intervalosOcupados(agendamentos, profissional.id, data, bufferMin), ...bloqueiosEmpresa(empresa)],
+    bufferMin,
     duracaoMin: duracao,
     passoMin,
     minUtilMin,
     inicioMinimoMin: agora && data === agora.data ? agora.minuto : undefined
   });
-  return { ...base, minUtilMin, slots };
+  return { ...base, minUtilMin, bufferMin, slots };
 }
 
 module.exports = {

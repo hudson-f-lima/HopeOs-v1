@@ -36,6 +36,8 @@ function normalizeResolvedItem(item) {
     valorBrutoCentavos: totalVendaCentavos,
     duracaoMin: Number(item.duracaoMin || 0),
     comissaoPct: Number(item.comissaoPct || 0),
+    // De onde veio a comissão (override, cargo, categoria ou serviço): só informativo.
+    comissaoOrigem: item.comissaoOrigem || null,
     modeloComissao: item.modeloComissao || 'bruto_salao'
   };
 }

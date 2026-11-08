@@ -37,6 +37,15 @@ const NICHOS = {
   }
 };
 
+// Cargos padrão (migration 008). Modelo da taxa: "dividido" = taxa sai antes da
+// comissão; "bruto_staff" = profissional assume a taxa (ex.: freelancer de estética).
+const CARGOS = [
+  { nome: 'Barbeiro', comissaoPct: 50, modeloComissao: 'dividido' },
+  { nome: 'Cabeleireiro', comissaoPct: 45, modeloComissao: 'dividido' },
+  { nome: 'Manicure', comissaoPct: 60, modeloComissao: 'dividido' },
+  { nome: 'Esteticista', comissaoPct: 70, modeloComissao: 'bruto_staff' }
+];
+
 // Taxas de exemplo: confira as do seu contrato com a operadora antes de usar.
 const FORMAS_PAGAMENTO = [
   { code: 'dinheiro', label: 'Dinheiro', taxaPct: 0, diasRecebimento: 0 },
@@ -55,12 +64,15 @@ const HORARIO_PADRAO = {
   sab: { ativo: true, inicio: '08:00', fim: '18:00' }
 };
 
+// Serviços dos presets herdam a comissão do cargo de quem atende (BY_ROLE);
+// sem cargo, vale a comissão do próprio serviço (mesmo número do preset).
 function listarPresets() {
   return {
-    nichos: Object.entries(NICHOS).map(([id, n]) => ({ id, nome: n.nome, servicos: n.servicos })),
+    nichos: Object.entries(NICHOS).map(([id, n]) => ({ id, nome: n.nome, servicos: n.servicos.map(sv => ({ ...sv, modeloHeranca: 'BY_ROLE' })) })),
     formasPagamento: FORMAS_PAGAMENTO,
-    horarioPadrao: HORARIO_PADRAO
+    horarioPadrao: HORARIO_PADRAO,
+    cargos: CARGOS
   };
 }
 
-module.exports = { NICHOS, FORMAS_PAGAMENTO, HORARIO_PADRAO, listarPresets };
+module.exports = { NICHOS, FORMAS_PAGAMENTO, HORARIO_PADRAO, CARGOS, listarPresets };

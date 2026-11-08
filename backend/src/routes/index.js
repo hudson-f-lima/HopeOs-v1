@@ -33,6 +33,8 @@ const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
 
 const { authorize, assertOwn } = require('../auth/rbac');
+const { assertRefsDaEmpresa } = require('./estrutura');
+const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
 
 const router = express.Router();
@@ -148,6 +150,7 @@ router.post('/servicos', authorize('cadastros:write'), async (req, res, next) =>
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateServicoPayload(req.body);
+    await assertRefsDaEmpresa(repo, payload);
     res.status(201).json({ ok: true, data: await repo.insertScoped('servicos', payload) });
   } catch (err) { next(err); }
 });
@@ -158,6 +161,7 @@ router.patch('/servicos/:id', authorize('cadastros:write'), async (req, res, nex
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'servicos', id, 'Serviço', 'SERVICE_NOT_FOUND');
     const payload = validateUpdateServicoPayload(req.body);
+    await assertRefsDaEmpresa(repo, payload);
     res.json({ ok: true, data: await repo.updateScoped('servicos', id, payload) });
   } catch (err) { next(err); }
 });
@@ -174,6 +178,7 @@ router.post('/profissionais', authorize('cadastros:write'), async (req, res, nex
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateProfissionalPayload(req.body);
+    await assertRefsDaEmpresa(repo, payload);
     res.status(201).json({ ok: true, data: await repo.insertScoped('profissionais', payload) });
   } catch (err) { next(err); }
 });
@@ -184,6 +189,7 @@ router.patch('/profissionais/:id', authorize('cadastros:write'), async (req, res
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
     const payload = validateUpdateProfissionalPayload(req.body);
+    await assertRefsDaEmpresa(repo, payload);
     res.json({ ok: true, data: await repo.updateScoped('profissionais', id, payload) });
   } catch (err) { next(err); }
 });
@@ -590,6 +596,21 @@ router.get('/insights/rebooking/:clienteId', authorize('relatorios:operacional')
     const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadRebookingSuggestion(clienteId, servicoId);
     res.json({ ok: true, data });
+  } catch (err) { next(err); }
+});
+
+// Cota-parte do mês (Lei do Salão-Parceiro, D-009): salão × profissionais parceiros.
+router.get('/relatorios/cota-parte', authorize('relatorios:full'), async (req, res, next) => {
+  try {
+    const mes = String(req.query.mes || '');
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw createAppError('INVALID_MONTH', 'mes deve ser YYYY-MM.', 422);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const filtro = { empresa_id: repo.empresaId };
+    const [comandos, comandoItens, profissionais, empresas] = await Promise.all([
+      repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro), repo.list('empresas', { id: repo.empresaId })
+    ]);
+    const empresa = empresas[0] || {};
+    res.json({ ok: true, data: { ...computeCotaParte({ comandos, comandoItens, profissionais, mes }), salaoParceiro: Boolean(empresa.salao_parceiro), cnpj: empresa.cnpj || null, razaoSocial: empresa.razao_social || null } });
   } catch (err) { next(err); }
 });
 

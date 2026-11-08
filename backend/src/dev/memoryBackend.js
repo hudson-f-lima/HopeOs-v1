@@ -57,9 +57,11 @@ function installMemoryBackend(seed = {}) {
   };
   P.criarAgendamento = async function ({ agendamento, permitirConflito, ignorarId, createdBy }) {
     if (!permitirConflito) {
+      const empresa = rows('empresas').find(e => e.id === this.empresaId) || {};
       const conflitos = findScheduleConflicts({
         agendamento: { id: ignorarId, profissionalId: agendamento.profissional_id, data: agendamento.data, horario: agendamento.horario, duracaoMin: agendamento.duracao_min },
-        existing: rows('agendamentos').filter(a => a.empresa_id === this.empresaId)
+        existing: rows('agendamentos').filter(a => a.empresa_id === this.empresaId),
+        bufferMin: Number(empresa.buffer_min) || 0
       });
       if (conflitos.length) {
         throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda para o profissional neste horário.', 409, {
