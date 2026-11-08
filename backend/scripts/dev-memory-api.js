@@ -9,6 +9,7 @@
 // Logins (senha dev12345): admin@dev.local, recepcao@dev.local, profissional@dev.local,
 // novo@dev.local (conta sem vínculo: testa Gestão > Equipe)
 // Token legado (modo antigo): ?apiToken=dev
+// DEV_EMPRESA_VAZIA=1 começa com o salão sem configuração (assistente de onboarding).
 // GET /__db/:tabela devolve o estado em memória (para asserts de E2E).
 process.env.API_ACCESS_TOKEN = process.env.API_ACCESS_TOKEN || 'dev';
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.invalid';
@@ -35,7 +36,7 @@ const semana = { dom: dia, seg: dia, ter: dia, qua: dia, qui: dia, sex: dia, sab
 const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
 
 const db = installMemoryBackend({
-  empresas: [{ id: E, nome: 'Salão Dev', slot_padrao: 30, horario_por_dia: {}, intervalo_almoco: false }],
+  empresas: [{ id: E, nome: 'Salão Dev', whatsapp: '11999990000', slot_padrao: 30, horario_por_dia: semana, intervalo_almoco: false }],
   clientes: [{ id: CLIENTE, empresa_id: E, nome: 'Cliente Teste', ativo: true }],
   servicos: [
     { id: CORTE, empresa_id: E, nome: 'Corte', valor_centavos: 6000, duracao_min: 60, ativo: true },
@@ -54,8 +55,15 @@ const db = installMemoryBackend({
     { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: hoje, horario: '10:00:00', duracao_min: 30, status: 'agendado', valor_centavos: 4000 },
     { id: randomUUID(), empresa_id: E, profissional_id: PROF2, servico_id: CORTE, cliente_id: CLIENTE, data: hoje, horario: '11:00:00', duracao_min: 60, status: 'agendado', valor_centavos: 6000 }
   ],
-  produtos: [], formas_pagamento: [], lista_espera: []
+  produtos: [], lista_espera: [],
+  formas_pagamento: [{ empresa_id: E, code: 'pix', label: 'Pix', taxa_pct: 0, taxa_fixa_centavos: 0, dias_recebimento: 0, ativo: true }]
 });
+
+// DEV_EMPRESA_VAZIA=1: salão recém-criado (só o nome), para testar o assistente de configuração.
+if (process.env.DEV_EMPRESA_VAZIA === '1') {
+  Object.assign(db.empresas[0], { whatsapp: null, horario_por_dia: {} });
+  for (const t of ['servicos', 'profissionais', 'profissional_servicos', 'agendamentos', 'formas_pagamento']) db[t] = [];
+}
 
 const contas = [
   { email: 'admin@dev.local', nome: 'Admin Dev', role: 'admin' },

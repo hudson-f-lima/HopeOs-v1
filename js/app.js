@@ -27,6 +27,7 @@ import {
   openListaEsperaModal
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
+import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
   state.activeTab = name;
@@ -230,6 +231,9 @@ async function init() {
     if (!getSession() && !getToken()) await runLogin();
     await carregarSessao();
     aplicarSessaoNaUI();
+    // Salão sem configuração mínima: assistente antes das telas vazias.
+    await talvezAbrirOnboarding();
+    document.getElementById('loadingScreen')?.classList.remove('hidden');
     await loadCatalog();
 
     renderClientesList();
@@ -341,6 +345,16 @@ async function init() {
     });
 
     initEquipe();
+    if (sessionRoleIn('admin', 'gestor')) {
+      const btnAssistente = document.getElementById('btnAbrirAssistente');
+      btnAssistente.classList.remove('hidden');
+      btnAssistente.addEventListener('click', async () => {
+        closeModal('sheetGestao');
+        document.getElementById('appRoot').classList.add('hidden');
+        await abrirOnboarding();
+        window.location.reload();
+      });
+    }
 
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
     await Promise.all([

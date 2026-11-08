@@ -26,6 +26,9 @@ async function entrar(p, email, senha = 'dev12345') {
   out('ADMIN chip:', await p.textContent('#sessionLabel'), '| dashboard visível:', await p.isVisible('#navDashboard'));
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-admin.png') });
   await p.click('#fab'); await p.waitForTimeout(400);
+  // Data de amanhã: o expediente do seed (09–13h) já pode ter passado hoje.
+  const amanha = new Date(Date.now() + 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  await p.fill('#agData', amanha); await p.dispatchEvent('#agData', 'change');
   await p.click('#agServico'); await p.fill('#agServico', 'Corte'); await p.waitForTimeout(300);
   await p.locator('#agServico ~ div [data-value]').first().click(); await p.waitForTimeout(300);
   await p.click('#agProfissional'); await p.fill('#agProfissional', 'Ana'); await p.waitForTimeout(300);

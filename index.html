@@ -62,6 +62,21 @@
   </form>
 </div>
 
+<div id="onboardingScreen" class="onb-screen hidden" role="dialog" aria-labelledby="onbTitulo">
+  <div class="card onb-card">
+    <p class="onb-marca">HOPE OS · Configuração do salão</p>
+    <nav id="onbProgresso" class="onb-progresso" aria-label="Fases da configuração"></nav>
+    <h1 id="onbTitulo" class="onb-titulo"></h1>
+    <div id="onbBody" class="onb-body"></div>
+    <p id="onbErro" class="login-erro" role="alert"></p>
+    <div class="onb-acoes">
+      <button id="btnOnbVoltar" type="button" class="btn btn-secondary">Voltar</button>
+      <button id="btnOnbProximo" type="button" class="btn btn-primary">Salvar e continuar</button>
+    </div>
+    <button id="btnOnbDepois" type="button" class="login-link">Fazer depois</button>
+  </div>
+</div>
+
 <div id="appRoot" class="hidden">
   <header class="topbar">
     <h1>HOPE OS</h1>
@@ -510,6 +525,7 @@
         <div class="gestao-title">
           <h2>Gestão</h2>
           <p>Cadastros, equipe, produtos e pagamentos.</p>
+          <button type="button" id="btnAbrirAssistente" class="login-link hidden">Assistente de configuração</button>
         </div>
       </div>
       <button class="gestao-close" id="btnFecharGestao" aria-label="Fechar gestão">×</button>

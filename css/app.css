@@ -818,3 +818,30 @@ dialog {
 .eq-quem span{font-size:12px;color:var(--md-outline);overflow:hidden;text-overflow:ellipsis;}
 .eq-ctrl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
 .eq-ctrl select{width:auto;flex:1 1 140px;}
+
+/* Assistente de configuração (onboarding) */
+.onb-screen{min-height:100vh;display:flex;justify-content:center;padding:16px;}
+.onb-card{width:100%;max-width:560px;padding:20px;display:flex;flex-direction:column;gap:10px;}
+.onb-marca{font-size:12px;font-weight:700;color:var(--md-primary);}
+.onb-progresso{display:flex;gap:6px;}
+.onb-passo{flex:1;min-height:36px;border-radius:10px;background:var(--md-surface-variant);color:var(--md-outline);font-weight:700;font-size:13px;}
+.onb-passo.feito{background:var(--md-secondary-container,#d6f5e8);color:#0b6b48;}
+.onb-passo.atual{background:var(--md-primary);color:var(--md-on-primary);}
+.onb-titulo{font-size:18px;font-weight:800;}
+.onb-body{display:flex;flex-direction:column;gap:8px;}
+.onb-ajuda{font-size:12px;color:var(--md-outline);}
+.onb-item{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--md-surface-variant);}
+.onb-linha{display:flex;flex-wrap:wrap;gap:8px;}
+.onb-mini{display:flex;flex-direction:column;font-size:11px;color:var(--md-outline);flex:1 1 90px;}
+.onb-dias{display:flex;flex-direction:column;gap:6px;}
+.onb-dia{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-items:center;}
+.onb-nichos{display:flex;flex-wrap:wrap;gap:6px;}
+.onb-form{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.onb-form h3{font-size:14px;font-weight:800;}
+.onb-equipe .onb-item{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.onb-resultado{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--md-surface-variant);}
+.onb-res-linha{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;}
+.onb-res-linha.saida b{color:var(--md-error);}
+.onb-res-linha.liquido b{color:#0b6b48;font-size:16px;}
+.onb-acoes{display:flex;gap:8px;}
+.onb-acoes .btn{flex:1;}

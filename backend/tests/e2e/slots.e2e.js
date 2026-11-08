@@ -1,4 +1,4 @@
-// E2E manual: sugestão de horários no modal (modo token legado). E2E_DATE=YYYY-MM-DD de hoje.
+// E2E manual: sugestão de horários no modal (modo token legado). E2E_DATE=YYYY-MM-DD (use amanhã: o expediente do seed é 09–13h).
 const { chromium } = require('playwright');
 (async()=>{
  const b=await chromium.launch(); const p=await b.newPage({viewport:{width:390,height:844}});
