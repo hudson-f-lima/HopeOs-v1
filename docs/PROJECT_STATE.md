@@ -63,6 +63,7 @@
 - `xlsx` com HIGH sem fix upstream; auditorias antigas são históricas, não autoridade de estado.
 
 ## Próxima ação única
+- (2026-11-08) Banco `hopeos-v1` não respondeu a consulta de leitura (provável pausa por inatividade do plano gratuito): reativar no painel do Supabase antes do runbook. Proposta de onboarding em 6 fases analisada em `docs/planning/ONBOARDING_SETUP_ANALISE.md` — só depois da produção.
 - Platform Owner (ou sessão com acesso de produção): executar `docs/RUNBOOK_MIGRATION_007.md` — backup → checagens → 007 → Auth URLs → reativar Render + env vars → merge do PR #16 → primeiro admin → smoke tests.
 
 ## Handoff
