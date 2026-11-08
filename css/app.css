@@ -863,3 +863,8 @@ dialog {
 
 /* D-012: dígitos de largura fixa em todo o app (horários, valores e durações não "pulam") */
 body{font-variant-numeric:tabular-nums;}
+/* Fechamento de caixa (Dashboard) */
+.caixa-form{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;}
+.caixa-form .field{margin-bottom:0;}
+.caixa-form .btn{width:auto;}
+@media (max-width:480px){.caixa-form{grid-template-columns:1fr 1fr;}.caixa-form .btn{grid-column:1/-1;width:100%;}}

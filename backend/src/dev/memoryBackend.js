@@ -13,6 +13,10 @@ function installMemoryBackend(seed = {}) {
   const P = SupabaseRepository.prototype;
 
   P.list = async function (t, f = {}) { return rows(t).filter(r => match(r, f)); };
+  P.listPagamentosDasComandas = async function (ids) {
+    const set = new Set(ids || []);
+    return rows('comando_pagamentos').filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
+  };
   P.getByIdScoped = async function (t, id) { return rows(t).find(r => r.id === id && r.empresa_id === this.empresaId) || null; };
   P.insert = async function (t, p) {
     if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
@@ -88,8 +92,32 @@ function installMemoryBackend(seed = {}) {
     registrarAutoria(this.empresaId, 'produto_criado', autoria);
     return prod;
   };
-  P.saveCheckoutClose = async function ({ preview, autoria = {} }) {
-    const comando = await this.insert('comandos', { status: 'fechado', actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null });
+  // Espelha o que o RPC checkout_close grava (migration 003): comanda com data e
+  // totais, um comando_pagamentos e um caixa_movimentos por pagamento. Data padrão
+  // = current_date do Postgres (UTC no Supabase), como no RPC.
+  P.saveCheckoutClose = async function ({ payload = {}, resolved = {}, preview, autoria = {} }) {
+    const t = (preview && preview.totals) || {};
+    const data = payload.data || resolved.data || new Date().toISOString().slice(0, 10);
+    const comando = await this.insert('comandos', {
+      status: 'fechado', data, cliente_id: payload.clienteId || null,
+      gorjeta_bruta_centavos: t.gorjetaBrutaCentavos || 0,
+      total_recebido_centavos: t.totalRecebidoCentavos || 0,
+      taxa_total_centavos: t.taxaTotalCentavos || 0,
+      total_gorjeta_liquida_centavos: t.totalGorjetaLiquidaCentavos || 0,
+      receita_empresa_centavos: t.receitaEmpresaCentavos || 0,
+      actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null
+    });
+    for (const p of (preview && preview.payments) || []) {
+      await this.insert('comando_pagamentos', {
+        comando_id: comando.id, forma_code: p.formaCode, valor_centavos: p.valorCentavos || 0,
+        taxa_pct: p.taxaPct || 0, taxa_fixa_centavos: p.taxaFixaCentavos || 0, taxa_total_centavos: p.taxaTotalCentavos || 0,
+        taxa_servico_centavos: p.taxaServicoCentavos || 0, taxa_gorjeta_centavos: p.taxaGorjetaCentavos || 0
+      });
+      await this.insert('caixa_movimentos', {
+        comando_id: comando.id, data, tipo: 'entrada_pagamento', forma_code: p.formaCode,
+        valor_centavos: p.valorCentavos || 0, descricao: 'Entrada de checkout fechado'
+      });
+    }
     return { comandoId: comando.id, preview: Boolean(preview) };
   };
   return db;

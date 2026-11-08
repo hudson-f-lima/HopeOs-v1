@@ -527,6 +527,14 @@ router.post('/checkout/close', authorize('checkout:write'), async (req, res, nex
     const autoria = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
+    // Data/hora da comanda = agora no fuso da empresa, sempre definidas pelo
+    // servidor (D-012). Antes: sem data, o RPC usava current_date do Postgres
+    // (UTC) e a venda das 21h–24h de Brasília caía no dia seguinte; com data,
+    // o cliente podia lançar venda em dia já fechado.
+    const agora = agoraNoFuso(env.APP_TIMEZONE);
+    const hora = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
+    payload.data = agora.data; payload.hora = hora;
+    resolved.data = agora.data; resolved.hora = hora;
     const preview = previewCheckout(resolved);
     const saved = await repo.saveCheckoutClose({ payload, resolved, preview, autoria });
 
