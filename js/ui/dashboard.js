@@ -344,6 +344,40 @@ async function loadCotaParte() {
   }
 }
 
+// Piloto — 4 números (auditoria 2026-11 §4): só gestão. Definições no backend
+// (engines/insights/piloto.js); aqui só exibe.
+const PILOTO_KPIS = [
+  ['taxaFalta', 'Taxa de falta'],
+  ['reagendamentoCheckout', 'Reagendamento no checkout'],
+  ['retornoClienteNovo', 'Retorno do cliente novo (60 dias)'],
+  ['confirmacaoPrevia', 'Confirmação prévia (agenda de hoje)']
+];
+
+function faixaPiloto(ref) {
+  if (!ref || !ref.media) return 'Sem referência de mercado';
+  const f = r => (r.max == null ? `${r.min}%+` : `${r.min}–${r.max}%`);
+  return `Referência: média ${f(ref.media)}${ref.topo ? `, topo ${f(ref.topo)}` : ''}${ref.melhorQuando === 'menor' ? ' (menor é melhor)' : ''}`;
+}
+
+async function loadPiloto() {
+  const panel = el('dbPilotoPanel');
+  const node = el('dbPilotoWidget');
+  if (!panel || !node) return;
+  try {
+    const r = await api('/relatorios/piloto');
+    panel.classList.remove('hidden');
+    node.innerHTML = PILOTO_KPIS.map(([chave, rotulo]) => {
+      const k = r[chave];
+      const valor = k.taxa == null ? 'sem dados suficientes' : `${String(k.taxa).replace('.', ',')}%`;
+      const extra = k.emMaturacao ? ` · ${k.emMaturacao} em maturação` : '';
+      return `<div class="cota-linha"><span>${escapeHtml(rotulo)}</span><b>${escapeHtml(valor)}</b></div>
+        <p class="body-sm text-tertiary">${k.numerador}/${k.denominador}${escapeHtml(extra)} · ${escapeHtml(faixaPiloto(k.referencia))}</p>`;
+    }).join('') + `<p class="body-sm text-tertiary">Período ${escapeHtml(formatDDMM(r.periodo.de))} a ${escapeHtml(formatDDMM(r.periodo.ate))}.</p>`;
+  } catch (err) {
+    panel.classList.add('hidden');
+  }
+}
+
 async function atualizarInsights() {
   state.insights.loading = true;
   state.insights.error = null;
@@ -366,7 +400,7 @@ async function atualizarInsights() {
       if (node) node.innerHTML = '<div class="widget-restrito">Disponível para administração e gestão.</div>';
     }
   }
-  if (financeiro) loadCotaParte();
+  if (financeiro) { loadCotaParte(); loadPiloto(); }
   await Promise.allSettled([
     loadOccupancy(from, to),
     financeiro ? loadMargin(from, to) : Promise.resolve(),

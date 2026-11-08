@@ -539,6 +539,8 @@ module.exports = {
   computeReliability,
   computeRebooking,
   computeAttach,
+  normalizeCommands,
+  isLateCancel,
   median,
   daysBetween,
   addDays
