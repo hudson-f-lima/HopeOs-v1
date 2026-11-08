@@ -39,7 +39,7 @@ async function entrar(b, email) {
   await p.fill('#caixaContado', '45,00'); await p.click('#btnConferirCaixa'); await p.waitForTimeout(600);
   console.log('CONFERÊNCIA:', (await p.textContent('#caixaDiferenca')).replace(/\s+/g, ' ').trim(), '| data-diferenca=', await p.getAttribute('#caixaDiferenca', 'data-diferenca'));
   await p.locator('#cardCaixa').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-caixa.png') });
-  console.log('ERROS:', JSON.stringify(errs));
+  console.log('ERROS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1;
 
   const prof = await entrar(b, 'profissional@dev.local');
   console.log('PROFISSIONAL: navDashboard visível =', await prof.isVisible('#navDashboard'), '| cardCaixa hidden =', await prof.locator('#cardCaixa').evaluate(n => n.classList.contains('hidden')));

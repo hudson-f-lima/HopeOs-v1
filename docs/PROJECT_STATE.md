@@ -58,8 +58,9 @@
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 11 suítes verdes (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 10, lembretes 8, caixa 7, piloto 10) | local 2026-11-08 |
-| E2E PWA (Playwright) | REAL — 9 roteiros (login, equipe, convite, slots, onda-b, lembretes, presença, caixa, onboarding), zero erro de console | local 2026-11-08 |
+| `npm run test:offline` | REAL — 11 suítes verdes (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 10, lembretes 8, caixa 7, piloto 10, security 7) | local 2026-11-08 |
+| E2E PWA (Playwright) | REAL — 10 roteiros (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
+| Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |

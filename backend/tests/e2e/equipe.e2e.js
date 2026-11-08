@@ -29,7 +29,7 @@ async function entrar(p, email) { await p.goto(BASE); await p.waitForSelector('#
   const us = await (await fetch('http://127.0.0.1:3399/__db/app_users')).json();
   const papel = e => (ms.find(m => m.user_id === (us.find(u => u.email === e) || {}).id) || {}).role;
   console.log('PAPÉIS:', 'recepcao→', papel('recepcao@dev.local'), '| novo→', papel('novo@dev.local'));
-  console.log('ADMIN erros:', JSON.stringify(p.errs));
+  console.log('ADMIN erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // recepção (agora gestor) não deve ver aba Equipe; novo entra e vê só Bruno
   p = await pagina(b);
   await entrar(p, 'novo@dev.local'); await p.waitForSelector('#appRoot:not(.hidden)'); await p.waitForTimeout(1500);
@@ -37,6 +37,6 @@ async function entrar(p, email) { await p.goto(BASE); await p.waitForSelector('#
   console.log('NOVO agenda:', JSON.stringify((await p.locator('.ag-line1').allTextContents()).map(t => t.trim())));
   await p.click('#navAvatar'); await p.waitForTimeout(300);
   console.log('ABA EQUIPE p/ profissional:', await p.isVisible('#subtabBtnEquipe'));
-  console.log('NOVO erros:', JSON.stringify(p.errs));
+  console.log('NOVO erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   await b.close();
 })().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });

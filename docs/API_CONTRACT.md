@@ -161,6 +161,7 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 `PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).
 
 ## D-012 — presença, checkout, caixa e piloto
+- Corpo JSON máximo: 100 KB; acima disso, 413.
 - **Agenda**:
   - `PATCH /api/agenda/:id/status` aceita também `aguardando` (cliente chegou) e `em_atendimento` (na cadeira);
   - transições permitidas (destino ← origens):

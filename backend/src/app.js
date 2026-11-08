@@ -10,9 +10,12 @@ const { estruturaRouter } = require('./routes/estrutura');
 const { caixaRouter } = require('./routes/caixa');
 const { pilotoRouter } = require('./routes/piloto');
 const { requireAuth } = require('./middleware/auth');
+const { securityHeaders } = require('./middleware/securityHeaders');
 const { mapErrorForResponse } = require('./errors');
 
 const app = express();
+app.disable('x-powered-by'); // não anunciar Express/versão
+app.use(securityHeaders); // primeiro: vale para 404, erros e preflight
 
 // Celular na mesma Wi-Fi acessa o frontend por um IP de rede local (192.168.x.x, 10.x.x.x,
 // 172.16-31.x.x) cuja porta muda a cada sessao de teste; nao da pra fixar no CORS_ORIGIN.
@@ -39,7 +42,12 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.set('trust proxy', 1); // Render: req.ip do cliente real (rate limit de login)
-app.use(express.json({ limit: '5mb' }));
+// Maior corpo legítimo medido nos E2E: 777 B (POST /api/onboarding/servicos). Pior
+// caso previsto: lista do onboarding (teto de 50 itens) ≈ 30 KB; comanda grande
+// (100 itens) ≈ 15 KB. Não há upload/importação por HTTP (import-xlsx é CLI).
+// 100kb dá folga de 3x sobre o pior caso e corta corpos de 5 MB (DoS barato).
+const JSON_BODY_LIMIT = '100kb';
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(morgan('dev'));
 
 app.get('/', (req, res) => {
@@ -66,4 +74,4 @@ app.use((err, req, res, next) => {
   res.status(statusCode).json(body);
 });
 
-module.exports = { app };
+module.exports = { app, JSON_BODY_LIMIT };

@@ -39,6 +39,6 @@ const legado = (method, path, body) => fetch(`${API}/api${path}`, { method, head
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   await p.fill('#lembretesData', hoje); await p.dispatchEvent('#lembretesData', 'change'); await p.waitForTimeout(900);
   console.log('HOJE:', (await p.textContent('#lembretesConteudo')).replace(/\s+/g, ' ').trim().slice(0, 120));
-  console.log('ERROS:', JSON.stringify(errs));
+  console.log('ERROS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   await b.close();
 })().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });

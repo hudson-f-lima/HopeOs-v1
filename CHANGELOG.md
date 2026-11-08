@@ -11,6 +11,8 @@
   - gorjeta negativa (desconto escondido) e desconto acima do total agora são recusados;
   - a venda fechada depois das 21h de Brasília caía no dia seguinte, e agora a data da comanda é sempre a do servidor no fuso da empresa.
 - Cancelamento tardio: com dados reais do banco (horário com segundos), cancelar no próprio dia nunca contava como tardio, e o horário era lido em UTC; agora conta certo, no fuso da empresa (afeta confiabilidade do cliente e o painel do piloto).
+- Segurança: cabeçalhos próprios na API (nosniff, X-Frame-Options DENY, no-referrer, CORP same-site, HSTS em produção, sem X-Powered-By) e corpo JSON até 100 KB; CSP e cabeçalhos no site estático (`render.yaml`).
+- CI: novo job `e2e-pwa` roda os 10 roteiros de navegador da PWA sob a CSP (falha com erro de console ou violação de CSP).
 - Números com largura fixa em todo o app.
 - Análise do blueprint e desenhos de estorno e agendamento online em `docs/planning/`.
 - Testes: offline 11 suítes verdes (novas: caixa 7, piloto 10; lembretes 8; onda-b 10); 9 E2E sem erro de console.
