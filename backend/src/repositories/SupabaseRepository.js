@@ -90,6 +90,15 @@ class SupabaseRepository {
     return data || [];
   }
 
+  // empresas não tem empresa_id: a linha da própria empresa é a de id = this.empresaId.
+  async updateEmpresa(patch) {
+    if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
+    const { id: _ignoredId, empresa_id: _ignoredEmpresa, ...safe } = patch;
+    const { data, error } = await this.supabase.from('empresas').update(safe).eq('id', this.empresaId).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+
   async createFormaPagamento(payload) {
     const row = { ...payload, empresa_id: this.empresaId };
     const { data, error } = await this.supabase

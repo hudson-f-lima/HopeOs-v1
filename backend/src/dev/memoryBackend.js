@@ -28,6 +28,33 @@ function installMemoryBackend(seed = {}) {
     return Object.assign(row, p);
   };
   P.update = P.updateScoped;
+  P.updateEmpresa = async function (patch) {
+    const row = rows('empresas').find(r => r.id === this.empresaId);
+    if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }
+    const { id, empresa_id, ...safe } = patch;
+    return Object.assign(row, safe);
+  };
+  P.createFormaPagamento = async function (payload) {
+    if (rows('formas_pagamento').some(f => f.empresa_id === this.empresaId && f.code === payload.code)) {
+      throw createAppError('PAYMENT_METHOD_ALREADY_EXISTS', `Forma de pagamento ja existe: ${payload.code}`, 409, { code: payload.code });
+    }
+    const row = { ...payload, empresa_id: this.empresaId };
+    rows('formas_pagamento').push(row);
+    return row;
+  };
+  P.replaceProfissionalServicos = async function (profissionalId, servicoIds) {
+    db.profissional_servicos = rows('profissional_servicos').filter(v => !(v.empresa_id === this.empresaId && v.profissional_id === profissionalId))
+      .concat(servicoIds.map(servico_id => ({ empresa_id: this.empresaId, profissional_id: profissionalId, servico_id })));
+    return { profissionalId, servicoIds, total: servicoIds.length };
+  };
+  P.setProfissionalServicoOverride = async function (profissionalId, servicoId, payload) {
+    const prof = rows('profissionais').find(p => p.id === profissionalId && p.empresa_id === this.empresaId);
+    if (!prof) throw createAppError('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado.', 422);
+    const overrides = { ...(prof.overrides || {}) };
+    if (payload.remover) delete overrides[servicoId]; else overrides[servicoId] = payload.override;
+    prof.overrides = overrides;
+    return { profissionalId, servicoId, overrides };
+  };
   P.criarAgendamento = async function ({ agendamento, permitirConflito, ignorarId, createdBy }) {
     if (!permitirConflito) {
       const conflitos = findScheduleConflicts({

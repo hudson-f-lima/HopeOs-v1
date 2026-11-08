@@ -5,6 +5,7 @@ const { env } = require('./config/env');
 const routes = require('./routes');
 const { authRouter } = require('./routes/auth');
 const { adminRouter } = require('./routes/admin');
+const { onboardingRouter } = require('./routes/onboarding');
 const { requireAuth } = require('./middleware/auth');
 const { mapErrorForResponse } = require('./errors');
 
@@ -49,6 +50,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api', authRouter);
 app.use('/api', requireAuth);
 app.use('/api', adminRouter);
+app.use('/api', onboardingRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {
