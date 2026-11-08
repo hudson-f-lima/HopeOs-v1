@@ -6,9 +6,9 @@
 ## Identificação
 - Versão: identidade/RBAC/autoria (ADR-005 + migration 007) IMPLEMENTADA no código, **não aplicada em produção**; slots-âncora (D-006); V1.4.2 mesclada; V1.5 BLOQUEADA
 - Branch de trabalho: `ccr-9854814d-ialzxj` → PR #16 (draft) — `main` em `c5a2914` + ADR-005 (#14)
-- Fundação física: migrations 001–007 (007 autorizada em D-007); 008+ não autorizada
+- Fundação física: migrations 001–008 (007 em D-007, 008 em D-009); 009+ não autorizada
 - Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
-- Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. Migrations 001–005 aplicadas via conector; 006 e 007 PENDENTES (o conector cancela SQL com `delete`/`drop` que exige confirmação; aplicar no SQL Editor). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo).
+- Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. Migrations 001–005 aplicadas via conector; 006, 007 e 008 PENDENTES (o conector cancela SQL com `delete`/`drop` que exige confirmação; aplicar no SQL Editor). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo).
 - Estado de produção: BLOQUEADO — backend Render `hopeos-v1` suspenso pelo dono (HTTP 503 "Service suspended", 2026-10-16); Supabase de produção (`qosioymzswhkqkziocas`) fora do alcance da sessão. Procedimento: `docs/RUNBOOK_MIGRATION_007.md`
 
 ## Estado confirmado
@@ -26,6 +26,7 @@
 | Relatórios por papel | REAL — CRÍTICO corrigido: snapshot/dashboard/financeiro/insights usavam `DEFAULT_EMPRESA_ID` | identity-gate U07 |
 | Relatórios "leitura própria" do profissional | PARCIAL — profissional fica sem relatórios | ADR-005 "Desvios e limites" |
 | Sugestão de slots-âncora | REAL no backend e na PWA; PENDENTE validação com dados reais | gate `schedule-slots-gate` 18/18; D-006 |
+| Onda B (D-009): fiscal, buffer, cargos/categorias com herança de comissão, régua de faltas (alerta), cota-parte | REAL no código — migration 008 + gate_008 (6 blocos, controle negativo), onda-b-gate 9/9, E2E; PENDENTE em produção | `supabase/migrations/008_*.sql`, `backend/src/engines/CommissionResolver.js`, `js/ui/comissoes.js` |
 | Assistente de configuração em 6 fases (Onda A, D-008) | REAL no código — onboarding-gate 9/9 + E2E do salão vazio até o app; PENDENTE em produção | `js/ui/onboarding.js`, `backend/src/routes/onboarding.js` |
 | PWA: login, convite/definir senha, recuperar senha, Equipe, UI por papel | REAL — E2E Chromium contra API em memória | `backend/tests/e2e/*.e2e.js` |
 | `DEFAULT_EMPRESA_ID` | HARDCODED — usado só pelo principal legado | `backend/src/middleware/auth.js` |
@@ -49,8 +50,8 @@
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 188/188 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9) | CI + local 2026-11-08 |
-| `supabase/tests/run.sh` | REAL — 001–007 + gate_007 (12 blocos) + concorrência + rollback/reaplicação | CI (Postgres 16) + local |
+| `npm run test:offline` | REAL — 197/197 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 9) | CI + local 2026-11-08 |
+| `supabase/tests/run.sh` | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
 | `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12, antes da bomba-relógio do insights | precisa Supabase real com 007 |
 | Produção (curl) | BLOQUEADO — `/api/health` 503 "Service suspended" | 2026-10-16 |

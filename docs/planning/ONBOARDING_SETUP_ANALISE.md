@@ -1,6 +1,6 @@
 # Análise — proposta "Onboarding Progressivo em 6 Fases + Master Prompt" (2026-11-08)
 
-Origem: prompt externo colado pelo Platform Owner. Este documento compara a proposta com o código real e diz o que vale aproveitar, o que contradiz decisões já tomadas e o que exige autorização. **Não é decisão aprovada.** SQL aqui é `DRAFT ONLY`.
+Origem: prompt externo colado pelo Platform Owner. Este documento compara a proposta com o código real e diz o que vale aproveitar, o que contradiz decisões já tomadas e o que exige autorização. **Atualização 2026-11-08:** Onda A implementada (D-008) e Onda B implementada com a migration 008 (D-009); o rascunho da §6 foi superado pela migration real (sem a coluna `onboarding`, porque o progresso é derivado dos dados). Onda C segue não autorizada. SQL desta página é `DRAFT ONLY`.
 
 ## 1. Veredito
 - **Aproveitar:** a esteira de onboarding (ordem das fases, presets por nicho, retomada do ponto onde parou, "simulação" final). Ataca um problema real: gestor diante de telas vazias.

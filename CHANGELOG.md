@@ -1,5 +1,13 @@
 # Changelog
 
+## Onda B (D-009, migration 008)
+- Empresa com CNPJ (dígito verificador), razão social e regime de salão-parceiro; relatório mensal de cota-parte (salão × profissionais) no Dashboard da gestão.
+- Intervalo de higienização entre atendimentos (0/5/10/15 min), respeitado na sugestão de horários e na trava de agenda do banco.
+- Cargos e categorias com herança da comissão: ajuste do profissional → cargo ou categoria → comissão do serviço. Serviços existentes não mudam (`FIXED_SERVICE`).
+- Régua de faltas (só alerta): faltas seguidas recentes avisam ao agendar.
+- Gestão → Comissões; assistente de configuração com cargos, buffer e dados fiscais.
+- migration 008 + rollback; gate_008 com controle negativo; onda-b-gate 9/9; offline 197/197; E2E.
+
 ## Assistente de configuração (Onda A, D-008)
 - Novo assistente em 6 fases para salão recém-criado: dados, horários, pagamentos, cardápio pronto por nicho, equipe com ajustes por serviço e simulação de atendimento sem gravar no caixa. Retoma de onde parou em qualquer aparelho.
 - `GET/PATCH /api/empresa` (antes os dados e horários da empresa só mudavam por SQL) e rotas `/api/onboarding/*`.

@@ -131,3 +131,18 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 | `GET /api/onboarding/presets` | `cadastros:write` | Cardápios por nicho, formas de pagamento e horário padrão (sugestões editáveis) |
 | `POST /api/onboarding/servicos` | `cadastros:write` | `{ itens: [{ nome, categoria, valorCentavos, duracaoMin, comissaoPct }] }` (até 50); nome repetido é ignorado |
 | `POST /api/onboarding/formas` | `cadastros:write` | `{ itens: [{ code, label, taxaPct, diasRecebimento }] }`; código repetido é ignorado |
+
+## Onda B (D-009, migration 008)
+| Rota | Ação RBAC | Uso |
+|---|---|---|
+| `GET /api/cargos` · `POST /api/cargos` · `PATCH /api/cargos/:id` | read: `cadastros:read`; escrita: `cadastros:write` | `{ nome, comissaoPct, modeloComissao: dividido|bruto_salao|bruto_staff, ativo }`; nome repetido (sem diferenciar maiúsculas) → 409 `CARGO_EXISTS` |
+| `GET /api/categorias` · `POST /api/categorias` · `PATCH /api/categorias/:id` | idem | `{ nome, comissaoPct|null, ativo }`; 409 `CATEGORIA_EXISTS` |
+| `POST/PATCH /api/profissionais` | `cadastros:write` | aceita `cargoId` (da mesma empresa, senão 422 `CARGO_NOT_FOUND`) |
+| `POST/PATCH /api/servicos` | `cadastros:write` | aceita `categoriaId` e `modeloHeranca: FIXED_SERVICE|BY_CATEGORY|BY_ROLE` |
+| `PATCH /api/empresa` | `cadastros:write` | também `cnpj` (dígitos verificadores; máscara aceita; `null` limpa), `razaoSocial`, `salaoParceiro`, `bufferMin` (0/5/10/15), `reguaAlertaFaltas` < `reguaSinalFaltas` |
+| `POST /api/onboarding/cargos` | `cadastros:write` | `{ itens: [{ nome, comissaoPct, modeloComissao }] }`, idempotente |
+| `GET /api/relatorios/cota-parte?mes=YYYY-MM` | `relatorios:full` | `{ comandas, valorItensCentavos, cotaParteSalaoCentavos, cotaParteProfissionaisCentavos, profissionais[{ nome, itens, valorCentavos, cotaParteCentavos }], salaoParceiro, cnpj, razaoSocial }` |
+| `GET /api/insights/clients/:id/reliability` | `relatorios:operacional` | inclui `regua: { faltasSeguidas, nivel: ok|tolerada|alerta|exigir_sinal, mensagem, limites }` — só alerta, sem cobrança |
+
+- Comissão no checkout: `itens[].comissaoPct` + `comissaoOrigem` (`override_profissional`, `cargo`, `categoria` ou `servico`).
+- `GET /api/agenda/slots` devolve `bufferMin`; cada atendimento ocupa até o fim + buffer (mesma regra do `agendamento_criar`).

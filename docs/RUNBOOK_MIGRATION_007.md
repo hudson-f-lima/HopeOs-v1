@@ -44,11 +44,12 @@ Todas as colunas da primeira consulta devem vir `true`. Se a segunda listar tabe
 elas estão expostas pela API REST para quem tiver a anon key: a 007 fecha isso.
 
 ## 4. Aplicar a 007
-Opção A — SQL Editor: cole o conteúdo de `supabase/migrations/007_identity_tenant_rbac_actor.sql` e execute (é uma transação: ou aplica tudo, ou nada).
+Opção A — SQL Editor: cole o conteúdo de `supabase/migrations/007_identity_tenant_rbac_actor.sql` e execute (é uma transação: ou aplica tudo, ou nada). Em seguida, do mesmo jeito, `supabase/migrations/008_empresa_fiscal_buffer_cargos_categorias.sql` (D-009).
 
 Opção B — terminal:
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/007_identity_tenant_rbac_actor.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/008_empresa_fiscal_buffer_cargos_categorias.sql
 ```
 
 Verificação (todas devem retornar `true`):
@@ -62,7 +63,9 @@ select to_regclass('public.app_users') is not null as app_users,
        not exists (select 1 from information_schema.role_table_grants
                    where table_schema = 'public' and grantee in ('anon', 'authenticated')) as anon_fechado,
        (select count(*) from unidades) >= (select count(*) from empresas) as unidade_padrao,
-       exists (select 1 from pg_trigger where tgname = 'trg_app_users_sync_from_auth') as trigger_auth;
+       exists (select 1 from pg_trigger where tgname = 'trg_app_users_sync_from_auth') as trigger_auth,
+       to_regclass('public.cargos') is not null as cargos_008,
+       exists (select 1 from information_schema.columns where table_name = 'empresas' and column_name = 'buffer_min') as buffer_008;
 ```
 
 ## 5. Configurar o Supabase Auth
@@ -121,6 +124,7 @@ curl -s https://hopeos-v1.onrender.com/api/clientes -H "Authorization: Bearer $A
 |---|---|
 | Problema só no login/JWT | Usar o token legado (`?apiToken=` / "modo antigo"); não exige mexer no banco |
 | Backend novo com erro | Reverter o merge em `main` **e** aplicar `supabase/rollback/007_down.sql` (o backend antigo não conhece as RPCs novas, mas também não depende delas) |
+| Desfazer a 008 | `supabase/rollback/008_down.sql` (antes de desfazer a 007; restaura o `agendamento_criar` sem buffer) |
 | Desfazer a 007 | `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/rollback/007_down.sql` — apaga memberships, integrações e a autoria gravada após a 007; RLS/revogações de anon **não** são desfeitas de propósito |
 | Perda de dados | Restaurar o backup do passo 2 |
 
