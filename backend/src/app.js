@@ -8,6 +8,7 @@ const { adminRouter } = require('./routes/admin');
 const { onboardingRouter } = require('./routes/onboarding');
 const { estruturaRouter } = require('./routes/estrutura');
 const { caixaRouter } = require('./routes/caixa');
+const { pilotoRouter } = require('./routes/piloto');
 const { requireAuth } = require('./middleware/auth');
 const { mapErrorForResponse } = require('./errors');
 
@@ -56,6 +57,7 @@ app.use('/api', adminRouter);
 app.use('/api', onboardingRouter);
 app.use('/api', estruturaRouter);
 app.use('/api', caixaRouter);
+app.use('/api', pilotoRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {
