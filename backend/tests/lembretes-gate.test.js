@@ -154,6 +154,24 @@ test('L07 CORS: origem exata; sufixo/prefixo maliciosos não recebem Allow-Origi
   }
 });
 
+test('L08 presença: check-in → cadeira → concluído; quem chegou não vira falta; cancelado não volta', async () => {
+  const novo = (sufixo, status) => { const a = ag(sufixo, { cliente_id: JOAO, horario: '16:00:00', status }); db.agendamentos.push(a); return a.id; };
+  const patch = (id, novoStatus) => request('PATCH', `/api/agenda/${id}/status`, { body: { novoStatus } });
+  const a = novo('21', 'agendado');
+  assert.strictEqual((await patch(a, 'aguardando')).status, 200, 'check-in');
+  assert.strictEqual(code(await patch(a, 'no_show')), 'INVALID_STATUS_TRANSITION', 'cliente presente não é falta');
+  assert.strictEqual((await patch(a, 'em_atendimento')).status, 200, 'na cadeira');
+  assert.strictEqual(code(await patch(a, 'cancelado')), 'INVALID_STATUS_TRANSITION', 'em atendimento não cancela');
+  assert.strictEqual((await patch(a, 'concluido')).status, 200);
+  const c = novo('22', 'cancelado');
+  for (const s of ['confirmado', 'aguardando', 'no_show', 'concluido']) assert.strictEqual(code(await patch(c, s)), 'INVALID_STATUS_TRANSITION', `cancelado → ${s}`);
+  const n = novo('23', 'no_show');
+  assert.strictEqual(code(await patch(n, 'confirmado')), 'INVALID_STATUS_TRANSITION', 'falta não volta a confirmado');
+  const r = await patch(novo('24', 'confirmado'), 'confirmado');
+  assert.strictEqual(r.status, 409); assert.deepStrictEqual(r.data.error.details.permitidoDe, ['agendado']);
+  assert.strictEqual(code(await patch(a, 'xpto')), 'INVALID_STATUS');
+});
+
 (async () => {
   const server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;

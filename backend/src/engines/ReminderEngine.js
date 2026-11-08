@@ -5,7 +5,8 @@
 // manual pela equipe teve resultado igual ou melhor que o automático
 // (docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md).
 
-const PENDENTES = ['agendado', 'aguardando'];
+// Só o que ainda não foi confirmado nem chegou (aguardando = check-in feito).
+const PENDENTES = ['agendado'];
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
 // Celular BR: DDD + 8/9 dígitos, com ou sem 55. Fora disso não gera link

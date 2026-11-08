@@ -860,3 +860,6 @@ dialog {
 .lembretes-dialog .eq-ctrl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .lembretes-dialog .btn{width:auto;padding:6px 12px;}
 .lembrete-zap{text-decoration:none;text-align:center;}
+
+/* D-012: dígitos de largura fixa em todo o app (horários, valores e durações não "pulam") */
+body{font-variant-numeric:tabular-nums;}
