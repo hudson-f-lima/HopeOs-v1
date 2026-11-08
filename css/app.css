@@ -851,3 +851,8 @@ dialog {
 .regua-aviso.exigir_sinal{background:#fde8e8;color:var(--md-error);}
 .cota-linha{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;font-variant-numeric:tabular-nums;}
 .onb-sub{font-size:14px;font-weight:800;margin-top:12px;}
+/* Fechamento de caixa (Dashboard) */
+.caixa-form{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;}
+.caixa-form .field{margin-bottom:0;}
+.caixa-form .btn{width:auto;}
+@media (max-width:480px){.caixa-form{grid-template-columns:1fr 1fr;}.caixa-form .btn{grid-column:1/-1;width:100%;}}

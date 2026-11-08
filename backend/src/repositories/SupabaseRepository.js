@@ -35,6 +35,23 @@ class SupabaseRepository {
     return rows;
   }
 
+  // Pagamentos de um conjunto de comandas (comando_pagamentos não tem data);
+  // sempre filtrado pela empresa do repositório, em lotes para não estourar a URL.
+  async listPagamentosDasComandas(comandoIds) {
+    const ids = [...new Set((comandoIds || []).filter(Boolean))];
+    const rows = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await this.supabase
+        .from('comando_pagamentos')
+        .select('*')
+        .eq('empresa_id', this.empresaId)
+        .in('comando_id', ids.slice(i, i + 100));
+      if (error) throw error;
+      rows.push(...(data || []));
+    }
+    return rows;
+  }
+
   async getById(table, id) {
     const { data, error } = await this.supabase.from(table).select('*').eq('id', id).single();
     if (error) throw error;
