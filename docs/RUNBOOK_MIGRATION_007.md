@@ -11,7 +11,7 @@ Tempo estimado: 30–45 min. Rollback: seção 8.
 | Item | Situação | O que destrava |
 |---|---|---|
 | Supabase de produção (`qosioymzswhkqkziocas`, citado em `docs/audit_global/12_*`) | DESCONHECIDO — não aparece na conta conectada à sessão | Executar este runbook com acesso ao projeto, ou conectar a conta certa ao conector Supabase do Claude |
-| Projeto do HOPE OS | **`hopeos-v1` (`gsttjozcmdvgstcpadiq`)**, criado em 2026-10-16, banco novo: 001–005 aplicadas; aplicar 006 e 007 no SQL Editor e seguir do passo 4 (verificação) em diante | SQL Editor do projeto `hopeos-v1` |
+| Projeto do HOPE OS | **`hopeos-v1` (`gsttjozcmdvgstcpadiq`)**, criado em 2026-10-16, banco novo: 001–005 aplicadas; 006–008 pendentes. Desde 2026-11-08 a integração GitHub do Supabase está ligada ("Deploy to production" na `main`) e o histórico foi alinhado aos nomes dos arquivos (ver passo 4, opção C) | Merge do PR na `main` (opção C) ou SQL Editor (opção A) |
 | `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) | **OUTRO PROJETO — nunca usar para o HOPE OS** (decisão do Platform Owner, 2026-10-16). Foi reativado e pausado de novo em 2026-10-16; só uma consulta de leitura rodou nele, sem escrita | — |
 | Backend Render `hopeos-v1` | BLOQUEADO — `https://hopeos-v1.onrender.com/api/health` responde 503 "Service suspended by its owner" | Reativar o serviço no painel do Render |
 
@@ -51,6 +51,13 @@ Opção B — terminal:
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/007_identity_tenant_rbac_actor.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/008_empresa_fiscal_buffer_cargos_categorias.sql
 ```
+
+Opção C — integração GitHub do Supabase (recomendada para `hopeos-v1`):
+- Configuração: Project Settings → Integrations → GitHub, working directory `.`, "Deploy to production" ligado, branch `main`.
+- O merge na `main` aplica as migrations de `supabase/migrations` que faltam no histórico `supabase_migrations.schema_migrations`.
+- Em 2026-11-08 o histórico foi alinhado aos nomes dos arquivos. Antes: `20261016103449`…`20261016103903`, gravados pelo conector MCP. Depois: `001`…`005`. A mudança mexeu só nesse registro, não no schema. Para desfazer, volte as versões antigas com um `update` equivalente.
+- Validado localmente com Supabase CLI 2.122.1 contra um banco com 001–005 e o mesmo histórico: `migration list` aponta 006–008 como pendentes. Depois `db push` aplicou as três e `gate_007`/`gate_008` passaram.
+- Depois do merge: Supabase → Branches → `main` mostra o resultado do deploy. Em seguida rode a verificação abaixo.
 
 Verificação (todas devem retornar `true`):
 ```sql
