@@ -6,8 +6,9 @@ const cashflow = require('../engines/insights/cashflow');
 const margin = require('../engines/insights/margin');
 
 class InsightsService {
-  constructor() {
-    this.repo = new SupabaseRepository();
+  constructor(empresaId) {
+    if (!empresaId) throw new Error('InsightsService exige empresaId');
+    this.repo = new SupabaseRepository(empresaId);
   }
 
   async loadOccupancyInsights(dataFrom, dataTo) {

@@ -61,16 +61,18 @@ function projectCashflow(comandoPagamentos, formasPagamento, dataBaseStr, daysAh
 }
 
 function computeAccumulatedCashflow(curva, days) {
-  // Calcula acumulado até N dias
-  let acum = 0;
-  const target = new Date();
-  target.setDate(target.getDate() + days);
+  // Acumulado até D+N contado a partir do primeiro dia da curva (data-base),
+  // não do relógio do servidor: a mesma curva deve dar o mesmo resultado em qualquer dia.
+  if (!curva.length) return 0;
+  const target = new Date(`${curva[0].data}T00:00:00Z`);
+  target.setUTCDate(target.getUTCDate() + days);
+  const targetKey = target.toISOString().split('T')[0];
 
+  let acum = 0;
   for (const entry of curva) {
-    if (new Date(entry.data) > target) break;
+    if (entry.data > targetKey) break;
     acum += entry.liquidoCentavos;
   }
-
   return acum;
 }
 

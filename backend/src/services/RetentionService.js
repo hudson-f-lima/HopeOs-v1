@@ -1,3 +1,4 @@
+const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { createAppError } = require('../errors');
 const retention = require('../engines/insights/retention');
@@ -111,8 +112,9 @@ function computeRebookingRate(comandos, agendamentos) {
 }
 
 class RetentionService {
-  constructor() {
-    this.repo = new SupabaseRepository();
+  constructor(empresaId) {
+    if (!empresaId) throw new Error('RetentionService exige empresaId');
+    this.repo = new SupabaseRepository(empresaId);
   }
 
   async loadRetentionInsights(hoje = todaySaoPaulo()) {
@@ -185,10 +187,12 @@ class RetentionService {
   }
 
   async loadClientReliability(clienteId, hoje = todaySaoPaulo()) {
-    const [clientes, agendamentos] = await Promise.all([
+    const [clientes, agendamentos, empresas] = await Promise.all([
       this.repo.list('clientes', { empresa_id: this.repo.empresaId, id: clienteId }),
-      this.repo.list('agendamentos', { empresa_id: this.repo.empresaId, cliente_id: clienteId })
+      this.repo.list('agendamentos', { empresa_id: this.repo.empresaId, cliente_id: clienteId }),
+      this.repo.list('empresas', { id: this.repo.empresaId })
     ]);
+    const empresa = empresas[0] || {};
 
     const cliente = clientes[0];
     if (!cliente) {
@@ -203,7 +207,8 @@ class RetentionService {
       faixa: result.faixa,
       fatores: result.fatores,
       faltasCadastro,
-      divergencia: faltasCadastro !== result.fatores.noShows365d
+      divergencia: faltasCadastro !== result.fatores.noShows365d,
+      regua: computeReguaFaltas(agendamentos, { alerta: empresa.regua_alerta_faltas ?? 2, sinal: empresa.regua_sinal_faltas ?? 3 }, hoje)
     };
   }
 

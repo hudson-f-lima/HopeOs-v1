@@ -93,6 +93,7 @@ input:focus,select:focus{border-color:var(--md-primary);outline:none;}
 
 .topbar{background:var(--glass);backdrop-filter:blur(var(--blur-glass));-webkit-backdrop-filter:blur(var(--blur-glass));border-bottom:1px solid var(--glass-border);padding:16px;box-shadow:var(--elevation-glass);position:sticky;top:0;z-index:90;}
 .topbar h1{font-size:18px;font-weight:800;color:var(--md-primary);}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 
 main{padding:12px;max-width:960px;margin:0 auto;}
 .card{background:var(--md-surface);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--elevation-1);}
@@ -787,3 +788,66 @@ dialog {
 .toast-close:hover {
   opacity: 1;
 }
+
+/* Sugestão de horários no modal de novo agendamento */
+.ag-slots{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.ag-slots:empty{display:none;}
+.ag-slots-list{display:flex;flex-wrap:wrap;gap:6px;}
+.ag-slots-msg{font-size:12px;color:var(--md-outline);}
+.ag-slot.recomendado:not(.selected){box-shadow:inset 0 0 0 1px var(--md-primary);}
+.ag-slots-toggle{align-self:flex-start;background:none;border:0;padding:4px 0;font-size:12px;color:var(--md-primary);text-decoration:underline;cursor:pointer;min-height:var(--tap-min);}
+
+/* Login e sessão */
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+.login-card{width:100%;max-width:380px;padding:24px;}
+.login-title{font-size:22px;font-weight:800;color:var(--md-primary);margin-bottom:4px;}
+.login-sub{font-size:13px;color:var(--md-outline);margin-bottom:16px;}
+.login-erro{min-height:18px;font-size:12px;color:var(--md-error);margin-bottom:8px;}
+.login-link{display:block;margin:14px auto 0;font-size:12px;color:var(--md-outline);text-decoration:underline;min-height:var(--tap-min);}
+.login-empresas{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.login-empresas .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}
+.session-chip{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--md-outline);min-width:0;}
+.session-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw;}
+.session-sair{font-size:12px;font-weight:700;color:var(--md-primary);padding:6px 10px;border-radius:16px;background:var(--md-surface-variant);min-height:32px;}
+.widget-restrito{padding:12px;font-size:12px;color:var(--md-outline);}
+
+/* Gestão > Equipe */
+.eq-row{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--md-surface-variant);}
+.eq-row:last-child{border-bottom:0;}
+.eq-quem{display:flex;flex-direction:column;min-width:0;}
+.eq-quem span{font-size:12px;color:var(--md-outline);overflow:hidden;text-overflow:ellipsis;}
+.eq-ctrl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.eq-ctrl select{width:auto;flex:1 1 140px;}
+
+/* Assistente de configuração (onboarding) */
+.onb-screen{min-height:100vh;display:flex;justify-content:center;padding:16px;}
+.onb-card{width:100%;max-width:560px;padding:20px;display:flex;flex-direction:column;gap:10px;}
+.onb-marca{font-size:12px;font-weight:700;color:var(--md-primary);}
+.onb-progresso{display:flex;gap:6px;}
+.onb-passo{flex:1;min-height:36px;border-radius:10px;background:var(--md-surface-variant);color:var(--md-outline);font-weight:700;font-size:13px;}
+.onb-passo.feito{background:var(--md-secondary-container,#d6f5e8);color:#0b6b48;}
+.onb-passo.atual{background:var(--md-primary);color:var(--md-on-primary);}
+.onb-titulo{font-size:18px;font-weight:800;}
+.onb-body{display:flex;flex-direction:column;gap:8px;}
+.onb-ajuda{font-size:12px;color:var(--md-outline);}
+.onb-item{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--md-surface-variant);}
+.onb-linha{display:flex;flex-wrap:wrap;gap:8px;}
+.onb-mini{display:flex;flex-direction:column;font-size:11px;color:var(--md-outline);flex:1 1 90px;}
+.onb-dias{display:flex;flex-direction:column;gap:6px;}
+.onb-dia{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-items:center;}
+.onb-nichos{display:flex;flex-wrap:wrap;gap:6px;}
+.onb-form{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.onb-form h3{font-size:14px;font-weight:800;}
+.onb-equipe .onb-item{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.onb-resultado{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--md-surface-variant);}
+.onb-res-linha{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;}
+.onb-res-linha.saida b{color:var(--md-error);}
+.onb-res-linha.liquido b{color:#0b6b48;font-size:16px;}
+.onb-acoes{display:flex;gap:8px;}
+.onb-acoes .btn{flex:1;}
+
+/* Régua de faltas (alerta, Onda B) */
+.regua-aviso{margin-top:6px;padding:8px 10px;border-radius:10px;font-size:12px;font-weight:600;background:#fff4e5;color:#8a4b00;}
+.regua-aviso.exigir_sinal{background:#fde8e8;color:var(--md-error);}
+.cota-linha{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;font-variant-numeric:tabular-nums;}
+.onb-sub{font-size:14px;font-weight:800;margin-top:12px;}

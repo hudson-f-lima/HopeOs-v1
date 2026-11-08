@@ -2,6 +2,7 @@ const { roundCents } = require('./money');
 const { createAppError } = require('../errors');
 const { resolveProductItem } = require('./ProductEngine');
 const { assertInventoryForResolvedItems } = require('./InventoryEngine');
+const { resolveComissaoPct } = require('./CommissionResolver');
 
 function rowId(row) {
   return row?.id || row?.code || row?.servico_id || row?.profissional_id;
@@ -31,7 +32,7 @@ function serviceAllowedForProfessional({ profissionalId, servicoId, profissional
   );
 }
 
-function resolveServiceProfessionalItem({ payloadItem, servicos, profissionais, profissionalServicos }) {
+function resolveServiceProfessionalItem({ payloadItem, servicos, profissionais, profissionalServicos, cargos = [], categorias = [] }) {
   const servicoId = payloadItem.servicoId || payloadItem.servico_id;
   const profissionalId = payloadItem.profissionalId || payloadItem.profissional_id;
   const servico = findRequired(servicos, servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
@@ -56,9 +57,7 @@ function resolveServiceProfessionalItem({ payloadItem, servicos, profissionais, 
   const duracaoMin = Number(
     override.duracao_min ?? override.duracaoMin ?? servico.duracao_min ?? servico.duracaoMin ?? servico.duracao ?? 0
   );
-  const comissaoPct = Number(
-    override.comissao_pct ?? override.comissaoPct ?? servico.comissao_pct ?? servico.comissaoPct ?? servico.comissao ?? 0
-  );
+  const { pct: comissaoPct, origem: comissaoOrigem } = resolveComissaoPct({ servico, profissional, override, cargos, categorias });
   const modeloComissao = profissional.modelo_comissao || profissional.modeloComissao || 'bruto_salao';
 
   return {
@@ -78,6 +77,7 @@ function resolveServiceProfessionalItem({ payloadItem, servicos, profissionais, 
     valorBrutoCentavos: precoUnitarioCentavos,
     duracaoMin,
     comissaoPct,
+    comissaoOrigem,
     modeloComissao
   };
 }
@@ -93,13 +93,15 @@ function resolveCheckoutItem(args) {
   throw createAppError('INVALID_ITEM_TYPE', `Tipo de item inválido: ${tipo}`, 422, { tipo });
 }
 
-function resolveCheckoutInput({ payload, servicos, profissionais, profissionalServicos = [], formasPagamento, produtos = [] }) {
+function resolveCheckoutInput({ payload, servicos, profissionais, profissionalServicos = [], formasPagamento, produtos = [], cargos = [], categorias = [] }) {
   const resolvedItems = (payload.itens || []).map(item => resolveCheckoutItem({
     payloadItem: item,
     servicos,
     profissionais,
     profissionalServicos,
-    produtos
+    produtos,
+    cargos,
+    categorias
   }));
 
   assertInventoryForResolvedItems(resolvedItems);

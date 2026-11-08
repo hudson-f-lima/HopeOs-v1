@@ -6,7 +6,7 @@ import {
   getInsightsOccupancy,
   getInsightsRetention
 } from '../api.js';
-import { state, findProfissionalNome, stateBus } from '../state.js';
+import { state, findProfissionalNome, stateBus, sessionRoleIn } from '../state.js';
 import { addDays, centsToBRL, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, waLink, WEEKDAY_LABELS } from '../utils.js';
 
 const SEGMENT_COLORS = ['#7c6af7', '#14b8a6', '#3b82f6', '#f59e0b', '#ff7a68', '#b794f6', '#22c55e', '#9490a3'];
@@ -323,6 +323,27 @@ async function loadRetentionAndAttach() {
   }
 }
 
+// Cota-parte do mês corrente (Lei do Salão-Parceiro): só gestão.
+async function loadCotaParte() {
+  const panel = el('dbCotaPartePanel');
+  const node = el('dbCotaParteWidget');
+  if (!panel || !node) return;
+  const mes = todayStr().slice(0, 7);
+  try {
+    const r = await api(`/relatorios/cota-parte?mes=${mes}`);
+    panel.classList.remove('hidden');
+    const linha = (rotulo, v) => `<div class="cota-linha"><span>${escapeHtml(rotulo)}</span><b>${centsToBRL(v)}</b></div>`;
+    node.innerHTML = `
+      ${r.salaoParceiro ? '' : '<p class="body-sm text-tertiary">Regime de salão-parceiro desligado no cadastro da empresa.</p>'}
+      ${linha('Cota-parte do salão', r.cotaParteSalaoCentavos)}
+      ${linha('Cota-parte dos profissionais', r.cotaParteProfissionaisCentavos)}
+      ${r.profissionais.map(p => linha(`· ${p.nome}`, p.cotaParteCentavos)).join('')}
+      <p class="body-sm text-tertiary">${r.comandas} comanda(s) em ${escapeHtml(mes)}. Confirme o enquadramento com seu contador.</p>`;
+  } catch (err) {
+    panel.classList.add('hidden');
+  }
+}
+
 async function atualizarInsights() {
   state.insights.loading = true;
   state.insights.error = null;
@@ -337,10 +358,19 @@ async function atualizarInsights() {
 
   // Carregamento independente - Progressive Rendering
   // Não trava a UI num Promise.all bloqueante.
+  // Margem e caixa são relatório gerencial (RBAC: admin/gestor). Recepção vê o operacional.
+  const financeiro = sessionRoleIn('admin', 'gestor');
+  if (!financeiro) {
+    for (const id of ['dbMarginWidget', 'dbMoneyWidget']) {
+      const node = el(id);
+      if (node) node.innerHTML = '<div class="widget-restrito">Disponível para administração e gestão.</div>';
+    }
+  }
+  if (financeiro) loadCotaParte();
   await Promise.allSettled([
     loadOccupancy(from, to),
-    loadMargin(from, to),
-    loadCashflow(),
+    financeiro ? loadMargin(from, to) : Promise.resolve(),
+    financeiro ? loadCashflow() : Promise.resolve(),
     loadRetentionAndAttach()
   ]);
 

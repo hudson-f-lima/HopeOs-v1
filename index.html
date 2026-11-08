@@ -28,8 +28,63 @@
   <p class="body-lg">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
 </div>
 
+<div id="loginScreen" class="login-screen hidden">
+  <form id="loginForm" class="card login-card" novalidate>
+    <h1 class="login-title">HOPE OS</h1>
+    <p class="login-sub">Entre com seu e-mail e senha.</p>
+    <div class="field">
+      <label for="loginEmail">E-mail</label>
+      <input id="loginEmail" type="email" autocomplete="username" inputmode="email" required/>
+    </div>
+    <div class="field">
+      <label for="loginSenha">Senha</label>
+      <input id="loginSenha" type="password" autocomplete="current-password" required/>
+    </div>
+    <p id="loginErro" class="login-erro" role="alert"></p>
+    <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
+    <div id="loginEmpresas" class="login-empresas hidden" aria-live="polite"></div>
+    <button id="btnEsqueciSenha" class="login-link" type="button">Esqueci minha senha</button>
+    <button id="btnTokenLegado" class="login-link" type="button">Usar token de acesso (modo antigo)</button>
+  </form>
+  <form id="senhaForm" class="card login-card hidden" novalidate>
+    <h1 class="login-title">Defina sua senha</h1>
+    <p class="login-sub">Use ao menos 8 caracteres.</p>
+    <div class="field">
+      <label for="novaSenha">Nova senha</label>
+      <input id="novaSenha" type="password" autocomplete="new-password" minlength="8" required/>
+    </div>
+    <div class="field">
+      <label for="novaSenha2">Repita a senha</label>
+      <input id="novaSenha2" type="password" autocomplete="new-password" minlength="8" required/>
+    </div>
+    <p id="senhaErro" class="login-erro" role="alert"></p>
+    <button id="btnSalvarSenha" class="btn btn-primary" type="submit">Salvar e entrar</button>
+  </form>
+</div>
+
+<div id="onboardingScreen" class="onb-screen hidden" role="dialog" aria-labelledby="onbTitulo">
+  <div class="card onb-card">
+    <p class="onb-marca">HOPE OS · Configuração do salão</p>
+    <nav id="onbProgresso" class="onb-progresso" aria-label="Fases da configuração"></nav>
+    <h1 id="onbTitulo" class="onb-titulo"></h1>
+    <div id="onbBody" class="onb-body"></div>
+    <p id="onbErro" class="login-erro" role="alert"></p>
+    <div class="onb-acoes">
+      <button id="btnOnbVoltar" type="button" class="btn btn-secondary">Voltar</button>
+      <button id="btnOnbProximo" type="button" class="btn btn-primary">Salvar e continuar</button>
+    </div>
+    <button id="btnOnbDepois" type="button" class="login-link">Fazer depois</button>
+  </div>
+</div>
+
 <div id="appRoot" class="hidden">
-  <header class="topbar"><h1>HOPE OS</h1></header>
+  <header class="topbar">
+    <h1>HOPE OS</h1>
+    <div id="sessionChip" class="session-chip hidden">
+      <span id="sessionLabel"></span>
+      <button id="btnLogout" type="button" class="session-sair">Sair</button>
+    </div>
+  </header>
 
   <main>
     <div id="banner"></div>
@@ -259,6 +314,16 @@
           <div id="dbMarginWidget" class="dashboard-widget-body"></div>
         </section>
 
+        <section class="dashboard-panel hidden" id="dbCotaPartePanel">
+          <div class="panel-head">
+            <div>
+              <h2>Cota-parte do mês</h2>
+              <p>Salão × profissionais parceiros, para a contabilidade.</p>
+            </div>
+          </div>
+          <div id="dbCotaParteWidget" class="dashboard-widget-body"></div>
+        </section>
+
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
             <div>
@@ -317,6 +382,7 @@
     <div class="field">
       <label for="agCliente">Cliente (opcional)</label>
       <input id="agCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <p id="agReguaAviso" class="regua-aviso hidden" role="status"></p>
     </div>
     <div class="field">
       <label for="agServico">Serviço</label>
@@ -333,6 +399,7 @@
     <div class="field">
       <label for="agHorario">Horário</label>
       <input id="agHorario" type="time"/>
+      <div id="agSlots" class="ag-slots" aria-live="polite"></div>
     </div>
     <p id="agDuracaoPreview" class="body-sm text-tertiary mb-md"></p>
     <div style="display:flex;gap:8px;">
@@ -469,6 +536,7 @@
         <div class="gestao-title">
           <h2>Gestão</h2>
           <p>Cadastros, equipe, produtos e pagamentos.</p>
+          <button type="button" id="btnAbrirAssistente" class="login-link hidden">Assistente de configuração</button>
         </div>
       </div>
       <button class="gestao-close" id="btnFecharGestao" aria-label="Fechar gestão">×</button>
@@ -481,6 +549,30 @@
       <button class="subtab-btn" data-subtab="formas">Pagamentos</button>
       <button class="subtab-btn" data-subtab="clientes">Clientes</button>
       <button class="subtab-btn" data-subtab="espera">Espera</button>
+      <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
+      <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-comissoes">
+      <div id="comissoesConteudo"></div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-equipe">
+      <div class="card">
+        <h2 class="m-0" style="margin-bottom:4px;">Equipe e acessos</h2>
+        <p class="body-sm text-tertiary" style="margin-bottom:12px;">Enviamos um convite por e-mail; a pessoa define a própria senha pelo link. Se ela já tiver conta, só ganha o acesso.</p>
+        <form id="formEquipe" novalidate>
+          <div class="field"><label for="eqEmail">E-mail da conta</label><input id="eqEmail" type="email" required/></div>
+          <div class="field"><label for="eqRole">Papel</label><select id="eqRole">
+            <option value="recepcao">Recepção</option><option value="profissional">Profissional</option>
+            <option value="gestor">Gestão</option><option value="admin">Admin</option></select></div>
+          <div class="field hidden" id="eqProfField"><label for="eqProfissional">Cadastro de profissional</label><select id="eqProfissional"></select></div>
+          <div class="field"><label>Unidades</label><div id="eqUnidades"></div></div>
+          <p id="eqErro" class="login-erro" role="alert"></p>
+          <button class="btn btn-primary" type="submit">Convidar</button>
+        </form>
+      </div>
+      <div class="card"><div id="listEquipe"></div></div>
     </div>
 
     <div class="subtab-content hidden" id="subtab-clientes">

@@ -1,4 +1,4 @@
-import { api, getClientReliability, getListaEspera } from '../api.js';
+import { api, getClientReliability, getListaEspera, getAgendaSlots } from '../api.js';
 import { 
   state, 
   stateBus, 
@@ -353,8 +353,7 @@ export function updateNovoAgendamentoPreview() {
   const el = document.getElementById('agDuracaoPreview');
   if (!el) return;
   if (!servicoId || !horario) { el.textContent = ''; return; }
-  const servico = state.catalog.servicos.find(s => s.id === servicoId);
-  const duracao = servico ? (servico.duracao_min || 30) : 30;
+  const duracao = duracaoNovoAgendamento(servicoId, state.fuzzyAgProfissional.getValue());
   const [h, m] = horario.split(':').map(Number);
   const endTotalMin = h * 60 + m + duracao;
   const endStr = String(Math.floor(endTotalMin / 60) % 24).padStart(2, '0') + ':' + String(endTotalMin % 60).padStart(2, '0');
@@ -367,6 +366,7 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || state.selectedDay || todayStr();
 
   state.fuzzyAgCliente.clear();
+  avisarReguaCliente(null);
   state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));
   state.fuzzyAgServico.clear();
   state.fuzzyAgProfissional.setItems(state.catalog.profissionais.filter(p => p.ativo !== false));
@@ -383,7 +383,91 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   document.getElementById('agData').value = date;
   document.getElementById('agHorario').value = horario || computeDefaultHorario(date);
   updateNovoAgendamentoPreview();
+  refreshAgendaSlots();
   openModal('modalNovoAgendamento');
+}
+
+// --- Sugestão de horários (GET /agenda/slots) ------------------------------
+// O backend calcula os slots e a duração efetiva (com override do profissional).
+// A UI só exibe; o POST /agenda revalida conflito na gravação.
+let slotsReqSeq = 0;
+
+function slotsKey(servicoId, profissionalId, data) {
+  return [servicoId, profissionalId, data].join('|');
+}
+
+// Duração usada na prévia e na checagem local de conflito: a do backend quando
+// os slots da mesma seleção já chegaram; senão a do serviço.
+function duracaoNovoAgendamento(servicoId, profissionalId) {
+  const data = document.getElementById('agData').value;
+  const info = state.agSlotsInfo;
+  if (info && info.key === slotsKey(servicoId, profissionalId, data)) return info.duracaoMin;
+  const servico = state.catalog.servicos.find(s => s.id === servicoId);
+  return servico ? (servico.duracao_min || 30) : 30;
+}
+
+function renderAgendaSlots(el, result) {
+  const todos = result.slots || [];
+  if (!result.janela) {
+    el.innerHTML = '<span class="ag-slots-msg">Sem expediente configurado para este profissional neste dia.</span>';
+    return;
+  }
+  if (!todos.length) {
+    el.innerHTML = '<span class="ag-slots-msg">Sem horários livres neste dia.</span>';
+    return;
+  }
+  const verTodos = el.dataset.verTodos === '1';
+  const visiveis = verTodos ? todos : todos.filter(s => s.recomendado);
+  const atual = document.getElementById('agHorario').value;
+  const chips = visiveis.map(s => `
+    <button type="button" class="chip ag-slot${s.recomendado ? ' recomendado' : ''}${s.horario === atual ? ' selected' : ''}"
+      data-horario="${escapeHtml(s.horario)}" title="${s.recomendado ? 'Encaixe ideal: não deixa buraco na agenda' : `Livre até ${escapeHtml(s.fim)}`}">
+      ${s.recomendado ? '★ ' : ''}${escapeHtml(s.horario)}
+    </button>`).join('');
+  const restantes = todos.length - todos.filter(s => s.recomendado).length;
+  const toggle = restantes > 0
+    ? `<button type="button" class="ag-slots-toggle" data-toggle="1">${verTodos ? 'Só encaixes ideais' : `Ver todos (${todos.length})`}</button>`
+    : '';
+  el.innerHTML = `<span class="ag-slots-msg">${verTodos ? 'Horários livres' : 'Encaixes ideais'} · ${result.duracaoMin} min</span><div class="ag-slots-list">${chips}</div>${toggle}`;
+}
+
+export async function refreshAgendaSlots() {
+  const el = document.getElementById('agSlots');
+  if (!el) return;
+  const servicoId = state.fuzzyAgServico.getValue();
+  const profissionalId = state.fuzzyAgProfissional.getValue();
+  const data = document.getElementById('agData').value;
+  const seq = ++slotsReqSeq;
+  state.agSlotsInfo = null;
+  if (!servicoId || !profissionalId || !data) {
+    el.innerHTML = '';
+    el.dataset.verTodos = '';
+    return;
+  }
+  el.innerHTML = '<span class="ag-slots-msg">Buscando horários livres…</span>';
+  try {
+    const result = await getAgendaSlots({ data, profissionalId, servicoId });
+    if (seq !== slotsReqSeq) return; // resposta de uma seleção antiga
+    state.agSlotsInfo = { key: slotsKey(servicoId, profissionalId, data), duracaoMin: result.duracaoMin, result };
+    renderAgendaSlots(el, result);
+    updateNovoAgendamentoPreview();
+  } catch (err) {
+    if (seq !== slotsReqSeq) return;
+    el.innerHTML = '<span class="ag-slots-msg">Sugestões indisponíveis. Informe o horário manualmente.</span>';
+  }
+}
+
+function onAgendaSlotsClick(ev) {
+  const el = document.getElementById('agSlots');
+  const btn = ev.target.closest('button');
+  if (!btn || !el.contains(btn)) return;
+  if (btn.dataset.toggle) {
+    el.dataset.verTodos = el.dataset.verTodos === '1' ? '' : '1';
+  } else if (btn.dataset.horario) {
+    document.getElementById('agHorario').value = btn.dataset.horario;
+    updateNovoAgendamentoPreview();
+  }
+  if (state.agSlotsInfo) renderAgendaSlots(el, state.agSlotsInfo.result);
 }
 
 function closeNovoAgendamentoModal() {
@@ -484,8 +568,25 @@ async function loadReliabilityBadge(clienteId) {
     valueEl.textContent = `${r.score} · ${label}`;
     valueEl.style.color = reliabilityColor(r.faixa);
     valueEl.title = `No-shows (365d): ${r.fatores.noShows365d} · Cancelamentos tardios: ${r.fatores.cancelTardios365d} · Sequência de comparecimentos: ${r.fatores.streakConcluidos}`;
+    if (r.regua && ['alerta', 'exigir_sinal'].includes(r.regua.nivel)) valueEl.textContent += ` · ⚠ ${r.regua.faltasSeguidas} faltas seguidas`;
   } catch (err) {
     rowEl.classList.add('hidden');
+  }
+}
+
+// Régua de faltas (só alerta): avisa ao escolher o cliente no novo agendamento.
+export async function avisarReguaCliente(clienteId) {
+  const aviso = document.getElementById('agReguaAviso');
+  if (!aviso) return;
+  aviso.className = 'regua-aviso hidden';
+  if (!clienteId) return;
+  try {
+    const r = await getClientReliability(clienteId);
+    if (!r.regua || !['alerta', 'exigir_sinal'].includes(r.regua.nivel)) return;
+    aviso.textContent = r.regua.mensagem;
+    aviso.className = `regua-aviso ${r.regua.nivel}`;
+  } catch {
+    // Sem permissão de relatório (profissional) ou falha: agendar segue normal.
   }
 }
 
@@ -993,7 +1094,12 @@ export function initAgenda() {
     }
   });
 
-  document.getElementById('agHorario').addEventListener('input', updateNovoAgendamentoPreview);
+  document.getElementById('agHorario').addEventListener('input', () => {
+    updateNovoAgendamentoPreview();
+    if (state.agSlotsInfo) renderAgendaSlots(document.getElementById('agSlots'), state.agSlotsInfo.result);
+  });
+  document.getElementById('agData').addEventListener('change', refreshAgendaSlots);
+  document.getElementById('agSlots').addEventListener('click', onAgendaSlotsClick);
 
   document.getElementById('actionSheet').addEventListener('click', (ev) => {
     if (ev.target.id === 'actionSheet') closeActionSheet();
@@ -1013,8 +1119,7 @@ export function initAgenda() {
     }
     clearBanner();
 
-    const servico = state.catalog.servicos.find(s => s.id === servicoId);
-    const duracaoMin = servico ? (servico.duracao_min || 30) : 30;
+    const duracaoMin = duracaoNovoAgendamento(servicoId, profissionalId);
     const [h, m] = horario.split(':').map(Number);
     const conflitos = detectConflict(profissionalId, data, h, m, duracaoMin, null);
 

@@ -5,6 +5,8 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 ## Autoridade e decisões
 - [`PROJECT_STATE.md`](PROJECT_STATE.md) — estado atual, gates, bloqueadores e handoff
 - [`DECISIONS.md`](DECISIONS.md) — decisões arquiteturais
+- [`RUNBOOK_MIGRATION_007.md`](RUNBOOK_MIGRATION_007.md) — aplicar a 007 e ativar login por usuário em produção
+- [`adr/ADR-005-identity-tenant-rbac-actor.md`](adr/ADR-005-identity-tenant-rbac-actor.md) — identidade, tenant, RBAC e autoria (aprovada e implementada)
 - [`../CHANGELOG.md`](../CHANGELOG.md) — entregas concluídas
 - [`../README.md`](../README.md) — apresentação e instalação
 - [`../AGENTS.md`](../AGENTS.md) — regras permanentes para agentes
@@ -18,6 +20,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 ## Canon, planejamento e legado
 - [`canon/`](canon/) — documentos canônicos de produto e arquitetura
 - [`planning/`](planning/) — planejamento e drafts; SQL é DRAFT ONLY
+- [`planning/ONBOARDING_SETUP_ANALISE.md`](planning/ONBOARDING_SETUP_ANALISE.md) — análise da proposta de onboarding em 6 fases (não aprovada)
 - [`redteam/`](redteam/) — correções e achados de Red Team
 - [`legacy/`](legacy/) — referências históricas; não representam a fundação física
 - [`archive/`](archive/) — arquivos arquivados
