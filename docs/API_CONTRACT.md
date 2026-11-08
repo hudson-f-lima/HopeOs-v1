@@ -121,3 +121,13 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 | `POST /api/admin/integrations/:id/credentials` | Rotação: nova ativa, anterior expira após `INTEGRATION_ROTATION_OVERLAP_MIN`; máximo duas válidas |
 | `POST /api/admin/integrations/:id/credentials/:credentialId/revoke` | Revogação imediata |
 | `GET /api/admin/integrations/:id/audit` · `GET /api/admin/auth-metrics` | Auditoria e adoção JWT × legado |
+
+## Empresa e assistente de configuração (D-008)
+| Rota | Ação RBAC | Uso |
+|---|---|---|
+| `GET /api/empresa` | `cadastros:read` | Dados e horários da empresa do usuário |
+| `PATCH /api/empresa` | `cadastros:write` | `{ nome, telefone, whatsapp, endereco, cidade, horarioPorDia: {seg:{ativo,inicio,fim},…}, slotPadrao: 10|15|20|30|45|60, intervaloAlmoco, almocoInicio, almocoFim }`; outros campos → 422 `FORBIDDEN_FIELD` |
+| `GET /api/onboarding/status` | `cadastros:write` | `{ fases[{id,titulo,concluida}], proximaFase, completo, resumo }` — derivado dos dados |
+| `GET /api/onboarding/presets` | `cadastros:write` | Cardápios por nicho, formas de pagamento e horário padrão (sugestões editáveis) |
+| `POST /api/onboarding/servicos` | `cadastros:write` | `{ itens: [{ nome, categoria, valorCentavos, duracaoMin, comissaoPct }] }` (até 50); nome repetido é ignorado |
+| `POST /api/onboarding/formas` | `cadastros:write` | `{ itens: [{ code, label, taxaPct, diasRecebimento }] }`; código repetido é ignorado |

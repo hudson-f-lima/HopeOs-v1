@@ -92,14 +92,23 @@ curl -s -o /dev/null -w '%{http_code}\n' https://hopeos-v1.onrender.com/api/clie
 
 ## 7. Primeiro admin (bootstrap, uma vez)
 1. Supabase → Authentication → Users → **Invite user** com o e-mail do dono. Ele recebe o link, abre a PWA e define a senha.
-2. Dê o papel de admin na empresa (troque os dois valores):
+2. Crie a empresa, a unidade e o vínculo de admin (troque os três valores). Num banco novo
+   (como o `hopeos-v1`) a tabela `empresas` está vazia: sem a linha da empresa o vínculo falha por
+   FK, e empresa criada depois da 007 não ganha "Unidade principal" automaticamente — sem unidade,
+   recepção e profissional recebem `NO_UNIT_ACCESS`. O bloco é idempotente:
 ```sql
+insert into empresas (id, nome) values ('<DEFAULT_EMPRESA_ID do Render>', '<nome do salão>')
+on conflict (id) do nothing;
+insert into unidades (empresa_id, nome)
+select '<DEFAULT_EMPRESA_ID do Render>', 'Unidade principal'
+where not exists (select 1 from unidades where empresa_id = '<DEFAULT_EMPRESA_ID do Render>');
 insert into empresa_memberships (empresa_id, user_id, role)
 select '<DEFAULT_EMPRESA_ID do Render>', id, 'admin'
-from app_users where lower(email) = lower('<e-mail do dono>');
+from app_users where lower(email) = lower('<e-mail do dono>')
+on conflict (empresa_id, user_id) do update set role = 'admin', status = 'ativo';
 ```
-3. Entre na PWA com e-mail e senha. A partir daqui, **Gestão → Equipe** convida o restante
-   (recepção, profissionais — ligando cada profissional ao seu cadastro).
+3. Entre na PWA com e-mail e senha. O **assistente de configuração** abre sozinho (dados, horários,
+   pagamentos, serviços, equipe e simulação). Depois, **Gestão → Equipe** convida o restante.
 
 Smoke test com o JWT do admin (DevTools → Application → Local Storage → `hopeos.session`):
 ```bash

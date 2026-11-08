@@ -1,5 +1,11 @@
 # Changelog
 
+## Assistente de configuração (Onda A, D-008)
+- Novo assistente em 6 fases para salão recém-criado: dados, horários, pagamentos, cardápio pronto por nicho, equipe com ajustes por serviço e simulação de atendimento sem gravar no caixa. Retoma de onde parou em qualquer aparelho.
+- `GET/PATCH /api/empresa` (antes os dados e horários da empresa só mudavam por SQL) e rotas `/api/onboarding/*`.
+- Runbook: o bootstrap do primeiro admin agora cria a empresa e a "Unidade principal" (num banco novo o passo antigo falhava por FK).
+- onboarding-gate 9/9; offline 188/188; E2E do assistente.
+
 ## Identidade, RBAC e autoria (ADR-005, migration 007) — código pronto, produção pendente
 - Migration 007: `app_users` (sincronizado de `auth.users`), `empresa_memberships` com papel fixo, `unidades`, `membership_units`, principal de integração (`integrations`, credenciais só em hash, scopes, auditoria), autoria em comandos/estoque/agenda/clientes, `agendamento_criar` atômico (fecha a corrida de double-booking) e RLS deny-all + revogação de `anon`/`authenticated` em todo `public`. Rollback em `supabase/rollback/007_down.sql`.
 - Backend: três mecanismos de autenticação coexistentes (usuário JWT, integração `kxi_…`, legado desligável), RBAC em todas as rotas de negócio, escopo "Próprio" do profissional, autoria injetada pelo servidor, convite por e-mail, recuperação de senha, administração de equipe/unidades/integrações e métricas de adoção.
