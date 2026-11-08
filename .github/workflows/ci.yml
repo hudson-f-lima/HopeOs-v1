@@ -56,7 +56,9 @@ jobs:
 
   e2e-pwa:
     name: E2E da PWA (Playwright + CSP do render.yaml)
-    runs-on: ubuntu-latest
+    # ubuntu-latest passou a 26.04, sem Chromium suportado pelo Playwright 1.56.1
+    # ("Playwright does not support chromium on ubuntu26.04-x64"). Fixado em 24.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
