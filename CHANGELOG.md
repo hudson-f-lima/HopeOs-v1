@@ -1,5 +1,20 @@
 # Changelog
 
+## Blueprint Beauty & Wellness (D-012)
+- Agenda com presença:
+  - "Cliente chegou" e "Iniciar atendimento" na folha do horário;
+  - quem já chegou não pode ser marcado como falta;
+  - atendimento cancelado ou com falta não volta.
+- Fechamento de caixa no Dashboard: total por forma de pagamento, taxa, líquido previsto, gorjetas e conferência do dinheiro contado (mostra falta ou sobra).
+- Painel do piloto (gestão): taxa de falta, reagendamento no checkout, retorno do cliente novo e confirmação prévia, comparados com a referência de mercado, também por profissional.
+- Correções:
+  - gorjeta negativa (desconto escondido) e desconto acima do total agora são recusados;
+  - a venda fechada depois das 21h de Brasília caía no dia seguinte, e agora a data da comanda é sempre a do servidor no fuso da empresa.
+- Cancelamento tardio: com dados reais do banco (horário com segundos), cancelar no próprio dia nunca contava como tardio, e o horário era lido em UTC; agora conta certo, no fuso da empresa (afeta confiabilidade do cliente e o painel do piloto).
+- Números com largura fixa em todo o app.
+- Análise do blueprint e desenhos de estorno e agendamento online em `docs/planning/`.
+- Testes: offline 11 suítes verdes (novas: caixa 7, piloto 10; lembretes 8; onda-b 10); 9 E2E sem erro de console.
+
 ## Auditoria, segurança e lembretes (D-011)
 - Lembretes de confirmação: na Agenda, botão "Lembretes" lista os horários de amanhã (ou do dia escolhido) ainda não confirmados, com a mensagem pronta no WhatsApp do cliente e o botão "Confirmou".
 - Segurança: dependências de produção sem vulnerabilidades conhecidas (antes: 1 crítica, 2 altas); CORS passa a comparar a origem exata.

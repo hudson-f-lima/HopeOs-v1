@@ -159,3 +159,38 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 - Data fora do formato → 422 `INVALID_DATE`.
 
 `PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).
+
+## D-012 — presença, checkout, caixa e piloto
+- **Agenda**:
+  - `PATCH /api/agenda/:id/status` aceita também `aguardando` (cliente chegou) e `em_atendimento` (na cadeira);
+  - transições permitidas (destino ← origens):
+    - `confirmado ← agendado`;
+    - `aguardando ← agendado|confirmado`;
+    - `em_atendimento ← agendado|confirmado|aguardando`;
+    - `no_show ← agendado|confirmado`;
+    - `cancelado`/`reagendado ← agendado|confirmado|aguardando`;
+    - `concluido ← agendado|confirmado|aguardando|em_atendimento`;
+  - qualquer outra → 409 `INVALID_STATUS_TRANSITION` com `details.permitidoDe`.
+- **Checkout** (`/checkout/preview` e `/checkout/close`):
+  - `descontoCentavos` e `gorjetaCentavos` inteiros ≥ 0 → senão 422 `INVALID_FIELD`;
+  - desconto > total dos itens → 422 `INVALID_DISCOUNT`;
+  - `/checkout/close` ignora `data`/`hora` do cliente: usa agora no `APP_TIMEZONE`.
+- **`GET /api/caixa/fechamento[?data=YYYY-MM-DD][&contadoDinheiroCentavos=N]`**
+  - RBAC `relatorios:operacional`. Só leitura (`persistido: false`).
+  - Devolve:
+    - `quantidadeComandas`, `totalBrutoCentavos` (inclui gorjeta), `taxaTotalCentavos`, `liquidoEsperadoCentavos`;
+    - `gorjetas {brutaCentavos, liquidaCentavos}`;
+    - `porForma[] {formaCode, label?, quantidadePagamentos, valorCentavos, taxaCentavos, liquidoEsperadoCentavos, diasRecebimento?, dataRecebimentoPrevista?}`;
+    - `dinheiro {esperadoCentavos, contadoCentavos?, diferencaCentavos?}` (negativo = falta);
+    - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
+  - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
+  - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
+- **`GET /api/relatorios/piloto[?de&ate]`**
+  - RBAC `relatorios:full`. Padrão: últimos 30 dias; máximo 366 (422 `INVALID_DATE`/`INVALID_PERIOD`).
+  - KPIs `{numerador, denominador, taxa|null, referencia}`:
+    - `taxaFalta` = no_show / (atendidos + no_show + cancelado tardio);
+    - `reagendamentoCheckout` = atendimento com agendamento futuro criado até o dia seguinte;
+    - `retornoClienteNovo` = 1º atendimento no período que voltou em até 60 dias, só coortes maduras;
+    - `confirmacaoPrevia` = foto do dia: confirmados / (agendados + confirmados) de hoje;
+    - `porProfissional[]` com falta e reagendamento.
+  - Sem bônus.

@@ -38,6 +38,8 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- Corrigido (D-012): `isLateCancel`/`scheduledDateTime` liam `horario` só como HH:MM (o Postgres devolve HH:MM:SS → tudo virava meia-noite e cancelamento no mesmo dia nunca era tardio) e em UTC (~3h de erro em Brasília). Afeta confiabilidade do cliente, régua e KPI de falta.
+- D-012 (blueprint Beauty & Wellness): presença na agenda, fechamento de caixa (só leitura), KPIs do piloto, validação de desconto/gorjeta e data da comanda no fuso da empresa. Análise: `docs/planning/BLUEPRINT_BEAUTY_WELLNESS_ANALISE.md`.
 - Auditoria de estado + benchmark (D-011): `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`. Corrigidos: dependências vulneráveis, CORS por substring, transição de status de atendimento pago. Novo: lembretes de confirmação via wa.me.
 - PR #16 mesclado; banco de produção com 001–008. Trava de migrations no CI (D-010).
 - Falta (dono): Auth URLs, reativar o Render com as variáveis, convidar o primeiro admin (runbook 5–7).
@@ -49,13 +51,15 @@
 - P1: CI PARCIAL — gates integrados (Supabase real) não rodam no Actions
 - P1 (antes do 1º cliente pagante): infra gratuita para sistema de caixa — Supabase Free pausa após ~7 dias sem atividade e não tem backup baixável; Render Free dorme quando ocioso
 - P1: estorno de comanda AUSENTE (ledger imutável exige lançamento de estorno → migration 009, não autorizada)
+- P1: ledger imutável só por convenção — `service_role` tem update/delete em tudo (007:414); triggers de imutabilidade entram no desenho da 009 (`docs/planning/ESTORNO_COMANDA_DRAFT.md`)
 - P2: 41 FKs sem índice (advisor de performance, INFO; banco vazio, sem impacto hoje — exigiria migration 009); unidades sem particionar dados; relatórios próprios do profissional; autoria de integração em estado mutável
 - V1.5: BLOQUEADA
 
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 204/204 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 9, lembretes 7) | CI + local 2026-11-08 |
+| `npm run test:offline` | REAL — 11 suítes verdes (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 10, lembretes 8, caixa 7, piloto 10) | local 2026-11-08 |
+| E2E PWA (Playwright) | REAL — 9 roteiros (login, equipe, convite, slots, onda-b, lembretes, presença, caixa, onboarding), zero erro de console | local 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
