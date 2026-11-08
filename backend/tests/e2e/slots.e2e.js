@@ -14,10 +14,10 @@ const { chromium } = require('playwright');
  await p.locator('#agProfissional ~ div [data-value]').first().click(); await p.waitForTimeout(1200);
  console.log('SLOTS:', (await p.textContent('#agSlots')).replace(/\s+/g,' ').trim());
  console.log('PREVIEW:', await p.textContent('#agDuracaoPreview'));
- await p.screenshot({path:'modal.png'});
+ await p.screenshot({path: require('path').join(require('os').tmpdir(), 'hopeos-modal.png')});
  const t=p.locator('.ag-slots-toggle'); if(await t.count()){await t.click(); console.log('TODOS:', (await p.textContent('.ag-slots-list')).replace(/\s+/g,' ').trim());}
  await p.click('.ag-slot.recomendado >> nth=0'); console.log('HORARIO:', await p.inputValue('#agHorario'));
- await p.screenshot({path:'modal2.png'});
+ await p.screenshot({path: require('path').join(require('os').tmpdir(), 'hopeos-modal2.png')});
  await p.click('#btnConfirmarNovoAgendamento'); await p.waitForTimeout(1500);
  const db=await (await fetch('http://127.0.0.1:3399/__db/agendamentos')).json();
  console.log('DB:', JSON.stringify(db.map(a=>[a.horario,a.duracao_min,a.servico_id.slice(-1)])));
