@@ -12,7 +12,7 @@ Modelo pronto: `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`. Uma auditoria nova
 |---|---|
 | Estado declarado | `docs/PROJECT_STATE.md`, `docs/DECISIONS.md`. Confronte com o código; o documento pode estar velho |
 | Banco de produção (`hopeos-v1`, `gsttjozcmdvgstcpadiq`) | Supabase MCP: `list_migrations`, `get_advisors` (security + performance), a consulta de verificação do `docs/RUNBOOK_MIGRATION_007.md`. Nunca o `kortex-os-v2-staging` |
-| Backend no ar | `curl -s -o /dev/null -w '%{http_code}' https://hopeos-v1-rvo9.onrender.com/api/health` |
+| Backend no ar | `curl -s -o /dev/null -w '%{http_code}' https://hopeos-v1.onrender.com/api/health` |
 | Superfície da API | `grep -rhoE "\.(get\|post\|patch\|put\|delete)\('[^']+'" backend/src/routes` |
 | Dependências | `cd backend && npm audit --omit=dev --json`. Veja `fixAvailable` e se o pacote é usado em `src/` ou só em `scripts/` |
 | Gates | `API_ACCESS_TOKEN=ci-dummy-token SUPABASE_URL=https://example.invalid SUPABASE_SECRET_KEY=ci-dummy-key npm --prefix backend run test:offline` (sem essas variáveis o Auth Gate dá 8/9 falso), `supabase/tests/check_migrations.sh`, `supabase/tests/run.sh` |

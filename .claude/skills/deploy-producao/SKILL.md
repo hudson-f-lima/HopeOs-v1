@@ -46,7 +46,7 @@ Segredos só por variável de ambiente; as ferramentas mostram apenas tipo e tam
 5. **`doctor`** com as mesmas variáveis, num arquivo FORA do repositório (`chmod 600`, nunca commitar):
    ```bash
    node --env-file=$HOME/hopeos-prod.env backend/scripts/ops/doctor.js --no-dotenv \
-     --api https://hopeos-v1-rvo9.onrender.com/api
+     --api https://hopeos-v1.onrender.com/api
    ```
    Tem que sair `APTO (código 0)`. `db.schema.001–006/007/008/009` OK; `db.bootstrap` WARN é esperado antes do passo 7.
 6. **Convite do admin**: Supabase → Authentication → Users → *Invite user* com o e-mail do dono. O convite cria o usuário no Auth e o trigger da 007 cria a linha em `app_users` na hora; o dono abre o link na PWA e define a senha (pode ser antes ou depois do passo 8).
@@ -59,7 +59,7 @@ Segredos só por variável de ambiente; as ferramentas mostram apenas tipo e tam
 8. **`bootstrap-admin --apply`** (mesmo comando + `--apply`). Idempotente: repetir não duplica nada.
 9. **`smoke`**:
    ```bash
-   node backend/scripts/ops/smoke.js --api https://hopeos-v1-rvo9.onrender.com/api \
+   node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api \
      --pwa https://hopeos-v1-frontend.onrender.com/
    ```
    Tem que sair `APTO`. WARN conhecidos: `api.cors.localhost` (app.js libera localhost/LAN), `pwa.publicacao` (static publica o repositório).
