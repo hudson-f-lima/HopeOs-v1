@@ -5,7 +5,9 @@ function buildDashboard(snapshot) {
   const agendamentos = snapshot.agendamentos || [];
   const concluidos = agendamentos.filter(a => ['concluido', 'fechado'].includes(a.status)).length;
   const cancelados = agendamentos.filter(a => ['cancelado', 'no_show'].includes(a.status)).length;
-  const totalAgenda = agendamentos.length;
+  // Reagendado foi substituído por outro agendamento (que já está na lista):
+  // contá-lo duplicaria o atendimento no denominador e derrubaria a ocupação.
+  const totalAgenda = agendamentos.filter(a => a.status !== 'reagendado').length;
   const ocupacaoPct = totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : 0;
   // Ticket médio: valores já descontam estornos; comanda 100% estornada sai da base (D-013).
   const baseTicket = finance.totals.comandasValidas ?? finance.totals.comandos;

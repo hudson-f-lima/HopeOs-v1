@@ -2,16 +2,13 @@ const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { createAppError } = require('../errors');
 const retention = require('../engines/insights/retention');
+const { agoraNoFuso } = require('../engines/SlotEngine');
+const { env } = require('../config/env');
+const clock = require('../config/clock');
 
+// Hoje no fuso da empresa (APP_TIMEZONE; antes fixo em America/Sao_Paulo).
 function todaySaoPaulo() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
+  return agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
 }
 
 function byId(rows) {
@@ -84,9 +81,9 @@ function commandCreatedAt(command) {
     if (!Number.isNaN(created.getTime())) return created;
   }
   if (command.data) {
-    const hora = /^\d{2}:\d{2}$/.test(String(command.hora || '')) ? command.hora : '00:00';
-    const created = new Date(`${command.data}T${hora}:00Z`);
-    if (!Number.isNaN(created.getTime())) return created;
+    // data + hora são locais (fuso da empresa); HH:MM:SS aceito.
+    const created = retention.scheduledDateTime({ data: command.data, horario: command.hora || '00:00' }, env.APP_TIMEZONE);
+    if (created && !Number.isNaN(created.getTime())) return created;
   }
   return null;
 }
