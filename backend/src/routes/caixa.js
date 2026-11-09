@@ -7,11 +7,12 @@ const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { buildFechamentoCaixa } = require('../engines/CaixaEngine');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { env } = require('../config/env');
+const clock = require('../config/clock');
 
 const router = express.Router();
 
 function validarData(valor) {
-  if (valor === undefined || valor === '') return agoraNoFuso(env.APP_TIMEZONE).data;
+  if (valor === undefined || valor === '') return agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
   const s = String(valor);
   const ok = /^\d{4}-\d{2}-\d{2}$/.test(s) && (() => {
     const d = new Date(`${s}T00:00:00Z`);

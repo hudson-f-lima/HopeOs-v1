@@ -12,24 +12,25 @@ const router = express.Router();
 
 // Rate limit em memória por IP+e-mail: todas as tentativas saem do IP do backend
 // para o provedor, então a proteção por IP do Supabase não distingue clientes.
-const attempts = new Map();
-function rateLimited(key) {
-  const now = Date.now();
+// Red Team 2026-11 (RT-21): também por IP (girar e-mails do mesmo IP não cria chaves
+// sem fim) e o teto de memória descarta as chaves menos recentes em vez de zerar tudo.
+const { criarLimitador, chaveIp } = require('../security/rateLimit');
+const attempts = criarLimitador();
+function rateLimited(req, key) {
   const windowMs = env.LOGIN_RATE_LIMIT_WINDOW_MIN * 60 * 1000;
-  const hits = (attempts.get(key) || []).filter(t => now - t < windowMs);
-  hits.push(now);
-  attempts.set(key, hits);
-  if (attempts.size > 10000) attempts.clear(); // teto de memória
-  return hits.length > env.LOGIN_RATE_LIMIT_MAX;
+  const ip = chaveIp(req.ip);
+  const porIp = attempts.excedeu(`ip|${ip}`, env.LOGIN_RATE_LIMIT_IP_MAX, windowMs);
+  const porChave = attempts.excedeu(`${ip}|${key}`, env.LOGIN_RATE_LIMIT_MAX, windowMs);
+  return porIp || porChave;
 }
-function resetRateLimit() { attempts.clear(); }
+function resetRateLimit() { attempts.limpar(); }
 
 router.post('/auth/login', async (req, res, next) => {
   try {
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
     const password = String((req.body && req.body.password) || '');
     if (!email || !password) throw createAppError('CREDENTIALS_REQUIRED', 'Informe e-mail e senha.', 422);
-    if (rateLimited(`${req.ip}|${email}`)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
+    if (rateLimited(req, email)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
     const session = await getAuthProvider().signIn(email, password);
     res.json({ ok: true, data: session });
   } catch (err) { next(err); }
@@ -56,7 +57,7 @@ router.post('/auth/recover', async (req, res, next) => {
   try {
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
     if (!email) throw createAppError('EMAIL_REQUIRED', 'Informe o e-mail.', 422);
-    if (rateLimited(`${req.ip}|recover|${email}`)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
+    if (rateLimited(req, `recover|${email}`)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
     await getAuthProvider().recoverPassword(email, env.APP_PUBLIC_URL || undefined);
     res.json({ ok: true, data: { message: 'Se houver conta com este e-mail, enviamos um link para definir a senha.' } });
   } catch (err) { next(err); }

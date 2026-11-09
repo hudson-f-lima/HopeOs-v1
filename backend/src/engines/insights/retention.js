@@ -4,6 +4,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_INTERVAL_DAYS = 45;
 const CLOSED_COMMAND_STATUSES = ['fechado', 'concluido', 'pago', 'closed', 'paid'];
 const SUCCESS_APPOINTMENT_STATUSES = ['concluido', 'fechado'];
+const SEM_DESFECHO_STATUSES = ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'reagendado'];
 
 const SEGMENTS = [
   { nome: 'campeoes', label: 'Campeoes' },
@@ -79,10 +80,21 @@ function getCommandDate(command) {
   return parseDateOnly(command && (command.data || command.created_at));
 }
 
-function getCommandTime(command) {
+// Hora local da comanda (HH:MM). O Postgres devolve `hora` como HH:MM:SS (antes
+// só HH:MM era aceito e toda sugestão de retorno virava 10:00 — mesmo bug do
+// D-012). Sem hora, usa created_at convertido para o fuso da empresa (não UTC).
+function getCommandTime(command, timeZone = process.env.APP_TIMEZONE || 'America/Sao_Paulo') {
   if (!command) return '10:00';
-  const raw = command.hora || command.horario || (command.created_at ? String(command.created_at).slice(11, 16) : null);
-  return /^\d{2}:\d{2}$/.test(String(raw || '')) ? String(raw) : '10:00';
+  const m = /^(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(command.hora || command.horario || ''));
+  if (m) return `${m[1]}:${m[2]}`;
+  if (command.created_at) {
+    const d = new Date(command.created_at);
+    if (!Number.isNaN(d.getTime())) {
+      const local = new Date(d.getTime() + offsetMinutos(timeZone, d) * 60000);
+      return local.toISOString().slice(11, 16);
+    }
+  }
+  return '10:00';
 }
 
 function isClosedCommand(command) {
@@ -372,8 +384,12 @@ function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly()) {
       return bd.localeCompare(ad);
     });
 
+  // Só desfechos contam na sequência: agendamento ainda em aberto (o de hoje,
+  // inclusive com o cliente já na cadeira) e o substituído por reagendamento não
+  // são falha e não podem zerá-la (antes zeravam: o score caía no dia do atendimento).
   let streakConcluidos = 0;
   for (const agendamento of pastSortedDesc) {
+    if (SEM_DESFECHO_STATUSES.includes(agendamento.status)) continue;
     if (!SUCCESS_APPOINTMENT_STATUSES.includes(agendamento.status)) break;
     streakConcluidos += 1;
   }
@@ -557,6 +573,8 @@ module.exports = {
   computeAttach,
   normalizeCommands,
   isLateCancel,
+  scheduledDateTime,
+  getCommandTime,
   median,
   daysBetween,
   addDays

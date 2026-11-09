@@ -9,7 +9,7 @@ que não existem em disco.
 
 Única diferença proposital: `--connect-extra ORIGEM` acrescenta a API local
 (dev-memory-api) ao `connect-src` da CSP, porque em produção a CSP só libera
-https://hopeos-v1.onrender.com.
+https://hopeos-v1-rvo9.onrender.com.
 
 Uso (na raiz do repo):
   python3 -I backend/tests/e2e/static-server.py --port 5599 --connect-extra http://127.0.0.1:3399

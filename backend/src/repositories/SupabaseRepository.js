@@ -128,6 +128,20 @@ class SupabaseRepository {
     return data;
   }
 
+  // Compare-and-set do status do agendamento (sem migration): só atualiza se o
+  // status atual ainda estiver em `deStatus`. Devolve a linha ou null (0 linhas).
+  async atualizarStatusAgendamentoSe(id, deStatus, patch) {
+    const { data, error } = await this.supabase
+      .from('agendamentos')
+      .update(patch)
+      .eq('id', id)
+      .eq('empresa_id', this.empresaId)
+      .in('status', deStatus)
+      .select('*');
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
   async upsert(table, rows, conflict = 'id') {
     const { data, error } = await this.supabase.from(table).upsert(rows, { onConflict: conflict }).select('*');
     if (error) throw error;

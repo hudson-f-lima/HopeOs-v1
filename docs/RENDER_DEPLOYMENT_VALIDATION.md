@@ -72,7 +72,7 @@ app.get('/api/health', (req, res) => {
 
 **Teste esperado em produção:**
 ```bash
-curl https://hopeos-v1.onrender.com/api/health
+curl https://hopeos-v1-rvo9.onrender.com/api/health
 # Resposta: { "ok": true, "app": "HOPE OS V1 API", "time": "2026-07-12T..." }
 ```
 
@@ -194,7 +194,7 @@ npm install
 Após deploy, validar:
 ```bash
 # Backend health
-curl -s https://hopeos-v1.onrender.com/api/health | jq
+curl -s https://hopeos-v1-rvo9.onrender.com/api/health | jq
 
 # Esperado:
 {
@@ -211,12 +211,12 @@ curl -s https://hopeos-v1-frontend.onrender.com/
 ### Teste de Autenticação
 ```bash
 # Sem token — deve retornar 401
-curl -s https://hopeos-v1.onrender.com/api/pessoas | jq
+curl -s https://hopeos-v1-rvo9.onrender.com/api/pessoas | jq
 # Esperado: { "error": "Unauthorized", "status": 401 }
 
 # Com token correto
 curl -s -H "Authorization: Bearer <API_ACCESS_TOKEN>" \
-  https://hopeos-v1.onrender.com/api/pessoas | jq
+  https://hopeos-v1-rvo9.onrender.com/api/pessoas | jq
 # Esperado: { "pessoas": [...] } ou sucesso conforme acesso
 ```
 

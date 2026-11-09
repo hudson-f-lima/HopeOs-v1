@@ -7,24 +7,37 @@ services:
     buildCommand: npm install
     startCommand: npm start
     plan: free
+    # Conferir com `node backend/scripts/ops/doctor.js` (skill deploy-producao).
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "10000"
+      # https://gsttjozcmdvgstcpadiq.supabase.co (hopeos-v1). NUNCA o
+      # kortex-os-v2-staging (hyzoocmmtmjlgdyifwhu): o doctor reprova.
       - key: SUPABASE_URL
         sync: false
+      # Chave secreta do servidor. O backend (src/config/env.js) aceita este nome
+      # ou SUPABASE_SECRET_KEY (que tem precedência). Defina só UMA das duas: com
+      # valores diferentes o backend usa SUPABASE_SECRET_KEY e o doctor reprova.
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: API_ACCESS_TOKEN
         sync: false
+      # O mesmo UUID passado ao bootstrap-admin (--empresa-id): é a empresa do token legado.
       - key: DEFAULT_EMPRESA_ID
         sync: false
+      # Origem (sem barra final) da PWA, ex.: https://hopeos-v1-frontend.onrender.com.
+      # O GitHub Pages (https://hudson-f-lima.github.io) já é liberado pelo código.
       - key: CORS_ORIGIN
         sync: false
       # ADR-005 / migration 007 (ver docs/RUNBOOK_MIGRATION_007.md)
+      # URL pública da PWA (destino dos convites/recuperação); a origem dela precisa
+      # estar em CORS_ORIGIN (ou ser o GitHub Pages).
       - key: APP_PUBLIC_URL
         sync: false
+      # PUBLIC_BOOKING_LINKS fica AUSENTE (agendamento online desligado) até aviso de
+      # privacidade aprovado + Red Team (D-014).
       - key: LEGACY_TOKEN_AUTH_ENABLED
         value: "true"
       - key: AUTH_TIMEOUT_MS
@@ -57,7 +70,7 @@ services:
       # sem suporte a -elem/-attr.
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1-rvo9.onrender.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
       - path: /*
         name: X-Content-Type-Options
         value: nosniff

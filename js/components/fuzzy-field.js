@@ -1,3 +1,7 @@
+// Rótulos vêm de cadastro (nome de cliente criado pela recepção, por integração ou
+// pelo link público): sempre escapados antes do innerHTML (Red Team 2026-11, RT-12).
+import { escapeHtml } from '../utils.js';
+
 export class FuzzyField {
   constructor(inputId, items, { labelFn, valueFn, onSelect }) {
     this.input = document.getElementById(inputId);
@@ -64,8 +68,8 @@ export class FuzzyField {
       .map((item, i) => {
         const label = this.labelFn(item);
         const value = this.valueFn(item);
-        return `<div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--surface-variant); font-size: 13px;" data-value="${value}" data-label="${label}">
-          ${label}
+        return `<div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--surface-variant); font-size: 13px;" data-value="${escapeHtml(value)}" data-label="${escapeHtml(label)}">
+          ${escapeHtml(label)}
         </div>`;
       })
       .join('');
