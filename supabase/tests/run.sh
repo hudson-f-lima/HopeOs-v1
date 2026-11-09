@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Aplica shim + migrations em ordem num Postgres limpo e roda os gates SQL.
+# Aplica shim + migrations em ordem num Postgres limpo e roda os gates SQL,
+# os testes de concorrência, os controles negativos e o ciclo de rollback.
 # Uso: PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -10,9 +11,13 @@ run supabase/tests/supabase_shim.sql
 for f in supabase/migrations/[0-9][0-9][0-9]_*.sql; do run "$f"; done
 for f in supabase/tests/gate_*.sql; do [ -e "$f" ] && run "$f"; done
 TEST_DB=$DB supabase/tests/concurrency_agenda.sh
+TEST_DB=$DB supabase/tests/concurrency_estorno.sh
+TEST_DB=$DB supabase/tests/controle_negativo_009.sh
 if [ "${WITH_ROLLBACK:-1}" = 1 ] && ls supabase/rollback/*.sql >/dev/null 2>&1; then
   for f in $(ls -r supabase/rollback/*_down.sql); do run "$f"; done
   echo "→ reaplicando migrations após rollback"
   for f in supabase/migrations/0[0-9][7-9]_*.sql; do [ -e "$f" ] && run "$f"; done
+  # Depois do ciclo 009→008→007→reaplicação, os gates continuam verdes.
+  for f in supabase/tests/gate_*.sql; do [ -e "$f" ] && run "$f"; done
 fi
 echo "OK migrations + gates SQL"
