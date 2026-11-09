@@ -275,6 +275,24 @@ class SupabaseRepository {
     return data;
   }
 
+  // Trilha da agenda (tabela agendamento_eventos da 001). empresa_id sempre de
+  // this.empresaId via insert(); quem chama garante que o agendamento é do tenant.
+  async registrarEventoAgenda({ agendamentoId, tipo, payload }) {
+    return this.insert('agendamento_eventos', {
+      agendamento_id: agendamentoId,
+      tipo,
+      payload: payload || {},
+      created_at: new Date().toISOString()
+    });
+  }
+
+  // Eventos de um agendamento do tenant, do mais antigo para o mais novo
+  // (sort estável: empate de created_at mantém a ordem de leitura).
+  async listEventosAgenda(agendamentoId) {
+    const rows = await this.list('agendamento_eventos', { empresa_id: this.empresaId, agendamento_id: agendamentoId });
+    return rows.slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  }
+
   // Checagem de conflito + insert numa transação sob lock (migration 007):
   // dois pedidos simultâneos para o mesmo horário não gravam os dois.
   async criarAgendamento({ agendamento, permitirConflito = false, ignorarId = null, createdBy = null }) {
