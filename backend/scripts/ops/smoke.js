@@ -6,7 +6,7 @@ const { EXIT, GITHUB_PAGES_ORIGIN, UsageError, parseArgs, request, parseJson, or
 const HELP = `smoke — fumaça pós-deploy (read-only) da API e da PWA
 
 Uso:
-  node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api \\
+  node backend/scripts/ops/smoke.js --api https://hopeos-v1-rvo9.onrender.com/api \\
        --pwa https://hopeos-v1-frontend.onrender.com/ [--json]
 
 API:

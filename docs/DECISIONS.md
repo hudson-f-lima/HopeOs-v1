@@ -101,3 +101,20 @@
   - Red Team;
   - decisão sobre spam sem verificação do número (PARCIAL);
   - decisão sobre o rate limit em memória por instância.
+
+## D-015 — Backend oficial no Render, Red Team, ferramentas de operação e correções
+- **Backend oficial (Platform Owner, 2026-11-09):** o serviço `hopeos-v1`, gerenciado pelo Blueprint (`render.yaml`), em **`https://hopeos-v1-rvo9.onrender.com`**.
+  - O serviço antigo `HopeOs-v1` (`https://hopeos-v1.onrender.com`, criado à mão) deve ser **suspenso**.
+  - Motivo: variáveis, headers e a CSP do site estático passam a vir do `render.yaml` versionado.
+  - `config.json`, a CSP do `render.yaml`, a CSP de `agendar.html`, as ferramentas `ops/`, o runbook e as skills apontam para o rvo9.
+- **Red Team (Agente H):**
+  - CRÍTICOS corrigidos: zeramento do rate limit por spray; XSS no FuzzyField; `?apiBase=` aceito em qualquer host.
+  - REAIS corrigidos: IPv6 /64; 9º dígito no celular; cadastros duplicados; PII em log; escapes.
+  - Relatório: `docs/audit/RED_TEAM_2026-11.md`. O agendamento online continua desligado até o aviso de privacidade aprovado (`docs/planning/AVISO_PRIVACIDADE_AGENDAMENTO_DRAFT.md`) e a decisão sobre spam e verificação do número.
+- **Ferramentas (Agente I):** `backend/scripts/ops/doctor.js`, `bootstrap-admin.js` (simulação por padrão) e `smoke.js`. Recusam o projeto `kortex-os-v2-staging`. Procedimento na skill `deploy-producao`.
+- **Correções (Agente J):**
+  - checkout valida a máquina de estados da agenda antes de gravar;
+  - fluxo de caixa projetado pela data da comanda (antes, todo o histórico caía em hoje);
+  - ocupação com o expediente real;
+  - insights e retenção no fuso da empresa;
+  - memory backend com a idempotência do RPC.

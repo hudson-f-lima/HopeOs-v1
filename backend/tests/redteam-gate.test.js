@@ -386,7 +386,7 @@ test('RT-11 página pública: ?apiBase= só vale em host local; agendar.html tem
   const html = ler('agendar.html');
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
   assert.ok(csp, 'agendar.html sem CSP própria (GitHub Pages não manda header)');
-  for (const d of ["default-src 'none'", "script-src 'self'", "connect-src 'self' https://hopeos-v1.onrender.com", "base-uri 'none'", "form-action 'none'"]) assert.ok(csp.includes(d), `CSP sem ${d}`);
+  for (const d of ["default-src 'none'", "script-src 'self'", "connect-src 'self' https://hopeos-v1-rvo9.onrender.com", "base-uri 'none'", "form-action 'none'"]) assert.ok(csp.includes(d), `CSP sem ${d}`);
   assert.ok(!/unsafe-inline|unsafe-eval|connect-src[^;]*https:(\s|;|$)/.test(csp), 'CSP frouxa');
   const aviso = html.slice(html.indexOf('<details class="privacidade">'), html.indexOf('</details>'));
   for (const termo of ['controlador', 'finalidade', 'base legal', 'execução', 'guardados', 'direitos', 'operador']) {

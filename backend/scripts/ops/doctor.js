@@ -26,7 +26,7 @@ app) e confere:
     de RPCs do OpenAPI. Nada de SQL, nada de escrita.
 
 Opções:
-  --api URL                 base da API, ex.: https://hopeos-v1.onrender.com/api
+  --api URL                 base da API, ex.: https://hopeos-v1-rvo9.onrender.com/api
   --expected-ref REF        projeto Supabase esperado (padrão ${PROD_REF})
   --offline                 só variáveis; não abre conexão nenhuma
   --no-dotenv               não carregar backend/.env (usa só o ambiente)
