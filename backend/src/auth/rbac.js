@@ -58,12 +58,16 @@ function authorizeAuth(auth, action) {
 
 function authorize(action) {
   if (!ACTIONS[action]) throw new Error(`Ação RBAC desconhecida: ${action}`);
-  return (req, res, next) => {
+  const guarda = (req, res, next) => {
     try {
       req.authz = authorizeAuth(req.auth, action);
       next();
     } catch (err) { next(err); }
   };
+  // Marca para o inventário de rotas (tests/redteam-gate.test.js, RT-20): toda rota de
+  // negócio de todos os routers precisa ter uma guarda destas antes do handler.
+  guarda.rbacAction = action;
+  return guarda;
 }
 
 // Escopo "Próprio": o recurso precisa pertencer ao profissional do usuário.

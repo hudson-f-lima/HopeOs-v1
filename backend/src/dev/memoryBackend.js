@@ -163,7 +163,18 @@ function installMemoryBackend(seed = {}) {
   };
 
   // Espelho da RPC comanda_estornar (migration 009): mesma ordem de checagens e os
-  // mesmos códigos. Sem advisory lock: não há await entre ler o saldo e gravar.
+  // mesmos códigos. O pg_advisory_xact_lock da RPC vira uma fila por empresa+comanda:
+  // os inserts abaixo têm await, e sem a fila dois parciais simultâneos liam o mesmo
+  // saldo e gravavam os dois (Red Team 2026-11, RT-14 / NR-03).
+  const filasEstorno = new Map();
+  const comTravaEstorno = async (chave, fn) => {
+    const anterior = filasEstorno.get(chave) || Promise.resolve();
+    let liberar; const atual = new Promise(r => { liberar = r; });
+    const cadeia = anterior.then(() => atual);
+    filasEstorno.set(chave, cadeia);
+    await anterior;
+    try { return await fn(); } finally { liberar(); if (filasEstorno.get(chave) === cadeia) filasEstorno.delete(chave); }
+  };
   const resumoEstorno = (e, idempotent) => {
     const doEvento = t => rows(t).filter(r => r.estorno_id === e.id);
     const ordem = k => (a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0);
@@ -180,6 +191,7 @@ function installMemoryBackend(seed = {}) {
   };
   P.estornarComanda = async function (comandoId, payload, actorId) {
     const E = this.empresaId;
+    return comTravaEstorno(`${E}|${comandoId}`, async () => {
     const hojeUtc = clock.agora().toISOString().slice(0, 10);
     if (!E || !comandoId || !actorId || !payload.idempotencyKey) throw createAppError('ESTORNO_PAYLOAD_INVALIDO', 'empresa, comanda, ator e idempotencyKey obrigatorios', 422);
     if (!payload.data || Math.abs(Date.parse(`${payload.data}T00:00:00Z`) - Date.parse(`${hojeUtc}T00:00:00Z`)) > 864e5) {
@@ -229,6 +241,7 @@ function installMemoryBackend(seed = {}) {
       await this.insert('caixa_movimentos', { comando_id: comandoId, data, tipo: 'estorno_pagamento', forma_code: r.formaCode, valor_centavos: -r.valorCentavos, descricao: 'Estorno de comanda', created_at: now });
     }
     return resumoEstorno(evento, false);
+  }); // fim da trava do estorno
   };
   return db;
 }
