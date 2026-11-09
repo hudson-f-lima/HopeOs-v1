@@ -29,6 +29,18 @@ const env = {
   LOGIN_RATE_LIMIT_MAX: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
   LOGIN_RATE_LIMIT_WINDOW_MIN: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MIN || 15),
   APP_TIMEZONE: process.env.APP_TIMEZONE || 'America/Sao_Paulo',
+  // Agendamento online (draft docs/planning/AGENDAMENTO_ONLINE_DRAFT.md, opção B):
+  // mapa JSON {"slug": "<uuid da empresa>"} configurado no servidor. Vazio = feature
+  // DESLIGADA (todas as rotas /api/public/agendar respondem 404). Lido a cada requisição.
+  PUBLIC_BOOKING_LINKS: process.env.PUBLIC_BOOKING_LINKS || '',
+  PUBLIC_BOOKING_ANTECEDENCIA_MIN: Number(process.env.PUBLIC_BOOKING_ANTECEDENCIA_MIN || 120),
+  PUBLIC_BOOKING_JANELA_DIAS: Number(process.env.PUBLIC_BOOKING_JANELA_DIAS || 30),
+  PUBLIC_BOOKING_MAX_FUTUROS_POR_NUMERO: Number(process.env.PUBLIC_BOOKING_MAX_FUTUROS_POR_NUMERO || 2),
+  PUBLIC_BOOKING_TETO_DIARIO: Number(process.env.PUBLIC_BOOKING_TETO_DIARIO || 50),
+  PUBLIC_BOOKING_RATE_GET_MAX: Number(process.env.PUBLIC_BOOKING_RATE_GET_MAX || 60), // por IP, por minuto
+  PUBLIC_BOOKING_RATE_POST_IP_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_IP_MAX || 10), // por IP, por hora
+  PUBLIC_BOOKING_RATE_POST_NUMERO_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_NUMERO_MAX || 5), // por WhatsApp+salão, por hora
+  PUBLIC_BOOKING_AVISO_VERSAO: process.env.PUBLIC_BOOKING_AVISO_VERSAO || 'modelo-2026-11',
   CORS_ORIGIN: splitCsv(process.env.CORS_ORIGIN || 'null,http://localhost:5173,http://127.0.0.1:5500')
 };
 

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="theme-color" content="#7c6af7"/>
+<!-- Link de agendamento é compartilhado pelo salão; não precisa aparecer em buscadores. -->
+<meta name="robots" content="noindex"/>
+<link rel="icon" href="icon.svg"/>
+<title>Agendar horário</title>
+<!-- Sem Google Fonts de propósito: a página pública não faz requisição a terceiros (LGPD). -->
+<link rel="stylesheet" href="css/agendar.css"/>
+</head>
+<body>
+<main class="pg">
+  <header class="pg-topo">
+    <p class="pg-marca">Agendamento online</p>
+    <h1 id="nomeSalao" class="pg-titulo">Carregando…</h1>
+  </header>
+
+  <p id="carregando" class="pg-info">Carregando horários…</p>
+
+  <section id="indisponivel" class="cartao" hidden>
+    <h2>Agendamento online indisponível</h2>
+    <p>Este link não está ativo. Fale com o salão para marcar seu horário.</p>
+  </section>
+
+  <div id="aviso" class="aviso" role="alert" hidden></div>
+
+  <div id="fluxo" hidden>
+    <section id="secServico" class="cartao">
+      <h2><span class="passo">1</span> Serviço</h2>
+      <div id="listaServicos" class="opcoes"></div>
+    </section>
+
+    <section id="secProfissional" class="cartao" hidden>
+      <h2><span class="passo">2</span> Profissional</h2>
+      <div id="listaProfissionais" class="opcoes"></div>
+    </section>
+
+    <section id="secDia" class="cartao" hidden>
+      <h2><span class="passo">3</span> Dia</h2>
+      <div id="listaDias" class="dias" role="list"></div>
+    </section>
+
+    <section id="secHorario" class="cartao" hidden>
+      <h2><span class="passo">4</span> Horário</h2>
+      <p id="horariosCarregando" class="pg-info" hidden>Buscando horários livres…</p>
+      <p id="horariosVazio" class="pg-info" hidden>Nenhum horário livre neste dia. Escolha outro dia.</p>
+      <div id="listaHorarios" class="horarios"></div>
+    </section>
+
+    <section id="secDados" class="cartao" hidden>
+      <h2><span class="passo">5</span> Seus dados</h2>
+      <p id="resumoEscolha" class="resumo"></p>
+      <form id="formDados" novalidate>
+        <div class="campo">
+          <label for="nome">Nome</label>
+          <input id="nome" name="nome" type="text" autocomplete="name" maxlength="80" required/>
+        </div>
+        <div class="campo">
+          <label for="whatsapp">WhatsApp com DDD</label>
+          <input id="whatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="(11) 98888-7777" required/>
+        </div>
+        <!-- Campo isca para robôs: invisível para pessoas, deve chegar vazio. -->
+        <div class="isca" aria-hidden="true">
+          <label for="website">Não preencha este campo</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off"/>
+        </div>
+        <details class="privacidade">
+          <summary>Aviso de privacidade</summary>
+          <p>Seu nome e seu WhatsApp são usados pelo <strong id="avisoSalao">salão</strong> só para registrar este agendamento e falar com você sobre ele (confirmação, remarcação ou cancelamento).</p>
+          <p>O salão é o responsável pelos seus dados; o sistema HOPE OS os guarda em nome dele. Não escreva informações de saúde aqui.</p>
+          <p>Para pedir acesso, correção ou exclusão dos seus dados, fale com o salão.</p>
+          <p class="versao">Versão do aviso: <span id="avisoVersao">—</span></p>
+        </details>
+        <label class="consentimento">
+          <input id="consentimento" type="checkbox"/>
+          <span>Li e entendi o aviso de privacidade.</span>
+        </label>
+        <button id="btnAgendar" class="btn-principal" type="submit">Agendar</button>
+      </form>
+    </section>
+  </div>
+
+  <section id="secConfirmacao" class="cartao confirmacao" hidden>
+    <h2>Horário agendado</h2>
+    <p id="confirmacaoTexto"></p>
+    <p class="pg-info">O salão pode entrar em contato pelo WhatsApp para confirmar.</p>
+    <button id="btnNovo" class="btn-secundario" type="button">Agendar outro horário</button>
+  </section>
+</main>
+<script type="module" src="js/agendar.js"></script>
+</body>
+</html>

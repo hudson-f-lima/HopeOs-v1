@@ -9,6 +9,7 @@ const { onboardingRouter } = require('./routes/onboarding');
 const { estruturaRouter } = require('./routes/estrutura');
 const { caixaRouter } = require('./routes/caixa');
 const { pilotoRouter } = require('./routes/piloto');
+const { publicBookingRouter } = require('./routes/publicBooking');
 const { requireAuth } = require('./middleware/auth');
 const { securityHeaders } = require('./middleware/securityHeaders');
 const { mapErrorForResponse } = require('./errors');
@@ -47,8 +48,12 @@ app.set('trust proxy', 1); // Render: req.ip do cliente real (rate limit de logi
 // (100 itens) ≈ 15 KB. Não há upload/importação por HTTP (import-xlsx é CLI).
 // 100kb dá folga de 3x sobre o pior caso e corta corpos de 5 MB (DoS barato).
 const JSON_BODY_LIMIT = '100kb';
-app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(morgan('dev'));
+// Agendamento online (público, sem login): antes do parser global (tem o seu, de
+// 10 kB) e do requireAuth. Tenant só pelo mapa slug → empresa do servidor; sem o
+// mapa (PUBLIC_BOOKING_LINKS) responde 404 em tudo. Nunca cria req.auth.
+app.use('/api/public', publicBookingRouter);
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
 app.get('/', (req, res) => {
   res.redirect('/api/health');
