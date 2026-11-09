@@ -103,7 +103,7 @@
   - decisão sobre o rate limit em memória por instância.
 
 ## D-015 — Backend oficial no Render, Red Team, ferramentas de operação e correções
-- **Backend oficial (Platform Owner, 2026-11-09):** o serviço `hopeos-v1`, gerenciado pelo Blueprint (`render.yaml`), em **`https://hopeos-v1-rvo9.onrender.com`**.
+- **Backend oficial (Platform Owner, 2026-11-09, revisado no mesmo dia):** a escolha inicial foi o serviço do Blueprint (`hopeos-v1-rvo9`), mas na operação o Platform Owner manteve **`HopeOs-v1` em `https://hopeos-v1.onrender.com`** (já conectado ao `hopeos-v1`, login validado: 401 para credencial inválida) e suspendeu o rvo9. Oficial = **`https://hopeos-v1.onrender.com`**. Consequência: esse serviço NÃO é gerenciado pelo `render.yaml` — variáveis, build command e headers do site estático são configurados no painel; o `render.yaml` serve de referência.
   - O serviço antigo `HopeOs-v1` (`https://hopeos-v1.onrender.com`, criado à mão) deve ser **suspenso**.
   - Motivo: variáveis, headers e a CSP do site estático passam a vir do `render.yaml` versionado.
   - `config.json`, a CSP do `render.yaml`, a CSP de `agendar.html`, as ferramentas `ops/`, o runbook e as skills apontam para o rvo9.

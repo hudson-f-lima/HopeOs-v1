@@ -13,7 +13,7 @@ Tempo estimado: 30–45 min. Rollback: seção 8.
 | Supabase de produção (`qosioymzswhkqkziocas`, citado em `docs/audit_global/12_*`) | DESCONHECIDO — não aparece na conta conectada à sessão | Executar este runbook com acesso ao projeto, ou conectar a conta certa ao conector Supabase do Claude |
 | Projeto do HOPE OS | **`hopeos-v1` (`gsttjozcmdvgstcpadiq`)**, criado em 2026-10-16, banco novo. **001–008 aplicadas em 2026-11-08** pelo merge do PR #16 (verificação 12/12 `true`). Desde 2026-11-08 a integração GitHub do Supabase está ligada ("Deploy to production" na `main`) e o histórico foi alinhado aos nomes dos arquivos (ver passo 4, opção C) | Merge do PR na `main` (opção C) ou SQL Editor (opção A) |
 | `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) | **OUTRO PROJETO — nunca usar para o HOPE OS** (decisão do Platform Owner, 2026-10-16). Foi reativado e pausado de novo em 2026-10-16; só uma consulta de leitura rodou nele, sem escrita | — |
-| Backend Render `hopeos-v1` | ATIVO desde 2026-11-09 em **`https://hopeos-v1-rvo9.onrender.com`** (o host `hopeos-v1.onrender.com` é outro serviço, suspenso — não usar), ainda no commit `c5a2914`: falta deploy da `main` + variáveis. Antes: 503 "Service suspended by its owner" | Reativar o serviço no painel do Render |
+| Backend Render | **ATIVO** desde 2026-11-09: serviço `HopeOs-v1` em **`https://hopeos-v1.onrender.com`**, commit `5f0a3d6`, conectado ao `hopeos-v1` (login 401 para credencial inválida). O serviço do Blueprint `hopeos-v1-rvo9` está SUSPENSO (D-015). Este serviço não é gerenciado pelo `render.yaml`: variáveis e build command ficam no painel | — |
 
 ## 1. Pré-requisitos
 - Acesso de dono ao projeto Supabase de produção e ao Render.
@@ -137,15 +137,15 @@ por segurança). Nenhuma imprime a chave secreta nem o `API_ACCESS_TOKEN`.
 4. Diagnóstico com as mesmas variáveis, guardadas num arquivo **fora** do repositório (`chmod 600`):
 ```bash
 node --env-file=$HOME/hopeos-prod.env backend/scripts/ops/doctor.js --no-dotenv \
-  --api https://hopeos-v1-rvo9.onrender.com/api
+  --api https://hopeos-v1.onrender.com/api
 ```
    Esperado: `APTO (código 0)`, com `api.health` e `db.schema.001–006`/`007`/`008`/`009` OK.
    `db.bootstrap` WARN ("nenhuma empresa") é normal antes do passo 7. `--offline` confere só as variáveis.
 
    Alternativa manual (sem a ferramenta):
 ```bash
-curl -s https://hopeos-v1-rvo9.onrender.com/api/health              # 200
-curl -s -o /dev/null -w '%{http_code}\n' https://hopeos-v1-rvo9.onrender.com/api/clientes   # 401
+curl -s https://hopeos-v1.onrender.com/api/health              # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://hopeos-v1.onrender.com/api/clientes   # 401
 ```
    e a verificação SQL do passo 4 / §4.1 no SQL Editor.
 
@@ -183,7 +183,7 @@ on conflict (empresa_id, user_id) do update set role = 'admin', status = 'ativo'
 ```
 3. Fumaça pós-deploy (read-only; API + PWA):
 ```bash
-node backend/scripts/ops/smoke.js --api https://hopeos-v1-rvo9.onrender.com/api \
+node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api \
   --pwa <URL pública da PWA>
 ```
    Confere health 200, rota de negócio sem token 401, headers de segurança, CORS só para a PWA,
@@ -195,8 +195,8 @@ node backend/scripts/ops/smoke.js --api https://hopeos-v1-rvo9.onrender.com/api 
 
 Smoke test com o JWT do admin (DevTools → Application → Local Storage → `hopeos.session`):
 ```bash
-curl -s https://hopeos-v1-rvo9.onrender.com/api/me -H "Authorization: Bearer $JWT"    # principal_type: user, role admin
-curl -s https://hopeos-v1-rvo9.onrender.com/api/clientes -H "Authorization: Bearer $API_ACCESS_TOKEN"   # legado ainda 200
+curl -s https://hopeos-v1.onrender.com/api/me -H "Authorization: Bearer $JWT"    # principal_type: user, role admin
+curl -s https://hopeos-v1.onrender.com/api/clientes -H "Authorization: Bearer $API_ACCESS_TOKEN"   # legado ainda 200
 ```
 
 ## 8. Rollback
