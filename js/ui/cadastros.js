@@ -392,9 +392,9 @@ async function submitAjusteEstoqueForm() {
 
 /* ---------- Formas de Pagamento ---------- */
 function renderFormaRow(f) {
-  return `<div class="cadastro-row${f.ativo === false ? ' inactive' : ''}" data-code="${f.code}">
+  return `<div class="cadastro-row${f.ativo === false ? ' inactive' : ''}" data-code="${escapeHtml(f.code)}">
     <div class="info">
-      <div class="nome">${f.icon ? f.icon + ' ' : ''}${escapeHtml(f.label)} <span style="color:var(--md-outline);font-weight:400;">(${f.code})</span></div>
+      <div class="nome">${f.icon ? escapeHtml(f.icon) + ' ' : ''}${escapeHtml(f.label)} <span style="color:var(--md-outline);font-weight:400;">(${escapeHtml(f.code)})</span></div>
       <div class="meta">Taxa ${f.taxa_pct}% + ${centsToBRL(f.taxa_fixa_centavos)} · ${f.dias_recebimento}d</div>
     </div>
     <div class="actions">

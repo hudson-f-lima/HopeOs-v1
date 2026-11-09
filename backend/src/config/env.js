@@ -27,6 +27,8 @@ const env = {
   // URL pública da PWA: destino dos links de convite e de recuperação de senha.
   APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || '',
   LOGIN_RATE_LIMIT_MAX: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
+  // Tentativas de login/recuperação por IP (qualquer e-mail) na mesma janela.
+  LOGIN_RATE_LIMIT_IP_MAX: Number(process.env.LOGIN_RATE_LIMIT_IP_MAX || 50),
   LOGIN_RATE_LIMIT_WINDOW_MIN: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MIN || 15),
   APP_TIMEZONE: process.env.APP_TIMEZONE || 'America/Sao_Paulo',
   // Agendamento online (draft docs/planning/AGENDAMENTO_ONLINE_DRAFT.md, opção B):

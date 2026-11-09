@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#7c6af7"/>
 <!-- Link de agendamento é compartilhado pelo salão; não precisa aparecer em buscadores. -->
 <meta name="robots" content="noindex"/>
+<!-- CSP própria (Red Team 2026-11, RT-11): vale também onde não há o header do
+     render.yaml (ex.: GitHub Pages). connect-src só a API de produção e a API local
+     do E2E/dev (http:// é bloqueado como conteúdo misto numa página https://). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"/>
 <link rel="icon" href="icon.svg"/>
 <title>Agendar horário</title>
 <!-- Sem Google Fonts de propósito: a página pública não faz requisição a terceiros (LGPD). -->
@@ -69,9 +73,11 @@
         </div>
         <details class="privacidade">
           <summary>Aviso de privacidade</summary>
-          <p>Seu nome e seu WhatsApp são usados pelo <strong id="avisoSalao">salão</strong> só para registrar este agendamento e falar com você sobre ele (confirmação, remarcação ou cancelamento).</p>
-          <p>O salão é o responsável pelos seus dados; o sistema HOPE OS os guarda em nome dele. Não escreva informações de saúde aqui.</p>
-          <p>Para pedir acesso, correção ou exclusão dos seus dados, fale com o salão.</p>
+          <p><strong>Quem decide sobre seus dados (controlador):</strong> o <strong id="avisoSalao">salão</strong>. O sistema HOPE OS só os guarda e processa em nome dele (operador).</p>
+          <p><strong>Quais dados e para quê (finalidade):</strong> nome, WhatsApp, serviço, profissional, dia e horário, para registrar este agendamento e falar com você sobre ele (confirmação, lembrete, remarcação ou cancelamento). Para evitar abuso, guardamos também a data do aceite deste aviso e parte do endereço de internet (sem o número completo). Não usamos para propaganda. Não escreva informações de saúde aqui.</p>
+          <p><strong>Base legal:</strong> execução de procedimentos preliminares ao serviço que você pediu (LGPD, art. 7º, V).</p>
+          <p><strong>Por quanto tempo:</strong> os dados ficam guardados enquanto você for cliente do salão ou até você pedir a exclusão, respeitado o prazo que a lei exigir do salão.</p>
+          <p><strong>Seus direitos:</strong> confirmar se tratamos seus dados, acessar, corrigir, pedir exclusão ou anonimização e tirar dúvidas. Fale com o salão pelo WhatsApp dele.</p>
           <p class="versao">Versão do aviso: <span id="avisoVersao">—</span></p>
         </details>
         <label class="consentimento">

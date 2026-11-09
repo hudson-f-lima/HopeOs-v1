@@ -20,8 +20,8 @@
     "test:identity": "node tests/identity-gate.test.js",
     "test:onboarding": "node tests/onboarding-gate.test.js",
     "test:onda-b": "node tests/onda-b-gate.test.js",
-    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes",
+    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes && npm run test:redteam",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes && npm run test:redteam",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js",
     "test:lembretes": "node tests/lembretes-gate.test.js",
@@ -32,7 +32,8 @@
     "test:security": "node tests/security-headers-gate.test.js",
     "test:publico": "node tests/agendamento-publico-gate.test.js",
     "test:ops": "node tests/ops-gate.test.js",
-    "test:correcoes": "node tests/correcoes-gate.test.js"
+    "test:correcoes": "node tests/correcoes-gate.test.js",
+    "test:redteam": "node tests/redteam-gate.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

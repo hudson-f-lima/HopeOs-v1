@@ -1,3 +1,4 @@
+import { apiBaseDaUrl } from './api-base.js';
 export let API_BASE = null;
 
 const FETCH_TIMEOUT_MS = 30000;
@@ -162,11 +163,20 @@ export async function loadConfig() {
   if (tokenOverride && tokenOverride.trim()) {
     setToken(tokenOverride.trim());
     console.log('[Auth] Token recebido via URL (apiToken param)');
+    // Red Team 2026-11 (RT-22): o token legado não fica na barra de endereço
+    // (histórico, print, compartilhamento). Ele já está salvo no localStorage.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('apiToken');
+      window.history.replaceState(window.history.state, '', url.toString());
+    } catch { /* navegador sem history: segue */ }
   }
 
-  const apiBaseOverride = new URLSearchParams(window.location.search).get('apiBase');
+  // ?apiBase= só em host local (api-base.js, RT-11): em produção o link não desvia
+  // e-mail/senha para outra API.
+  const apiBaseOverride = apiBaseDaUrl(window.location);
   if (apiBaseOverride) {
-    API_BASE = apiBaseOverride.replace(/\/+$/, '');
+    API_BASE = apiBaseOverride;
     console.log('[Config] API_BASE configurado via URL:', API_BASE);
     return; // Sucesso: saiar sem carregar config.json
   }

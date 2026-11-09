@@ -17,6 +17,7 @@ const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/
 const { normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
+const { criarLimitador, chaveIp } = require('../security/rateLimit');
 
 const router = express.Router();
 
@@ -115,24 +116,38 @@ function ipTruncado(ip) {
 }
 
 // ---------------------------------------------------------------------------
-// Rate limit em memória (mesmo padrão do login, routes/auth.js). PARCIAL: zera no
-// restart e não é compartilhado entre instâncias.
-const tentativas = new Map();
-function excedeu(chave, max, janelaMs) {
-  const agora = Date.now();
-  const hits = (tentativas.get(chave) || []).filter(t => agora - t < janelaMs);
-  hits.push(agora);
-  tentativas.set(chave, hits);
-  if (tentativas.size > 10000) tentativas.clear(); // teto de memória
-  return hits.length > max;
+// Rate limit em memória (mesmo módulo do login, security/rateLimit.js). PARCIAL: zera
+// no restart e não é compartilhado entre instâncias. IP por /64 no IPv6 e teto de
+// memória sem "zerar tudo" (Red Team 2026-11, RT-01).
+const tentativas = criarLimitador();
+const excedeu = (chave, max, janelaMs) => tentativas.excedeu(chave, max, janelaMs);
+function resetRateLimitPublico() { tentativas.limpar(); }
+
+// Chave do número para limite, trava e dedup (Red Team 2026-11, RT-02): celular
+// escrito sem o 9º dígito (DDD + 8 dígitos começando em 6–9) é a mesma linha que
+// DDD + 9 + 8 dígitos. Fixo (2–5) continua como está.
+function chaveNumero(numero) {
+  const s = String(numero || '');
+  return /^55\d{2}[6-9]\d{7}$/.test(s) ? `${s.slice(0, 4)}9${s.slice(4)}` : s;
 }
-function resetRateLimitPublico() { tentativas.clear(); }
+
+// Log sem PII (RT-10): erros do banco repetem a linha (WhatsApp, nome) na mensagem e
+// no detail. Registra só o código e a mensagem com sequências numéricas e o trecho
+// "Key (...)=(...)" mascarados; nunca o objeto inteiro.
+function erroParaLog(err) {
+  const msg = String((err && err.message) || err || '')
+    .replace(/Key \(.*$/s, 'Key (…)')
+    .replace(/\d[\d\s().-]{6,}\d/g, '[num]')
+    .slice(0, 200);
+  return `${(err && err.code) || 'sem_codigo'} ${msg}`;
+}
+
 function limitarPorIp(tipo) {
   return (req, res, next) => {
     const [max, janelaMs] = tipo === 'post'
       ? [num(env.PUBLIC_BOOKING_RATE_POST_IP_MAX, 10), 3600e3]
       : [num(env.PUBLIC_BOOKING_RATE_GET_MAX, 60), 60e3];
-    if (excedeu(`${tipo}|${req.ip}`, max, janelaMs)) return next(muitasTentativas());
+    if (excedeu(`${tipo}|${chaveIp(req.ip)}`, max, janelaMs)) return next(muitasTentativas());
     next();
   };
 }
@@ -217,7 +232,7 @@ function validarEntrada(body) {
   if (nomeLimpo.length < 2 || nomeLimpo.length > 80 || !NOME_RE.test(nomeLimpo)) {
     throw erroPublico('NOME_INVALIDO', 422, 'Informe seu nome (2 a 80 letras).');
   }
-  const numero = typeof whatsapp === 'string' && whatsapp.length <= 30 ? normalizarWhatsapp(whatsapp) : null;
+  const numero = typeof whatsapp === 'string' && whatsapp.length <= 30 ? chaveNumero(normalizarWhatsapp(whatsapp)) : null;
   if (!numero) throw erroPublico('WHATSAPP_INVALIDO', 422, 'Informe o WhatsApp com DDD (10 ou 11 dígitos).');
   if (consentimento !== true) throw erroPublico('CONSENTIMENTO_OBRIGATORIO', 422, 'Confirme que leu o aviso de privacidade.');
   return { servicoId: servicoId.toLowerCase(), profissionalId: profissionalId.toLowerCase(), data, horario, nome: nomeLimpo, whatsapp: numero, website: (website || '').trim() };
@@ -226,7 +241,7 @@ function validarEntrada(body) {
 // Cliente pelo número normalizado dos dois lados (clientes.whatsapp é texto livre).
 // O nome cadastrado nunca é alterado nem devolvido.
 function clientesDoNumero(clientes, numero) {
-  const doNumero = clientes.filter(c => normalizarWhatsapp(c.whatsapp || c.telefone) === numero);
+  const doNumero = clientes.filter(c => chaveNumero(normalizarWhatsapp(c.whatsapp || c.telefone)) === numero);
   const ativos = doNumero
     .filter(c => c.ativo !== false)
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
@@ -248,7 +263,9 @@ async function gravar(repo, cat, ctx) {
   const dedup = !cliente ? 'novo' : ativos.length > 1 ? 'ambiguo' : 'existente';
   let regua = 'ok';
   if (cliente) {
-    const historico = await repo.list('agendamentos', { empresa_id: repo.empresaId, cliente_id: cliente.id });
+    // Todos os cadastros ativos do número contam (RT-03): com dois cadastros, olhar só
+    // o mais antigo deixava o outro furar o limite de futuros e a régua.
+    const historico = (await Promise.all(ativos.map(c => repo.list('agendamentos', { empresa_id: repo.empresaId, cliente_id: c.id })))).flat();
     const futuros = historico.filter(a => STATUS_FUTUROS.includes(a.status) &&
       (String(a.data) > lim.agora.data || (String(a.data) === lim.agora.data && timeToMinutes(a.horario) >= lim.agora.minuto)));
     if (futuros.length >= num(env.PUBLIC_BOOKING_MAX_FUTUROS_POR_NUMERO, 2)) throw agendamentoOnlineRecusado();
@@ -302,7 +319,7 @@ async function gravar(repo, cat, ctx) {
     });
   } catch (err) {
     // O agendamento já existe (e é o que importa ao cliente); o evento é auditoria.
-    console.error('[agendar] evento de origem não gravado:', err && err.message);
+    console.error('[agendar] evento de origem não gravado:', erroParaLog(err));
   }
   return agendamento;
 }
@@ -387,8 +404,8 @@ router.use((err, req, res, next) => {
   if (err && err.publico) return res.status(err.statusCode).json({ ok: false, error: { code: err.code, message: err.message } });
   if (err && err.type === 'entity.too.large') return res.status(413).json({ ok: false, error: { code: 'DADOS_INVALIDOS', message: 'Dados inválidos.' } });
   if (err && err.type === 'entity.parse.failed') return res.status(400).json({ ok: false, error: { code: 'DADOS_INVALIDOS', message: 'Dados inválidos.' } });
-  console.error('[agendar] erro interno:', err);
+  console.error('[agendar] erro interno:', erroParaLog(err));
   res.status(500).json({ ok: false, error: { code: 'INDISPONIVEL_AGORA', message: 'Não foi possível concluir agora. Tente de novo em instantes.' } });
 });
 
-module.exports = { publicBookingRouter: router, resetRateLimitPublico, setRelogioParaTestes, ipTruncado, TIPO_EVENTO };
+module.exports = { publicBookingRouter: router, resetRateLimitPublico, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };
