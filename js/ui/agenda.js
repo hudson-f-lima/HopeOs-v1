@@ -1,4 +1,4 @@
-import { api, getClientReliability, getListaEspera, getAgendaSlots } from '../api.js';
+import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
 import { 
   state, 
   stateBus, 
@@ -552,10 +552,59 @@ function openActionSheet(item) {
     <div class="row"><span>Status</span><span class="${meta.cls}">${meta.label}</span></div>
     <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
     <div class="sheet-actions">${actionsHtml}</div>
+    <details class="sheet-historico" id="historicoDetails">
+      <summary>Histórico</summary>
+      <div id="historicoBody" class="sheet-historico-body">Carregando…</div>
+    </details>
   `;
   document.getElementById('actionSheet').dataset.agendaId = item.id;
+  const details = document.getElementById('historicoDetails');
+  details.addEventListener('toggle', () => { if (details.open && !details.dataset.loaded) loadHistorico(item.id); });
   openModal('actionSheet');
   loadReliabilityBadge(item.cliente_id);
+}
+
+// Trilha de status (GET /agenda/:id/historico). Só leitura; carrega ao abrir.
+const HISTORICO_ORIGEM = { checkout: 'checkout', reagendamento: 'reagendamento' };
+function statusLabel(s) {
+  if (s === null || s === undefined) return '—';
+  return (AGENDA_STATUS_META[s] && AGENDA_STATUS_META[s].label) || String(s);
+}
+function formatQuando(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function historicoLinha(ev) {
+  let texto;
+  if (ev.tipo === 'duracao') texto = `Duração ${ev.de ?? '—'} → ${ev.para ?? '—'} min`;
+  else if (ev.tipo === 'criado') texto = `Criado · ${statusLabel(ev.para)}`;
+  else if (ev.tipo === 'reagendado' && ev.reagendadoDe) texto = `Criado por reagendamento · ${statusLabel(ev.para)}`;
+  else texto = `${statusLabel(ev.de)} → ${statusLabel(ev.para)}`;
+  const origem = HISTORICO_ORIGEM[ev.origem] ? ` (${HISTORICO_ORIGEM[ev.origem]})` : '';
+  const quem = ev.ator && ev.ator.nome ? ev.ator.nome : (ev.ator && ev.ator.tipo === 'integration' ? 'Integração' : '');
+  return `<li class="sheet-historico-item" data-historico-para="${escapeHtml(String(ev.para ?? ''))}">
+    <span class="sheet-historico-quando">${escapeHtml(formatQuando(ev.quando))}</span>
+    <span>${escapeHtml(texto + origem)}</span>
+    ${quem ? `<span class="sheet-historico-quem">${escapeHtml(quem)}</span>` : ''}
+  </li>`;
+}
+async function loadHistorico(agendamentoId) {
+  const body = document.getElementById('historicoBody');
+  const details = document.getElementById('historicoDetails');
+  if (!body || !details) return;
+  try {
+    const r = await getAgendaHistorico(agendamentoId);
+    if (document.getElementById('historicoBody') !== body) return; // sheet trocou de item
+    details.dataset.loaded = '1';
+    const eventos = (r && r.eventos) || [];
+    body.innerHTML = eventos.length
+      ? `<ul class="sheet-historico-lista">${eventos.map(historicoLinha).join('')}</ul>`
+      : '<p class="sheet-historico-vazio">Sem histórico registrado (agendamentos anteriores à trilha não têm eventos).</p>';
+  } catch (err) {
+    if (document.getElementById('historicoBody') === body) body.textContent = 'Não foi possível carregar o histórico.';
+  }
 }
 
 function reliabilityColor(faixa) {

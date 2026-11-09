@@ -32,6 +32,16 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   console.log('BANCO após cadeira:', (await db('agendamentos')).find(a => a.id === alvo.id).status);
   await abrir();
   console.log('NA CADEIRA:', JSON.stringify(await acoes()));
+  // Histórico (trilha agendamento_eventos): abre o recolhível e lê as linhas.
+  await p.click('#historicoDetails summary');
+  await p.waitForSelector('#historicoBody .sheet-historico-item', { timeout: 5000 });
+  const paras = await p.locator('#historicoBody .sheet-historico-item').evaluateAll(els => els.map(e => e.dataset.historicoPara));
+  const linhas = (await p.locator('#historicoBody .sheet-historico-item').allTextContents()).map(t => t.replace(/\s+/g, ' ').trim());
+  console.log('HISTÓRICO:', JSON.stringify(linhas));
+  if (paras.join(',') !== 'aguardando,em_atendimento') errs.push(`histórico inesperado: ${paras.join(',')}`);
+  if (!linhas[0].includes('Agendado → Chegou') || !linhas[1].includes('Chegou → Na cadeira')) errs.push('texto do histórico sem de → para');
+  if (!linhas.every(l => l.includes('Recepção Dev'))) errs.push('histórico sem o nome de quem fez');
+  if (linhas.some(l => l.includes('@'))) errs.push('histórico expõe e-mail');
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-presenca.png') });
   console.log('ERROS:', JSON.stringify(errs));
   await b.close();

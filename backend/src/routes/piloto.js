@@ -35,10 +35,11 @@ router.get('/relatorios/piloto', authorize('relatorios:full'), async (req, res, 
     const { de, ate } = resolverPeriodo(req.query, hoje);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
-    const [agendamentos, comandos, comandoItens, profissionais] = await Promise.all([
-      repo.list('agendamentos', filtro), repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro)
+    const [agendamentos, comandos, comandoItens, profissionais, eventos] = await Promise.all([
+      repo.list('agendamentos', filtro), repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro),
+      repo.list('agendamento_eventos', filtro)
     ]);
-    const data = computePiloto({ agendamentos, comandos, comandoItens, de, ate, hoje, timeZone: env.APP_TIMEZONE });
+    const data = computePiloto({ agendamentos, comandos, comandoItens, eventos, de, ate, hoje, timeZone: env.APP_TIMEZONE });
     const nomes = new Map(profissionais.map(p => [String(p.id), p.nome]));
     data.porProfissional = data.porProfissional.map(p => ({ ...p, nome: nomes.get(p.profissionalId) || null }));
     res.json({ ok: true, data });

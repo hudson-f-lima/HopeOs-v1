@@ -37,6 +37,7 @@ const { authorize, assertOwn } = require('../auth/rbac');
 const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
+const { registrarEventoAgenda, montarHistorico } = require('../services/AgendaEventosService');
 
 const router = express.Router();
 
@@ -418,6 +419,7 @@ router.post('/agenda', authorize('agenda:write'), async (req, res, next) => {
       permitirConflito: payload.permitirConflito,
       createdBy: actorId
     });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado' });
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }
@@ -434,12 +436,15 @@ router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, n
     if (!original) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${id}`, 404, { id });
     assertOwn(req, original.profissional_id);
     assertTransicaoStatus(original.status, novoStatus);
+    // Capturado antes do update: o objeto lido pode ser o mesmo que o update altera.
+    const statusAnterior = original.status;
 
     const now = new Date().toISOString();
     if (novoStatus !== 'reagendado') {
       const patch = { status: novoStatus, updated_at: now, updated_by: actorId };
       if (novoStatus === 'cancelado') patch.cancelled_by = actorId;
       const updated = await repo.updateScoped('agendamentos', original.id, patch);
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: original.id, tipo: 'status', de: statusAnterior, para: novoStatus });
       return res.json({ ok: true, data: { original: updated } });
     }
 
@@ -472,8 +477,28 @@ router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, n
     });
 
     const updatedOriginal = await repo.updateScoped('agendamentos', original.id, { status: 'reagendado', updated_at: now, updated_by: actorId });
+    await registrarEventoAgenda(repo, req.auth, {
+      agendamentoId: original.id, tipo: 'reagendado', de: statusAnterior, para: 'reagendado',
+      extra: { reagendado_para: (novo && novo.id) || null }
+    });
+    await registrarEventoAgenda(repo, req.auth, {
+      agendamentoId: novo && novo.id, tipo: 'reagendado', de: null, para: (novo && novo.status) || 'agendado',
+      origem: 'reagendamento', extra: { reagendado_de: original.id }
+    });
 
     res.json({ ok: true, data: { original: updatedOriginal, novo } });
+  } catch (err) { next(err); }
+});
+
+// Trilha de status do agendamento (agendamento_eventos), do mais antigo ao mais
+// novo. Profissional só lê os próprios. Eventos são best-effort: pode haver lacuna.
+router.get('/agenda/:id/historico', authorize('agenda:read'), async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'id');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const agendamento = await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
+    assertOwn(req, agendamento.profissional_id);
+    res.json({ ok: true, data: { agendamentoId: id, statusAtual: agendamento.status, eventos: await montarHistorico(repo, id) } });
   } catch (err) { next(err); }
 });
 
@@ -488,11 +513,13 @@ router.patch('/agenda/:id/duracao', authorize('agenda:write'), async (req, res, 
     const agendamento = await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
     assertOwn(req, agendamento.profissional_id);
     const { actorId } = autoriaDe(req.auth);
+    const duracaoAnterior = agendamento.duracao_min ?? null;
     const updated = await repo.updateScoped('agendamentos', id, {
       duracao_min: duracaoMin,
       updated_at: new Date().toISOString(),
       updated_by: actorId
     });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: id, tipo: 'duracao', de: duracaoAnterior, para: duracaoMin });
     res.json({ ok: true, data: { id: updated.id, duracaoMin: updated.duracao_min } });
   } catch (err) { next(err); }
 });
@@ -545,15 +572,18 @@ router.post('/checkout/close', authorize('checkout:write'), async (req, res, nex
     if (req.body && req.body.agendamentoId) {
       try {
         const agendamentoId = validateUUID(req.body.agendamentoId, 'agendamentoId');
-        if (req.authz.own) {
-          const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
-          assertOwn(req, ag && ag.profissional_id);
-        }
+        // Lido também fora do escopo "Próprio" para registrar o status anterior na trilha.
+        const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
+        if (req.authz.own) assertOwn(req, ag && ag.profissional_id);
+        const statusAnterior = ag ? ag.status : null;
         agendamentoConcluido = await repo.updateScoped('agendamentos', agendamentoId, {
           status: 'concluido',
           updated_at: new Date().toISOString(),
           updated_by: autoria.actorId
         });
+        if (ag && statusAnterior !== 'concluido') {
+          await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: statusAnterior, para: 'concluido', origem: 'checkout' });
+        }
       } catch (linkErr) {
         console.error('Falha ao marcar agendamento como concluído:', linkErr.message || linkErr);
       }

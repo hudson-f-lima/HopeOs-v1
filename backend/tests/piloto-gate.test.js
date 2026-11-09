@@ -95,6 +95,7 @@ test('P04 confirmação prévia = confirmados / (agendado + confirmado) de hoje'
   const r = calc('2026-06-30');
   assert.deepStrictEqual(nd(r.confirmacaoPrevia), [1, 3, 33.3]);
   assert.strictEqual(r.confirmacaoPrevia.dia, '2026-06-30');
+  assert.strictEqual(r.confirmacaoPrevia.escopo, 'foto_do_dia', 'sem trilha de eventos → foto do dia');
   assert.deepStrictEqual(nd(calc('2026-07-01').confirmacaoPrevia), [0, 0, null]);
 });
 

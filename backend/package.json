@@ -20,13 +20,14 @@
     "test:identity": "node tests/identity-gate.test.js",
     "test:onboarding": "node tests/onboarding-gate.test.js",
     "test:onda-b": "node tests/onda-b-gate.test.js",
-    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:security",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:security",
+    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:security",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:security",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js",
     "test:lembretes": "node tests/lembretes-gate.test.js",
     "test:caixa": "node tests/caixa-gate.test.js",
     "test:piloto": "node tests/piloto-gate.test.js",
+    "test:historico": "node tests/historico-gate.test.js",
     "test:security": "node tests/security-headers-gate.test.js"
   },
   "dependencies": {
