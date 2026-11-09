@@ -101,35 +101,75 @@ Fumaça pela API (admin logado, comanda de teste do dia): `POST /api/comandas/:i
 
 ## 5. Configurar o Supabase Auth
 Authentication → URL Configuration:
-- **Site URL** e **Redirect URLs**: a URL pública da PWA (ex.: `https://hudson-f-lima.github.io/HopeOs-v1/` ou a do Render static). É para onde vão os links de convite e de recuperação.
+- **Site URL** e **Redirect URLs**: a URL pública da PWA (ex.: `https://hudson-f-lima.github.io/HopeOs-v1/` ou a do Render static). É para onde vão os links de convite e de recuperação. Use a mesma URL em `APP_PUBLIC_URL` (passo 6).
 
-Authentication → Providers → Email: deixe **Confirm email** ligado. Opcional: desligar
-"Allow new users to sign up" — o fluxo do app é por convite do admin.
+Authentication → Providers → Email: deixe **Confirm email** ligado. Recomendado: desligar
+"Allow new users to sign up" — o fluxo do app é por convite do admin. O `doctor` (passo 6.4) lê
+essas duas opções em `/auth/v1/settings` e avisa (WARN) se estiverem diferentes. Site URL/Redirect
+URLs não são expostos pela API: confira no painel.
 
 ## 6. Deploy do backend (Render)
+Procedimento completo e "o que nunca fazer": skill `.claude/skills/deploy-producao`. Ferramentas em
+`backend/scripts/ops/` (Node puro, `--help` em todas; saída `0` ok, `1` falhou, `2` uso, `3` recusado
+por segurança). Nenhuma imprime a chave secreta nem o `API_ACCESS_TOKEN`.
+
 1. Reative o serviço `hopeos-v1`.
-2. Variáveis de ambiente (além das que já existem):
+2. Variáveis de ambiente — lista completa (o `render.yaml` declara as mesmas):
 
 | Variável | Valor | Observação |
 |---|---|---|
+| `NODE_ENV` | `production` | liga HSTS |
+| `PORT` | `10000` | |
+| `SUPABASE_URL` | `https://gsttjozcmdvgstcpadiq.supabase.co` | `hopeos-v1`; **nunca** o `kortex-os-v2-staging` (o `doctor` recusa) |
+| `SUPABASE_SERVICE_ROLE_KEY` **ou** `SUPABASE_SECRET_KEY` | chave secreta do `hopeos-v1` | só UMA das duas; com as duas e valores diferentes o backend usa `SUPABASE_SECRET_KEY` e o `doctor` reprova |
+| `API_ACCESS_TOKEN` | aleatório ≥ 32 caracteres | token legado (transição) |
+| `DEFAULT_EMPRESA_ID` | UUID do salão | o mesmo do passo 7 (`--empresa-id`) |
+| `CORS_ORIGIN` | origem da PWA, sem barra final | GitHub Pages já é liberado pelo código |
 | `APP_PUBLIC_URL` | URL pública da PWA | destino dos links de convite/recuperação |
 | `LEGACY_TOKEN_AUTH_ENABLED` | `true` | mantém o token antigo durante a transição |
 | `AUTH_TIMEOUT_MS` | `5000` | timeout da validação no Supabase Auth |
 | `INTEGRATION_ROTATION_OVERLAP_MIN` | `60` | janela da credencial antiga após rotação |
 | `APP_TIMEZONE` | `America/Sao_Paulo` | slots e "hoje" |
+| `PUBLIC_BOOKING_LINKS` | **ausente** | agendamento online desligado até D-014 (aviso de privacidade + Red Team) |
 
-3. Mescle o PR em `main` (o Render faz o deploy). Confirme:
+3. Deploy **manual** da `main` (Render → Manual Deploy → *Deploy latest commit*). Banco e backend
+   precisam estar na mesma versão: o backend atual lê tabelas da 007–009.
+4. Diagnóstico com as mesmas variáveis, guardadas num arquivo **fora** do repositório (`chmod 600`):
+```bash
+node --env-file=$HOME/hopeos-prod.env backend/scripts/ops/doctor.js --no-dotenv \
+  --api https://hopeos-v1.onrender.com/api
+```
+   Esperado: `APTO (código 0)`, com `api.health` e `db.schema.001–006`/`007`/`008`/`009` OK.
+   `db.bootstrap` WARN ("nenhuma empresa") é normal antes do passo 7. `--offline` confere só as variáveis.
+
+   Alternativa manual (sem a ferramenta):
 ```bash
 curl -s https://hopeos-v1.onrender.com/api/health              # 200
 curl -s -o /dev/null -w '%{http_code}\n' https://hopeos-v1.onrender.com/api/clientes   # 401
 ```
+   e a verificação SQL do passo 4 / §4.1 no SQL Editor.
 
 ## 7. Primeiro admin (bootstrap, uma vez)
-1. Supabase → Authentication → Users → **Invite user** com o e-mail do dono. Ele recebe o link, abre a PWA e define a senha.
-2. Crie a empresa, a unidade e o vínculo de admin (troque os três valores). Num banco novo
-   (como o `hopeos-v1`) a tabela `empresas` está vazia: sem a linha da empresa o vínculo falha por
-   FK, e empresa criada depois da 007 não ganha "Unidade principal" automaticamente — sem unidade,
-   recepção e profissional recebem `NO_UNIT_ACCESS`. O bloco é idempotente:
+1. Supabase → Authentication → Users → **Invite user** com o e-mail do dono. O trigger da 007 cria a
+   linha em `app_users` na hora; o dono recebe o link, abre a PWA e define a senha.
+2. Crie a empresa, a unidade e o vínculo de admin. Num banco novo (como o `hopeos-v1`) a tabela
+   `empresas` está vazia: sem a linha da empresa o vínculo falha por FK, e empresa criada depois da 007
+   não ganha "Unidade principal" automaticamente — sem unidade, recepção e profissional recebem
+   `NO_UNIT_ACCESS`.
+
+   **Com a ferramenta (recomendado)** — idempotente, simulação por padrão, usa o mesmo acesso do
+   backend (PostgREST com a chave secreta), recusa o projeto de staging e não grava nada se o e-mail
+   não estiver em `app_users`:
+```bash
+# 1) simulação (padrão): mostra CRIAR/EXISTE/ATUALIZAR para empresa, unidade e vínculo
+node --env-file=$HOME/hopeos-prod.env backend/scripts/ops/bootstrap-admin.js --no-dotenv \
+  --empresa-id <DEFAULT_EMPRESA_ID do Render> --empresa-nome "<nome do salão>" --admin-email <e-mail do dono>
+# 2) gravação (só com autorização do Platform Owner): o mesmo comando + --apply
+```
+   Empresa já existente não é renomeada; vínculo existente é promovido a `admin`/`ativo`. Repetir não
+   duplica nada. Depois, `doctor` de novo: `db.bootstrap` some.
+
+   **Alternativa manual (SQL Editor)** — equivalente, também idempotente (troque os três valores):
 ```sql
 insert into empresas (id, nome) values ('<DEFAULT_EMPRESA_ID do Render>', '<nome do salão>')
 on conflict (id) do nothing;
@@ -141,7 +181,16 @@ select '<DEFAULT_EMPRESA_ID do Render>', id, 'admin'
 from app_users where lower(email) = lower('<e-mail do dono>')
 on conflict (empresa_id, user_id) do update set role = 'admin', status = 'ativo';
 ```
-3. Entre na PWA com e-mail e senha. O **assistente de configuração** abre sozinho (dados, horários,
+3. Fumaça pós-deploy (read-only; API + PWA):
+```bash
+node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api \
+  --pwa <URL pública da PWA>
+```
+   Confere health 200, rota de negócio sem token 401, headers de segurança, CORS só para a PWA,
+   `/api/public/*` 404 (desligado), CSP/headers do site e `config.json`. WARN conhecidos:
+   `api.cors.localhost` e `pwa.publicacao` (ver `PROJECT_STATE`). A PWA no GitHub Pages reprova
+   `pwa.csp`/`pwa.headers`: o Pages não envia headers — a CSP só existe no static do Render.
+4. Entre na PWA com e-mail e senha. O **assistente de configuração** abre sozinho (dados, horários,
    pagamentos, serviços, equipe e simulação). Depois, **Gestão → Equipe** convida o restante.
 
 Smoke test com o JWT do admin (DevTools → Application → Local Storage → `hopeos.session`):
