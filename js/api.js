@@ -250,6 +250,10 @@ export function getInsightsRebooking(clienteId, servicoId) {
   return api(`/insights/rebooking/${clienteId}${query}`);
 }
 
+export function getAgendaHistorico(agendamentoId) {
+  return api(`/agenda/${encodeURIComponent(agendamentoId)}/historico`);
+}
+
 export function getClientReliability(clienteId) {
   return api(`/insights/clients/${clienteId}/reliability`);
 }

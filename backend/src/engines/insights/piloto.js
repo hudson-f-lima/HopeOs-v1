@@ -31,10 +31,22 @@
 //    `emMaturacao`, fora do denominador). Voltou = outro atendimento com data em
 //    (1º, 1º + RETORNO_JANELA_DIAS].
 //
-// 4. confirmacaoPrevia = confirmados / agendamentos de hoje ainda não atendidos.
-//    Universo: agendamentos com data = hoje e status agendado|confirmado.
-//    LIMITAÇÃO: o status "confirmado" é sobrescrito no atendimento/falta e não há
-//    histórico de status gravado; por isso é uma FOTO do dia atual (não usa de/ate).
+// 4. confirmacaoPrevia — dois escopos (campo `escopo`):
+//    a) 'periodo_eventos' (quando há trilha em agendamento_eventos no período):
+//       confirmados com antecedência / agendamentos que chegaram ao dia.
+//       Universo: agendamentos com data em [de, ate], data <= hoje, COM pelo menos
+//       um evento na trilha (os anteriores à trilha ficam em `semTrilha`, fora do
+//       denominador, para não contarem como "não confirmado"), excluindo os
+//       cancelados/reagendados ANTES do dia (data local do evento — ou de
+//       updated_at, se o evento faltar — < data do agendamento). Cancelado no
+//       próprio dia continua no denominador.
+//       Numerador: os do universo com evento de status para 'confirmado' cuja
+//       data local (fuso da empresa) é < data do agendamento.
+//    b) 'foto_do_dia' (sem trilha no período — fallback, regra antiga):
+//       confirmados / agendamentos de hoje com status agendado|confirmado.
+//       O status "confirmado" é sobrescrito no atendimento/falta, por isso é só
+//       uma foto do dia atual (não usa de/ate).
+//    `fotoDoDia` (sempre presente) traz a regra b) para comparação.
 //
 // Quebra por profissional (`porProfissional`) para falta e reagendamento, com as
 // MESMAS definições, para medir no futuro gatilhos por profissional (ex.: falta
@@ -115,7 +127,32 @@ function falta(passados) {
   return kpi('taxaFalta', noShow, atendidos + noShow + cancelTardio, { atendidos, noShow, cancelTardio });
 }
 
-function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], de, ate, hoje, timeZone = 'America/Sao_Paulo' }) {
+function confirmacaoPorEventos({ ags, eventos, noPeriodo, hoje, timeZone }) {
+  const porAg = new Map();
+  eventos.forEach(e => {
+    if (!e || !e.agendamento_id) return;
+    const k = String(e.agendamento_id);
+    if (!porAg.has(k)) porAg.set(k, []);
+    porAg.get(k).push(e);
+  });
+  const chegaram = ags.filter(a => noPeriodo(a.data) && a.data <= hoje);
+  const comTrilha = chegaram.filter(a => porAg.has(String(a.id)));
+  const diaDoEvento = e => dataLocal(e.created_at, timeZone);
+  const paraStatus = (evs, status) => evs.filter(e => e.payload && e.payload.para === status);
+  let canceladosAntes = 0;
+  const universo = comTrilha.filter(a => {
+    if (a.status !== 'cancelado' && a.status !== 'reagendado') return true;
+    const evs = paraStatus(porAg.get(String(a.id)), a.status);
+    const quando = evs.length ? evs.map(diaDoEvento).filter(Boolean).sort()[0] : dataLocal(a.updated_at, timeZone);
+    if (quando && quando < a.data) { canceladosAntes += 1; return false; }
+    return true;
+  });
+  const confirmados = universo.filter(a => paraStatus(porAg.get(String(a.id)), 'confirmado')
+    .some(e => { const d = diaDoEvento(e); return d && d < a.data; })).length;
+  return { confirmados, universo: universo.length, comTrilha: comTrilha.length, semTrilha: chegaram.length - comTrilha.length, canceladosAntes };
+}
+
+function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], eventos = [], de, ate, hoje, timeZone = 'America/Sao_Paulo' }) {
   const noPeriodo = d => d && d >= de && d <= ate;
   const ags = agendamentos.map(a => ({ ...a, data: dia(a.data) }));
 
@@ -182,13 +219,28 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], de
     janelaDias: RETORNO_JANELA_DIAS
   });
 
-  // 4. Confirmação prévia (foto de hoje)
+  // 4. Confirmação prévia: trilha de eventos no período; sem trilha, foto de hoje.
   const deHoje = ags.filter(a => a.data === hoje && (a.status === 'agendado' || a.status === 'confirmado'));
-  const confirmacaoPrevia = kpi('confirmacaoPrevia', deHoje.filter(a => a.status === 'confirmado').length, deHoje.length, {
-    dia: hoje,
-    escopo: 'foto_do_dia',
-    limitacao: 'status confirmado é sobrescrito no atendimento; sem histórico de status, mede só a agenda de hoje ainda não atendida'
-  });
+  const fotoNum = deHoje.filter(a => a.status === 'confirmado').length;
+  const { referencia: _rc, ...fotoDoDia } = kpi('confirmacaoPrevia', fotoNum, deHoje.length, { dia: hoje });
+  const trilha = confirmacaoPorEventos({ ags, eventos, noPeriodo, hoje, timeZone });
+  const confirmacaoPrevia = trilha.comTrilha > 0
+    ? kpi('confirmacaoPrevia', trilha.confirmados, trilha.universo, {
+      dia: hoje,
+      escopo: 'periodo_eventos',
+      semTrilha: trilha.semTrilha,
+      canceladosAntes: trilha.canceladosAntes,
+      fotoDoDia,
+      limitacao: 'usa a trilha de agendamento_eventos (best-effort): agendamentos sem evento ficam fora do denominador (semTrilha)'
+    })
+    : kpi('confirmacaoPrevia', fotoNum, deHoje.length, {
+      dia: hoje,
+      escopo: 'foto_do_dia',
+      semTrilha: trilha.semTrilha,
+      canceladosAntes: 0,
+      fotoDoDia,
+      limitacao: 'sem trilha de status no período: mede só a agenda de hoje ainda não atendida (status confirmado é sobrescrito no atendimento)'
+    });
 
   return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, porProfissional };
 }

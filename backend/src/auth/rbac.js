@@ -16,6 +16,9 @@ const ACTIONS = {
   'agenda:read': { roles: ALL, own: ['profissional'] },
   'agenda:write': { roles: ALL, own: ['profissional'] },
   'checkout:write': { roles: ALL, own: ['profissional'] },
+  // Estorno de comanda (D-013): só gestão humana. userOnly: o token legado e as
+  // integrações não estornam (sem ator humano não há autoria do estorno).
+  'checkout:estornar': { roles: GESTAO, userOnly: true },
   'estoque:write': { roles: GESTAO },
   'lista_espera:read': { roles: OPERACAO },
   'lista_espera:write': { roles: OPERACAO },

@@ -4,6 +4,7 @@ const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const occupancy = require('../engines/insights/occupancy');
 const cashflow = require('../engines/insights/cashflow');
 const margin = require('../engines/insights/margin');
+const { itensNegativos, gorjetasNegativas, pagamentosNegativos, comandasEstornadasTotal } = require('../engines/EstornoEngine');
 
 class InsightsService {
   constructor(empresaId) {
@@ -75,12 +76,18 @@ class InsightsService {
 
   async loadMarginInsights(dataFrom, dataTo) {
     // GET /insights/margin?from=YYYY-MM-DD&to=YYYY-MM-DD
-    const [comandoItens, comandoGorjetas, comandoPagamentos, comandos] = await Promise.all([
+    const [comandoItens, comandoGorjetas, comandoPagamentos, comandos, [estornos, estornoItens, estornoPagamentos, estornoGorjetas]] = await Promise.all([
       this.repo.list('comando_itens', { empresa_id: this.repo.empresaId }),
       this.repo.list('comando_gorjetas', { empresa_id: this.repo.empresaId }),
       this.repo.list('comando_pagamentos', { empresa_id: this.repo.empresaId }),
-      this.repo.list('comandos', { empresa_id: this.repo.empresaId })
+      this.repo.list('comandos', { empresa_id: this.repo.empresaId }),
+      Promise.all(this.repo.listEstornoTables())
     ]);
+    // Estornos (D-013) entram pela data DO ESTORNO, como linhas negativas.
+    const noPeriodo = e => e.data >= dataFrom && e.data <= dataTo;
+    const negItens = itensNegativos({ estornos, estornoItens, comandoItens, filtro: noPeriodo });
+    const negGorjetas = gorjetasNegativas({ estornos, estornoGorjetas, filtro: noPeriodo });
+    const negPagamentos = pagamentosNegativos({ estornos, estornoPagamentos, filtro: noPeriodo });
 
     // Filtrar por range de datas
     const cmdFiltered = comandos.filter(c => c.data >= dataFrom && c.data <= dataTo);
@@ -97,21 +104,38 @@ class InsightsService {
       return cmd && cmd.data >= dataFrom && cmd.data <= dataTo;
     });
 
+    const itensLiquidos = itemFiltered.concat(negItens);
+    // Ticket: reembolsos do período saem do numerador; comanda 100% estornada sai da base.
+    const totalmente = comandasEstornadasTotal(estornos);
+    const cmdValidas = cmdFiltered.filter(c => !totalmente.has(c.id));
+    const reembolsos = negPagamentos.reduce((s, p) => s + p.valor_centavos, 0);
+    const ticketMedioCentavos = cmdValidas.length
+      ? Math.round((cmdFiltered.reduce((s, c) => s + (c.total_recebido_centavos || 0), 0) + reembolsos) / cmdValidas.length)
+      : 0;
+
     return {
-      porServico: margin.aggregateMarginByServico(itemFiltered, cmdFiltered),
-      porProfissional: margin.aggregateMarginByProfissional(itemFiltered, gorjetasFiltered),
-      porProduto: margin.aggregateMarginByProduto(itemFiltered),
-      porForma: margin.aggregateMarginByForma(pagFiltered),
-      ticketMedioCentavos: margin.computeTicketMedio(cmdFiltered)
+      porServico: margin.aggregateMarginByServico(itensLiquidos, cmdFiltered),
+      porProfissional: margin.aggregateMarginByProfissional(itensLiquidos, gorjetasFiltered.concat(negGorjetas)),
+      porProduto: margin.aggregateMarginByProduto(itensLiquidos),
+      porForma: margin.aggregateMarginByForma(pagFiltered.concat(negPagamentos)),
+      ticketMedioCentavos,
+      estornos: {
+        quantidade: estornos.filter(noPeriodo).length,
+        reembolsoCentavos: -reembolsos
+      }
     };
   }
 
   async loadCashflowInsights(days = 30) {
     // GET /insights/cashflow?days=30
-    const [comandoPagamentos, formasPagamento] = await Promise.all([
+    const [pagamentosOriginais, formasPagamento, estornos, estornoPagamentos] = await Promise.all([
       this.repo.list('comando_pagamentos', { empresa_id: this.repo.empresaId }),
-      this.repo.list('formas_pagamento', { empresa_id: this.repo.empresaId })
+      this.repo.list('formas_pagamento', { empresa_id: this.repo.empresaId }),
+      this.repo.list('comanda_estornos', { empresa_id: this.repo.empresaId }),
+      this.repo.list('comanda_estorno_pagamentos', { empresa_id: this.repo.empresaId })
     ]);
+    // Reembolso de estorno (D-013) entra como pagamento negativo na mesma forma.
+    const comandoPagamentos = pagamentosOriginais.concat(pagamentosNegativos({ estornos, estornoPagamentos }));
 
     const hoje = new Date().toISOString().split('T')[0];
     const curva = cashflow.projectCashflow(

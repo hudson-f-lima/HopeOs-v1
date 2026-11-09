@@ -5,6 +5,14 @@ const { randomUUID } = require('crypto');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { findScheduleConflicts } = require('../engines/ScheduleEngine');
 const { createAppError } = require('../errors');
+const { getIdentityStore } = require('../auth/identityStore');
+const clock = require('../config/clock');
+const { calcularEstorno } = require('../engines/EstornoEngine');
+
+// JSON com chaves ordenadas: o "hash" do pedido não depende da ordem das chaves (como o jsonb).
+const canonico = v => Array.isArray(v) ? `[${v.map(canonico).join(',')}]`
+  : (v && typeof v === 'object') ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonico(v[k])}`).join(',')}}`
+  : JSON.stringify(v);
 
 function installMemoryBackend(seed = {}) {
   const db = { autoria_eventos: [], ...seed };
@@ -17,7 +25,11 @@ function installMemoryBackend(seed = {}) {
     const set = new Set(ids || []);
     return rows('comando_pagamentos').filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
   };
-  P.getByIdScoped = async function (t, id) { return rows(t).find(r => r.id === id && r.empresa_id === this.empresaId) || null; };
+  P.listDasComandas = async function (t, ids) {
+    const set = new Set(ids || []);
+    return rows(t).filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
+  };
+  P.getByIdScoped =async function (t, id) { return rows(t).find(r => r.id === id && r.empresa_id === this.empresaId) || null; };
   P.insert = async function (t, p) {
     if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
     const { empresa_id, empresaId, ...rest } = p;
@@ -93,20 +105,49 @@ function installMemoryBackend(seed = {}) {
     return prod;
   };
   // Espelha o que o RPC checkout_close grava (migration 003): comanda com data e
-  // totais, um comando_pagamentos e um caixa_movimentos por pagamento. Data padrão
-  // = current_date do Postgres (UTC no Supabase), como no RPC.
+  // totais, itens, um comando_pagamentos e um caixa_movimentos por pagamento,
+  // gorjetas e baixa de estoque de produto. Data padrão = current_date (UTC), como no RPC.
   P.saveCheckoutClose = async function ({ payload = {}, resolved = {}, preview, autoria = {} }) {
     const t = (preview && preview.totals) || {};
     const data = payload.data || resolved.data || new Date().toISOString().slice(0, 10);
     const comando = await this.insert('comandos', {
-      status: 'fechado', data, cliente_id: payload.clienteId || null,
+      status: 'fechado', data, hora: payload.hora || resolved.hora || null, cliente_id: payload.clienteId || null,
+      servicos_liquidos_centavos: t.servicosLiquidosCentavos || 0,
+      produtos_liquidos_centavos: t.produtosLiquidosCentavos || 0,
+      itens_liquidos_centavos: t.itensLiquidosCentavos || 0,
       gorjeta_bruta_centavos: t.gorjetaBrutaCentavos || 0,
       total_recebido_centavos: t.totalRecebidoCentavos || 0,
       taxa_total_centavos: t.taxaTotalCentavos || 0,
+      total_comissao_centavos: t.totalComissaoCentavos || 0,
       total_gorjeta_liquida_centavos: t.totalGorjetaLiquidaCentavos || 0,
       receita_empresa_centavos: t.receitaEmpresaCentavos || 0,
       actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null
     });
+    for (const it of (preview && preview.itens) || []) {
+      const item = await this.insert('comando_itens', {
+        comando_id: comando.id, tipo: it.tipo || 'servico', servico_id: it.servicoId || null, produto_id: it.produtoId || null,
+        profissional_id: it.profissionalId || null, quantidade: it.quantidade || 1, descricao: it.descricao || null,
+        preco_unitario_centavos: it.precoUnitarioCentavos || 0, custo_unitario_centavos: it.custoUnitarioCentavos || 0,
+        valor_bruto_centavos: it.valorBrutoCentavos || 0, desconto_centavos: it.descontoCentavos || 0,
+        valor_liquido_centavos: it.valorLiquidoCentavos || 0, total_venda_centavos: it.totalVendaCentavos || 0,
+        total_custo_centavos: it.totalCustoCentavos || 0, lucro_bruto_centavos: it.lucroBrutoCentavos || 0,
+        duracao_min: it.duracaoMin || 0, taxa_item_centavos: it.taxaItemCentavos || 0, comissao_pct: it.comissaoPct || 0,
+        comissao_centavos: it.comissaoCentavos || 0, receita_empresa_centavos: it.receitaEmpresaCentavos || 0
+      });
+      const prod = item.tipo === 'produto' && rows('produtos').find(p => p.id === item.produto_id && p.empresa_id === this.empresaId);
+      if (prod && prod.controla_estoque !== false) {
+        const antes = Number(prod.estoque_atual || 0);
+        if (antes < item.quantidade) throw createAppError('BUSINESS_RULE_VIOLATION', `estoque insuficiente para produto ${prod.id}`, 422);
+        prod.estoque_atual = antes - item.quantidade;
+        await this.insert('produto_estoque_movimentos', { produto_id: prod.id, comando_id: comando.id, comando_item_id: item.id, tipo: 'venda', quantidade: item.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, actor_id: autoria.actorId || null });
+      }
+    }
+    for (const g of (preview && preview.gorjetas) || []) {
+      await this.insert('comando_gorjetas', {
+        comando_id: comando.id, profissional_id: g.profissionalId || null, valor_bruto_centavos: g.gorjetaBrutaCentavos || 0,
+        taxa_centavos: g.taxaGorjetaCentavos || 0, valor_liquido_centavos: g.gorjetaLiquidaCentavos || 0, regra: g.regra || 'automatic'
+      });
+    }
     for (const p of (preview && preview.payments) || []) {
       await this.insert('comando_pagamentos', {
         comando_id: comando.id, forma_code: p.formaCode, valor_centavos: p.valorCentavos || 0,
@@ -119,6 +160,75 @@ function installMemoryBackend(seed = {}) {
       });
     }
     return { comandoId: comando.id, preview: Boolean(preview) };
+  };
+
+  // Espelho da RPC comanda_estornar (migration 009): mesma ordem de checagens e os
+  // mesmos códigos. Sem advisory lock: não há await entre ler o saldo e gravar.
+  const resumoEstorno = (e, idempotent) => {
+    const doEvento = t => rows(t).filter(r => r.estorno_id === e.id);
+    const ordem = k => (a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0);
+    return {
+      estornoId: e.id, comandoId: e.comando_id, tipo: e.tipo, motivoCodigo: e.motivo_codigo, data: e.data,
+      itensCentavos: e.itens_centavos, custoCentavos: e.custo_centavos, comissaoCentavos: e.comissao_centavos,
+      receitaEmpresaCentavos: e.receita_empresa_centavos, gorjetaBrutaCentavos: e.gorjeta_bruta_centavos,
+      gorjetaLiquidaCentavos: e.gorjeta_liquida_centavos, reembolsoCentavos: e.reembolso_centavos, actorId: e.actor_id,
+      itens: doEvento('comanda_estorno_itens').map(i => ({ comandoItemId: i.comando_item_id, quantidade: i.quantidade, valorLiquidoCentavos: i.valor_liquido_centavos, comissaoCentavos: i.comissao_centavos, devolveEstoque: i.devolve_estoque })).sort(ordem('comandoItemId')),
+      reembolsos: doEvento('comanda_estorno_pagamentos').map(p => ({ formaCode: p.forma_code, valorCentavos: p.valor_centavos })).sort(ordem('formaCode')),
+      statusComanda: rows('comanda_estornos').some(t => t.comando_id === e.comando_id && t.empresa_id === e.empresa_id && t.tipo === 'total') ? 'estornado' : 'estornado_parcial',
+      idempotent
+    };
+  };
+  P.estornarComanda = async function (comandoId, payload, actorId) {
+    const E = this.empresaId;
+    const hojeUtc = clock.agora().toISOString().slice(0, 10);
+    if (!E || !comandoId || !actorId || !payload.idempotencyKey) throw createAppError('ESTORNO_PAYLOAD_INVALIDO', 'empresa, comanda, ator e idempotencyKey obrigatorios', 422);
+    if (!payload.data || Math.abs(Date.parse(`${payload.data}T00:00:00Z`) - Date.parse(`${hojeUtc}T00:00:00Z`)) > 864e5) {
+      throw createAppError('ESTORNO_DATA_INVALIDA', `data ${payload.data} não é hoje`, 422);
+    }
+    // Papel conferido "no banco" (aqui: no identity store), além do RBAC da rota.
+    const memberships = await getIdentityStore().listMembershipsByUser(actorId);
+    const m = memberships.find(x => x.empresa_id === E && x.status === 'ativo');
+    if (!m) throw createAppError('ESTORNO_FORBIDDEN', 'ator sem membership ativa na empresa', 403);
+    if (!['admin', 'gestor'].includes(m.role)) throw createAppError('ESTORNO_FORBIDDEN', 'só admin ou gestor estornam', 403);
+
+    const { idempotencyKey, data, ...semChave } = payload;
+    const hash = canonico({ comandoId, payload: semChave });
+    const existente = rows('comanda_estornos').find(e => e.empresa_id === E && e.idempotency_key === idempotencyKey);
+    if (existente) {
+      if (existente.payload_hash !== hash) throw createAppError('IDEMPOTENCY_MISMATCH', 'idempotencyKey já usada com outro pedido', 409);
+      return resumoEstorno(existente, true);
+    }
+    const comanda = rows('comandos').find(c => c.id === comandoId && c.empresa_id === E);
+    if (!comanda) throw createAppError('COMANDA_NOT_FOUND', comandoId, 404);
+    const daComanda = t => rows(t).filter(r => r.empresa_id === E && r.comando_id === comandoId);
+    const calc = calcularEstorno({
+      comanda, pedido: payload, data, hojeUtc,
+      itens: daComanda('comando_itens'), pagamentos: daComanda('comando_pagamentos'), gorjetas: daComanda('comando_gorjetas'),
+      estornos: daComanda('comanda_estornos'), estornoItens: daComanda('comanda_estorno_itens'),
+      estornoPagamentos: daComanda('comanda_estorno_pagamentos'), produtos: rows('produtos').filter(p => p.empresa_id === E)
+    });
+    const now = clock.agora().toISOString();
+    const evento = await this.insert('comanda_estornos', {
+      comando_id: comandoId, tipo: payload.tipo, motivo_codigo: payload.motivoCodigo, motivo: payload.motivo, data,
+      idempotency_key: idempotencyKey, payload_hash: hash, ...calc.totais, actor_id: actorId, created_at: now
+    });
+    for (const l of calc.linhas) {
+      if (l.devolveEstoque) {
+        const prod = rows('produtos').find(p => p.id === l.item.produto_id && p.empresa_id === E);
+        const antes = Number(prod.estoque_atual || 0);
+        prod.estoque_atual = antes + l.quantidade;
+        await this.insert('produto_estoque_movimentos', { produto_id: prod.id, comando_id: comandoId, comando_item_id: l.item.id, tipo: 'devolucao', quantidade: l.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, motivo: 'Devolução por estorno de comanda', actor_id: actorId, created_at: now });
+      }
+      await this.insert('comanda_estorno_itens', { estorno_id: evento.id, comando_id: comandoId, comando_item_id: l.item.id, quantidade: l.quantidade, valor_liquido_centavos: l.valor, comissao_centavos: l.comissao, receita_empresa_centavos: l.receita, custo_centavos: l.custo, devolve_estoque: l.devolveEstoque, created_at: now });
+    }
+    for (const g of calc.gorjetas) {
+      await this.insert('comanda_estorno_gorjetas', { estorno_id: evento.id, comando_id: comandoId, comando_gorjeta_id: g.gorjeta.id || null, profissional_id: g.gorjeta.profissional_id || null, valor_bruto_centavos: g.bruto, valor_liquido_centavos: g.liquido, created_at: now });
+    }
+    for (const r of calc.reembolsos) {
+      await this.insert('comanda_estorno_pagamentos', { estorno_id: evento.id, comando_id: comandoId, forma_code: r.formaCode, valor_centavos: r.valorCentavos, created_at: now });
+      await this.insert('caixa_movimentos', { comando_id: comandoId, data, tipo: 'estorno_pagamento', forma_code: r.formaCode, valor_centavos: -r.valorCentavos, descricao: 'Estorno de comanda', created_at: now });
+    }
+    return resumoEstorno(evento, false);
   };
   return db;
 }

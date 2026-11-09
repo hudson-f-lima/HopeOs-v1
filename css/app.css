@@ -496,6 +496,13 @@ h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
 .sheet-actions .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}
 .sheet-actions .btn.danger{background:#fde8e8;color:var(--md-error);}
 .sheet-actions .btn.primary{background:var(--md-primary);color:var(--md-on-primary);}
+.sheet-historico{margin-top:12px;font-size:13px;}
+.sheet-historico summary{cursor:pointer;font-weight:700;color:var(--md-primary);padding:6px 0;}
+.sheet-historico-lista{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.sheet-historico-item{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;}
+.sheet-historico-quando{color:var(--md-neutral);font-variant-numeric:tabular-nums;}
+.sheet-historico-quem{color:var(--md-neutral);font-style:italic;}
+.sheet-historico-vazio{color:var(--md-neutral);margin:4px 0 0;}
 .gestao-sheet{max-height:88vh;background:linear-gradient(180deg,#ffffff 0%,#f7f5ff 100%);}
 .gestao-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
 .gestao-profile{display:flex;align-items:center;gap:10px;min-width:0;}

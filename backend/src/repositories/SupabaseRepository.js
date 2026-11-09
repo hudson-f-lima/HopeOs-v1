@@ -3,6 +3,16 @@ const { getSupabase } = require('../db/supabaseClient');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 
+// SQLSTATE HS4xx da RPC comanda_estornar → status HTTP; a mensagem é o código da API.
+const ESTORNO_STATUS = { HS403: 403, HS404: 404, HS409: 409, HS422: 422 };
+function mapEstornoError(error) {
+  if (ESTORNO_STATUS[error.code]) return createAppError(error.message, error.details || error.message, ESTORNO_STATUS[error.code]);
+  // Corrida da mesma idempotencyKey em comandas diferentes: o unique do banco decide.
+  if (error.code === '23505') return createAppError('IDEMPOTENCY_MISMATCH', 'idempotencyKey já usada com outro pedido.', 409);
+  if (error.code === 'P0001' && /membership/.test(error.message || '')) return createAppError('ESTORNO_FORBIDDEN', error.message, 403);
+  return error;
+}
+
 class SupabaseRepository {
   constructor(empresaId = env.DEFAULT_EMPRESA_ID) {
     this.supabase = getSupabase();
@@ -43,6 +53,23 @@ class SupabaseRepository {
     for (let i = 0; i < ids.length; i += 100) {
       const { data, error } = await this.supabase
         .from('comando_pagamentos')
+        .select('*')
+        .eq('empresa_id', this.empresaId)
+        .in('comando_id', ids.slice(i, i + 100));
+      if (error) throw error;
+      rows.push(...(data || []));
+    }
+    return rows;
+  }
+
+  // Linhas de um conjunto de comandas em qualquer tabela com comando_id (itens,
+  // pagamentos, estornos...), sempre filtradas pela empresa do repositório.
+  async listDasComandas(table, comandoIds) {
+    const ids = [...new Set((comandoIds || []).filter(Boolean))];
+    const rows = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await this.supabase
+        .from(table)
         .select('*')
         .eq('empresa_id', this.empresaId)
         .in('comando_id', ids.slice(i, i + 100));
@@ -196,7 +223,8 @@ class SupabaseRepository {
   }
 
   async loadSnapshot() {
-    const [empresa, clientes, servicos, produtos, profissionais, profissionalServicos, agendamentos, formasPagamento, comandos, comandoItens, comandoPagamentos, comandoGorjetas, caixaMovimentos, estoqueMovimentos, listaEspera, eventos] = await Promise.all([
+    const [empresa, clientes, servicos, produtos, profissionais, profissionalServicos, agendamentos, formasPagamento, comandos, comandoItens, comandoPagamentos, comandoGorjetas, caixaMovimentos, estoqueMovimentos, listaEspera, eventos,
+      comandaEstornos, comandaEstornoItens, comandaEstornoPagamentos, comandaEstornoGorjetas] = await Promise.all([
       this.list('empresas', { id: this.empresaId }),
       this.list('clientes', { empresa_id: this.empresaId }),
       this.list('servicos', { empresa_id: this.empresaId }),
@@ -212,7 +240,8 @@ class SupabaseRepository {
       this.list('caixa_movimentos', { empresa_id: this.empresaId }),
       this.list('produto_estoque_movimentos', { empresa_id: this.empresaId }),
       this.list('lista_espera', { empresa_id: this.empresaId }),
-      this.list('agendamento_eventos', { empresa_id: this.empresaId })
+      this.list('agendamento_eventos', { empresa_id: this.empresaId }),
+      ...this.listEstornoTables()
     ]);
 
     return {
@@ -231,8 +260,31 @@ class SupabaseRepository {
       caixaMovimentos,
       estoqueMovimentos,
       listaEspera,
-      eventos
+      eventos,
+      comandaEstornos,
+      comandaEstornoItens,
+      comandaEstornoPagamentos,
+      comandaEstornoGorjetas
     };
+  }
+
+  // Estornos (migration 009): eventos e linhas, sempre da empresa do repositório.
+  listEstornoTables(filters = {}) {
+    const f = { ...filters, empresa_id: this.empresaId };
+    return ['comanda_estornos', 'comanda_estorno_itens', 'comanda_estorno_pagamentos', 'comanda_estorno_gorjetas'].map(t => this.list(t, f));
+  }
+
+  // Estorno de comanda (D-013): tudo dentro da RPC comanda_estornar (lock, saldo,
+  // papel no banco, idempotência, caixa negativo, devolução de estoque).
+  async estornarComanda(comandoId, payload, actorId) {
+    const { data, error } = await this.supabase.rpc('comanda_estornar', {
+      p_empresa_id: this.empresaId,
+      p_comando_id: comandoId,
+      p_payload: payload,
+      p_actor_id: actorId
+    });
+    if (error) throw mapEstornoError(error);
+    return data;
   }
 
   async loadCheckoutContext() {
@@ -275,6 +327,24 @@ class SupabaseRepository {
     return data;
   }
 
+  // Trilha da agenda (tabela agendamento_eventos da 001). empresa_id sempre de
+  // this.empresaId via insert(); quem chama garante que o agendamento é do tenant.
+  async registrarEventoAgenda({ agendamentoId, tipo, payload }) {
+    return this.insert('agendamento_eventos', {
+      agendamento_id: agendamentoId,
+      tipo,
+      payload: payload || {},
+      created_at: new Date().toISOString()
+    });
+  }
+
+  // Eventos de um agendamento do tenant, do mais antigo para o mais novo
+  // (sort estável: empate de created_at mantém a ordem de leitura).
+  async listEventosAgenda(agendamentoId) {
+    const rows = await this.list('agendamento_eventos', { empresa_id: this.empresaId, agendamento_id: agendamentoId });
+    return rows.slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  }
+
   // Checagem de conflito + insert numa transação sob lock (migration 007):
   // dois pedidos simultâneos para o mesmo horário não gravam os dois.
   async criarAgendamento({ agendamento, permitirConflito = false, ignorarId = null, createdBy = null }) {
@@ -297,4 +367,4 @@ class SupabaseRepository {
   }
 }
 
-module.exports = { SupabaseRepository };
+module.exports = { SupabaseRepository, mapEstornoError };

@@ -75,6 +75,30 @@ select to_regclass('public.app_users') is not null as app_users,
        exists (select 1 from information_schema.columns where table_name = 'empresas' and column_name = 'buffer_min') as buffer_008;
 ```
 
+### 4.1 Migration 009 — estorno de comanda (D-013)
+Aplicada pelo merge na `main` (integração GitHub, opção C), como a 008. Antes do merge: `supabase/tests/check_migrations.sh` e `supabase/tests/run.sh` verdes (gate_009, concorrência, controles negativos e ciclo de rollback 009→008→007). Backend e migration vão juntos: o backend novo lê `comanda_estornos*` no snapshot e nos relatórios e falha sem a 009.
+
+Verificação pós-merge (todas `true`):
+```sql
+select to_regclass('public.comanda_estornos') is not null as estornos,
+       to_regclass('public.comanda_estorno_itens') is not null as estorno_itens,
+       to_regclass('public.comanda_estorno_pagamentos') is not null as estorno_pagamentos,
+       to_regclass('public.comanda_estorno_gorjetas') is not null as estorno_gorjetas,
+       to_regprocedure('public.comanda_estornar(uuid, uuid, jsonb, uuid)') is not null as rpc_estorno,
+       not has_function_privilege('anon', 'public.comanda_estornar(uuid, uuid, jsonb, uuid)', 'execute') as rpc_fechada_anon,
+       not has_function_privilege('authenticated', 'public.comanda_estornar(uuid, uuid, jsonb, uuid)', 'execute') as rpc_fechada_auth,
+       not has_table_privilege('service_role', 'public.comanda_estornos', 'update') as estorno_sem_update,
+       (select count(*) from pg_trigger where tgname = 'trg_ledger_imutavel') = 10 as imutabilidade_10_tabelas,
+       pg_get_constraintdef((select oid from pg_constraint where conname = 'produto_estoque_movimentos_tipo_check')) like '%devolucao%' as estoque_devolucao,
+       exists (select 1 from pg_constraint where conname = 'caixa_movimentos_estorno_negativo') as caixa_estorno_negativo,
+       (select bool_and(rowsecurity) from pg_tables where schemaname = 'public') as rls_em_tudo,
+       not exists (select 1 from information_schema.role_table_grants
+                   where table_schema = 'public' and grantee in ('anon', 'authenticated')) as anon_fechado;
+```
+Fumaça pela API (admin logado, comanda de teste do dia): `POST /api/comandas/:id/estorno` com `{"tipo":"total","idempotencyKey":"<uuid>","motivoCodigo":"erro_lancamento","motivo":"teste de fumaça do estorno"}` → 201; repetir o mesmo corpo → 200 `idempotent: true`; `GET /api/caixa/fechamento` mostra `estornos.valorCentavos` negativo; com o token legado → 403.
+
+**Ledger imutável a partir da 009:** `update`/`delete`/`truncate` em `comandos`, `comando_itens`, `comando_pagamentos`, `comando_gorjetas`, `caixa_movimentos`, `produto_estoque_movimentos` e `comanda_estorno*` falham (`ledger imutável: ...`). Isso inclui apagar empresa/produto/comanda com histórico (cascade) e `backend/scripts/clear-test-data.js`. Limpeza de dados de teste em produção passa a exigir SQL autorizado pelo Platform Owner, numa transação, com `alter table <t> disable trigger trg_ledger_imutavel` antes e `enable trigger` depois.
+
 ## 5. Configurar o Supabase Auth
 Authentication → URL Configuration:
 - **Site URL** e **Redirect URLs**: a URL pública da PWA (ex.: `https://hudson-f-lima.github.io/HopeOs-v1/` ou a do Render static). É para onde vão os links de convite e de recuperação.
@@ -131,6 +155,8 @@ curl -s https://hopeos-v1.onrender.com/api/clientes -H "Authorization: Bearer $A
 |---|---|
 | Problema só no login/JWT | Usar o token legado (`?apiToken=` / "modo antigo"); não exige mexer no banco |
 | Backend novo com erro | Reverter o merge em `main` **e** aplicar `supabase/rollback/007_down.sql` (o backend antigo não conhece as RPCs novas, mas também não depende delas) |
+| Problema no estorno com estornos já gravados | Rollback é do **backend** (reverter o merge do backend / esconder a rota), não do banco: `009_down.sql` recusa rodar com estorno, devolução de estoque ou `estorno_pagamento` gravados (ledger não se apaga) |
+| Desfazer a 009 (sem estornos gravados) | `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/rollback/009_down.sql` — antes de desfazer a 008; remove tabelas/RPC de estorno, triggers de imutabilidade e volta o check de estoque sem `devolucao`. Reverter junto o backend (ele lê `comanda_estornos*`) |
 | Desfazer a 008 | `supabase/rollback/008_down.sql` (antes de desfazer a 007; restaura o `agendamento_criar` sem buffer) |
 | Desfazer a 007 | `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/rollback/007_down.sql` — apaga memberships, integrações e a autoria gravada após a 007; RLS/revogações de anon **não** são desfeitas de propósito |
 | Perda de dados | Restaurar o backup do passo 2 |

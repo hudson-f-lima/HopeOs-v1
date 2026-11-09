@@ -30,6 +30,7 @@ import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
+import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
@@ -352,6 +353,7 @@ async function init() {
     initEquipe();
     initComissoes();
     initCaixa();
+    initEstorno();
     if (sessionRoleIn('admin', 'gestor')) {
       const btnAssistente = document.getElementById('btnAbrirAssistente');
       btnAssistente.classList.remove('hidden');
@@ -367,7 +369,8 @@ async function init() {
     await Promise.all([
       loadWeekAgenda(),
       sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve(),
-      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarCaixa() : Promise.resolve()
+      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarCaixa() : Promise.resolve(),
+      podeEstornar() ? atualizarComandasEstorno() : Promise.resolve()
     ]);
   } catch (err) {
     console.error('Falha ao inicializar:', err);
@@ -404,7 +407,15 @@ window.addEventListener('hashchange', () => {
 });
 
 // Comanda fechada: o fechamento do dia muda.
-stateBus.addEventListener('checkout:closed', () => { if (sessionRoleIn('admin', 'gestor', 'recepcao')) atualizarCaixa(); });
+stateBus.addEventListener('checkout:closed', () => {
+  if (sessionRoleIn('admin', 'gestor', 'recepcao')) atualizarCaixa();
+  if (podeEstornar()) atualizarComandasEstorno();
+});
+// Estorno feito: caixa do dia e dashboard mudam (linha negativa, relatórios).
+stateBus.addEventListener('estorno:feito', () => {
+  atualizarCaixa();
+  atualizarDashboard();
+});
 
 // Listen to Tab Change event from event bus
 stateBus.addEventListener('tab:change', (e) => {

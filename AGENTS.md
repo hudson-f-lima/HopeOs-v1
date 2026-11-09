@@ -15,7 +15,7 @@ O estado atual e o handoff vivem exclusivamente em `docs/PROJECT_STATE.md`. Este
 ## Bloqueios permanentes
 
 - Não avançar para V1.5.
-- Não criar migrations 009+ nem tocar 001–008 (007 em D-007, 008 em D-009).
+- Não criar migrations 010+ nem tocar 001–009 (007 em D-007, 008 em D-009, 009 em D-013).
 - Não implementar escala global, novas features ou regras de negócio.
 - Não tratar `API_ACCESS_TOKEN` como autenticação final.
 - Não declarar multi-tenant seguro.
@@ -36,9 +36,9 @@ Todo achado deve ser classificado como `REAL`, `PARCIAL`, `MOCKADO`, `HARDCODED`
 
 ## Migrações e documentação
 
-- Fundação física: `supabase/migrations/001–008` (rollbacks da 007 e da 008 em `supabase/rollback/`), aplicada em produção em 2026-11-08.
+- Fundação física: `supabase/migrations/001–009` (rollbacks da 007, 008 e 009 em `supabase/rollback/`). Desde a 009 o ledger financeiro é imutável por trigger: limpeza de dados ou exclusão de empresa com histórico exige SQL autorizado (RUNBOOK §4.1).
 - Merge na `main` aplica migrations em produção (D-010): migration nova só com linha em `supabase/migrations.lock` e decisão em `docs/DECISIONS.md`.
-- Faixa 009+ é futura e não autorizada; 046–060 é obsoleta.
+- Faixa 010+ é futura e não autorizada; 046–060 é obsoleta.
 - Correções documentais são in-place e entram no índice.
 - SQL draft só em Markdown com `DRAFT ONLY`.
 
