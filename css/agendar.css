@@ -1,0 +1,97 @@
+/* Página pública de agendamento online (agendar.html). Independente do app.css:
+   carrega rápido no celular do cliente e não depende do app interno. */
+:root {
+  --primaria: #7c6af7;
+  --primaria-escura: #5b48e0;
+  --texto: #171620;
+  --texto-2: #6d6a7c;
+  --borda: #e3e0f2;
+  --fundo: #faf9ff;
+  --cartao: #ffffff;
+  --erro: #b42318;
+  --erro-fundo: #fde8e8;
+  --ok-fundo: #e8f9ee;
+  --raio: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--texto);
+  background: var(--fundo);
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+.pg { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom)); }
+.pg-topo { padding: 8px 0 12px; }
+.pg-marca { margin: 0; font-size: 13px; color: var(--texto-2); text-transform: uppercase; letter-spacing: .06em; }
+.pg-titulo { margin: 4px 0 0; font-size: 24px; line-height: 1.2; }
+.pg-info { color: var(--texto-2); font-size: 14px; margin: 8px 0; }
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 16px;
+  margin: 12px 0;
+}
+.cartao h2 { margin: 0 0 12px; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.passo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--primaria); color: #fff; font-size: 13px;
+}
+.aviso {
+  background: var(--erro-fundo); color: var(--erro);
+  border-radius: var(--raio); padding: 12px 14px; margin: 12px 0; font-size: 15px;
+}
+.opcoes { display: grid; gap: 8px; }
+.opcao {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 12px 14px;
+  border: 1px solid var(--borda); border-radius: 12px; background: #fff;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.opcao small { color: var(--texto-2); display: block; font-size: 13px; }
+.opcao .preco { font-weight: 600; white-space: nowrap; }
+.opcao[aria-pressed="true"], .dia[aria-pressed="true"], .horario[aria-pressed="true"] {
+  border-color: var(--primaria); background: var(--primaria); color: #fff;
+}
+.opcao[aria-pressed="true"] small { color: #ece9ff; }
+.dias { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+.dia {
+  flex: 0 0 auto; min-width: 64px; min-height: 60px; padding: 8px 10px; scroll-snap-align: start;
+  border: 1px solid var(--borda); border-radius: 12px; background: #fff;
+  font: inherit; color: inherit; cursor: pointer; text-align: center;
+}
+.dia small { display: block; font-size: 12px; text-transform: capitalize; }
+.dia strong { font-size: 16px; }
+.horarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.horario {
+  min-height: 44px; border: 1px solid var(--borda); border-radius: 10px; background: #fff;
+  font: inherit; font-weight: 600; color: inherit; cursor: pointer;
+}
+.resumo { margin: 0 0 12px; padding: 10px 12px; background: var(--fundo); border-radius: 10px; font-size: 14px; }
+.campo { margin: 0 0 12px; }
+.campo label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.campo input {
+  width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; font-size: 16px;
+  border: 1px solid var(--borda); border-radius: 10px; background: #fff; color: inherit;
+}
+.campo input:focus, .opcao:focus-visible, .dia:focus-visible, .horario:focus-visible, button:focus-visible {
+  outline: 3px solid #c9c1ff; outline-offset: 1px;
+}
+.isca { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.privacidade { font-size: 14px; color: var(--texto-2); margin: 4px 0 12px; }
+.privacidade summary { cursor: pointer; color: var(--primaria-escura); font-weight: 600; min-height: 32px; }
+.privacidade .versao { font-size: 12px; }
+.consentimento { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; margin: 0 0 16px; cursor: pointer; }
+.consentimento input { width: 22px; height: 22px; margin: 0; flex: 0 0 auto; }
+.btn-principal, .btn-secundario {
+  width: 100%; min-height: 52px; border-radius: 12px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.btn-principal { border: 0; background: var(--primaria); color: #fff; }
+.btn-principal:disabled { opacity: .6; cursor: progress; }
+.btn-secundario { border: 1px solid var(--primaria); background: #fff; color: var(--primaria-escura); }
+.confirmacao { background: var(--ok-fundo); border-color: #b7ebc6; }
+.confirmacao h2 { font-size: 20px; }

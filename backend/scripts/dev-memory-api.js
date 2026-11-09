@@ -11,6 +11,9 @@
 // Token legado (modo antigo): ?apiToken=dev
 // DEV_EMPRESA_VAZIA=1 começa com o salão sem configuração (assistente de onboarding).
 // GET /__db/:tabela devolve o estado em memória (para asserts de E2E).
+// DEV_PUBLIC_SLUG=salao-dev liga o agendamento online para o salão do seed
+// (equivale a PUBLIC_BOOKING_LINKS={"salao-dev":"<empresa do seed>"}):
+//   http://127.0.0.1:5599/agendar.html?s=salao-dev&apiBase=http://127.0.0.1:3399/api
 process.env.API_ACCESS_TOKEN = process.env.API_ACCESS_TOKEN || 'dev';
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.invalid';
 process.env.SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || 'dev-memory';
@@ -25,6 +28,9 @@ const { setAuthProvider } = require('../src/auth/provider');
 const { createAppError } = require('../src/errors');
 
 const E = env.DEFAULT_EMPRESA_ID;
+if (process.env.DEV_PUBLIC_SLUG && !env.PUBLIC_BOOKING_LINKS) {
+  env.PUBLIC_BOOKING_LINKS = JSON.stringify({ [process.env.DEV_PUBLIC_SLUG]: E });
+}
 const PROF = 'aaaaaaaa-0000-4000-8000-000000000001';
 const PROF2 = 'aaaaaaaa-0000-4000-8000-000000000002';
 const CORTE = 'bbbbbbbb-0000-4000-8000-000000000001';
@@ -143,4 +149,7 @@ const { app } = require('../src/app');
 app.get('/__links', (req, res) => res.json(links));
 app.get('/__db/:tabela', (req, res) => res.json(db[req.params.tabela] || store.db[req.params.tabela] || []));
 const port = Number(process.env.PORT || 3399);
-app.listen(port, '127.0.0.1', () => console.log(`dev-memory-api em http://127.0.0.1:${port}/api — logins *@dev.local / dev12345, token legado: ${process.env.API_ACCESS_TOKEN}`));
+app.listen(port, '127.0.0.1', () => {
+  console.log(`dev-memory-api em http://127.0.0.1:${port}/api — logins *@dev.local / dev12345, token legado: ${process.env.API_ACCESS_TOKEN}`);
+  if (env.PUBLIC_BOOKING_LINKS) console.log(`[dev] agendamento online ligado: ${env.PUBLIC_BOOKING_LINKS}`);
+});

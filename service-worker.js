@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-9-0-piloto-caixa-presenca';
+const CACHE_NAME = 'hope-os-shell-v1-9-1-agendar-publico';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
@@ -45,6 +45,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // não intercepta chamadas ao backend (outra origem)
   if (url.pathname.includes('/api/')) return;
+  // Página pública de agendamento (agendar.html): sempre da rede, nunca cacheada.
+  // Agendar exige o backend no ar (sem valor offline) e não deve ficar presa a uma
+  // versão antiga no aparelho de quem também usa o app interno.
+  if (/\/(agendar\.html|js\/agendar\.js|css\/agendar\.css)$/.test(url.pathname)) return;
 
   // Navegação/HTML: rede primeiro, cache só como fallback offline. Servir o shell
   // (documento) via stale-while-revalidate escondia atualizações reais atrás de
