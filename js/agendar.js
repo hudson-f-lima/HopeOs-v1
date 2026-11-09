@@ -2,6 +2,8 @@
 // Fala só com /api/public/agendar/:slug. Toda regra (horários livres, antecedência,
 // limites, cliente) é do backend; aqui só se mostra e se envia. Nada de innerHTML
 // com dado da API: tudo entra por textContent.
+import { apiBaseDaUrl } from './api-base.js';
+
 const estado = {
   api: null, slug: null, catalogo: null,
   servico: null, profissional: null, data: null, horario: null,
@@ -38,8 +40,10 @@ const diaLongo = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numer
 function ddmm(data) { const [, m, d] = data.split('-'); return `${d}/${m}`; }
 
 async function resolverApi() {
-  const override = new URLSearchParams(location.search).get('apiBase');
-  if (override) return override.replace(/\/+$/, '');
+  // ?apiBase= só vale com a página em host local (E2E/dev): no link público real,
+  // ninguém troca a API para colher nome e WhatsApp (Red Team 2026-11, RT-11).
+  const override = apiBaseDaUrl(location);
+  if (override) return override;
   const res = await fetch('./config.json', { cache: 'no-store' });
   const cfg = await res.json();
   if (!cfg || !cfg.apiBase) throw new Error('config.json sem apiBase');

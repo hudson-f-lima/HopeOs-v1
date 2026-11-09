@@ -549,7 +549,7 @@ function openActionSheet(item) {
     <div class="row"><span>Profissional</span><b>${escapeHtml(findProfissionalNome(item.profissional_id))}</b></div>
     <div class="row"><span>Hora início</span><b>${horario}</b></div>
     <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
-    <div class="row"><span>Status</span><span class="${meta.cls}">${meta.label}</span></div>
+    <div class="row"><span>Status</span><span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span></div>
     <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
     <div class="sheet-actions">${actionsHtml}</div>
     <details class="sheet-historico" id="historicoDetails">
@@ -816,7 +816,7 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
         ⚠️ Conflito de horário
       </div>
       <div style="font-size:13px; color:#555; margin-bottom:20px">
-        <b>${profNome}</b> já tem atendimento às <b>${horario}</b>.<br>
+        <b>${escapeHtml(profNome)}</b> já tem atendimento às <b>${horario}</b>.<br>
         O que você quer fazer?
       </div>
       <div style="display:flex; flex-direction:column; gap:10px">
