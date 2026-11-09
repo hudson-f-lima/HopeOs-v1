@@ -81,6 +81,6 @@ const shot = name => require('path').join(require('os').tmpdir(), `hopeos-onb-${
     robsonCorte: robson.overrides[corteId],
     comandosGravados: (await db('comandos')).length - comandosAntes
   }));
-  console.log('ERROS:', JSON.stringify(errs));
+  console.log('ERROS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   await b.close();
 })().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });

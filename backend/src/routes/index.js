@@ -7,7 +7,7 @@ const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
-const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery } = require('../validators/agenda.validator');
+const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery, assertTransicaoStatus } = require('../validators/agenda.validator');
 const {
   validateUUID,
   validateCreateClientePayload,
@@ -27,6 +27,7 @@ const {
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
 const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { montarLembretes } = require('../engines/ReminderEngine');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
@@ -331,6 +332,33 @@ router.get('/agenda', authorize('agenda:read'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Lembretes de confirmação (D-011): agendamentos ainda não confirmados do dia
+// (padrão: amanhã no fuso da empresa) com texto e link wa.me. Só leitura.
+router.get('/agenda/lembretes', authorize('agenda:read'), async (req, res, next) => {
+  try {
+    let data = req.query.data;
+    if (data === undefined) {
+      const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
+      const [y, m, d] = hoje.split('-').map(Number);
+      data = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data)) || Number.isNaN(Date.parse(`${data}T00:00:00Z`))) {
+      throw createAppError('INVALID_DATE', 'data deve estar no formato AAAA-MM-DD.', 422);
+    }
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const filtroAgenda = { empresa_id: repo.empresaId, data };
+    if (req.authz.own) filtroAgenda.profissional_id = req.authz.profissionalId;
+    const [empresas, agendamentos, clientes, servicos, profissionais] = await Promise.all([
+      repo.list('empresas', { id: repo.empresaId }),
+      repo.list('agendamentos', filtroAgenda),
+      repo.list('clientes', { empresa_id: repo.empresaId }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('profissionais', { empresa_id: repo.empresaId })
+    ]);
+    res.json({ ok: true, data: montarLembretes({ data, agendamentos, clientes, servicos, profissionais, empresa: empresas[0] }) });
+  } catch (err) { next(err); }
+});
+
 // Sugestão de horários livres (slots-âncora). Somente leitura: o POST /agenda
 // continua revalidando conflito na gravação.
 router.get('/agenda/slots', authorize('agenda:read'), async (req, res, next) => {
@@ -405,6 +433,7 @@ router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, n
     const original = await repo.getByIdScoped('agendamentos', id);
     if (!original) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${id}`, 404, { id });
     assertOwn(req, original.profissional_id);
+    assertTransicaoStatus(original.status, novoStatus);
 
     const now = new Date().toISOString();
     if (novoStatus !== 'reagendado') {
@@ -498,6 +527,14 @@ router.post('/checkout/close', authorize('checkout:write'), async (req, res, nex
     const autoria = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
+    // Data/hora da comanda = agora no fuso da empresa, sempre definidas pelo
+    // servidor (D-012). Antes: sem data, o RPC usava current_date do Postgres
+    // (UTC) e a venda das 21h–24h de Brasília caía no dia seguinte; com data,
+    // o cliente podia lançar venda em dia já fechado.
+    const agora = agoraNoFuso(env.APP_TIMEZONE);
+    const hora = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
+    payload.data = agora.data; payload.hora = hora;
+    resolved.data = agora.data; resolved.hora = hora;
     const preview = previewCheckout(resolved);
     const saved = await repo.saveCheckoutClose({ payload, resolved, preview, autoria });
 

@@ -14,5 +14,6 @@ Leia [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) para o estado atual. Este 
 
 ## Fundação
 - Stack: Node.js/Express, Supabase/Postgres e PWA.
-- Migrations físicas: 001–008 (007 = ADR-005, D-007; 008 = Onda B, D-009; aplicação em produção via `docs/RUNBOOK_MIGRATION_007.md`).
+- Migrations físicas: 001–008, aplicadas em produção (`hopeos-v1`) em 2026-11-08 (007 = ADR-005, D-007; 008 = Onda B, D-009).
+- **Merge na `main` aplica `supabase/migrations` em produção** (integração GitHub do Supabase, D-010). Toda migration precisa de linha em `supabase/migrations.lock`; o CI (`check_migrations.sh`) barra o resto.
 - Documentação: [`docs/INDEX.md`](docs/INDEX.md).

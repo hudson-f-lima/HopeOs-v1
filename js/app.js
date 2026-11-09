@@ -28,6 +28,8 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
+import { initLembretes } from './ui/lembretes.js';
+import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
@@ -218,6 +220,7 @@ async function init() {
 
   // Initialize UI sub-modules
   initAgenda();
+  initLembretes();
   initCheckout();
   initDashboard();
   initCadastros();
@@ -348,6 +351,7 @@ async function init() {
 
     initEquipe();
     initComissoes();
+    initCaixa();
     if (sessionRoleIn('admin', 'gestor')) {
       const btnAssistente = document.getElementById('btnAbrirAssistente');
       btnAssistente.classList.remove('hidden');
@@ -362,7 +366,8 @@ async function init() {
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
     await Promise.all([
       loadWeekAgenda(),
-      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve()
+      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve(),
+      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarCaixa() : Promise.resolve()
     ]);
   } catch (err) {
     console.error('Falha ao inicializar:', err);
@@ -397,6 +402,9 @@ async function init() {
 window.addEventListener('hashchange', () => {
   if (/(^|[#&])access_token=/.test(window.location.hash)) window.location.reload();
 });
+
+// Comanda fechada: o fechamento do dia muda.
+stateBus.addEventListener('checkout:closed', () => { if (sessionRoleIn('admin', 'gestor', 'recepcao')) atualizarCaixa(); });
 
 // Listen to Tab Change event from event bus
 stateBus.addEventListener('tab:change', (e) => {

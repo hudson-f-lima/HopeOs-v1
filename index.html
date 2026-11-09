@@ -135,6 +135,7 @@
         </div>
       </div>
       <button class="agenda-today-pill" id="btnAgendaToday" type="button">Hoje</button>
+      <button class="agenda-today-pill agenda-lembretes-pill" id="btnAgendaLembretes" type="button">Lembretes</button>
     </section>
 
     <section id="tab-checkout" class="tab-content hidden">
@@ -324,6 +325,16 @@
           <div id="dbCotaParteWidget" class="dashboard-widget-body"></div>
         </section>
 
+        <section class="dashboard-panel hidden" id="dbPilotoPanel">
+          <div class="panel-head">
+            <div>
+              <h2>Piloto — 4 números</h2>
+              <p>Últimos 30 dias, comparados ao mercado.</p>
+            </div>
+          </div>
+          <div id="dbPilotoWidget" class="dashboard-widget-body"></div>
+        </section>
+
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
             <div>
@@ -345,6 +356,16 @@
           <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Nenhum repasse calculado ainda.</p></div>
         </div>
       </div>
+      <section class="card dashboard-list hidden" id="cardCaixa" aria-label="Fechamento de caixa">
+        <h2>Fechamento de caixa</h2>
+        <form id="caixaForm" class="caixa-form">
+          <div class="field"><label for="caixaData">Dia</label><input type="date" id="caixaData"/></div>
+          <div class="field"><label for="caixaContado">Dinheiro contado (R$)</label><input id="caixaContado" inputmode="decimal" placeholder="Ex.: 150,00"/></div>
+          <button class="btn btn-secondary" type="submit" id="btnConferirCaixa">Conferir</button>
+        </form>
+        <p class="body-sm" id="caixaErro" style="color:var(--md-error)"></p>
+        <div id="caixaResultado"></div>
+      </section>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
 
@@ -748,6 +769,16 @@
 </div>
 
 <dialog id="conflict-dialog"></dialog>
+
+<dialog id="lembretesDialog" class="lembretes-dialog" aria-labelledby="lembretesTitulo">
+  <div class="lembretes-head">
+    <h2 id="lembretesTitulo" class="m-0">Lembretes</h2>
+    <button class="btn" type="button" id="btnFecharLembretes" aria-label="Fechar">✕</button>
+  </div>
+  <label class="body-sm">Dia <input type="date" id="lembretesData"/></label>
+  <p class="body-sm text-tertiary">Abra o WhatsApp de cada cliente, envie a mensagem pronta e marque "Confirmou" quando a resposta chegar.</p>
+  <div id="lembretesConteudo"></div>
+</dialog>
 
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 

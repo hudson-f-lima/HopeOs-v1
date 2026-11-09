@@ -76,6 +76,18 @@ const preview = () => request('POST', '/api/checkout/preview', { body: { itens: 
 const tests = [];
 const test = (n, f) => tests.push({ n, f });
 
+test('B00 checkout (D-012): gorjeta negativa e desconto acima do total são recusados; válidos passam', async () => {
+  const corpo = extra => ({ itens: [{ tipo: 'servico', servicoId: SERV, profissionalId: PROF }], payments: [{ formaCode: 'pix', valorCentavos: 10000 }], ...extra });
+  const neg = await request('POST', '/api/checkout/preview', { body: corpo({ gorjetaCentavos: -300 }) });
+  assert.strictEqual(neg.status, 422); assert.strictEqual(code(neg), 'INVALID_FIELD');
+  assert.strictEqual(code(await request('POST', '/api/checkout/preview', { body: corpo({ gorjetaCentavos: 150.5 }) })), 'INVALID_FIELD');
+  const desc = await request('POST', '/api/checkout/preview', { body: corpo({ descontoCentavos: 10001 }) });
+  assert.strictEqual(code(desc), 'INVALID_DISCOUNT');
+  const ok = await request('POST', '/api/checkout/preview', { body: { ...corpo({ descontoCentavos: 1000, gorjetaCentavos: 500 }), payments: [{ formaCode: 'pix', valorCentavos: 9500 }] } });
+  assert.strictEqual(ok.status, 200, JSON.stringify(ok.data));
+  assert.strictEqual(ok.data.data.totals.descontoCentavos, 1000); assert.strictEqual(ok.data.data.totals.gorjetaBrutaCentavos, 500);
+});
+
 test('B01 herança: override → cargo/categoria (pelo modelo) → serviço; nunca indefinida', () => {
   const servico = { id: 's', comissao_pct: 40, modelo_heranca: 'BY_ROLE', categoria_id: 'cat' };
   const prof = { cargo_id: 'car' };

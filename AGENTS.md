@@ -36,7 +36,8 @@ Todo achado deve ser classificado como `REAL`, `PARCIAL`, `MOCKADO`, `HARDCODED`
 
 ## Migrações e documentação
 
-- Fundação física: `supabase/migrations/001–008` (rollbacks da 007 e da 008 em `supabase/rollback/`).
+- Fundação física: `supabase/migrations/001–008` (rollbacks da 007 e da 008 em `supabase/rollback/`), aplicada em produção em 2026-11-08.
+- Merge na `main` aplica migrations em produção (D-010): migration nova só com linha em `supabase/migrations.lock` e decisão em `docs/DECISIONS.md`.
 - Faixa 009+ é futura e não autorizada; 046–060 é obsoleta.
 - Correções documentais são in-place e entram no índice.
 - SQL draft só em Markdown com `DRAFT ONLY`.

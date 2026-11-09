@@ -1,5 +1,33 @@
 # Changelog
 
+## Blueprint Beauty & Wellness (D-012)
+- Agenda com presença:
+  - "Cliente chegou" e "Iniciar atendimento" na folha do horário;
+  - quem já chegou não pode ser marcado como falta;
+  - atendimento cancelado ou com falta não volta.
+- Fechamento de caixa no Dashboard: total por forma de pagamento, taxa, líquido previsto, gorjetas e conferência do dinheiro contado (mostra falta ou sobra).
+- Painel do piloto (gestão): taxa de falta, reagendamento no checkout, retorno do cliente novo e confirmação prévia, comparados com a referência de mercado, também por profissional.
+- Correções:
+  - gorjeta negativa (desconto escondido) e desconto acima do total agora são recusados;
+  - a venda fechada depois das 21h de Brasília caía no dia seguinte, e agora a data da comanda é sempre a do servidor no fuso da empresa.
+- Cancelamento tardio: com dados reais do banco (horário com segundos), cancelar no próprio dia nunca contava como tardio, e o horário era lido em UTC; agora conta certo, no fuso da empresa (afeta confiabilidade do cliente e o painel do piloto).
+- Segurança: cabeçalhos próprios na API (nosniff, X-Frame-Options DENY, no-referrer, CORP same-site, HSTS em produção, sem X-Powered-By) e corpo JSON até 100 KB; CSP e cabeçalhos no site estático (`render.yaml`).
+- CI: novo job `e2e-pwa` roda os 10 roteiros de navegador da PWA sob a CSP (falha com erro de console ou violação de CSP).
+- Números com largura fixa em todo o app.
+- Análise do blueprint e desenhos de estorno e agendamento online em `docs/planning/`.
+- Testes: offline 11 suítes verdes (novas: caixa 7, piloto 10; lembretes 8; onda-b 10); 9 E2E sem erro de console.
+
+## Auditoria, segurança e lembretes (D-011)
+- Lembretes de confirmação: na Agenda, botão "Lembretes" lista os horários de amanhã (ou do dia escolhido) ainda não confirmados, com a mensagem pronta no WhatsApp do cliente e o botão "Confirmou".
+- Segurança: dependências de produção sem vulnerabilidades conhecidas (antes: 1 crítica, 2 altas); CORS passa a comparar a origem exata.
+- Agenda: atendimento já pago (concluído) ou reagendado não pode mais virar cancelado/falta.
+- Auditoria de estado e benchmark de mercado em `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`.
+- lembretes-gate 7/7 (com controle negativo); offline 204/204; E2E dos lembretes.
+
+## Produção do banco e trava de migrations (D-010)
+- Banco `hopeos-v1` com 001–008 aplicadas pela integração GitHub do Supabase no merge do PR #16; verificação do runbook 12/12.
+- `supabase/migrations.lock` + `check_migrations.sh` no CI: migration não autorizada, editada ou apagada reprova o PR, porque o merge na `main` agora executa SQL em produção.
+
 ## Onda B (D-009, migration 008)
 - Empresa com CNPJ (dígito verificador), razão social e regime de salão-parceiro; relatório mensal de cota-parte (salão × profissionais) no Dashboard da gestão.
 - Intervalo de higienização entre atendimentos (0/5/10/15 min), respeitado na sugestão de horários e na trava de agenda do banco.

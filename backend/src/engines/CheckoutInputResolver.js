@@ -114,6 +114,17 @@ function resolveCheckoutInput({ payload, servicos, profissionais, profissionalSe
     });
   }
 
+  // Desconto e gorjeta são valores informados pelo operador: precisam ser
+  // inteiros >= 0, e o desconto não pode passar do total dos itens. Antes a
+  // gorjeta negativa virava um desconto escondido (recebido < receita
+  // registrada) e o desconto excedente era cortado em silêncio (D-012).
+  const descontoCentavos = valorOperador(payload.descontoCentavos ?? payload.desconto_centavos ?? 0, 'descontoCentavos');
+  const gorjetaCentavos = valorOperador(payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0, 'gorjetaCentavos');
+  const totalItens = resolvedItems.reduce((acc, i) => acc + (Number(i.valorBrutoCentavos) || 0), 0);
+  if (descontoCentavos > totalItens) {
+    throw createAppError('INVALID_DISCOUNT', 'Desconto maior que o total dos itens.', 422, { descontoCentavos, totalItensCentavos: totalItens });
+  }
+
   return {
     clienteId: payload.clienteId || payload.cliente_id || null,
     data: payload.data,
@@ -123,9 +134,17 @@ function resolveCheckoutInput({ payload, servicos, profissionais, profissionalSe
     itens: resolvedItems,
     payments: payload.payments,
     formasPagamento,
-    descontoCentavos: roundCents(payload.descontoCentavos ?? payload.desconto_centavos ?? 0),
-    gorjetaCentavos: roundCents(payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0)
+    descontoCentavos,
+    gorjetaCentavos
   };
+}
+
+function valorOperador(valor, campo) {
+  const n = Number(valor);
+  if (!Number.isInteger(n) || n < 0) {
+    throw createAppError('INVALID_FIELD', `${campo} deve ser inteiro em centavos e não negativo.`, 422, { campo });
+  }
+  return n;
 }
 
 module.exports = { resolveCheckoutInput, resolveServiceProfessionalItem, resolveCheckoutItem };

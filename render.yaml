@@ -48,6 +48,28 @@ services:
       - path: /manifest.json
         name: Cache-Control
         value: no-cache
+      # Segurança (ver backend/tests/e2e/static-server.py, que lê este bloco e
+      # injeta os mesmos headers no E2E). A CSP lista toda origem que a PWA usa:
+      # API (config.json), Google Fonts (CSS + arquivos). `?apiBase=` apontando
+      # para outra API é bloqueado de propósito em produção (connect-src).
+      # 'unsafe-inline' só em atributos style= (style-src-attr); <script> e
+      # <style> inline continuam proibidos. style-src é o fallback de navegador
+      # sem suporte a -elem/-attr.
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(), microphone=(), geolocation=(), payment=()"
     routes:
       - type: rewrite
         source: /*

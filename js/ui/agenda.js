@@ -40,6 +40,8 @@ export const AGENDA_STATUS_META = {
   confirmado: { label: 'Confirmado', cls: 'badge badge-confirmado' },
   no_show: { label: 'No-show', cls: 'badge badge-noshow' },
   cancelado: { label: 'Cancelado', cls: 'badge badge-cancelado' },
+  aguardando: { label: 'Chegou', cls: 'badge badge-confirmado' },
+  em_atendimento: { label: 'Na cadeira', cls: 'badge badge-confirmado' },
   concluido: { label: 'Concluído', cls: 'badge badge-concluido' },
   reagendado: { label: 'Reagendado', cls: 'badge badge-cancelado' }
 };
@@ -515,18 +517,28 @@ function openActionSheet(item) {
   const meta = AGENDA_STATUS_META[item.status] || { label: item.status, cls: 'badge' };
   const horario = String(item.horario || '').slice(0, 5);
   let actionsHtml = '';
+  // Transições permitidas espelham a máquina de estados do backend (agenda.validator.js).
   if (item.status === 'agendado') {
     actionsHtml = `
       <button class="btn" data-sheet-action="confirmar">Confirmar</button>
+      <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
       <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
       <button class="btn" data-sheet-action="reagendar">Reagendar</button>
       <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
   } else if (item.status === 'confirmado') {
     actionsHtml = `
+      <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
       <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
       <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+  } else if (item.status === 'aguardando') {
+    actionsHtml = `
+      <button class="btn" data-sheet-action="cadeira">Iniciar atendimento</button>
+      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
+      <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+  } else if (item.status === 'em_atendimento') {
+    actionsHtml = `<button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
   } else if (item.status === 'concluido') {
     actionsHtml = `<p style="font-size:13px;color:var(--md-success);font-weight:700;margin-top:8px;">✓ Checkout feito</p>`;
   }
@@ -602,6 +614,8 @@ async function onActionSheetClick(ev) {
   const action = btn.dataset.sheetAction;
 
   if (action === 'confirmar') { closeActionSheet(); await patchAgendaStatus(id, 'confirmado'); return; }
+  if (action === 'chegou') { closeActionSheet(); await patchAgendaStatus(id, 'aguardando'); return; }
+  if (action === 'cadeira') { closeActionSheet(); await patchAgendaStatus(id, 'em_atendimento'); return; }
   if (action === 'noshow') {
     closeActionSheet();
     if (await confirmAction({ title: 'Confirmar no-show', message: 'Marcar este atendimento como no-show?', confirmLabel: 'Marcar no-show', danger: true })) {
@@ -670,7 +684,7 @@ async function patchAgendaStatus(id, novoStatus) {
   clearBanner();
   try {
     await api(`/agenda/${id}/status`, { method: 'PATCH', body: { novoStatus } });
-    showBanner('Agendamento updated.', 'ok');
+    showBanner('Agendamento atualizado.', 'ok');
     await loadWeekAgenda();
   } catch (err) {
     showBanner(err.message, 'error');

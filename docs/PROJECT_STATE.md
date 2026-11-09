@@ -1,15 +1,16 @@
 # PROJECT STATE — KortexOS
 
-**Atualizado:** 2026-10-16  
+**Atualizado:** 2026-11-08  
 **Fonte canônica do estado operacional atual.**
 
 ## Identificação
-- Versão: identidade/RBAC/autoria (ADR-005 + migration 007) IMPLEMENTADA no código, **não aplicada em produção**; slots-âncora (D-006); V1.4.2 mesclada; V1.5 BLOQUEADA
-- Branch de trabalho: `ccr-9854814d-ialzxj` → PR #16 (draft) — `main` em `c5a2914` + ADR-005 (#14)
+- Versão: identidade/RBAC/autoria (ADR-005, 007), Ondas A e B (008) e slots-âncora (D-006) **mescladas em `main`** (PR #16, `5cff579`) e **com banco aplicado em produção**; backend ainda não publicado; V1.5 BLOQUEADA
+- Branch de trabalho: `ccr-9854814d-ialzxj` (reiniciada a partir de `main` após o merge do #16)
 - Fundação física: migrations 001–008 (007 em D-007, 008 em D-009); 009+ não autorizada
 - Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
-- Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. Migrations 001–005 aplicadas via conector; 006, 007 e 008 PENDENTES (o conector cancela SQL com `delete`/`drop` que exige confirmação; aplicar no SQL Editor). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo).
-- Estado de produção: BLOQUEADO — backend Render `hopeos-v1` suspenso pelo dono (HTTP 503 "Service suspended", 2026-10-16); Supabase de produção (`qosioymzswhkqkziocas`) fora do alcance da sessão. Procedimento: `docs/RUNBOOK_MIGRATION_007.md`
+- Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. **001–008 aplicadas** (001–005 via conector em 2026-10-16; 006–008 pela integração GitHub no merge do #16, 2026-11-08 — D-010). Verificação do runbook 12/12 `true`; advisor de segurança só INFO "RLS sem policy" (deny-all intencional). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo). Banco vazio: 0 empresas, 0 usuários.
+- Deploy de migrations: **merge na `main` executa SQL em produção** (integração GitHub do Supabase, "Deploy to production"). Trava: `supabase/migrations.lock` + `check_migrations.sh` no CI (D-010).
+- Estado de produção: banco PRONTO; backend BLOQUEADO por decisão do dono — Render `hopeos-v1` suspenso (HTTP 503, rechecado em 2026-11-08; o dono optou por não reativar por enquanto). Procedimento restante: `docs/RUNBOOK_MIGRATION_007.md` passos 5–7.
 
 ## Estado confirmado
 | Área | Estado | Evidência |
@@ -37,25 +38,36 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
-- Ciclo: implementação da ADR-005 (D-007) + slots (D-006) no PR #16. Código, testes e runbook prontos.
-- Falta: executar `docs/RUNBOOK_MIGRATION_007.md` com acesso ao Supabase de produção e ao Render.
+- Corrigido (D-012): `isLateCancel`/`scheduledDateTime` liam `horario` só como HH:MM (o Postgres devolve HH:MM:SS → tudo virava meia-noite e cancelamento no mesmo dia nunca era tardio) e em UTC (~3h de erro em Brasília). Afeta confiabilidade do cliente, régua e KPI de falta.
+- D-012 (blueprint Beauty & Wellness): presença na agenda, fechamento de caixa (só leitura), KPIs do piloto, validação de desconto/gorjeta e data da comanda no fuso da empresa. Análise: `docs/planning/BLUEPRINT_BEAUTY_WELLNESS_ANALISE.md`.
+- Auditoria de estado + benchmark (D-011): `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`. Corrigidos: dependências vulneráveis, CORS por substring, transição de status de atendimento pago. Novo: lembretes de confirmação via wa.me.
+- PR #16 mesclado; banco de produção com 001–008. Trava de migrations no CI (D-010).
+- Falta (dono): Auth URLs, reativar o Render com as variáveis, convidar o primeiro admin (runbook 5–7).
 
 ## Bloqueadores
 - P0: NENHUM conhecido no código. Produção indisponível (Render suspenso) — decisão do dono, não defeito.
-- P1: aplicar a 007 e fazer o deploy (acesso de produção); revalidar `test:gate` integrado contra Supabase com a 007
+- P1: publicar o backend (Render suspenso por decisão do dono); revalidar `test:gate` integrado contra o `hopeos-v1` (precisa da chave secreta do projeto)
+- P1: tornar o check de CI obrigatório na proteção da `main` — sem isso a trava de migrations só avisa (D-010)
 - P1: CI PARCIAL — gates integrados (Supabase real) não rodam no Actions
-- P2: unidades sem particionar dados; relatórios próprios do profissional; autoria de integração em estado mutável
+- P1 (antes do 1º cliente pagante): infra gratuita para sistema de caixa — Supabase Free pausa após ~7 dias sem atividade e não tem backup baixável; Render Free dorme quando ocioso
+- P1: estorno de comanda AUSENTE (ledger imutável exige lançamento de estorno → migration 009, não autorizada)
+- P1: ledger imutável só por convenção — `service_role` tem update/delete em tudo (007:414); triggers de imutabilidade entram no desenho da 009 (`docs/planning/ESTORNO_COMANDA_DRAFT.md`)
+- P2: 41 FKs sem índice (advisor de performance, INFO; banco vazio, sem impacto hoje — exigiria migration 009); unidades sem particionar dados; relatórios próprios do profissional; autoria de integração em estado mutável
 - V1.5: BLOQUEADA
 
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 197/197 (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 9) | CI + local 2026-11-08 |
+| `npm run test:offline` | REAL — 11 suítes verdes (schema 12, rpc-lock 8, cadastros 21, insights 73, auth 9, slots 18, identity 38, onboarding 9, onda-b 10, lembretes 8, caixa 7, piloto 10, security 7) | local 2026-11-08 |
+| E2E PWA (Playwright) | REAL — 10 roteiros (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
+| Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
+| `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
 | `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12, antes da bomba-relógio do insights | precisa Supabase real com 007 |
-| Produção (curl) | BLOQUEADO — `/api/health` 503 "Service suspended" | 2026-10-16 |
-| `npm audit --omit=dev` | 1 HIGH pré-existente (`xlsx`, sem fix) | risco residual |
+| Banco de produção (verificação do runbook) | REAL — 12/12 `true`, migrations 001–008 | `hopeos-v1`, 2026-11-08 |
+| Produção (curl) | BLOQUEADO — `/api/health` 503 "Service suspended" | 2026-11-08 |
+| `npm audit --omit=dev` | REAL — 0 vulnerabilidades (D-011: `express` 4.22.3, `morgan` 1.12.1; `xlsx` movido para dev, só scripts locais) | 2026-11-08 |
 
 ## Riscos residuais
 - Aplicar a 007 sem backup ou fora da ordem (backend novo antes da migration quebra agenda/checkout/estoque): o runbook fixa a ordem e o backup.
@@ -65,10 +77,12 @@
 - `xlsx` com HIGH sem fix upstream; auditorias antigas são históricas, não autoridade de estado.
 
 ## Próxima ação única
-- (2026-11-08) Banco `hopeos-v1` não respondeu a consulta de leitura (provável pausa por inatividade do plano gratuito): reativar no painel do Supabase antes do runbook. Proposta de onboarding em 6 fases analisada em `docs/planning/ONBOARDING_SETUP_ANALISE.md` — só depois da produção.
-- Platform Owner (ou sessão com acesso de produção): executar `docs/RUNBOOK_MIGRATION_007.md` — backup → checagens → 007 → Auth URLs → reativar Render + env vars → merge do PR #16 → primeiro admin → smoke tests.
+- Platform Owner, quando decidir publicar: `docs/RUNBOOK_MIGRATION_007.md` passos 5–7 (Auth URLs → reativar Render + env vars + deploy manual da `main` → convite do primeiro admin; o SQL do vínculo pode ser rodado pela sessão).
+- Antes disso, sem custo: marcar o check "Migrations + gates SQL (Postgres 16)" como obrigatório na proteção da `main`.
+- Risco: o plano gratuito pausa o `hopeos-v1` após ~7 dias sem atividade; reativar no painel antes de publicar.
 
 ## Handoff
+- Ciclo 2026-11-08 (PR #16 mesclado, `5cff579`): Ondas A/B, migration 008, aplicação de 006–008 em produção via integração GitHub (D-010), trava de migrations no CI. Pendente: publicação do backend (decisão do dono). Não fazer: 009+, editar 001–008 (o CI reprova), Onda C.
 - Ciclo 2026-10-16 (branch `ccr-9854814d-ialzxj`, PR #16):
   - Concluído: slots-âncora (D-006); fix do cashflow; CI (gates offline + migrations em Postgres 16); migration 007 com gate SQL, teste de concorrência e rollback; backend com principals user/integration/legacy, RBAC, autoria, convite, recuperação de senha, admin de equipe/unidades/integrações; correção CRÍTICA de relatórios presos à empresa padrão; PWA com login, definir senha, Equipe e UI por papel; skill `.claude/skills/steward`; runbook de produção.
   - Pendente: aplicação em produção (sem acesso nesta sessão: Supabase de produção não conectado; Render suspenso).

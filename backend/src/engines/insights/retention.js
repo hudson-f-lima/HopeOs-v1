@@ -318,14 +318,30 @@ function computeChurnRisk(input, maybeHoje, maybeOptions) {
   };
 }
 
-function scheduledDateTime(agendamento) {
+// Horário marcado como instante real: `horario` vem do Postgres como HH:MM:SS
+// (antes só HH:MM era aceito e tudo virava meia-noite) e está no fuso da
+// empresa (antes era lido como UTC, ~3h de erro em Brasília). D-012.
+function scheduledDateTime(agendamento, timeZone = process.env.APP_TIMEZONE || 'America/Sao_Paulo') {
   const dateOnly = parseDateOnly(agendamento && agendamento.data);
   if (!dateOnly) return null;
-  const time = /^\d{2}:\d{2}$/.test(String(agendamento.horario || ''))
-    ? agendamento.horario
-    : '00:00';
-  const date = new Date(`${dateOnly}T${time}:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const m = /^(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(String(agendamento.horario || ''));
+  const time = m ? `${m[1]}:${m[2]}` : '00:00';
+  const comoUtc = new Date(`${dateOnly}T${time}:00Z`);
+  if (Number.isNaN(comoUtc.getTime())) return null;
+  return new Date(comoUtc.getTime() - offsetMinutos(timeZone, comoUtc) * 60000);
+}
+
+// Diferença (min) entre o relógio local do fuso e o UTC no instante dado.
+function offsetMinutos(timeZone, instante) {
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+      timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    }).formatToParts(instante).map(x => [x.type, x.value]));
+    const local = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+    return Math.round((local - instante.getTime()) / 60000);
+  } catch (_) {
+    return 0;
+  }
 }
 
 function isWithinLastDays(dateOnly, today, days) {
@@ -539,6 +555,8 @@ module.exports = {
   computeReliability,
   computeRebooking,
   computeAttach,
+  normalizeCommands,
+  isLateCancel,
   median,
   daysBetween,
   addDays

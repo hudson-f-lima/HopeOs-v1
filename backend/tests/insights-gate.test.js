@@ -140,17 +140,30 @@ const reliabilityBad = retention.computeReliability([
   { data: '2026-07-03', horario: '10:00', status: 'no_show' },
   { data: '2026-07-04', horario: '10:00', status: 'no_show' },
   { data: '2026-07-05', horario: '10:00', status: 'no_show' },
-  { data: '2026-07-06', horario: '10:00', status: 'cancelado', updated_at: '2026-07-05T11:00:00Z' },
-  { data: '2026-07-07', horario: '10:00', status: 'cancelado', updated_at: '2026-07-06T11:00:00Z' },
-  { data: '2026-07-08', horario: '10:00', status: 'cancelado', updated_at: '2026-07-07T11:00:00Z' },
-  { data: '2026-07-09', horario: '10:00', status: 'cancelado', updated_at: '2026-07-08T11:00:00Z' },
-  { data: '2026-07-10', horario: '10:00', status: 'cancelado', updated_at: '2026-07-09T11:00:00Z' }
+  { data: '2026-07-06', horario: '10:00', status: 'cancelado', updated_at: '2026-07-05T14:00:00Z' },
+  { data: '2026-07-07', horario: '10:00', status: 'cancelado', updated_at: '2026-07-06T14:00:00Z' },
+  { data: '2026-07-08', horario: '10:00', status: 'cancelado', updated_at: '2026-07-07T14:00:00Z' },
+  { data: '2026-07-09', horario: '10:00', status: 'cancelado', updated_at: '2026-07-08T14:00:00Z' },
+  { data: '2026-07-10', horario: '10:00', status: 'cancelado', updated_at: '2026-07-09T14:00:00Z' }
 ], '2026-07-10');
 assert.strictEqual(reliabilityBad.score, 0);
 assert.strictEqual(reliabilityBad.faixa, 'risco');
 assert.strictEqual(reliabilityBad.fatores.noShows365d, 5);
 assert.strictEqual(reliabilityBad.fatores.cancelTardios365d, 5);
 assert.strictEqual(typeof reliabilityBad.fatores.streakConcluidos, 'number');
+
+// D-012: horario do Postgres vem como HH:MM:SS e está no fuso da empresa.
+{
+  const tz = process.env.APP_TIMEZONE;
+  process.env.APP_TIMEZONE = 'America/Sao_Paulo';
+  const tardios = ags => retention.computeReliability(ags, '2026-07-10').fatores.cancelTardios365d;
+  // (a) formato: cancelado horas antes no mesmo dia, horário com segundos → tardio (antes virava meia-noite: 0)
+  assert.strictEqual(tardios([{ data: '2026-07-06', horario: '15:00:00', status: 'cancelado', updated_at: '2026-07-06T13:00:00Z' }]), 1, 'HH:MM:SS');
+  // (b) fuso: 10:00 em Brasília = 13:00Z; cancelado 07-07 12:00Z = 25h antes → não tardio (lido como UTC: 22h → tardio)
+  assert.strictEqual(tardios([{ data: '2026-07-08', horario: '10:00', status: 'cancelado', updated_at: '2026-07-07T12:00:00Z' }]), 0, 'fuso da empresa');
+  process.env.APP_TIMEZONE = tz;
+}
+console.log('OK retention.isLateCancel HH:MM:SS e fuso da empresa');
 
 console.log('OK retention.computeReliability success streak');
 const reliabilityGood = retention.computeReliability([
