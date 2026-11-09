@@ -12,8 +12,9 @@ class InsightsService {
     this.repo = new SupabaseRepository(empresaId);
   }
 
-  async loadOccupancyInsights(dataFrom, dataTo) {
-    // GET /insights/occupancy?from=YYYY-MM-DD&to=YYYY-MM-DD
+  // GET /insights/occupancy?from=YYYY-MM-DD&to=YYYY-MM-DD. `hoje` (fuso da
+  // empresa) só limita os buracos a dias que ainda podem ser vendidos.
+  async loadOccupancyInsights(dataFrom, dataTo, hoje = dataFrom) {
     const [agendamentos, profissionais, empresas] = await Promise.all([
       this.repo.list('agendamentos', { empresa_id: this.repo.empresaId }),
       this.repo.list('profissionais', { empresa_id: this.repo.empresaId }),
@@ -21,41 +22,32 @@ class InsightsService {
     ]);
 
     const empresa = empresas[0] || {};
-    const slotPadrao = empresa.slot_padrao || 30;
+    const slotPadrao = Number(empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
+    const ativos = profissionais.filter(p => p.ativo !== false);
+    const noPeriodo = a => { const d = String(a.data || '').slice(0, 10); return d >= dataFrom && d <= dataTo; };
 
-    const { loadFactorPct, minutosVendidos, minutosDisponiveis } = occupancy.computeLoadFactor(
-      agendamentos,
-      profissionais,
-      dataFrom,
-      dataTo
-    );
+    const { loadFactorPct, minutosVendidos, minutosDisponiveis } = occupancy.computeLoadFactor(agendamentos, ativos, dataFrom, dataTo, empresa);
+    const heatmap = occupancy.computeHeatmap(agendamentos, ativos, dataFrom, dataTo, empresa);
 
-    // RevPAH = receita empresa / horas_disponiveis (será calculado em checkout preview após ledger)
-    // Por enquanto, estimativa do ticket esperado (usaremos isto no F2)
-
-    const heatmap = occupancy.computeHeatmap(agendamentos, profissionais, dataFrom, dataTo);
-
-    const porProfissional = profissionais.map(prof => {
-      const sur = occupancy.computeSur(
-        agendamentos,
-        prof.id,
-        dataFrom, // usa primeira data do range como exemplo
-        prof.horario || {},
-        slotPadrao
-      );
+    const porProfissional = ativos.map(prof => {
+      const sur = occupancy.computeSur({ agendamentos, profissional: prof, empresa, dataInicio: dataFrom, dataFim: dataTo });
       return {
         profissionalId: prof.id,
         profissionalNome: prof.nome,
         surPct: sur.surPct,
         minutosVendidos: sur.minutoVendido,
         minutosDisponiveis: sur.minutoDisponivel,
+        // Só faltas do período (antes: todas as faltas da história).
         noShowMin: agendamentos
-          .filter(a => a.profissional_id === prof.id && a.status === 'no_show')
-          .reduce((sum, a) => sum + (a.duracao_min || 30), 0)
+          .filter(a => a.profissional_id === prof.id && a.status === 'no_show' && noPeriodo(a))
+          .reduce((sum, a) => sum + (Number(a.duracao_min) || 30), 0)
       };
     });
 
-    const buracos = occupancy.computeGaps(agendamentos, profissionais, dataFrom, slotPadrao);
+    // Buracos de hoje em diante dentro do período (antes: só o 1º dia, mesmo passado).
+    const inicioBuracos = hoje > dataFrom ? hoje : dataFrom;
+    const buracos = occupancy.datasDoPeriodo(inicioBuracos, dataTo)
+      .flatMap(data => occupancy.computeGaps(agendamentos, ativos, data, slotPadrao, empresa));
 
     return {
       range: { from: dataFrom, to: dataTo },
@@ -106,7 +98,10 @@ class InsightsService {
 
     const itensLiquidos = itemFiltered.concat(negItens);
     // Ticket: reembolsos do período saem do numerador; comanda 100% estornada sai da base.
-    const totalmente = comandasEstornadasTotal(estornos);
+    // Só estornos totais lançados ATÉ o fim do período: um estorno posterior não
+    // pode tirar a comanda da base de um período já fechado (o numerador ainda a
+    // conta inteira porque o reembolso dela cai fora do período).
+    const totalmente = comandasEstornadasTotal(estornos.filter(e => e.data <= dataTo));
     const cmdValidas = cmdFiltered.filter(c => !totalmente.has(c.id));
     const reembolsos = negPagamentos.reduce((s, p) => s + p.valor_centavos, 0);
     const ticketMedioCentavos = cmdValidas.length
@@ -126,37 +121,43 @@ class InsightsService {
     };
   }
 
-  async loadCashflowInsights(days = 30) {
-    // GET /insights/cashflow?days=30
-    const [pagamentosOriginais, formasPagamento, estornos, estornoPagamentos] = await Promise.all([
+  // GET /insights/cashflow?days=30. Recebíveis de hoje (fuso da empresa) até
+  // hoje+days: cada pagamento cai em data da comanda + dias_recebimento da forma;
+  // o reembolso de estorno (D-013), na data do estorno. Antes, TODO pagamento da
+  // história era projetado a partir de hoje (o dinheiro de meses atrás aparecia
+  // como entrada de hoje) e "hoje" era a data UTC.
+  async loadCashflowInsights(days = 30, hoje = new Date().toISOString().slice(0, 10)) {
+    const [pagamentosOriginais, comandos, formasPagamento, estornos, estornoPagamentos] = await Promise.all([
       this.repo.list('comando_pagamentos', { empresa_id: this.repo.empresaId }),
+      this.repo.list('comandos', { empresa_id: this.repo.empresaId }),
       this.repo.list('formas_pagamento', { empresa_id: this.repo.empresaId }),
       this.repo.list('comanda_estornos', { empresa_id: this.repo.empresaId }),
       this.repo.list('comanda_estorno_pagamentos', { empresa_id: this.repo.empresaId })
     ]);
-    // Reembolso de estorno (D-013) entra como pagamento negativo na mesma forma.
-    const comandoPagamentos = pagamentosOriginais.concat(pagamentosNegativos({ estornos, estornoPagamentos }));
+    const dataComanda = new Map(comandos.map(c => [c.id, String(c.data || '').slice(0, 10)]));
+    const dataEstorno = new Map(estornos.map(e => [e.id, String(e.data || '').slice(0, 10)]));
+    const originais = pagamentosOriginais
+      .filter(p => dataComanda.has(p.comando_id))
+      .map(p => ({ ...p, data: dataComanda.get(p.comando_id) }));
+    const negativos = estornoPagamentos
+      .filter(r => dataEstorno.has(r.estorno_id))
+      .map(r => ({ _estorno: true, comando_id: r.comando_id, forma_code: r.forma_code, valor_centavos: -Number(r.valor_centavos || 0), taxa_total_centavos: 0, data: dataEstorno.get(r.estorno_id) }));
+    const comandoPagamentos = originais.concat(negativos);
 
-    const hoje = new Date().toISOString().split('T')[0];
-    const curva = cashflow.projectCashflow(
-      comandoPagamentos,
-      formasPagamento,
-      hoje,
-      days
-    );
-
+    const curva = cashflow.projectCashflow(comandoPagamentos, formasPagamento, hoje, days);
     const acum7d = cashflow.computeAccumulatedCashflow(curva, 7);
     const acum30d = cashflow.computeAccumulatedCashflow(curva, 30);
 
+    // Líquido por forma = o que a curva projeta (mesmo recorte), não o histórico inteiro.
+    const porFormaCurva = new Map();
+    curva.forEach(d => d.porForma.forEach(f => porFormaCurva.set(f.formaCode, (porFormaCurva.get(f.formaCode) || 0) + f.liquidoCentavos)));
     return {
       curva,
       acumulado7dCentavos: acum7d,
       acumulado30dCentavos: acum30d,
       porForma: formasPagamento.map(f => ({
         formaCode: f.code,
-        liquidoCentavos: comandoPagamentos
-          .filter(p => p.forma_code === f.code)
-          .reduce((sum, p) => sum + (p.valor_centavos || 0) - (p.taxa_total_centavos || 0), 0),
+        liquidoCentavos: porFormaCurva.get(f.code) || 0,
         diasRecebimento: f.dias_recebimento || 0
       }))
     };

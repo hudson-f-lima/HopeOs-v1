@@ -213,7 +213,10 @@ export async function api(path, options = {}, retried = false) {
   }
   if (!res.ok || json.ok === false) {
     const msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
-    throw new Error(msg);
+    const erro = new Error(msg);
+    erro.code = (json.error && json.error.code) || null;
+    erro.status = res.status;
+    throw erro;
   }
   return json.data;
 }

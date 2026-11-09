@@ -107,8 +107,20 @@ export async function simular() {
     renderSplitRows();
     updateSubmitButtonState();
   } catch (err) {
-    showBanner(err.message, 'error');
+    showBanner(desvincularSeAgendaInvalida(err), 'error');
   }
+}
+
+// O backend recusa (antes de gravar) checkout vinculado a agendamento que não
+// pode ser concluído (cancelado, falta, reagendado) ou que não existe mais. A
+// tela tira o vínculo para a recepção poder fechar a comanda avulsa.
+const VINCULO_INVALIDO = ['INVALID_STATUS_TRANSITION', 'AGENDAMENTO_NOT_FOUND'];
+function desvincularSeAgendaInvalida(err) {
+  if (!state.agendamentoIdParaCheckout || !VINCULO_INVALIDO.includes(err && err.code)) return err.message;
+  state.agendamentoIdParaCheckout = null;
+  state.currentPayload = null;
+  document.getElementById('btnFechar').disabled = true;
+  return `${err.message} O vínculo com a agenda foi removido: clique em "Simular comanda" para fechar sem ele.`;
 }
 
 export async function fechar() {
@@ -150,8 +162,9 @@ export async function fechar() {
       document.getElementById('rebookingCard').classList.add('hidden');
     }
   } catch (err) {
-    showBanner(err.message, 'error');
-    btn.disabled = false;
+    const msg = desvincularSeAgendaInvalida(err);
+    showBanner(msg, 'error');
+    btn.disabled = !state.currentPayload;
     btn.textContent = 'Fechar comanda';
   }
 }

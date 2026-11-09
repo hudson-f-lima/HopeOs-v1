@@ -44,6 +44,11 @@ function installMemoryBackend(seed = {}) {
     return Object.assign(row, p);
   };
   P.update = P.updateScoped;
+  P.atualizarStatusAgendamentoSe = async function (id, deStatus, p) {
+    const row = rows('agendamentos').find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
+    return row ? Object.assign(row, p) : null;
+  };
+
   P.updateEmpresa = async function (patch) {
     const row = rows('empresas').find(r => r.id === this.empresaId);
     if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }
@@ -107,10 +112,31 @@ function installMemoryBackend(seed = {}) {
   // Espelha o que o RPC checkout_close grava (migration 003): comanda com data e
   // totais, itens, um comando_pagamentos e um caixa_movimentos por pagamento,
   // gorjetas e baixa de estoque de produto. Data padrão = current_date (UTC), como no RPC.
+  // Como no RPC: idempotencyKey (ou id) já usada devolve a comanda existente sem
+  // gravar nada; estoque é conferido ANTES de gravar (o RPC é uma transação: falha
+  // de estoque não deixa comanda pela metade); o retorno tem o mesmo formato.
   P.saveCheckoutClose = async function ({ payload = {}, resolved = {}, preview, autoria = {} }) {
     const t = (preview && preview.totals) || {};
     const data = payload.data || resolved.data || new Date().toISOString().slice(0, 10);
+    const chave = payload.idempotencyKey || payload.idempotency_key || null;
+    const existente = rows('comandos').find(c => c.empresa_id === this.empresaId && ((chave && c.idempotency_key === chave) || (payload.id && c.id === payload.id)));
+    if (existente) {
+      return { idempotent: true, comandoId: existente.id, status: existente.status, message: chave && existente.idempotency_key === chave ? 'Checkout já fechado para esta idempotencyKey.' : 'Checkout já fechado para este id.' };
+    }
+    const precisa = new Map();
+    for (const it of (preview && preview.itens) || []) {
+      if ((it.tipo || 'servico') !== 'produto') continue;
+      precisa.set(it.produtoId, (precisa.get(it.produtoId) || 0) + Number(it.quantidade || 1));
+    }
+    for (const [produtoId, qtd] of precisa) {
+      const prod = rows('produtos').find(p => p.id === produtoId && p.empresa_id === this.empresaId);
+      if (!prod) throw createAppError('BUSINESS_RULE_VIOLATION', `produto não encontrado para baixa de estoque: ${produtoId}`, 422);
+      if (prod.ativo === false) throw createAppError('BUSINESS_RULE_VIOLATION', `produto inativo para baixa de estoque: ${produtoId}`, 422);
+      if (prod.controla_estoque !== false && Number(prod.estoque_atual || 0) < qtd) throw createAppError('BUSINESS_RULE_VIOLATION', `estoque insuficiente para produto ${produtoId}`, 422);
+    }
+    const contagem = { itens: 0, pagamentos: 0, gorjetas: 0, caixaMovimentos: 0, estoqueMovimentos: 0 };
     const comando = await this.insert('comandos', {
+      ...(payload.id ? { id: payload.id } : {}), idempotency_key: chave,
       status: 'fechado', data, hora: payload.hora || resolved.hora || null, cliente_id: payload.clienteId || null,
       servicos_liquidos_centavos: t.servicosLiquidosCentavos || 0,
       produtos_liquidos_centavos: t.produtosLiquidosCentavos || 0,
@@ -134,12 +160,14 @@ function installMemoryBackend(seed = {}) {
         duracao_min: it.duracaoMin || 0, taxa_item_centavos: it.taxaItemCentavos || 0, comissao_pct: it.comissaoPct || 0,
         comissao_centavos: it.comissaoCentavos || 0, receita_empresa_centavos: it.receitaEmpresaCentavos || 0
       });
+      contagem.itens += 1;
       const prod = item.tipo === 'produto' && rows('produtos').find(p => p.id === item.produto_id && p.empresa_id === this.empresaId);
       if (prod && prod.controla_estoque !== false) {
         const antes = Number(prod.estoque_atual || 0);
         if (antes < item.quantidade) throw createAppError('BUSINESS_RULE_VIOLATION', `estoque insuficiente para produto ${prod.id}`, 422);
         prod.estoque_atual = antes - item.quantidade;
         await this.insert('produto_estoque_movimentos', { produto_id: prod.id, comando_id: comando.id, comando_item_id: item.id, tipo: 'venda', quantidade: item.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, actor_id: autoria.actorId || null });
+        contagem.estoqueMovimentos += 1;
       }
     }
     for (const g of (preview && preview.gorjetas) || []) {
@@ -147,6 +175,7 @@ function installMemoryBackend(seed = {}) {
         comando_id: comando.id, profissional_id: g.profissionalId || null, valor_bruto_centavos: g.gorjetaBrutaCentavos || 0,
         taxa_centavos: g.taxaGorjetaCentavos || 0, valor_liquido_centavos: g.gorjetaLiquidaCentavos || 0, regra: g.regra || 'automatic'
       });
+      contagem.gorjetas += 1;
     }
     for (const p of (preview && preview.payments) || []) {
       await this.insert('comando_pagamentos', {
@@ -158,8 +187,9 @@ function installMemoryBackend(seed = {}) {
         comando_id: comando.id, data, tipo: 'entrada_pagamento', forma_code: p.formaCode,
         valor_centavos: p.valorCentavos || 0, descricao: 'Entrada de checkout fechado'
       });
+      contagem.pagamentos += 1; contagem.caixaMovimentos += 1;
     }
-    return { comandoId: comando.id, preview: Boolean(preview) };
+    return { idempotent: false, comandoId: comando.id, status: 'fechado', ...contagem };
   };
 
   // Espelho da RPC comanda_estornar (migration 009): mesma ordem de checagens e os

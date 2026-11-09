@@ -5,6 +5,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { env } = require('../config/env');
+const clock = require('../config/clock');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { addDays, daysBetween } = require('../engines/insights/retention');
 const { computePiloto } = require('../engines/insights/piloto');
@@ -31,7 +32,7 @@ function resolverPeriodo(query, hoje) {
 
 router.get('/relatorios/piloto', authorize('relatorios:full'), async (req, res, next) => {
   try {
-    const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
+    const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
     const { de, ate } = resolverPeriodo(req.query, hoje);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };

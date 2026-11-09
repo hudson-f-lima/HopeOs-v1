@@ -1,201 +1,138 @@
-// F1.1 — Ocupacao: SUR (Service Utilization Rate), heatmap, buracos
-// Funcoes puras — nao dependem de estado externo
+// F1.1 — Ocupação: SUR (Service Utilization Rate), heatmap, buracos.
+// Funções puras — não dependem de estado externo nem do fuso do servidor.
+//
+// Expediente = o MESMO do motor de slots (SlotEngine.resolveJanela): aceita
+// { seg: { ativo, inicio, fim } } (formato gravado pela PWA/onboarding) e
+// { 1: { start, end } }, cruza profissional × empresa (horario_por_dia) e
+// desconta o almoço da empresa. Antes, só o formato { 1: { start, end } } do
+// profissional era lido: com os dados reais do onboarding a disponibilidade
+// era 0 e a carga, o heatmap e os buracos ficavam vazios.
+// Datas sempre em UTC (YYYY-MM-DD → dia da semana), nunca no fuso local do processo.
 
-const CAPACITY_SLOTS_PER_PROF = 8;
+const { resolveJanela } = require('../SlotEngine');
+const { timeToMinutes } = require('../ScheduleEngine');
 
-function parseJanela(horarioJsonb, horarioEmpresa, slotPadrao) {
-  if (!horarioJsonb || typeof horarioJsonb !== 'object') {
-    const slotMin = slotPadrao || 30;
-    return { inicio: 480, fim: 1020, slotMin }; // 8h–17h padrão
+// Status que ocupam a cadeira (inclui presença: aguardando/em_atendimento).
+const OCUPA = ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'concluido', 'fechado'];
+
+const dia = v => (v ? String(v).slice(0, 10) : null);
+const dowDe = data => new Date(`${data}T00:00:00Z`).getUTCDay();
+
+function datasDoPeriodo(dataInicio, dataFim, maxDias = 366) {
+  const datas = [];
+  const d = new Date(`${dataInicio}T00:00:00Z`);
+  const fim = new Date(`${dataFim}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(fim.getTime())) return datas;
+  while (d <= fim && datas.length < maxDias) {
+    datas.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
   }
-  const dow = new Date().getDay(); // fallback: segunda = 1
-  const doW = horarioJsonb[dow] || {};
-  if (!doW.start || !doW.end) {
-    const slotMin = slotPadrao || 30;
-    return { inicio: 480, fim: 1020, slotMin };
-  }
-  const [ih, im] = String(doW.start).split(':').map(Number);
-  const [fh, fm] = String(doW.end).split(':').map(Number);
-  return {
-    inicio: (ih * 60) + (im || 0),
-    fim: (fh * 60) + (fm || 0),
-    slotMin: slotPadrao || 30
-  };
+  return datas;
 }
 
-function computeSur(agendamentos, profissionalId, dataStr, horario, slotPadrao) {
-  // SUR = minutos_vendidos / minutos_disponiveis
-  // data em YYYY-MM-DD, horario em jsonb com chave dow (0–6)
-  const [y, m, d] = String(dataStr).split('-').map(Number);
-  const dow = new Date(`${dataStr}T00:00:00Z`).getUTCDay();
-  const janela = horario[dow] || {};
-  if (!janela.start || !janela.end) {
-    const slot = slotPadrao || 30;
-    const minDisp = 8 * slot;
-    const vendidos = agendamentos
-      .filter(a => a.profissional_id === profissionalId && a.data === dataStr && a.status !== 'cancelado')
-      .reduce((sum, a) => sum + (a.duracao_min || 30), 0);
-    return {
-      minutoVendido: vendidos,
-      minutoDisponivel: minDisp,
-      surPct: minDisp ? Math.min(100, Math.round((vendidos / minDisp) * 100 * 10) / 10) : 0
-    };
+function almoco(empresa) {
+  if (!empresa || !empresa.intervalo_almoco || !empresa.almoco_inicio || !empresa.almoco_fim) return null;
+  const start = timeToMinutes(empresa.almoco_inicio);
+  const end = timeToMinutes(empresa.almoco_fim);
+  return end > start ? { start, end } : null;
+}
+
+const sobreposicao = (a, b) => Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+
+// Intervalos de trabalho do profissional no dia (expediente menos almoço).
+function intervalosDeTrabalho(profissional, empresa, data) {
+  const j = resolveJanela({ profissional, empresa: empresa || {}, data });
+  if (!j) return [];
+  const a = almoco(empresa);
+  if (!a || sobreposicao({ start: j.inicio, end: j.fim }, a) === 0) return [{ start: j.inicio, end: j.fim }];
+  return [{ start: j.inicio, end: a.start }, { start: a.end, end: j.fim }].filter(i => i.end > i.start);
+}
+
+const minutosDisponiveis = (profissional, empresa, data) =>
+  intervalosDeTrabalho(profissional, empresa, data).reduce((s, i) => s + (i.end - i.start), 0);
+
+const ativos = profissionais => (profissionais || []).filter(p => p && p.ativo !== false);
+const duracao = a => Number(a.duracao_min || a.duracaoMin || 30);
+const ocupaNoDia = (a, data, profissionalId) => dia(a.data) === data && OCUPA.includes(a.status)
+  && (profissionalId === undefined || a.profissional_id === profissionalId);
+
+// SUR do profissional no PERÍODO inteiro (antes: só o primeiro dia do período).
+function computeSur({ agendamentos = [], profissional, empresa = {}, dataInicio, dataFim }) {
+  let vendidos = 0;
+  let disponiveis = 0;
+  for (const data of datasDoPeriodo(dataInicio, dataFim || dataInicio)) {
+    disponiveis += minutosDisponiveis(profissional, empresa, data);
+    vendidos += agendamentos.filter(a => ocupaNoDia(a, data, profissional.id)).reduce((s, a) => s + duracao(a), 0);
   }
-  const [ih, im] = String(janela.start).split(':').map(Number);
-  const [fh, fm] = String(janela.end).split(':').map(Number);
-  const minDisp = ((fh * 60) + (fm || 0)) - ((ih * 60) + (im || 0));
-
-  const vendidos = agendamentos
-    .filter(a => a.profissional_id === profissionalId && a.data === dataStr &&
-            ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'concluido', 'fechado'].includes(a.status))
-    .reduce((sum, a) => sum + (a.duracao_min || 30), 0);
-
   return {
     minutoVendido: vendidos,
-    minutoDisponivel: minDisp || 240,
-    surPct: minDisp ? Math.min(100, Math.round((vendidos / minDisp) * 100 * 10) / 10) : 0
+    minutoDisponivel: disponiveis,
+    surPct: disponiveis ? Math.min(100, Math.round((vendidos / disponiveis) * 1000) / 10) : 0
   };
 }
 
-function computeHeatmap(agendamentos, profissionais, dataInicio, dataFim) {
-  // Agrupa agendamentos por dia-da-semana e hora do dia (buckets de 1h)
+// Heatmap dia-da-semana × hora. Disponível e vendido somam CADA data do período
+// (antes: o disponível era de uma semana só e o vendido de todas → > 100% em
+// períodos de mais de 7 dias). Atendimento que atravessa a hora é repartido.
+function computeHeatmap(agendamentos, profissionais, dataInicio, dataFim, empresa = {}) {
   const map = {};
-  const d0 = new Date(dataInicio);
-  const d1 = new Date(dataFim);
-  const VALID_STATUSES = ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'concluido', 'fechado'];
-
-  agendamentos.forEach(a => {
-    const aData = new Date(String(a.data) + 'T00:00:00');
-    if (aData < d0 || aData > d1) return;
-    if (!VALID_STATUSES.includes(a.status)) return;
-
-    const dow = aData.getDay();
-    const [h, m] = (String(a.horario || '08:00')).split(':').map(Number);
-    const hora = h;
-
-    const key = `${dow}:${hora}`;
-    if (!map[key]) map[key] = { minutoVendido: 0, minutoDisponivel: 0 };
-    map[key].minutoVendido += (a.duracao_min || 30);
-  });
-
-  // Calcular disponíveis por hora (simplificado: assume todo prof em cada hora)
-  profissionais.forEach(p => {
-    for (let dow = 0; dow < 7; dow++) {
-      const h = p.horario && p.horario[dow];
-      if (!h || !h.start) continue;
-      const [ih, im] = String(h.start).split(':').map(Number);
-      const [fh, fm] = String(h.end).split(':').map(Number);
-      const minTotal = ((fh * 60) + (fm || 0)) - ((ih * 60) + (im || 0));
-      for (let hora = ih; hora < fh; hora++) {
-        const key = `${dow}:${hora}`;
-        if (!map[key]) map[key] = { minutoVendido: 0, minutoDisponivel: 0 };
-        map[key].minutoDisponivel += Math.min(60, minTotal);
-      }
+  const bucket = (dow, hora) => (map[`${dow}:${hora}`] = map[`${dow}:${hora}`] || { minutoVendido: 0, minutoDisponivel: 0 });
+  const espalhar = (dow, intervalo, campo) => {
+    for (let hora = Math.floor(intervalo.start / 60); hora * 60 < intervalo.end; hora++) {
+      const m = sobreposicao(intervalo, { start: hora * 60, end: (hora + 1) * 60 });
+      if (m > 0) bucket(dow, hora)[campo] += m;
     }
-  });
-
+  };
+  for (const data of datasDoPeriodo(dataInicio, dataFim)) {
+    const dow = dowDe(data);
+    ativos(profissionais).forEach(p => intervalosDeTrabalho(p, empresa, data).forEach(i => espalhar(dow, i, 'minutoDisponivel')));
+    (agendamentos || []).filter(a => ocupaNoDia(a, data)).forEach(a => {
+      const start = timeToMinutes(a.horario || '08:00');
+      espalhar(dow, { start, end: start + duracao(a) }, 'minutoVendido');
+    });
+  }
   return Object.entries(map).map(([k, v]) => {
     const [dow, hora] = k.split(':').map(Number);
-    return {
-      dow,
-      hora,
-      ocupacaoPct: v.minutoDisponivel ? Math.min(100, Math.round((v.minutoVendido / v.minutoDisponivel) * 100)) : 0
-    };
-  });
+    return { dow, hora, ocupacaoPct: v.minutoDisponivel ? Math.min(100, Math.round((v.minutoVendido / v.minutoDisponivel) * 100)) : 0 };
+  }).sort((a, b) => a.dow - b.dow || a.hora - b.hora);
 }
 
-function computeLoadFactor(agendamentos, profissionais, dataInicio, dataFim) {
-  // Load factor da empresa = total minutos vendidos / total minutos disponíveis no período
-  const d0 = new Date(dataInicio);
-  const d1 = new Date(dataFim);
-
+function computeLoadFactor(agendamentos, profissionais, dataInicio, dataFim, empresa = {}) {
   let minVendido = 0;
   let minDisp = 0;
-
-  const dateRange = [];
-  for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
-    dateRange.push(new Date(d).toISOString().split('T')[0]);
+  for (const data of datasDoPeriodo(dataInicio, dataFim)) {
+    ativos(profissionais).forEach(p => { minDisp += minutosDisponiveis(p, empresa, data); });
+    (agendamentos || []).forEach(a => { if (ocupaNoDia(a, data)) minVendido += duracao(a); });
   }
-
-  const VALID_STATUSES = ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'concluido', 'fechado'];
-
-  dateRange.forEach(data => {
-    agendamentos.forEach(a => {
-      if (a.data !== data || !VALID_STATUSES.includes(a.status)) return;
-      minVendido += (a.duracao_min || 30);
-    });
-
-    const dow = new Date(data + 'T00:00:00').getDay();
-    profissionais.forEach(p => {
-      const h = p.horario && p.horario[dow];
-      if (!h || !h.start) return;
-      const [ih, im] = String(h.start).split(':').map(Number);
-      const [fh, fm] = String(h.end).split(':').map(Number);
-      minDisp += ((fh * 60) + (fm || 0)) - ((ih * 60) + (im || 0));
-    });
-  });
-
   return {
-    loadFactorPct: minDisp ? Math.min(100, Math.round((minVendido / minDisp) * 100 * 10) / 10) : 0,
+    loadFactorPct: minDisp ? Math.min(100, Math.round((minVendido / minDisp) * 1000) / 10) : 0,
     minutosVendidos: minVendido,
     minutosDisponiveis: minDisp
   };
 }
 
-function computeGaps(agendamentos, profissionais, dataStr, slotPadrao) {
-  // Buracos = slots livres contíguos >= slotPadrao em cada profissional
+// Buracos (janelas livres >= slotPadrao) de um dia, respeitando almoço.
+function computeGaps(agendamentos, profissionais, dataStr, slotPadrao, empresa = {}) {
   const gaps = [];
   const slot = slotPadrao || 30;
-
-  profissionais.forEach(prof => {
-    const dow = new Date(dataStr + 'T00:00:00').getDay();
-    const h = prof.horario && prof.horario[dow];
-    if (!h || !h.start) return;
-
-    const [ih, im] = String(h.start).split(':').map(Number);
-    const [fh, fm] = String(h.end).split(':').map(Number);
-    const inicio = (ih * 60) + (im || 0);
-    const fim = (fh * 60) + (fm || 0);
-
-    const VALID_STATUSES = ['agendado', 'confirmado', 'aguardando', 'em_atendimento', 'concluido', 'fechado'];
-    const agendsPorProf = agendamentos
-      .filter(a => a.data === dataStr && a.profissional_id === prof.id && VALID_STATUSES.includes(a.status))
-      .map(a => {
-        const [ah, am] = String(a.horario || '08:00').split(':').map(Number);
-        return {
-          startMin: (ah * 60) + (am || 0),
-          endMin: ((ah * 60) + (am || 0)) + (a.duracao_min || 30)
-        };
-      })
-      .sort((a, b) => a.startMin - b.startMin);
-
-    let current = inicio;
-    agendsPorProf.forEach(a => {
-      if (a.startMin - current >= slot) {
-        gaps.push({
-          profissionalId: prof.id,
-          profissionalNome: prof.nome,
-          data: dataStr,
-          inicio: minToHHMM(current),
-          fim: minToHHMM(a.startMin),
-          minutos: a.startMin - current
-        });
-      }
-      current = Math.max(current, a.endMin);
-    });
-
-    if (fim - current >= slot) {
-      gaps.push({
-        profissionalId: prof.id,
-        profissionalNome: prof.nome,
-        data: dataStr,
-        inicio: minToHHMM(current),
-        fim: minToHHMM(fim),
-        minutos: fim - current
+  ativos(profissionais).forEach(prof => {
+    const ocupados = (agendamentos || [])
+      .filter(a => ocupaNoDia(a, dataStr, prof.id))
+      .map(a => { const start = timeToMinutes(a.horario || '08:00'); return { start, end: start + duracao(a) }; })
+      .sort((a, b) => a.start - b.start);
+    intervalosDeTrabalho(prof, empresa, dataStr).forEach(janela => {
+      let current = janela.start;
+      const push = fim => {
+        if (fim - current >= slot) gaps.push({ profissionalId: prof.id, profissionalNome: prof.nome, data: dataStr, inicio: minToHHMM(current), fim: minToHHMM(fim), minutos: fim - current });
+      };
+      ocupados.forEach(o => {
+        if (o.end <= janela.start || o.start >= janela.end) return;
+        push(Math.min(o.start, janela.end));
+        current = Math.max(current, o.end);
       });
-    }
+      push(janela.end);
+    });
   });
-
   return gaps;
 }
 
@@ -206,7 +143,9 @@ function minToHHMM(min) {
 }
 
 module.exports = {
-  parseJanela,
+  OCUPA,
+  datasDoPeriodo,
+  minutosDisponiveis,
   computeSur,
   computeHeatmap,
   computeLoadFactor,

@@ -7,7 +7,7 @@ const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
-const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery, assertTransicaoStatus } = require('../validators/agenda.validator');
+const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery, assertTransicaoStatus, TRANSICOES } = require('../validators/agenda.validator');
 const {
   validateUUID,
   validateCreateClientePayload,
@@ -342,7 +342,7 @@ router.get('/agenda/lembretes', authorize('agenda:read'), async (req, res, next)
   try {
     let data = req.query.data;
     if (data === undefined) {
-      const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
+      const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
       const [y, m, d] = hoje.split('-').map(Number);
       data = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
     }
@@ -387,7 +387,7 @@ router.get('/agenda/slots', authorize('agenda:read'), async (req, res, next) => 
       servicosAtivos: servicos.filter(s => s.ativo !== false),
       agendamentos,
       duracaoMin: query.duracaoMin,
-      agora: agoraNoFuso(env.APP_TIMEZONE)
+      agora: agoraNoFuso(env.APP_TIMEZONE, clock.agora())
     });
     res.json({ ok: true, data: { ...result, profissionalId: profissional.id, servicoId: servico.id } });
   } catch (err) { next(err); }
@@ -542,10 +542,34 @@ router.get('/catalog', authorize('clientes:read'), authorize('cadastros:read'), 
   } catch (err) { next(err); }
 });
 
+// Vínculo opcional checkout → agenda, validado ANTES de gravar a comanda: o
+// checkout é a fonte de verdade financeira e não pode fechar dizendo que concluiu
+// um agendamento que a máquina de estados (TRANSICOES) não deixa concluir
+// (cancelado, no_show, reagendado). Já concluido/fechado = repetição do mesmo
+// checkout (retry com a mesma idempotencyKey): aceito sem mudar status nem trilha.
+const STATUS_JA_PAGOS = ['concluido', 'fechado'];
+async function validarVinculoAgendamento(req, repo) {
+  const bruto = req.body && req.body.agendamentoId;
+  if (bruto === undefined || bruto === null || bruto === '') return null;
+  const agendamentoId = validateUUID(bruto, 'agendamentoId');
+  const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
+  if (!ag) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${agendamentoId}`, 404, { id: agendamentoId });
+  assertOwn(req, ag.profissional_id);
+  if (STATUS_JA_PAGOS.includes(ag.status)) return { ag, jaConcluido: true };
+  try {
+    assertTransicaoStatus(ag.status, 'concluido');
+  } catch (err) {
+    err.message = `Agendamento ${ag.status} não pode ser concluído pelo checkout. Feche a comanda sem vínculo com a agenda.`;
+    throw err;
+  }
+  return { ag, jaConcluido: false };
+}
+
 router.post('/checkout/preview', authorize('checkout:write'), async (req, res, next) => {
   try {
     assertOwnCheckout(req, req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
+    await validarVinculoAgendamento(req, repo);
     const { resolved } = await buildServerResolvedCheckout(repo, req.body);
     res.json({ ok: true, data: previewCheckout(resolved) });
   } catch (err) { next(err); }
@@ -556,43 +580,58 @@ router.post('/checkout/close', authorize('checkout:write'), async (req, res, nex
     assertOwnCheckout(req, req.body);
     const autoria = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
+    const vinculo = await validarVinculoAgendamento(req, repo);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
     // Data/hora da comanda = agora no fuso da empresa, sempre definidas pelo
     // servidor (D-012). Antes: sem data, o RPC usava current_date do Postgres
     // (UTC) e a venda das 21h–24h de Brasília caía no dia seguinte; com data,
     // o cliente podia lançar venda em dia já fechado.
-    const agora = agoraNoFuso(env.APP_TIMEZONE);
+    const agora = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
     const hora = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
     payload.data = agora.data; payload.hora = hora;
     resolved.data = agora.data; resolved.hora = hora;
     const preview = previewCheckout(resolved);
     const saved = await repo.saveCheckoutClose({ payload, resolved, preview, autoria });
 
-    // Vínculo opcional checkout → agenda. Não faz parte da RPC nem do ledger:
-    // é só uma atualização de status feita depois que o checkout já fechou.
-    // Se falhar, não derruba a resposta — a comanda já foi fechada de verdade.
+    // Vínculo checkout → agenda (validado acima, antes de gravar). Não faz parte
+    // da RPC nem do ledger: a atualização de status vem depois do fechamento. Se
+    // o status mudou entre a validação e aqui (corrida), não força a transição:
+    // a comanda já está fechada e vale; o vínculo fica registrado como não aplicado.
     let agendamentoConcluido = null;
-    if (req.body && req.body.agendamentoId) {
+    let vinculoAgenda = null;
+    if (vinculo) {
+      const agendamentoId = vinculo.ag.id;
       try {
-        const agendamentoId = validateUUID(req.body.agendamentoId, 'agendamentoId');
-        // Lido também fora do escopo "Próprio" para registrar o status anterior na trilha.
-        const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
-        if (req.authz.own) assertOwn(req, ag && ag.profissional_id);
-        const statusAnterior = ag ? ag.status : null;
-        agendamentoConcluido = await repo.updateScoped('agendamentos', agendamentoId, {
-          status: 'concluido',
-          updated_at: new Date().toISOString(),
-          updated_by: autoria.actorId
-        });
-        if (ag && statusAnterior !== 'concluido') {
-          await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: statusAnterior, para: 'concluido', origem: 'checkout' });
+        const atual = await repo.getByIdScoped('agendamentos', agendamentoId);
+        const statusAnterior = atual ? atual.status : null;
+        if (STATUS_JA_PAGOS.includes(statusAnterior)) {
+          agendamentoConcluido = atual;
+          vinculoAgenda = { aplicado: true, jaConcluido: true };
+        } else if (atual && TRANSICOES.concluido.includes(statusAnterior)) {
+          // Compare-and-set: só conclui se o status ainda for o lido agora.
+          agendamentoConcluido = await repo.atualizarStatusAgendamentoSe(agendamentoId, [statusAnterior], {
+            status: 'concluido',
+            updated_at: new Date().toISOString(),
+            updated_by: autoria.actorId
+          });
+          if (agendamentoConcluido) {
+            await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: statusAnterior, para: 'concluido', origem: 'checkout' });
+            vinculoAgenda = { aplicado: true, jaConcluido: false };
+          } else {
+            vinculoAgenda = { aplicado: false, motivo: 'STATUS_ALTERADO_DURANTE_FECHAMENTO' };
+            console.error(`[checkout] agendamento ${agendamentoId} mudou de status durante o fechamento; status não alterado.`);
+          }
+        } else {
+          vinculoAgenda = { aplicado: false, motivo: 'INVALID_STATUS_TRANSITION', statusAtual: statusAnterior };
+          console.error(`[checkout] agendamento ${agendamentoId} mudou para ${statusAnterior} durante o fechamento; status não alterado.`);
         }
       } catch (linkErr) {
+        vinculoAgenda = { aplicado: false, motivo: 'FALHA_ATUALIZACAO' };
         console.error('Falha ao marcar agendamento como concluído:', linkErr.message || linkErr);
       }
     }
 
-    res.status(201).json({ ok: true, data: { preview, saved, agendamentoConcluido } });
+    res.status(201).json({ ok: true, data: { preview, saved, agendamentoConcluido, vinculoAgenda } });
   } catch (err) { next(err); }
 });
 
@@ -686,27 +725,34 @@ router.post('/comandas/:id/estorno', authorize('checkout:estornar'), async (req,
 });
 
 // F1 Insights — read-only, serão cacheáveis depois
+// Período dos insights: padrão = hoje NO FUSO DA EMPRESA (antes: data UTC, que
+// das 21h às 24h de Brasília já era "amanhã"). Datas reais, de <= ate, até 366 dias.
+const INSIGHTS_PERIODO_MAX_DIAS = 366;
+function periodoInsights(query) {
+  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const from = query.from === undefined || query.from === '' ? hoje : String(query.from);
+  const to = query.to === undefined || query.to === '' ? hoje : String(query.to);
+  const valida = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+  if (!valida(from) || !valida(to)) throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
+  if (from > to) throw createAppError('INVALID_DATES', 'from não pode ser depois de to.', 400);
+  if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5 + 1 > INSIGHTS_PERIODO_MAX_DIAS) {
+    throw createAppError('INVALID_DATES', `Período máximo de ${INSIGHTS_PERIODO_MAX_DIAS} dias.`, 400);
+  }
+  return { from, to, hoje };
+}
+
 router.get('/insights/occupancy', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
-    const from = req.query.from || new Date().toISOString().split('T')[0];
-    const to = req.query.to || new Date().toISOString().split('T')[0];
-    // Validar datas YYYY-MM-DD
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-      throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
-    }
+    const { from, to, hoje } = periodoInsights(req.query);
     const service = new InsightsService(req.auth.empresa_id);
-    const data = await service.loadOccupancyInsights(from, to);
+    const data = await service.loadOccupancyInsights(from, to, hoje);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 
 router.get('/insights/margin', authorize('relatorios:full'), async (req, res, next) => {
   try {
-    const from = req.query.from || new Date().toISOString().split('T')[0];
-    const to = req.query.to || new Date().toISOString().split('T')[0];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-      throw createAppError('INVALID_DATES', 'Datas devem estar em formato YYYY-MM-DD', 400);
-    }
+    const { from, to } = periodoInsights(req.query);
     const service = new InsightsService(req.auth.empresa_id);
     const data = await service.loadMarginInsights(from, to);
     res.json({ ok: true, data });
@@ -715,9 +761,11 @@ router.get('/insights/margin', authorize('relatorios:full'), async (req, res, ne
 
 router.get('/insights/cashflow', authorize('relatorios:full'), async (req, res, next) => {
   try {
-    const days = Math.min(parseInt(req.query.days || '30'), 90);
+    const bruto = req.query.days === undefined || req.query.days === '' ? '30' : String(req.query.days);
+    if (!/^\d{1,3}$/.test(bruto) || Number(bruto) < 1) throw createAppError('INVALID_DAYS', 'days deve ser inteiro entre 1 e 90.', 400);
+    const days = Math.min(Number(bruto), 90);
     const service = new InsightsService(req.auth.empresa_id);
-    const data = await service.loadCashflowInsights(days);
+    const data = await service.loadCashflowInsights(days, agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
