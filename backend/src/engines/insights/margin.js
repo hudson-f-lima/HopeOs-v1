@@ -22,7 +22,7 @@ function aggregateMarginByServico(comandoItens, comandos) {
     map[key].producaoCentavos += item.valor_liquido_centavos || 0;
     map[key].comissaoCentavos += item.comissao_centavos || 0;
     map[key].receitaEmpresaCentavos += item.receita_empresa_centavos || 0;
-    map[key].n += 1;
+    map[key].n += item._estorno ? 0 : 1; // linha de estorno (D-013) não é venda nova
   });
 
   return Object.values(map).map(s => ({
@@ -92,7 +92,7 @@ function aggregateMarginByProduto(comandoItens) {
     map[key].vendaCentavos += (item.total_venda_centavos || item.valor_liquido_centavos || 0);
     map[key].custoCentavos += item.total_custo_centavos || 0;
     map[key].lucroBrutoCentavos += item.lucro_bruto_centavos || 0;
-    map[key].n += 1;
+    map[key].n += item._estorno ? 0 : 1; // linha de estorno (D-013) não é venda nova
   });
 
   return Object.values(map).map(p => ({

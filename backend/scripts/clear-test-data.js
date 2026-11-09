@@ -35,6 +35,9 @@ async function main() {
     const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Deleta tudo de forma segura
     if (error) {
       console.error(`Erro ao limpar ${table}:`, error.message);
+      // Migration 009 (D-013): o ledger é imutável por trigger. Apagar histórico
+      // financeiro exige SQL autorizado pelo Platform Owner (docs/RUNBOOK_MIGRATION_007.md §4.1).
+      if (/ledger imutável/.test(error.message || '')) console.error('Ledger imutável desde a 009: limpeza só com SQL autorizado (ver RUNBOOK §4.1).');
       throw error;
     }
   }

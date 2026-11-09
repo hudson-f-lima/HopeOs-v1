@@ -7,6 +7,8 @@ const { roundCents, sumCents } = require('./money');
 
 const FORMA_DINHEIRO = 'dinheiro';
 const TIPO_ENTRADA = 'entrada_pagamento';
+// Estorno de comanda (D-013, migration 009): linha NEGATIVA no caixa do dia do estorno.
+const TIPO_ESTORNO = 'estorno_pagamento';
 
 function addDiasCorridos(data, dias) {
   const d = new Date(`${data}T00:00:00Z`);
@@ -55,7 +57,13 @@ function buildFechamentoCaixa({ data, comandos = [], pagamentos = [], movimentos
 
   const totalBrutoCentavos = sumCents(pagsDoDia, 'valor_centavos');
   const taxaTotalCentavos = sumCents(pagsDoDia, 'taxa_total_centavos');
-  const esperadoDinheiro = ledgerPorForma.get(FORMA_DINHEIRO) || 0;
+  // Estornos lançados neste dia (de comandas deste dia ou de dias anteriores).
+  const saidas = movimentos.filter(m => String(m.data) === data && m.tipo === TIPO_ESTORNO);
+  const estornoPorForma = new Map();
+  for (const m of saidas) estornoPorForma.set(m.forma_code, (estornoPorForma.get(m.forma_code) || 0) + roundCents(m.valor_centavos));
+  const estornosValor = sumCents(saidas, 'valor_centavos');
+  // Dinheiro devolvido ao cliente sai da gaveta no dia do estorno.
+  const esperadoDinheiro = (ledgerPorForma.get(FORMA_DINHEIRO) || 0) + (estornoPorForma.get(FORMA_DINHEIRO) || 0);
   const dinheiro = { formaCode: FORMA_DINHEIRO, esperadoCentavos: esperadoDinheiro };
   if (contadoDinheiroCentavos !== undefined && contadoDinheiroCentavos !== null) {
     dinheiro.contadoCentavos = contadoDinheiroCentavos;
@@ -73,6 +81,12 @@ function buildFechamentoCaixa({ data, comandos = [], pagamentos = [], movimentos
       liquidaCentavos: sumCents(doDia, 'total_gorjeta_liquida_centavos')
     },
     porForma,
+    estornos: {
+      quantidadeMovimentos: saidas.length,
+      valorCentavos: estornosValor,
+      porForma: [...estornoPorForma.entries()].map(([formaCode, valorCentavos]) => ({ formaCode, valorCentavos })).sort((a, b) => a.valorCentavos - b.valorCentavos || String(a.formaCode).localeCompare(String(b.formaCode)))
+    },
+    saldoDoDiaCentavos: totalBrutoCentavos + estornosValor,
     dinheiro,
     ledger: {
       caixaMovimentosCentavos: sumCents(entradas, 'valor_centavos'),

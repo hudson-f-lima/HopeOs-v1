@@ -41,6 +41,9 @@ function render(f) {
     <div class="row"><span>Gorjetas (bruto)</span><b>${centsToBRL(f.gorjetas.brutaCentavos)}</b></div>
     <h3 class="body-sm text-tertiary" style="margin:10px 0 4px">Por forma de pagamento</h3>
     ${formas}
+    ${f.estornos && f.estornos.quantidadeMovimentos ? `
+    <div class="row" id="caixaEstornos" data-estornos="${f.estornos.valorCentavos}"><span style="color:var(--md-error)">Estornos lançados no dia (${f.estornos.porForma.map(p => escapeHtml(p.formaCode)).join(', ')})</span><b style="color:var(--md-error)">${centsToBRL(f.estornos.valorCentavos)}</b></div>
+    <div class="row"><span>Saldo do dia (vendas − estornos)</span><b id="caixaSaldoDia">${centsToBRL(f.saldoDoDiaCentavos)}</b></div>` : ''}
     <div class="row total"><span>Dinheiro esperado na gaveta</span><b id="caixaEsperado">${centsToBRL(f.dinheiro.esperadoCentavos)}</b></div>
     ${renderDiferenca(f.dinheiro)}
     ${f.ledger.consistente ? '' : '<p class="body-sm" style="color:var(--md-error)">Atenção: pagamentos e movimentos de caixa do dia não batem. Avise a gestão.</p>'}

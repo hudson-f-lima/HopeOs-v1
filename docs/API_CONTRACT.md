@@ -160,6 +160,36 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 
 `PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).
 
+## D-013 — estorno de comanda (migration 009)
+- `POST /api/comandas/:id/estorno` (`checkout:estornar`: admin/gestor, só usuário)
+  - Corpo: `{tipo:'total'|'parcial', idempotencyKey, motivoCodigo: erro_lancamento|desistencia_cliente|insatisfacao|duplicidade|outro, motivo (10–500), devolverEstoque? (total), itens?:[{comandoItemId, quantidade, devolveEstoque?}] (parcial), reembolsos?:[{formaCode, valorCentavos}] | reembolsoForma? (parcial)}`.
+  - Resposta: 201 (novo) ou 200 (repetição idempotente) com `{estornoId, tipo, data, itensCentavos, comissaoCentavos, receitaEmpresaCentavos, gorjeta*, reembolsoCentavos, reembolsos, statusComanda}`.
+  - 403 `INSUFFICIENT_ROLE` | `USER_PRINCIPAL_REQUIRED` | `ESTORNO_FORBIDDEN`.
+  - 404 `COMANDA_NOT_FOUND`.
+  - 409 `ESTORNO_EXCEDE` | `ESTORNO_JA_TOTAL` | `IDEMPOTENCY_MISMATCH`.
+  - 422 `IDEMPOTENCY_KEY_REQUIRED` | `ESTORNO_PAYLOAD_INVALIDO` | `ESTORNO_PRAZO_EXPIRADO` (> 30 dias) | `ESTORNO_DATA_INVALIDA` | `ESTORNO_ITEM_INVALIDO` | `ESTORNO_ITENS_OBRIGATORIOS` | `ESTORNO_FORMA_OBRIGATORIA` | `ESTORNO_REEMBOLSO_DIVERGENTE` | `FORBIDDEN_FIELD`.
+- `GET /api/comandas/:id/estornos` e `GET /api/comandas?data=` (lista do dia com saldo estornável): RBAC `relatorios:full`.
+- Campos novos:
+  - `/caixa/fechamento`: `estornos{quantidadeMovimentos, valorCentavos, porForma}` e `saldoDoDiaCentavos`;
+  - `/financeiro/resumo`: `estornos` e `totals.comandasValidas`;
+  - `/insights/margin` e `/relatorios/cota-parte`: `estornos` (descontados na data do estorno).
+
+## D-014 — histórico da agenda e agendamento online
+- **`GET /api/agenda/:id/historico`** (`agenda:read`; profissional só vê os próprios)
+  - 200 `{agendamentoId, statusAtual, eventos:[{id, tipo:'criado'|'status'|'reagendado'|'duracao', quando, de, para, origem, ator:{tipo, nome|null}, reagendadoPara?, reagendadoDe?}]}`.
+  - Sem e-mail e sem `actor_id`.
+  - A trilha é best-effort e começa nesta versão.
+- **`GET /api/relatorios/piloto`, campo `confirmacaoPrevia`:** ganha `escopo` (`periodo_eventos` | `foto_do_dia`), `semTrilha`, `canceladosAntes` e `fotoDoDia`.
+- **Agendamento online (público, sem login)**
+  - Fica desligado sem `PUBLIC_BOOKING_LINKS` (JSON `{"slug":"<uuid>"}`); desligado, tudo responde 404.
+  - Respostas com `Cache-Control: no-store` e erros sem `details`.
+  - `GET /api/public/agendar/:slug` devolve catálogo, serviços com preço e o primeiro nome dos profissionais, e as regras de antecedência e janela.
+  - `GET /api/public/agendar/:slug/slots?servicoId&profissionalId&data` devolve `{data, duracaoMin, slots}`.
+  - `POST /api/public/agendar/:slug`:
+    - corpo `{servicoId, profissionalId, data, horario, nome, whatsapp, consentimento:true, website:""}`, com até 10 KB e só esses campos;
+    - sucesso: 201 `{data, horario, servico, profissional}`;
+    - erros: 422 `DADOS_INVALIDOS` | `NOME_INVALIDO` | `WHATSAPP_INVALIDO` | `CONSENTIMENTO_OBRIGATORIO` | `INDISPONIVEL` | `HORARIO_INDISPONIVEL` | `AGENDAMENTO_ONLINE_INDISPONIVEL`; 409 `HORARIO_OCUPADO`; 429 `MUITAS_TENTATIVAS`.
+
 ## D-012 — presença, checkout, caixa e piloto
 - Corpo JSON máximo: 100 KB; acima disso, 413.
 - **Agenda**:

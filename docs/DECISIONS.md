@@ -74,3 +74,30 @@
   - desenhos DRAFT de estorno (009) e de agendamento online.
 - Rejeitado da spec: trava de agenda condicionada a sinal pago (não protege a maioria dos horários; enum inválido) e `process_checkout_atomic` (sem tenant, sem idempotência, `UPDATE` sobre o registro).
 - Não fazer sem parecer trabalhista: gamificação com prêmio, metas e bônus, 360°/9-box, distribuição de clientes por desempenho (risco de descaracterizar a parceria da Lei 13.352/2016).
+
+## D-013 — Migration 009: estorno de comanda e ledger imutável
+- Autorizado pelo Platform Owner em 2026-11-09 (escolha "Estorno de comanda"), com merge autorizado "quando estiver verde". Fora: presença com horário, ficha técnica.
+- Modelo: lançamentos inversos em 4 tabelas próprias (`comanda_estornos`, `_itens`, `_pagamentos`, `_gorjetas`), linha negativa `estorno_pagamento` em `caixa_movimentos` na data do estorno, tipo de estoque `devolucao`, RPC `comanda_estornar` (security definer, advisory lock por comanda, idempotência por chave + md5 do payload, papel conferido no banco).
+- Padrões adotados (recomendados no desenho; revisáveis pelo Platform Owner):
+  - só admin/gestor estornam (`checkout:estornar`, userOnly; token legado e integração não estornam);
+  - comissão e cota-parte entram no mês do estorno;
+  - prazo de 30 dias da data da comanda;
+  - a agenda não muda;
+  - o salão absorve a taxa da maquininha;
+  - no parcial a gorjeta fica, no total é revertida;
+  - comanda de dia anterior é estornada com lançamento hoje (`APP_TIMEZONE`).
+- **Ledger imutável por trigger** (update/delete/truncate) em comandos, itens, pagamentos, gorjetas, caixa, estoque e tabelas de estorno. `service_role` perde update/delete nelas. Consequência intencional: `clear-test-data` e exclusão de empresa/produto/comanda com histórico exigem SQL autorizado (RUNBOOK §4.1).
+- Relatórios descontam o estorno no dia/mês do estorno: financeiro, dashboard, insights de margem e fluxo de caixa, cota-parte, fechamento de caixa. Piloto e retenção não mudam (a visita aconteceu).
+
+## D-014 — Trilha de status da agenda e agendamento online (sem migration)
+- Pedido do Platform Owner em 2026-11-09: "Continue o desenvolvimento do software até o final".
+- **Trilha:** criação, status, reagendamento, duração e conclusão pelo checkout gravam em `agendamento_eventos` (tabela da 001). A gravação é best-effort e não guarda PII. Rota `GET /api/agenda/:id/historico` e "Histórico" na PWA. O KPI de confirmação prévia passa a ser medido por período quando há trilha.
+- **Agendamento online pelo link** (`agendar.html?s=<slug>`, `/api/public/agendar/:slug`):
+  - o tenant vem só do mapa `PUBLIC_BOOKING_LINKS` no servidor (opção B do desenho);
+  - **desligado por padrão**, e a variável não está no `render.yaml`;
+  - tem revalidação de horário no backend, deduplicação sem revelar nome, limites por número, salão e IP, honeypot, recusa genérica para a régua `exigir_sinal` e evento de origem com IP truncado.
+- **Para ligar em produção, faltam:**
+  - aviso de privacidade aprovado;
+  - Red Team;
+  - decisão sobre spam sem verificação do número (PARCIAL);
+  - decisão sobre o rate limit em memória por instância.

@@ -17,7 +17,8 @@ const router = express.Router();
 router.use('/admin', authorize('admin'));
 
 const ROLES = ['admin', 'gestor', 'recepcao', 'profissional'];
-const SCOPES = Object.keys(ACTIONS).filter(a => a !== 'admin');
+// Ações userOnly (admin, checkout:estornar) nunca viram scope de integração.
+const SCOPES = Object.keys(ACTIONS).filter(a => !ACTIONS[a].userOnly);
 
 function pick(body, allowed) {
   const extra = Object.keys(body || {}).filter(k => !allowed.includes(k));

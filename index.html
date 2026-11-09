@@ -366,6 +366,13 @@
         <p class="body-sm" id="caixaErro" style="color:var(--md-error)"></p>
         <div id="caixaResultado"></div>
       </section>
+      <section class="card dashboard-list hidden" id="cardComandasEstorno" aria-label="Comandas do dia e estorno">
+        <h2>Comandas do dia</h2>
+        <div class="field"><label for="estornoData">Dia</label><input type="date" id="estornoData"/></div>
+        <p class="body-sm" id="estornoErro" style="color:var(--md-error)"></p>
+        <div id="estornoLista"></div>
+        <p class="list-count-hint">Estorno só por admin ou gestão, até 30 dias da comanda. O valor sai do caixa de hoje; a taxa da maquininha não volta.</p>
+      </section>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
 
@@ -498,6 +505,28 @@
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarCliente" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarCliente" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalEstorno">
+  <div class="modal-box">
+    <h2>Estornar comanda</h2>
+    <p class="body-sm text-tertiary" id="estResumo"></p>
+    <p class="modal-error hidden" id="estErro"></p>
+    <div class="field" role="radiogroup" aria-label="Tipo de estorno">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="estTipo" id="estTipoTotal" value="total" style="width:auto;" checked/> Total (tudo o que ainda não foi estornado, com a gorjeta)</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="estTipo" id="estTipoParcial" value="parcial" style="width:auto;"/> Parcial (escolher itens; a gorjeta fica)</label>
+    </div>
+    <div class="field hidden" id="estItensBox"><div id="estItens"></div></div>
+    <div class="field hidden" id="estFormaBox"><label for="estForma">Devolver em</label><select id="estForma"></select></div>
+    <div class="field"><label for="estMotivoCodigo">Motivo</label><select id="estMotivoCodigo"></select></div>
+    <div class="field"><label for="estMotivo">Descrição do motivo</label><textarea id="estMotivo" rows="2" maxlength="500" placeholder="Ex.: cobrança lançada duas vezes no balcão"></textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="estDevolverEstoque" style="width:auto;" checked/> Devolver produtos ao estoque</label></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="estConfirmo" style="width:auto;"/> Confirmo: o valor será devolvido ao cliente e o estorno não pode ser desfeito.</label></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" id="btnCancelarEstorno" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarEstorno" style="flex:1;" disabled>Estornar</button>
     </div>
   </div>
 </div>

@@ -38,6 +38,9 @@ const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
 const { registrarEventoAgenda, montarHistorico } = require('../services/AgendaEventosService');
+const { validateEstornoPayload } = require('../validators/estorno.validator');
+const { saldoDaComanda, diasEntre, PRAZO_DIAS } = require('../engines/EstornoEngine');
+const clock = require('../config/clock');
 
 const router = express.Router();
 
@@ -593,6 +596,95 @@ router.post('/checkout/close', authorize('checkout:write'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
+// ---------- Estorno de comanda (D-013, migration 009) ----------
+// Comandas de um dia com o saldo ainda estornável (tela de gestão).
+function validarDataQuery(valor, padrao) {
+  if (valor === undefined || valor === '') return padrao;
+  const s = String(valor);
+  const d = new Date(`${s}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) {
+    throw createAppError('INVALID_DATE', 'data deve estar no formato YYYY-MM-DD.', 422, { field: 'data' });
+  }
+  return s;
+}
+
+function comandaComSaldo(c, ledger, hoje, nomes) {
+  const doC = rows => rows.filter(r => r.comando_id === c.id);
+  const estornos = doC(ledger.estornos);
+  const itens = doC(ledger.itens);
+  const pagamentos = doC(ledger.pagamentos);
+  const saldo = saldoDaComanda({ itens, pagamentos, estornos, estornoItens: doC(ledger.estornoItens), estornoPagamentos: doC(ledger.estornoPagamentos) });
+  const dias = diasEntre(String(c.data), hoje);
+  return {
+    id: c.id, data: c.data, hora: c.hora || null, clienteId: c.cliente_id || null, clienteNome: nomes.get(c.cliente_id) || null,
+    totalRecebidoCentavos: Number(c.total_recebido_centavos || 0),
+    status: saldo.status,
+    estornavel: saldo.status !== 'estornado' && dias >= 0 && dias <= PRAZO_DIAS,
+    prazoAte: addDiasIso(String(c.data), PRAZO_DIAS),
+    itens: saldo.porItem.map(s => ({ id: s.item.id, tipo: s.item.tipo, descricao: s.item.descricao || null, quantidade: s.item.quantidade, restante: s.restante, valorLiquidoCentavos: s.item.valor_liquido_centavos })),
+    formas: saldo.porForma,
+    estornos: estornos.map(e => ({ id: e.id, tipo: e.tipo, data: e.data, motivoCodigo: e.motivo_codigo, reembolsoCentavos: e.reembolso_centavos, createdAt: e.created_at || null }))
+  };
+}
+const addDiasIso = (data, dias) => { const d = new Date(`${data}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + dias); return d.toISOString().slice(0, 10); };
+
+async function carregarLedgerDasComandas(repo, ids) {
+  const [itens, pagamentos, estornos, estornoItens, estornoPagamentos] = await Promise.all(
+    ['comando_itens', 'comando_pagamentos', 'comanda_estornos', 'comanda_estorno_itens', 'comanda_estorno_pagamentos'].map(t => repo.listDasComandas(t, ids))
+  );
+  return { itens, pagamentos, estornos, estornoItens, estornoPagamentos };
+}
+
+router.get('/comandas', authorize('relatorios:full'), async (req, res, next) => {
+  try {
+    const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+    const data = validarDataQuery(req.query.data, hoje);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const comandos = await repo.list('comandos', { empresa_id: repo.empresaId, data });
+    const [ledger, clientes] = await Promise.all([carregarLedgerDasComandas(repo, comandos.map(c => c.id)), repo.list('clientes', { empresa_id: repo.empresaId })]);
+    const nomes = new Map(clientes.map(c => [c.id, c.nome]));
+    const lista = comandos.map(c => comandaComSaldo(c, ledger, hoje, nomes))
+      .sort((a, b) => String(b.hora || '').localeCompare(String(a.hora || '')));
+    res.json({ ok: true, data: { data, hoje, prazoDias: PRAZO_DIAS, comandas: lista } });
+  } catch (err) { next(err); }
+});
+
+router.get('/comandas/:id/estornos', authorize('relatorios:full'), async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'id');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const comanda = await repo.getByIdScoped('comandos', id);
+    if (!comanda) throw createAppError('COMANDA_NOT_FOUND', 'Comanda não encontrada.', 404, { id });
+    const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+    const ledger = await carregarLedgerDasComandas(repo, [id]);
+    const gorjetas = await repo.listDasComandas('comanda_estorno_gorjetas', [id]);
+    const estornos = ledger.estornos.map(e => ({
+      id: e.id, tipo: e.tipo, data: e.data, motivoCodigo: e.motivo_codigo, motivo: e.motivo, actorId: e.actor_id, createdAt: e.created_at || null,
+      itensCentavos: e.itens_centavos, comissaoCentavos: e.comissao_centavos, receitaEmpresaCentavos: e.receita_empresa_centavos,
+      gorjetaBrutaCentavos: e.gorjeta_bruta_centavos, gorjetaLiquidaCentavos: e.gorjeta_liquida_centavos, reembolsoCentavos: e.reembolso_centavos,
+      itens: ledger.estornoItens.filter(i => i.estorno_id === e.id).map(i => ({ comandoItemId: i.comando_item_id, quantidade: i.quantidade, valorLiquidoCentavos: i.valor_liquido_centavos, comissaoCentavos: i.comissao_centavos, devolveEstoque: i.devolve_estoque })),
+      reembolsos: ledger.estornoPagamentos.filter(p => p.estorno_id === e.id).map(p => ({ formaCode: p.forma_code, valorCentavos: p.valor_centavos })),
+      gorjetas: gorjetas.filter(g => g.estorno_id === e.id).map(g => ({ profissionalId: g.profissional_id, valorBrutoCentavos: g.valor_bruto_centavos, valorLiquidoCentavos: g.valor_liquido_centavos }))
+    })).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    res.json({ ok: true, data: { comanda: comandaComSaldo(comanda, ledger, hoje, new Map()), estornos } });
+  } catch (err) { next(err); }
+});
+
+// Só admin/gestor humanos (checkout:estornar é userOnly). Data = hoje no fuso da
+// empresa, definida aqui; o banco recusa outra data, prazo > 30 dias e saldo excedido.
+router.post('/comandas/:id/estorno', authorize('checkout:estornar'), async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'id');
+    const pedido = validateEstornoPayload(req.body);
+    const autoria = autoriaDe(req.auth);
+    if (!autoria.actorId) throw createAppError('USER_PRINCIPAL_REQUIRED', 'Estorno exige login de usuário.', 403);
+    const data = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const resultado = await repo.estornarComanda(id, { ...pedido, data }, autoria.actorId);
+    res.status(resultado.idempotent ? 200 : 201).json({ ok: true, data: resultado });
+  } catch (err) { next(err); }
+});
+
 // F1 Insights — read-only, serão cacheáveis depois
 router.get('/insights/occupancy', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
@@ -673,11 +765,13 @@ router.get('/relatorios/cota-parte', authorize('relatorios:full'), async (req, r
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw createAppError('INVALID_MONTH', 'mes deve ser YYYY-MM.', 422);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
-    const [comandos, comandoItens, profissionais, empresas] = await Promise.all([
-      repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro), repo.list('empresas', { id: repo.empresaId })
+    const [comandos, comandoItens, profissionais, empresas, estornos, estornoItens] = await Promise.all([
+      repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro), repo.list('empresas', { id: repo.empresaId }),
+      repo.list('comanda_estornos', filtro), repo.list('comanda_estorno_itens', filtro)
     ]);
     const empresa = empresas[0] || {};
-    res.json({ ok: true, data: { ...computeCotaParte({ comandos, comandoItens, profissionais, mes }), salaoParceiro: Boolean(empresa.salao_parceiro), cnpj: empresa.cnpj || null, razaoSocial: empresa.razao_social || null } });
+    // Estorno entra no mês DO ESTORNO (D-013): o mês já fechado não muda.
+    res.json({ ok: true, data: { ...computeCotaParte({ comandos, comandoItens, profissionais, mes, estornos, estornoItens }), salaoParceiro: Boolean(empresa.salao_parceiro), cnpj: empresa.cnpj || null, razaoSocial: empresa.razao_social || null } });
   } catch (err) { next(err); }
 });
 

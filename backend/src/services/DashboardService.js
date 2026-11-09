@@ -7,7 +7,9 @@ function buildDashboard(snapshot) {
   const cancelados = agendamentos.filter(a => ['cancelado', 'no_show'].includes(a.status)).length;
   const totalAgenda = agendamentos.length;
   const ocupacaoPct = totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : 0;
-  const ticketMedioCentavos = finance.totals.comandos ? Math.round((finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos) / finance.totals.comandos) : 0;
+  // Ticket médio: valores já descontam estornos; comanda 100% estornada sai da base (D-013).
+  const baseTicket = finance.totals.comandasValidas ?? finance.totals.comandos;
+  const ticketMedioCentavos = baseTicket ? Math.round((finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos) / baseTicket) : 0;
 
   const actions = [];
   if (ocupacaoPct < 60) actions.push({ priority: 'alta', title: 'Ocupação baixa', action: 'Chamar clientes de retorno e preencher buracos da agenda.' });

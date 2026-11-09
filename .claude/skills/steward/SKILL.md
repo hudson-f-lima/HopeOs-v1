@@ -11,7 +11,7 @@ description: Como trabalhar no HOPE OS / KortexOS sem violar as regras do projet
 
 ## 2. Bloqueios que nenhuma autonomia genérica libera
 Exigem autorização **explícita e específica** do Platform Owner:
-- Criar migration 009+ ou tocar 001–008 (007 em D-007, 008 em D-009); executar SQL em qualquer banco. SQL de rascunho só em Markdown marcado `DRAFT ONLY`.
+- Criar migration 010+ ou tocar 001–009 (007 em D-007, 008 em D-009, 009 em D-013); executar SQL em qualquer banco. SQL de rascunho só em Markdown marcado `DRAFT ONLY`.
 - Usar o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`): é OUTRO projeto, não misturar com o HOPE OS.
 - Mesclar na `main` qualquer mudança em `supabase/migrations/` sem autorização: o merge executa SQL em produção (integração GitHub do Supabase, D-010). Migration nova exige linha em `supabase/migrations.lock` citando a decisão; `supabase/tests/check_migrations.sh` reprova o resto.
 - Declarar multi-tenant seguro ou tratar `API_ACCESS_TOKEN` como auth final.
@@ -25,7 +25,7 @@ Rota nova de negócio: `authorize('<ação>')` de `src/auth/rbac.js` (o identity
 |---|---|---|
 | Offline (CI) | em `backend/`: `API_ACCESS_TOKEN=x SUPABASE_URL=https://example.invalid SUPABASE_SECRET_KEY=x npm run test:offline` | nada |
 | Trava de migrations (CI) | `supabase/tests/check_migrations.sh` | nenhum |
-| Migrations + SQL (CI) | `PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh` (shim Supabase, 001–008, `gate_*.sql`, concorrência, rollback) | Postgres 16 limpo |
+| Migrations + SQL (CI) | `PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh` (shim Supabase, 001–009, `gate_*.sql`, concorrência da agenda e do estorno, controles negativos da 009, rollback) | Postgres 16 limpo |
 | Integrado | em `backend/`: `npm run test:gate` | `.env` com Supabase real (com 007) + `data/*.json` (PII, não versionado) |
 | Uma suíte | `node tests/<nome>.test.js` | ver acima |
 

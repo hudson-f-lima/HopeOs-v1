@@ -1,5 +1,18 @@
 # Changelog
 
+## Estorno de comanda, histórico da agenda e agendamento online (D-013, D-014)
+- **Estorno de comanda (migration 009):**
+  - total ou parcial, pelo botão "Estornar" em "Comandas do dia" no Dashboard (só gestão);
+  - devolve estoque e reembolsa pela forma escolhida;
+  - os relatórios descontam o estorno no dia e no mês em que ele acontece, então mês fechado não muda.
+- **Histórico financeiro imutável no próprio banco:** nada do caixa, das comandas ou do estoque pode ser alterado ou apagado depois de gravado.
+- **Histórico de cada horário da agenda:** criado, confirmado, chegou, na cadeira, cancelado, reagendado e concluído, com quem fez. A confirmação prévia do painel do piloto passa a ser medida no período.
+- **Agendamento online pelo link do salão** (`agendar.html`), desligado até a configuração e as aprovações.
+- Testes:
+  - offline 16 suítes (novas: estorno 14, histórico 12, agendamento público 19);
+  - SQL: gate_009 11 blocos, concorrência do estorno, controles negativos e rollback 009→007;
+  - E2E 12/12.
+
 ## Blueprint Beauty & Wellness (D-012)
 - Agenda com presença:
   - "Cliente chegou" e "Iniciar atendimento" na folha do horário;
