@@ -280,6 +280,17 @@ test('J16 cashflow puro sem data no pagamento continua compatível (data-base)',
   assert.strictEqual(cf[0].liquidoCentavos, 100);
 });
 
+test('J17 log: 401 esperado vira uma linha sem pilha (5xx segue com pilha por construção)', async () => {
+  const errs = []; const warns = [];
+  const oe = console.error; const ow = console.warn;
+  console.error = (...a) => errs.push(a); console.warn = (...a) => warns.push(a);
+  let r;
+  try { r = await fetch(`${base}/api/clientes`); } finally { console.error = oe; console.warn = ow; }
+  assert.strictEqual(r.status, 401);
+  assert.strictEqual(errs.length, 0, 'sem pilha para 401');
+  assert.ok(warns.some(w => /\[401\]/.test(String(w[0]))), 'uma linha [401]');
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

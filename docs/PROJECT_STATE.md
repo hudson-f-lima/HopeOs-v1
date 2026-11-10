@@ -46,6 +46,11 @@
 - Material promocional (rascunho, fora do repo): kit em artefato privado do Claude (landing, post 4:5, story 9:16, motion 9:16 de 22 s). Placeholders `[SEU WHATSAPP]` abertos; claims de venda sem revisão jurídica/marca. Ver `docs/promo/README.md`.
 - Falta (dono): checklist de configuração do Render/Supabase em "Próxima ação única".
 
+## Riscos aceitos (Platform Owner, 2026-11-10)
+- PWA no GitHub Pages: sem CSP e sem cabeçalhos de segurança (`smoke.js`: `pwa.csp`/`pwa.headers` FAIL); o Pages também publica o repositório inteiro. Aceito durante o piloto fechado. Migrar o PWA para o serviço estático do Render (que aplica o CSP do `render.yaml`) **antes de clientes pagantes** — muda URL do app, CORS e Redirect URL do Supabase.
+- Node: `backend/package.json` fixa `engines.node = 22.x` (igual ao CI); o Render usava 24.14.1 por padrão. Confirmar no próximo deploy que o log mostra Node 22.
+- Log: respostas 4xx saem em uma linha (`[401] CODE: msg`); só 5xx grava pilha (correções gate J17).
+
 ## Bloqueadores
 - P0: NENHUM conhecido no código.
 - P1: revalidar `test:gate` integrado contra o `hopeos-v1` (precisa da chave secreta do projeto)
@@ -59,7 +64,7 @@
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 19 suítes verdes (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
+| `npm run test:offline` | REAL — 19 suítes verdes (correções 17) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
 | E2E PWA (Playwright) | REAL — 12 roteiros (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
 | Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
