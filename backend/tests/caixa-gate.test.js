@@ -115,7 +115,7 @@ test('K01 somas por forma, total bruto, taxa, líquido e gorjetas batem com as f
   assert.deepStrictEqual(forma(f, 'credito'), { formaCode: 'credito', quantidadePagamentos: 1, valorCentavos: 6000, taxaCentavos: 300, liquidoEsperadoCentavos: 5700, label: 'Crédito', diasRecebimento: 30, dataRecebimentoPrevista: '2026-12-07' });
   assert.strictEqual(forma(f, 'pix').valorCentavos, 4000);
   assert.strictEqual(f.porForma.reduce((s, p) => s + p.valorCentavos, 0), f.totalBrutoCentavos);
-  assert.deepStrictEqual(f.dinheiro, { formaCode: 'dinheiro', esperadoCentavos: 7500 });
+  assert.deepStrictEqual(f.dinheiro, { formaCode: 'dinheiro', vendasCentavos: 7500, esperadoCentavos: 7500 });
   assert.deepStrictEqual(f.ledger, { caixaMovimentosCentavos: 17500, consistente: true, divergencias: [] });
   assert.strictEqual(f.persistido, false);
   for (const v of [f.totalBrutoCentavos, f.taxaTotalCentavos, ...f.porForma.map(p => p.liquidoEsperadoCentavos)]) assert.ok(Number.isInteger(v), 'centavos inteiros');
@@ -157,7 +157,7 @@ test('K04 data inválida → 422; sem data → hoje no fuso da empresa', async (
 test('K05 conferência: diferença contado − esperado em dinheiro (sobra, falta, zero); nada é gravado', async () => {
   const antes = JSON.stringify([db.comandos, db.comando_pagamentos, db.caixa_movimentos]);
   const falta = (await fechamento(`?data=${D}&contadoDinheiroCentavos=7000`)).data.data.dinheiro;
-  assert.deepStrictEqual(falta, { formaCode: 'dinheiro', esperadoCentavos: 7500, contadoCentavos: 7000, diferencaCentavos: -500 });
+  assert.deepStrictEqual(falta, { formaCode: 'dinheiro', vendasCentavos: 7500, esperadoCentavos: 7500, contadoCentavos: 7000, diferencaCentavos: -500 });
   assert.strictEqual((await fechamento(`?data=${D}&contadoDinheiroCentavos=7650`)).data.data.dinheiro.diferencaCentavos, 150);
   assert.strictEqual((await fechamento(`?data=${D}&contadoDinheiroCentavos=7500`)).data.data.dinheiro.diferencaCentavos, 0);
   assert.strictEqual((await fechamento(`?data=${ONTEM}&contadoDinheiroCentavos=0`)).data.data.dinheiro.diferencaCentavos, -9999);

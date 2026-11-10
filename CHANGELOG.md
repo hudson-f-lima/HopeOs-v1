@@ -1,5 +1,26 @@
 # Changelog
 
+## Aviso de privacidade no primeiro acesso (D-018)
+- Quem cria a conta ou entra pela primeira vez lê o aviso de privacidade e toca em "Li e aceito" para continuar. O aceite fica registrado com data e versão.
+- Se o aviso mudar de versão, todos aceitam de novo no próximo acesso.
+- Vale para a equipe. O agendamento online pelo cliente continua desligado e tem aviso próprio.
+- Testes: offline 22 suítes (nova: privacidade 7); E2E 14/14 (roteiro do convite cobre recusa e aceite).
+
+## Pagamento de comissão e fechamento de caixa salvo (D-017, migration 010)
+- **Gestão > Ganhos:** saldo a pagar de cada profissional, com registro de **pagamento**, **vale** (adiantamento) e **estorno**. O profissional consulta o próprio saldo. Pagamento não passa do saldo; vale pode.
+- **Fechamento de caixa:** fundo de troco, **sangria** e **suprimento** com motivo, e botão **"Fechar caixa do dia"**, que grava o valor contado e a diferença. Movimento depois do fechamento avisa para fechar de novo.
+- Tudo é registro imutável com autor: corrige-se lançando o inverso ou fechando de novo.
+- **Monitor de produção:** verificação automática a cada 30 minutos (API, login e site), com aviso por e-mail do GitHub em caso de falha.
+- Testes: offline 21 suítes (nova: financeiro-ops 14); SQL gate_010 com 10 blocos, controles negativos e rollback; E2E 14/14.
+
+## Ganhos do profissional, exportação para o contador e código de erro (D-016)
+- **Gestão > Ganhos:** comissão, gorjeta e estornos do mês, dia a dia. O profissional vê só os seus; admin e gestão escolhem o profissional. O pagamento não é registrado.
+- **Dashboard > "Exportar para o contador (CSV)":** uma linha por item vendido no mês e linha negativa por estorno, com a cota-parte do salão e do profissional. Abre no Excel em português. Não substitui a nota fiscal.
+- **Código de erro:** toda resposta da API traz `X-Request-Id`; em erro interno o código aparece também no corpo, para informar ao suporte.
+- **Erro interno sem detalhe técnico:** falha inesperada mostra texto genérico e o código; o detalhe fica no log do servidor.
+- **Correção:** o app não tenta mais carregar a lista de espera para o profissional, e a aba "Espera" some para ele.
+- Testes: offline 20 suítes (nova: ganhos 13); E2E 13/13 (novo: ganhos).
+
 ## Estorno de comanda, histórico da agenda e agendamento online (D-013, D-014)
 - **Estorno de comanda (migration 009):**
   - total ou parcial, pelo botão "Estornar" em "Comandas do dia" no Dashboard (só gestão);

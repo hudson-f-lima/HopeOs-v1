@@ -24,6 +24,11 @@ const ACTIONS = {
   'lista_espera:write': { roles: OPERACAO },
   'relatorios:operacional': { roles: OPERACAO },
   'relatorios:full': { roles: GESTAO },
+  // Leitura própria (ADR-005 "Desvios e limites"): o profissional só vê os seus ganhos.
+  'relatorios:proprio': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
+  // D-017 (migration 010): gravam dinheiro com autoria humana obrigatória.
+  'comissoes:pagar': { roles: GESTAO, userOnly: true },
+  'caixa:operar': { roles: OPERACAO, userOnly: true },
   admin: { roles: ['admin'], userOnly: true }
 };
 

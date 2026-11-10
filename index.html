@@ -43,9 +43,26 @@
     <p id="loginErro" class="login-erro" role="alert"></p>
     <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
     <div id="loginEmpresas" class="login-empresas hidden" aria-live="polite"></div>
+    <p class="login-aviso">Ao criar a conta e entrar, você declara ter lido o aviso de privacidade. Ele é mostrado no primeiro acesso e sempre que mudar.</p>
     <button id="btnEsqueciSenha" class="login-link" type="button">Esqueci minha senha</button>
     <button id="btnTokenLegado" class="login-link" type="button">Usar token de acesso (modo antigo)</button>
   </form>
+  <section id="privacyCard" class="card login-card hidden" aria-labelledby="privacyTitulo">
+    <h1 class="login-title" id="privacyTitulo">Aviso de privacidade</h1>
+    <p class="login-sub">Leia antes de continuar. Versão <span id="privacyVersao"></span>.</p>
+    <div class="privacy-texto" tabindex="0">
+      <p><b>Quem decide sobre os dados.</b> O salão ou barbearia em que você trabalha é o controlador dos dados tratados neste sistema. O HOPE OS guarda e processa os dados em nome dele, como operador.</p>
+      <p><b>Seus dados de acesso.</b> Guardamos seu nome, e-mail, papel na equipe e o registro das ações que você faz no sistema (quem criou, alterou, fechou ou estornou). Servem para dar acesso, proteger a conta e manter o histórico financeiro e da agenda.</p>
+      <p><b>Dados dos clientes do salão.</b> Ao usar o sistema você acessa nome, telefone, agendamentos e compras dos clientes. Use esses dados só para o atendimento e a gestão do salão. Não copie, não repasse e não use para fins pessoais.</p>
+      <p><b>Com quem compartilhamos.</b> Com os provedores de nuvem que hospedam o sistema, apenas para o funcionamento. Não vendemos dados.</p>
+      <p><b>Por quanto tempo.</b> Enquanto durar o seu vínculo com o salão. Registros financeiros e de autoria são mantidos pelo prazo que a lei exigir e não podem ser apagados.</p>
+      <p><b>Seus direitos.</b> Você pode pedir acesso, correção ou informação sobre o uso dos seus dados ao responsável pelo salão, e reclamar à Autoridade Nacional de Proteção de Dados (ANPD).</p>
+      <p><b>Segurança.</b> Acesso por login individual, conexão criptografada e registro de autoria. Não compartilhe sua senha.</p>
+    </div>
+    <p id="privacyErro" class="login-erro" role="alert"></p>
+    <button id="btnAceitarPrivacidade" class="btn btn-primary" type="button">Li e aceito</button>
+    <button id="btnRecusarPrivacidade" class="login-link" type="button">Não aceito (sair)</button>
+  </section>
   <form id="senhaForm" class="card login-card hidden" novalidate>
     <h1 class="login-title">Defina sua senha</h1>
     <p class="login-sub">Use ao menos 8 caracteres.</p>
@@ -323,6 +340,8 @@
             </div>
           </div>
           <div id="dbCotaParteWidget" class="dashboard-widget-body"></div>
+          <button type="button" class="btn btn-secondary" id="btnExportarContador" style="margin-top:10px;">Exportar para o contador (CSV)</button>
+          <p class="body-sm" id="exportarContadorMsg" role="status" style="margin:6px 0 0;"></p>
         </section>
 
         <section class="dashboard-panel hidden" id="dbPilotoPanel">
@@ -360,11 +379,22 @@
         <h2>Fechamento de caixa</h2>
         <form id="caixaForm" class="caixa-form">
           <div class="field"><label for="caixaData">Dia</label><input type="date" id="caixaData"/></div>
+          <div class="field"><label for="caixaFundo">Fundo de troco (R$)</label><input id="caixaFundo" inputmode="decimal" placeholder="Ex.: 100,00"/></div>
           <div class="field"><label for="caixaContado">Dinheiro contado (R$)</label><input id="caixaContado" inputmode="decimal" placeholder="Ex.: 150,00"/></div>
           <button class="btn btn-secondary" type="submit" id="btnConferirCaixa">Conferir</button>
         </form>
-        <p class="body-sm" id="caixaErro" style="color:var(--md-error)"></p>
+        <p class="body-sm" id="caixaErro" role="alert" style="color:var(--md-error)"></p>
         <div id="caixaResultado"></div>
+        <button class="btn btn-primary" type="button" id="btnFecharCaixa" style="margin-top:10px;">Fechar caixa do dia</button>
+        <p class="body-sm" id="caixaFechamentoMsg" role="status" style="margin:6px 0 0;"></p>
+        <form id="caixaAjusteForm" class="caixa-form" style="margin-top:14px;">
+          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Sangria ou suprimento (hoje)</h3>
+          <div class="field"><label for="caixaAjusteTipo">Tipo</label><select id="caixaAjusteTipo"><option value="sangria">Sangria (retirada)</option><option value="suprimento">Suprimento (reforço)</option></select></div>
+          <div class="field"><label for="caixaAjusteValor">Valor (R$)</label><input id="caixaAjusteValor" inputmode="decimal" placeholder="Ex.: 50,00"/></div>
+          <div class="field"><label for="caixaAjusteMotivo">Motivo</label><input id="caixaAjusteMotivo" maxlength="300" placeholder="Ex.: depósito no banco"/></div>
+          <button class="btn btn-secondary" type="submit" id="btnLancarAjuste">Lançar</button>
+          <p class="body-sm" id="caixaAjusteMsg" role="status" style="margin:6px 0 0;"></p>
+        </form>
       </section>
       <section class="card dashboard-list hidden" id="cardComandasEstorno" aria-label="Comandas do dia e estorno">
         <h2>Comandas do dia</h2>
@@ -601,6 +631,27 @@
       <button class="subtab-btn" data-subtab="espera">Espera</button>
       <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
+      <button class="subtab-btn hidden" data-subtab="ganhos" id="subtabBtnGanhos">Ganhos</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-ganhos">
+      <div class="card">
+        <h2 class="m-0" style="margin-bottom:4px;">Ganhos do mês</h2>
+        <p class="body-sm text-tertiary" style="margin:0 0 10px;">Comissão e gorjeta de cada comanda fechada.</p>
+        <div class="field"><label for="ganhosMes">Mês</label><input type="month" id="ganhosMes"></div>
+        <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
+        <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+        <div id="ganhosResultado"></div>
+        <div id="ganhosSaldo"></div>
+        <form id="ganhosPagarForm" class="hidden" style="margin-top:12px;">
+          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Registrar pagamento</h3>
+          <div class="field"><label for="ganhosPagarTipo">Tipo</label><select id="ganhosPagarTipo"><option value="pagamento">Pagamento de comissão</option><option value="vale">Vale (adiantamento)</option></select></div>
+          <div class="field"><label for="ganhosPagarValor">Valor (R$)</label><input id="ganhosPagarValor" inputmode="decimal" placeholder="Ex.: 200,00"/></div>
+          <div class="field"><label for="ganhosPagarObs">Observação</label><input id="ganhosPagarObs" maxlength="500" placeholder="Ex.: Pix em 10/11"/></div>
+          <button class="btn btn-primary" type="submit" id="btnGanhosPagar">Registrar</button>
+          <p class="body-sm" id="ganhosPagarMsg" role="status" style="margin:6px 0 0;"></p>
+        </form>
+      </div>
     </div>
 
     <div class="subtab-content hidden" id="subtab-comissoes">

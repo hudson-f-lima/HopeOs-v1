@@ -1,4 +1,4 @@
-import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
+import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, aceitarPrivacidade, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
 import { 
   state, 
   stateBus, 
@@ -28,6 +28,7 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
+import { initGanhos } from './ui/ganhos.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
@@ -121,6 +122,28 @@ function runDefinirSenha() {
   });
 }
 
+function pedirAceitePrivacidade(versao) {
+  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
+  hide('loginForm'); hide('senhaForm'); show('privacyCard');
+  document.getElementById('privacyVersao').textContent = versao;
+  const erro = document.getElementById('privacyErro');
+  const btn = document.getElementById('btnAceitarPrivacidade');
+  erro.textContent = '';
+  return new Promise(resolve => {
+    document.getElementById('btnRecusarPrivacidade').onclick = async () => { await logout(); window.location.reload(); };
+    btn.onclick = async () => {
+      btn.disabled = true; erro.textContent = '';
+      try {
+        await aceitarPrivacidade(versao);
+        hide('privacyCard'); show('loginForm');
+        resolve();
+      } catch (err) {
+        erro.textContent = err.message || 'Não foi possível registrar o aceite.';
+      } finally { btn.disabled = false; }
+    };
+  });
+}
+
 function escolherEmpresa(empresas) {
   const box = document.getElementById('loginEmpresas');
   hide('loadingScreen'); hide('appRoot'); show('loginScreen');
@@ -144,6 +167,8 @@ async function carregarSessao() {
     return;
   }
   const me = await fetchMe();
+  // Aviso de privacidade (D-018): aceito ao criar a conta e entrar; volta a aparecer se a versão mudar.
+  if (me.privacidade && me.privacidade.pendente) await pedirAceitePrivacidade(me.privacidade.versaoAtual);
   const empresas = me.empresas || [];
   if (!empresas.length) {
     await logout();
@@ -163,7 +188,12 @@ function aplicarSessaoNaUI() {
     show('sessionChip');
   }
   // Dashboard é relatório operacional/gerencial: profissional não tem acesso no backend.
-  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) hide('navDashboard');
+  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) {
+    hide('navDashboard');
+    // Lista de espera também é só da operação: sem botão nem aba para o profissional.
+    document.getElementById('btnAbrirListaEspera')?.classList.add('hidden');
+    document.querySelector('.subtab-btn[data-subtab="espera"]')?.classList.add('hidden');
+  }
 }
 
 function showFatalError() {
@@ -352,6 +382,7 @@ async function init() {
 
     initEquipe();
     initComissoes();
+    initGanhos();
     initCaixa();
     initEstorno();
     if (sessionRoleIn('admin', 'gestor')) {

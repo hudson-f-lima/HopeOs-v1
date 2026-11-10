@@ -24,6 +24,13 @@ function mapErrorForResponse(err) {
     code = 'BUSINESS_RULE_VIOLATION';
   }
 
+  // Erro inesperado (sem status de aplicação): a mensagem pode trazer nome de tabela,
+  // coluna ou detalhe do banco. O cliente recebe texto genérico; o detalhe fica no log,
+  // localizável pelo requestId.
+  if (statusCode >= 500 && !hasAppStatus) {
+    return { statusCode, body: { ok: false, error: { code: 'INTERNAL_ERROR', message: 'Erro interno. Tente de novo; se continuar, informe o código ao suporte.', details: null } } };
+  }
+
   return {
     statusCode,
     body: {

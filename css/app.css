@@ -810,6 +810,10 @@ dialog {
 .login-title{font-size:22px;font-weight:800;color:var(--md-primary);margin-bottom:4px;}
 .login-sub{font-size:13px;color:var(--md-outline);margin-bottom:16px;}
 .login-erro{min-height:18px;font-size:12px;color:var(--md-error);margin-bottom:8px;}
+.login-aviso{margin:12px 0 0;font-size:11px;line-height:1.4;color:var(--md-outline);text-align:center;}
+.privacy-texto{max-height:46vh;overflow-y:auto;margin:0 0 12px;padding:10px 12px;border:1px solid var(--md-surface-variant);border-radius:10px;font-size:13px;line-height:1.45;text-align:left;}
+.privacy-texto p{margin:0 0 8px;}
+.privacy-texto p:last-child{margin-bottom:0;}
 .login-link{display:block;margin:14px auto 0;font-size:12px;color:var(--md-outline);text-decoration:underline;min-height:var(--tap-min);}
 .login-empresas{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
 .login-empresas .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}

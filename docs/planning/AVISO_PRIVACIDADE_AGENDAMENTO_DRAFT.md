@@ -1,5 +1,7 @@
 # Aviso de privacidade do agendamento online — MODELO (DRAFT)
 
+> **Estado em 2026-11-10 (D-018):** o Platform Owner aprovou o aviso da **equipe**, aceito ao criar a conta e entrar (tela da PWA, `PRIVACY_NOTICE_VERSION`). **Este documento trata do aviso do cliente no agendamento online**, que é outro público (sem conta nem login) e continua pendente dos campos entre colchetes.
+>
 > **Modelo a validar juridicamente.** Este texto não é parecer jurídico e não está aprovado. O controlador é o salão: cabe a ele (com assessoria jurídica) revisar, completar os campos entre `[colchetes]` e aprovar. O HOPE OS fornece o modelo como operador (inferência do `AGENDAMENTO_ONLINE_DRAFT.md` §7, a confirmar no contrato com o salão).
 >
 > Origem: `docs/audit/RED_TEAM_2026-11.md` (RT-11c) e pendência de D-014 ("aviso de privacidade aprovado"). A versão curta exibida em `agendar.html` (bloco "Aviso de privacidade") segue este modelo; a versão aprovada deve ser registrada em `PUBLIC_BOOKING_AVISO_VERSAO` (gravada em cada agendamento online, no evento `origem_link_publico`).

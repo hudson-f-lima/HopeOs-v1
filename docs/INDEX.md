@@ -6,6 +6,9 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`PROJECT_STATE.md`](PROJECT_STATE.md) — estado atual, gates, bloqueadores e handoff
 - [`DECISIONS.md`](DECISIONS.md) — decisões arquiteturais
 - [`RUNBOOK_MIGRATION_007.md`](RUNBOOK_MIGRATION_007.md) — aplicar a 007 e ativar login por usuário em produção
+- [`audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`](audit/AUDITORIA_E_BENCHMARK_2026-11-10.md) — 2ª auditoria + benchmark global e cross-indústria
+- [`audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`](audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md) — práticas de outras disciplinas (fintech, caixa, saúde, SRE, LGPD, UX) × HOPE OS
+- [`planning/INTEGRACOES_FUTURAS.md`](planning/INTEGRACOES_FUTURAS.md) — pagamento, NFS-e, WhatsApp, comissão paga, caixa salvo, alertas: contrato e pré-requisitos
 - [`promo/README.md`](promo/README.md) — kit promocional (rascunho) e pendências
 - [`adr/ADR-005-identity-tenant-rbac-actor.md`](adr/ADR-005-identity-tenant-rbac-actor.md) — identidade, tenant, RBAC e autoria (aprovada e implementada)
 - [`../CHANGELOG.md`](../CHANGELOG.md) — entregas concluídas

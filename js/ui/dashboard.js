@@ -7,7 +7,7 @@ import {
   getInsightsRetention
 } from '../api.js';
 import { state, findProfissionalNome, stateBus, sessionRoleIn } from '../state.js';
-import { addDays, centsToBRL, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, waLink, WEEKDAY_LABELS } from '../utils.js';
+import { addDays, baixarArquivo, centsToBRL, centsToDecimal, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, toCsv, waLink, WEEKDAY_LABELS } from '../utils.js';
 
 const SEGMENT_COLORS = ['#7c6af7', '#14b8a6', '#3b82f6', '#f59e0b', '#ff7a68', '#b794f6', '#22c55e', '#9490a3'];
 
@@ -344,6 +344,29 @@ async function loadCotaParte() {
   }
 }
 
+// Linhas do mês para o contador (apoio à NFS-e; o sistema não emite nota).
+async function exportarParaContador() {
+  const msg = el('exportarContadorMsg');
+  const mes = todayStr().slice(0, 7);
+  const botao = el('btnExportarContador');
+  msg.textContent = 'Gerando arquivo…';
+  botao.disabled = true;
+  try {
+    const r = await api(`/relatorios/servicos-prestados?mes=${mes}`);
+    if (!r.linhas.length) { msg.textContent = 'Nenhuma comanda fechada neste mês.'; return; }
+    const csv = toCsv(
+      ['Data', 'Lançamento', 'Comanda', 'Tipo', 'Descrição', 'Profissional', 'Quantidade', 'Valor (R$)', 'Cota-parte profissional (R$)', 'Cota-parte salão (R$)'],
+      r.linhas.map(l => [l.data, l.lancamento, l.comandaId, l.tipo, l.descricao, l.profissional, l.quantidade, centsToDecimal(l.valorCentavos), centsToDecimal(l.cotaParteProfissionalCentavos), centsToDecimal(l.cotaParteSalaoCentavos)])
+    );
+    baixarArquivo(`servicos-prestados-${mes}.csv`, csv);
+    msg.textContent = `${r.linhas.length} linha(s) exportada(s). Total ${centsToBRL(r.totais.valorCentavos)}.`;
+  } catch (err) {
+    msg.textContent = err.message;
+  } finally {
+    botao.disabled = false;
+  }
+}
+
 // Piloto — 4 números (auditoria 2026-11 §4): só gestão. Definições no backend
 // (engines/insights/piloto.js); aqui só exibe.
 const PILOTO_KPIS = [
@@ -430,6 +453,7 @@ export async function atualizarDashboard() {
 export function initDashboard() {
   const refreshBtn = el('btnAtualizarDashboard');
   if (refreshBtn) refreshBtn.addEventListener('click', atualizarDashboard);
+  el('btnExportarContador')?.addEventListener('click', exportarParaContador);
 
   const actions = el('dashboardActionStrip');
   if (actions) {

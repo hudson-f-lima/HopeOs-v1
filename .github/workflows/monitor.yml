@@ -1,0 +1,32 @@
+# Alerta de produção sem fornecedor (D-017): a cada 30 minutos confere a API e o
+# login (que depende do Supabase). Se falhar, o GitHub avisa o dono do repositório
+# por e-mail (notificações de Actions). Não usa segredo: só rotas públicas.
+# Limite: o GitHub desliga workflows agendados após 60 dias sem atividade no repositório.
+name: Monitor de produção
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  producao:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: API responde (tolera o serviço acordando)
+        run: |
+          curl --fail --silent --show-error --retry 4 --retry-delay 15 --retry-all-errors --max-time 60 \
+            https://hopeos-v1.onrender.com/api/health
+      - name: Login alcança o Supabase (401 = no ar; 503 = banco pausado ou fora)
+        run: |
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 60 \
+            -H 'content-type: application/json' \
+            -d '{"email":"monitor@hopeos.invalid","password":"monitor-invalido"}' \
+            https://hopeos-v1.onrender.com/api/auth/login)
+          echo "status do login com credencial inválida: $status"
+          test "$status" = "401" || test "$status" = "429"
+      - name: PWA publicada
+        run: curl --fail --silent --show-error --output /dev/null --max-time 60 https://hudson-f-lima.github.io/HopeOs-v1/

@@ -42,6 +42,9 @@ const env = {
   PUBLIC_BOOKING_RATE_GET_MAX: Number(process.env.PUBLIC_BOOKING_RATE_GET_MAX || 60), // por IP, por minuto
   PUBLIC_BOOKING_RATE_POST_IP_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_IP_MAX || 10), // por IP, por hora
   PUBLIC_BOOKING_RATE_POST_NUMERO_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_NUMERO_MAX || 5), // por WhatsApp+salão, por hora
+  // Versão do aviso de privacidade aceito pela equipe ao criar a conta e entrar (D-018).
+  // Trocar a versão faz todo usuário aceitar de novo no próximo acesso.
+  PRIVACY_NOTICE_VERSION: process.env.PRIVACY_NOTICE_VERSION || '2026-11-10',
   PUBLIC_BOOKING_AVISO_VERSAO: process.env.PUBLIC_BOOKING_AVISO_VERSAO || 'modelo-2026-11',
   CORS_ORIGIN: splitCsv(process.env.CORS_ORIGIN || 'null,http://localhost:5173,http://127.0.0.1:5500')
 };

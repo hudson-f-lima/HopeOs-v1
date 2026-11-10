@@ -142,6 +142,10 @@ export function fetchMe() {
   return api('/me');
 }
 
+export function aceitarPrivacidade(versao) {
+  return api('/auth/privacidade/aceite', { method: 'POST', body: { versao } });
+}
+
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs || FETCH_TIMEOUT_MS);
@@ -222,7 +226,9 @@ export async function api(path, options = {}, retried = false) {
     throw new AuthError((json.error && json.error.message) || undefined);
   }
   if (!res.ok || json.ok === false) {
-    const msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
+    let msg = (json.error && json.error.message) || `Erro HTTP ${res.status}`;
+    // Erro interno: o código da requisição permite achar a linha no log do servidor.
+    if (res.status >= 500 && json.error && json.error.requestId) msg += ` (código ${json.error.requestId})`;
     const erro = new Error(msg);
     erro.code = (json.error && json.error.code) || null;
     erro.status = res.status;

@@ -10,7 +10,7 @@ APROVADA pelo Platform Owner em 2026-10-16 (D-007) e IMPLEMENTADA no código (PR
 | Agenda | Migration 007 inclui `agendamento_criar` (checagem + insert sob advisory lock) para fechar a corrida de double-booking; não previsto na ADR | REAL |
 | RLS | Item 10 antecipado na forma mínima: RLS deny-all + revogação de `anon`/`authenticated` em todo `public`; backend usa `service_role` | REAL |
 | Unidades | `unit_ids` resolvidos, seletor `X-Unidade-Id` validado e fail-closed sem unidade; tabelas de negócio ainda não têm `unit_id`, então dados não são particionados por unidade | PARCIAL |
-| Relatórios do profissional | "Leitura própria" ainda não existe: profissional fica sem relatórios (negado) | PARCIAL |
+| Relatórios do profissional | "Leitura própria" dos ganhos do mês: `GET /api/relatorios/meus-ganhos`, ação `relatorios:proprio` (D-016, 2026-11-10). Os demais relatórios continuam negados | REAL (ganhos) |
 | Autoria de integração em estado mutável | `created_by`/`updated_by` ficam nulos; a ação fica em `integration_audit_events` | PARCIAL |
 | Fim da janela de rotação | Credencial antiga recebe `expires_at` (expira sozinha, sem job); revogação explícita só no limite de duas e na emergencial | REAL |
 | Cache de validação de JWT | Não implementado: toda requisição valida no provedor (sem janela de revogação tardia) | REAL |

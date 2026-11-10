@@ -16,8 +16,11 @@ TEST_DB=$DB supabase/tests/controle_negativo_009.sh
 if [ "${WITH_ROLLBACK:-1}" = 1 ] && ls supabase/rollback/*.sql >/dev/null 2>&1; then
   for f in $(ls -r supabase/rollback/*_down.sql); do run "$f"; done
   echo "→ reaplicando migrations após rollback"
-  for f in supabase/migrations/0[0-9][7-9]_*.sql; do [ -e "$f" ] && run "$f"; done
-  # Depois do ciclo 009→008→007→reaplicação, os gates continuam verdes.
+  for f in supabase/migrations/[0-9][0-9][0-9]_*.sql; do
+    n=$(basename "$f" | cut -c1-3)
+    if [ "$((10#$n))" -ge 7 ]; then run "$f"; fi
+  done
+  # Depois do ciclo 010→009→008→007→reaplicação, os gates continuam verdes.
   for f in supabase/tests/gate_*.sql; do [ -e "$f" ] && run "$f"; done
 fi
 echo "OK migrations + gates SQL"

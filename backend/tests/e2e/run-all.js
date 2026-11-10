@@ -27,7 +27,9 @@ const CASOS = [
   { nome: 'presenca' },
   { nome: 'caixa' },
   { nome: 'agendar', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
-  { nome: 'estorno' }
+  { nome: 'estorno' },
+  { nome: 'ganhos' },
+  { nome: 'finops' }
 ];
 // Linha "ROTULO erros: [...]" / "ERROS: [...]" / "ERRS: [...]" / "VIOLAÇÕES CSP: [...]" com conteúdo.
 const LISTA_NAO_VAZIA = /(erros|ERROS|ERRS|VIOLAÇÕES CSP):\s*\[(?!\])/;

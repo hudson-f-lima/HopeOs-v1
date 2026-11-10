@@ -9,6 +9,9 @@ const { onboardingRouter } = require('./routes/onboarding');
 const { estruturaRouter } = require('./routes/estrutura');
 const { caixaRouter } = require('./routes/caixa');
 const { pilotoRouter } = require('./routes/piloto');
+const { relatoriosRouter } = require('./routes/relatorios');
+const { financeiroOpsRouter } = require('./routes/financeiroOps');
+const { randomUUID } = require('crypto');
 const { publicBookingRouter } = require('./routes/publicBooking');
 const { requireAuth } = require('./middleware/auth');
 const { securityHeaders } = require('./middleware/securityHeaders');
@@ -17,6 +20,9 @@ const { mapErrorForResponse } = require('./errors');
 const app = express();
 app.disable('x-powered-by'); // não anunciar Express/versão
 app.use(securityHeaders); // primeiro: vale para 404, erros e preflight
+// Identificador por requisição: volta no cabeçalho e no corpo do erro 5xx, e sai no log.
+// É o que o usuário informa ao suporte ("deu erro, código abc") — sem fornecedor de rastreio.
+app.use((req, res, next) => { req.id = randomUUID().slice(0, 8); res.setHeader('X-Request-Id', req.id); next(); });
 
 // Celular na mesma Wi-Fi acessa o frontend por um IP de rede local (192.168.x.x, 10.x.x.x,
 // 172.16-31.x.x) cuja porta muda a cada sessao de teste; nao da pra fixar no CORS_ORIGIN.
@@ -71,13 +77,17 @@ app.use('/api', onboardingRouter);
 app.use('/api', estruturaRouter);
 app.use('/api', caixaRouter);
 app.use('/api', pilotoRouter);
+app.use('/api', relatoriosRouter);
+app.use('/api', financeiroOpsRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {
   const { statusCode, body } = mapErrorForResponse(err);
   // 4xx e esperado (sem token, validacao): uma linha, sem pilha, para nao afogar os erros reais.
-  if (statusCode >= 500) console.error(err);
-  else console.warn(`[${statusCode}] ${body.error.code}: ${body.error.message}`);
+  if (statusCode >= 500) {
+    console.error(`[${statusCode}] req=${req.id} ${req.method} ${req.path}`, err);
+    body.error.requestId = req.id;
+  } else console.warn(`[${statusCode}] req=${req.id} ${body.error.code}: ${body.error.message}`);
   res.status(statusCode).json(body);
 });
 

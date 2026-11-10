@@ -216,6 +216,25 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
     - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
   - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
+- **Aviso de privacidade** (D-018)
+  - `GET /api/me` (usuário) ganha `privacidade:{versaoAtual, versaoAceita, aceitoEm, pendente}`.
+  - `POST /api/auth/privacidade/aceite` — Bearer de usuário; corpo `{versao}`. Só a versão vigente (`PRIVACY_NOTICE_VERSION`): outra → 422 `PRIVACY_VERSION_MISMATCH` (`details.versaoAtual`). Token legado ou ausente → 401; conta desativada → 403; provedor sem suporte → 503 `PRIVACY_NOT_SUPPORTED`.
+- **Pagamento de comissão** (D-017, migration 010)
+  - `GET /api/comissoes/pagamentos[?profissionalId]` — RBAC `relatorios:proprio` (profissional: só o próprio). Devolve `{profissionalId, nome, ganhoCentavos, pagamentosCentavos, valesCentavos, estornadoCentavos, recebidoCentavos, saldoCentavos, lancamentos:[{id, tipo, valorCentavos, data, referenciaMes, observacao, estornaId, estornado}]}`.
+  - `POST /api/comissoes/pagamentos` — RBAC `comissoes:pagar` (admin, gestor; só usuário). Corpo `{profissionalId, tipo:'pagamento'|'vale', valorCentavos, referenciaMes?, observacao?, idempotencyKey}`. 201; repetição idêntica → 200 `idempotente:true`; mesma chave com outro pedido → 409 `IDEMPOTENCY_MISMATCH`; pagamento acima do saldo → 422 `PAYMENT_EXCEEDS_BALANCE` (`details.saldoCentavos`).
+  - `POST /api/comissoes/pagamentos/:id/estorno` — corpo `{observacao (3–500), idempotencyKey}`. 404 `PAYMENT_NOT_FOUND`, 409 `ALREADY_REVERSED`, 422 `INVALID_REVERSAL`.
+- **Caixa com gravação** (D-017, migration 010)
+  - `GET /api/caixa/fechamento[?data&contadoDinheiroCentavos&fundoTrocoCentavos]` ganha `fundoTrocoCentavos`, `ajustes:{sangriasCentavos, suprimentosCentavos, itens}`, `dinheiro.vendasCentavos`, `persistido`, `quantidadeFechamentos` e `ultimoFechamento:{..., desatualizado}`. `dinheiro.esperadoCentavos` = fundo + vendas − estornos + suprimentos − sangrias.
+  - `POST /api/caixa/ajustes` — RBAC `caixa:operar` (admin, gestor, recepção; só usuário). Corpo `{tipo:'sangria'|'suprimento', valorCentavos, motivo (3–300), idempotencyKey}`. Sempre no dia corrente.
+  - `POST /api/caixa/fechamentos` — corpo `{data?, contadoDinheiroCentavos, fundoTrocoCentavos?, observacao?, idempotencyKey}`. O esperado é calculado pelo servidor; campo desconhecido → 422. Dia futuro → 422 `INVALID_DATE`.
+  - Em todas as escritas: `empresa_id`/`actor_id` no corpo → 422 `FORBIDDEN_FIELD`; token legado e integração → 403 `USER_PRINCIPAL_REQUIRED`.
+- **`GET /api/relatorios/meus-ganhos?mes=YYYY-MM[&profissionalId]`** (D-016)
+  - RBAC `relatorios:proprio`: admin, gestor e profissional. Profissional: escopo próprio, `profissionalId` da query é ignorado. Gestão: `profissionalId` obrigatório (422 `PROFESSIONAL_REQUIRED`); de outra empresa ou inexistente → 404 `PROFESSIONAL_NOT_FOUND`.
+  - Devolve `{mes, profissionalId, nome, atendimentos, valorServicosCentavos, comissaoCentavos, gorjetaLiquidaCentavos, estornos:{quantidade, comissaoCentavos, gorjetaCentavos}, totalCentavos, porDia:[{data, atendimentos, comissaoCentavos, gorjetaCentavos}]}`.
+  - Estorno entra no mês do estorno. Só leitura: não há registro de pagamento de comissão.
+- **`GET /api/relatorios/servicos-prestados?mes=YYYY-MM`** (D-016)
+  - RBAC `relatorios:full`. Devolve `{mes, linhas:[{data, lancamento:'venda'|'estorno', comandaId, tipo, descricao, profissional, quantidade, valorCentavos, cotaParteProfissionalCentavos, cotaParteSalaoCentavos}], totais}`. Estornos são linhas negativas. Sem dado de cliente.
+- **`X-Request-Id`** (D-016): cabeçalho em toda resposta; em erro 5xx também em `error.requestId`.
 - **`GET /api/relatorios/piloto[?de&ate]`**
   - RBAC `relatorios:full`. Padrão: últimos 30 dias; máximo 366 (422 `INVALID_DATE`/`INVALID_PERIOD`).
   - KPIs `{numerador, denominador, taxa|null, referencia}`:

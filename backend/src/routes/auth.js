@@ -75,19 +75,42 @@ router.post('/auth/password', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Aviso de privacidade (D-018): o aceite acontece ao criar a conta e entrar. O servidor
+// só registra a versão vigente; versão antiga ou inventada é recusada.
+function privacidadeDe(user) {
+  const suportado = typeof getAuthProvider().acceptPrivacy === 'function';
+  const aceite = (user && user.privacy) || null;
+  const versaoAceita = aceite ? aceite.versao : null;
+  return { versaoAtual: env.PRIVACY_NOTICE_VERSION, versaoAceita, aceitoEm: aceite ? aceite.aceito_em : null, pendente: suportado && versaoAceita !== env.PRIVACY_NOTICE_VERSION };
+}
+
+router.post('/auth/privacidade/aceite', async (req, res, next) => {
+  try {
+    const token = extractBearer(req);
+    if (!token || !looksLikeJwt(token) || (env.API_ACCESS_TOKEN && safeEquals(token, env.API_ACCESS_TOKEN))) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+    const provider = getAuthProvider();
+    if (typeof provider.acceptPrivacy !== 'function') throw createAppError('PRIVACY_NOT_SUPPORTED', 'Registro de aceite indisponível neste ambiente.', 503);
+    const versao = String((req.body && req.body.versao) || '');
+    if (versao !== env.PRIVACY_NOTICE_VERSION) throw createAppError('PRIVACY_VERSION_MISMATCH', 'O aviso foi atualizado. Recarregue a página e leia a versão atual.', 422, { versaoAtual: env.PRIVACY_NOTICE_VERSION });
+    await resolveUserIdentity(token); // conta inexistente ou desativada não registra aceite
+    const aceite = await provider.acceptPrivacy(token, versao);
+    res.json({ ok: true, data: { versaoAtual: env.PRIVACY_NOTICE_VERSION, versaoAceita: aceite.versao, aceitoEm: aceite.aceito_em, pendente: false } });
+  } catch (err) { next(err); }
+});
+
 // Quem sou eu + empresas disponíveis. Funciona sem X-Empresa-Id (usuário com várias empresas).
 router.get('/me', async (req, res, next) => {
   try {
     const token = extractBearer(req);
     if (token && looksLikeJwt(token) && !(env.API_ACCESS_TOKEN && safeEquals(token, env.API_ACCESS_TOKEN))) {
-      const { appUser, memberships } = await resolveUserIdentity(token);
+      const { user, appUser, memberships } = await resolveUserIdentity(token);
       const store = getIdentityStore();
       const empresas = await Promise.all(memberships.map(async m => ({
         empresa_id: m.empresa_id, role: m.role, membership_id: m.id, profissional_id: m.profissional_id || null,
         nome: ((await new SupabaseRepository(m.empresa_id).list('empresas', { id: m.empresa_id }))[0] || {}).nome || null,
         unidades: (await store.listUnidades(m.empresa_id)).filter(u => u.ativo !== false).map(u => ({ id: u.id, nome: u.nome }))
       })));
-      return res.json({ ok: true, data: { principal_type: 'user', user: { id: appUser.id, email: appUser.email, nome: appUser.nome }, empresas } });
+      return res.json({ ok: true, data: { principal_type: 'user', user: { id: appUser.id, email: appUser.email, nome: appUser.nome }, empresas, privacidade: privacidadeDe(user) } });
     }
     return requireAuth(req, res, (err) => {
       if (err) return next(err);
