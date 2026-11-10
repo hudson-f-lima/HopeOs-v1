@@ -216,6 +216,9 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
     - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
   - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
+- **Aviso de privacidade** (D-018)
+  - `GET /api/me` (usuário) ganha `privacidade:{versaoAtual, versaoAceita, aceitoEm, pendente}`.
+  - `POST /api/auth/privacidade/aceite` — Bearer de usuário; corpo `{versao}`. Só a versão vigente (`PRIVACY_NOTICE_VERSION`): outra → 422 `PRIVACY_VERSION_MISMATCH` (`details.versaoAtual`). Token legado ou ausente → 401; conta desativada → 403; provedor sem suporte → 503 `PRIVACY_NOT_SUPPORTED`.
 - **Pagamento de comissão** (D-017, migration 010)
   - `GET /api/comissoes/pagamentos[?profissionalId]` — RBAC `relatorios:proprio` (profissional: só o próprio). Devolve `{profissionalId, nome, ganhoCentavos, pagamentosCentavos, valesCentavos, estornadoCentavos, recebidoCentavos, saldoCentavos, lancamentos:[{id, tipo, valorCentavos, data, referenciaMes, observacao, estornaId, estornado}]}`.
   - `POST /api/comissoes/pagamentos` — RBAC `comissoes:pagar` (admin, gestor; só usuário). Corpo `{profissionalId, tipo:'pagamento'|'vale', valorCentavos, referenciaMes?, observacao?, idempotencyKey}`. 201; repetição idêntica → 200 `idempotente:true`; mesma chave com outro pedido → 409 `IDEMPOTENCY_MISMATCH`; pagamento acima do saldo → 422 `PAYMENT_EXCEEDS_BALANCE` (`details.saldoCentavos`).

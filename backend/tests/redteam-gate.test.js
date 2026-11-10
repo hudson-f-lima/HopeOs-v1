@@ -595,7 +595,7 @@ test('RT-19 prazo na virada do fuso: 30º dia às 23:59 de Brasília (02:59 UTC 
 // outra rota sob /api precisa de authorize() antes do handler.
 const ROTAS_SEM_RBAC = new Set([
   'GET /', 'GET /api/health',
-  'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'GET /api/me',
+  'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
   'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug'
 ]);
 function inventarioDeRotas() {

@@ -1,4 +1,4 @@
-import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
+import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, aceitarPrivacidade, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
 import { 
   state, 
   stateBus, 
@@ -122,6 +122,28 @@ function runDefinirSenha() {
   });
 }
 
+function pedirAceitePrivacidade(versao) {
+  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
+  hide('loginForm'); hide('senhaForm'); show('privacyCard');
+  document.getElementById('privacyVersao').textContent = versao;
+  const erro = document.getElementById('privacyErro');
+  const btn = document.getElementById('btnAceitarPrivacidade');
+  erro.textContent = '';
+  return new Promise(resolve => {
+    document.getElementById('btnRecusarPrivacidade').onclick = async () => { await logout(); window.location.reload(); };
+    btn.onclick = async () => {
+      btn.disabled = true; erro.textContent = '';
+      try {
+        await aceitarPrivacidade(versao);
+        hide('privacyCard'); show('loginForm');
+        resolve();
+      } catch (err) {
+        erro.textContent = err.message || 'Não foi possível registrar o aceite.';
+      } finally { btn.disabled = false; }
+    };
+  });
+}
+
 function escolherEmpresa(empresas) {
   const box = document.getElementById('loginEmpresas');
   hide('loadingScreen'); hide('appRoot'); show('loginScreen');
@@ -145,6 +167,8 @@ async function carregarSessao() {
     return;
   }
   const me = await fetchMe();
+  // Aviso de privacidade (D-018): aceito ao criar a conta e entrar; volta a aparecer se a versão mudar.
+  if (me.privacidade && me.privacidade.pendente) await pedirAceitePrivacidade(me.privacidade.versaoAtual);
   const empresas = me.empresas || [];
   if (!empresas.length) {
     await logout();

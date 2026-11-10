@@ -43,9 +43,26 @@
     <p id="loginErro" class="login-erro" role="alert"></p>
     <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
     <div id="loginEmpresas" class="login-empresas hidden" aria-live="polite"></div>
+    <p class="login-aviso">Ao criar a conta e entrar, você declara ter lido o aviso de privacidade. Ele é mostrado no primeiro acesso e sempre que mudar.</p>
     <button id="btnEsqueciSenha" class="login-link" type="button">Esqueci minha senha</button>
     <button id="btnTokenLegado" class="login-link" type="button">Usar token de acesso (modo antigo)</button>
   </form>
+  <section id="privacyCard" class="card login-card hidden" aria-labelledby="privacyTitulo">
+    <h1 class="login-title" id="privacyTitulo">Aviso de privacidade</h1>
+    <p class="login-sub">Leia antes de continuar. Versão <span id="privacyVersao"></span>.</p>
+    <div class="privacy-texto" tabindex="0">
+      <p><b>Quem decide sobre os dados.</b> O salão ou barbearia em que você trabalha é o controlador dos dados tratados neste sistema. O HOPE OS guarda e processa os dados em nome dele, como operador.</p>
+      <p><b>Seus dados de acesso.</b> Guardamos seu nome, e-mail, papel na equipe e o registro das ações que você faz no sistema (quem criou, alterou, fechou ou estornou). Servem para dar acesso, proteger a conta e manter o histórico financeiro e da agenda.</p>
+      <p><b>Dados dos clientes do salão.</b> Ao usar o sistema você acessa nome, telefone, agendamentos e compras dos clientes. Use esses dados só para o atendimento e a gestão do salão. Não copie, não repasse e não use para fins pessoais.</p>
+      <p><b>Com quem compartilhamos.</b> Com os provedores de nuvem que hospedam o sistema, apenas para o funcionamento. Não vendemos dados.</p>
+      <p><b>Por quanto tempo.</b> Enquanto durar o seu vínculo com o salão. Registros financeiros e de autoria são mantidos pelo prazo que a lei exigir e não podem ser apagados.</p>
+      <p><b>Seus direitos.</b> Você pode pedir acesso, correção ou informação sobre o uso dos seus dados ao responsável pelo salão, e reclamar à Autoridade Nacional de Proteção de Dados (ANPD).</p>
+      <p><b>Segurança.</b> Acesso por login individual, conexão criptografada e registro de autoria. Não compartilhe sua senha.</p>
+    </div>
+    <p id="privacyErro" class="login-erro" role="alert"></p>
+    <button id="btnAceitarPrivacidade" class="btn btn-primary" type="button">Li e aceito</button>
+    <button id="btnRecusarPrivacidade" class="login-link" type="button">Não aceito (sair)</button>
+  </section>
   <form id="senhaForm" class="card login-card hidden" novalidate>
     <h1 class="login-title">Defina sua senha</h1>
     <p class="login-sub">Use ao menos 8 caracteres.</p>

@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-018 (2026-11-10, PR #22): aviso de privacidade aceito no primeiro acesso da equipe, gravado com data e versão (sem migration). Gamificação e metas aprovadas pelo dono, **escopo ainda não definido** e não implementadas.
 - D-017 (2026-11-10, PR #22, **aguardando merge**): migration 010 — pagamento de comissão (pagamento, vale, estorno, saldo) e caixa (fundo de troco, sangria, suprimento, fechamento salvo); monitor de produção agendado no GitHub Actions. Gateway de pagamento, NFS-e e WhatsApp automático continuam encaminhados (exigem fornecedor).
 - D-016 (2026-11-10): 2ª auditoria + benchmark (`docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`); ganhos do profissional, CSV para o contador, `X-Request-Id`, correção da lista de espera para o profissional. Integrações futuras encaminhadas em `docs/planning/INTEGRACOES_FUTURAS.md`.
 - D-013/D-014 (PR #18): estorno de comanda (migration 009, ledger imutável por trigger) — aplicada no merge; histórico de status da agenda; agendamento online pelo link (desligado; ligar exige aviso de privacidade aprovado + Red Team).
@@ -66,7 +67,7 @@
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 21 suítes verdes (correções 17, ganhos 13, financeiro-ops 14) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
+| `npm run test:offline` | REAL — 22 suítes verdes (correções 17, ganhos 13, financeiro-ops 14, privacidade 7) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
 | E2E PWA (Playwright) | REAL — 14 roteiros (novos: ganhos, finops) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
 | Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
@@ -92,7 +93,7 @@
 - **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).
 - Supabase Auth: ligar a proteção contra senha vazada (advisor WARN).
-- Decisões abertas: infra paga antes do 1º cliente; aviso de privacidade + Red Team para ligar o agendamento online; parecer trabalhista (gamificação/metas).
+- Decisões abertas: infra paga antes do 1º cliente; para ligar o agendamento online: dados do salão no aviso do cliente + Red Team em produção + `PUBLIC_BOOKING_LINKS`; escopo de gamificação/metas (aprovadas em D-018; meta gravada exige migration 011).
 
 ## Handoff
 - Ciclo 2026-11-10: PRs #17–#20 mesclados; 006–009 aplicadas via integração GitHub; produção publicada e validada (ver Estado de produção); correção de URLs (D-015 revisado: backend oficial `hopeos-v1.onrender.com`); kit promocional (rascunho). Não fazer: 010+, V1.5, declarar produção aprovada sem Red Team em produção.

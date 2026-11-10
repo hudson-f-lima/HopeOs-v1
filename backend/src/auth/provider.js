@@ -43,7 +43,15 @@ const supabaseProvider = {
   async getUser(jwt) {
     const { data, error } = await withTimeout(supabaseAuthClient().auth.getUser(jwt), env.AUTH_TIMEOUT_MS);
     if (error || !data || !data.user) throw error ? providerError(error) : createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
-    return { id: data.user.id, email: data.user.email };
+    // Aceite do aviso de privacidade (D-018): fica em app_metadata, que só o servidor altera.
+    return { id: data.user.id, email: data.user.email, privacy: (data.user.app_metadata && data.user.app_metadata.hopeos_privacy) || null };
+  },
+  async acceptPrivacy(jwt, versao) {
+    const user = await this.getUser(jwt);
+    const aceite = { versao, aceito_em: new Date().toISOString() };
+    const { error } = await withTimeout(supabaseAuthClient().auth.admin.updateUserById(user.id, { app_metadata: { hopeos_privacy: aceite } }), env.AUTH_TIMEOUT_MS);
+    if (error) throw providerError(error);
+    return aceite;
   },
   async signIn(email, password) {
     const { data, error } = await withTimeout(supabaseAuthClient().auth.signInWithPassword({ email, password }), env.AUTH_TIMEOUT_MS);

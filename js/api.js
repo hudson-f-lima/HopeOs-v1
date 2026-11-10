@@ -142,6 +142,10 @@ export function fetchMe() {
   return api('/me');
 }
 
+export function aceitarPrivacidade(versao) {
+  return api('/auth/privacidade/aceite', { method: 'POST', body: { versao } });
+}
+
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs || FETCH_TIMEOUT_MS);

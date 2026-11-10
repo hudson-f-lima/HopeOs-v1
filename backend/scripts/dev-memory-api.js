@@ -112,7 +112,14 @@ setAuthProvider({
     const s = sessoes.get(token);
     if (!s || s.exp < Date.now()) throw invalida();
     const c = contas.find(x => x.id === s.userId);
-    return { id: c.id, email: c.email };
+    return { id: c.id, email: c.email, privacy: c.privacy === undefined ? { versao: env.PRIVACY_NOTICE_VERSION, aceito_em: '2026-01-01T00:00:00.000Z' } : c.privacy };
+  },
+  async acceptPrivacy(token, versao) {
+    const s = sessoes.get(token);
+    const c = s && contas.find(x => x.id === s.userId);
+    if (!c) throw invalida();
+    c.privacy = { versao, aceito_em: new Date().toISOString() };
+    return c.privacy;
   },
   async signIn(email, password) {
     const c = contas.find(x => x.email === email);
@@ -122,7 +129,7 @@ setAuthProvider({
   // Convite/recuperação: em vez de e-mail, o link vai para o console e para GET /__links.
   async inviteUser(email, redirectTo) {
     if (contas.some(c => c.email === email)) throw createAppError('USER_ALREADY_EXISTS', 'Já existe conta com este e-mail.', 409);
-    const conta = { id: randomUUID(), email, nome: email.split('@')[0], password: randomBytes(16).toString('hex') };
+    const conta = { id: randomUUID(), email, nome: email.split('@')[0], password: randomBytes(16).toString('hex'), privacy: null };
     contas.push(conta);
     store.db.app_users.push({ id: conta.id, email, nome: conta.nome, ativo: true }); // papel do trigger da 007
     registrarLink(conta, 'invite', redirectTo);
@@ -147,6 +154,7 @@ setAuthProvider({
 
 const { app } = require('../src/app');
 app.get('/__links', (req, res) => res.json(links));
+app.get('/__contas', (req, res) => res.json(contas.map(c => ({ email: c.email, privacy: c.privacy === undefined ? 'seed' : c.privacy }))));
 app.get('/__db/:tabela', (req, res) => res.json(db[req.params.tabela] || store.db[req.params.tabela] || []));
 const port = Number(process.env.PORT || 3399);
 app.listen(port, '127.0.0.1', () => {
