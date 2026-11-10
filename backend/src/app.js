@@ -74,8 +74,10 @@ app.use('/api', pilotoRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {
-  console.error(err);
   const { statusCode, body } = mapErrorForResponse(err);
+  // 4xx e esperado (sem token, validacao): uma linha, sem pilha, para nao afogar os erros reais.
+  if (statusCode >= 500) console.error(err);
+  else console.warn(`[${statusCode}] ${body.error.code}: ${body.error.message}`);
   res.status(statusCode).json(body);
 });
 
