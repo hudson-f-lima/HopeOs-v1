@@ -1,10 +1,10 @@
-// Fechamento/conferência de caixa do dia — SOMENTE LEITURA.
-// Não grava o fechamento: não há tabela para isso nas migrations 001–008.
+// Conferência de caixa do dia (leitura). Desde a migration 010 (D-017) considera
+// fundo de troco, sangrias e suprimentos e informa o último fechamento salvo do dia.
+// Quem grava (ajuste e fechamento) é routes/financeiroOps.js.
 const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { buildFechamentoCaixa } = require('../engines/CaixaEngine');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { env } = require('../config/env');
 const clock = require('../config/clock');
@@ -31,19 +31,34 @@ function validarContado(valor) {
   return Number(s);
 }
 
+function validarFundo(valor) {
+  if (valor === undefined || valor === '') return 0;
+  const s = String(valor);
+  if (!/^\d{1,12}$/.test(s)) throw createAppError('INVALID_FIELD', 'fundoTrocoCentavos deve ser inteiro em centavos (>= 0).', 422, { field: 'fundoTrocoCentavos' });
+  return Number(s);
+}
+
 router.get('/caixa/fechamento', authorize('relatorios:operacional'), async (req, res, next) => {
   try {
+    const { resumoDoDia, fechamentoPublico } = require('./financeiroOps');
     const data = validarData(req.query.data);
     const contadoDinheiroCentavos = validarContado(req.query.contadoDinheiroCentavos);
+    const fundoTrocoCentavos = validarFundo(req.query.fundoTrocoCentavos);
     // Tenant só do req.auth; empresa_id de query/body é ignorado.
     const repo = new SupabaseRepository(req.auth.empresa_id);
-    const [comandos, movimentos, formasPagamento] = await Promise.all([
-      repo.list('comandos', { empresa_id: repo.empresaId, data }),
-      repo.list('caixa_movimentos', { empresa_id: repo.empresaId, data }),
-      repo.list('formas_pagamento', { empresa_id: repo.empresaId })
+    const [resumo, fechamentos] = await Promise.all([
+      resumoDoDia(repo, data, { fundoTrocoCentavos, contadoDinheiroCentavos }),
+      repo.list('caixa_fechamentos', { empresa_id: repo.empresaId, data })
     ]);
-    const pagamentos = await repo.listPagamentosDasComandas(comandos.map(c => c.id));
-    res.json({ ok: true, data: buildFechamentoCaixa({ data, comandos, pagamentos, movimentos, formasPagamento, contadoDinheiroCentavos }) });
+    // Vale o fechamento mais recente do dia (em empate de horário, o último gravado).
+    const ultimo = fechamentos.reduce((m, f) => (!m || String(f.created_at || '') >= String(m.created_at || '') ? f : m), null);
+    // Movimento depois do fechamento: o esperado de agora (com o fundo do fechamento) difere do gravado.
+    let desatualizado = false;
+    if (ultimo) {
+      const agora = await resumoDoDia(repo, data, { fundoTrocoCentavos: ultimo.fundo_troco_centavos });
+      desatualizado = agora.dinheiro.esperadoCentavos !== ultimo.esperado_dinheiro_centavos || agora.totalBrutoCentavos !== ultimo.total_bruto_centavos;
+    }
+    res.json({ ok: true, data: { ...resumo, persistido: Boolean(ultimo), ultimoFechamento: ultimo ? { ...fechamentoPublico(ultimo), desatualizado } : null, quantidadeFechamentos: fechamentos.length } });
   } catch (err) { next(err); }
 });
 

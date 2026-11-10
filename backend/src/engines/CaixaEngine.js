@@ -97,4 +97,31 @@ function buildFechamentoCaixa({ data, comandos = [], pagamentos = [], movimentos
   };
 }
 
-module.exports = { buildFechamentoCaixa, FORMA_DINHEIRO };
+// Gaveta do dia com fundo de troco, suprimentos e sangrias (D-017, migration 010).
+// Recebe o resultado de buildFechamentoCaixa (sem contado) e devolve o esperado real:
+// fundo + vendas em dinheiro − estornos em dinheiro + suprimentos − sangrias.
+function aplicarAjustesCaixa(fechamento, { ajustes = [], fundoTrocoCentavos = 0, contadoDinheiroCentavos } = {}) {
+  const doDia = ajustes.filter(a => String(a.data) === fechamento.data);
+  const soma = tipo => doDia.filter(a => a.tipo === tipo).reduce((s, a) => s + roundCents(a.valor_centavos), 0);
+  const sangrias = soma('sangria');
+  const suprimentos = soma('suprimento');
+  const vendas = fechamento.dinheiro.esperadoCentavos;
+  const esperado = fundoTrocoCentavos + vendas + suprimentos - sangrias;
+  const dinheiro = { formaCode: FORMA_DINHEIRO, vendasCentavos: vendas, esperadoCentavos: esperado };
+  if (contadoDinheiroCentavos !== undefined && contadoDinheiroCentavos !== null) {
+    dinheiro.contadoCentavos = contadoDinheiroCentavos;
+    dinheiro.diferencaCentavos = contadoDinheiroCentavos - esperado;
+  }
+  return {
+    ...fechamento,
+    fundoTrocoCentavos,
+    ajustes: {
+      sangriasCentavos: sangrias,
+      suprimentosCentavos: suprimentos,
+      itens: doDia.map(a => ({ id: a.id, tipo: a.tipo, valorCentavos: roundCents(a.valor_centavos), motivo: a.motivo, criadoEm: a.created_at || null })).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)))
+    },
+    dinheiro
+  };
+}
+
+module.exports = { buildFechamentoCaixa, aplicarAjustesCaixa, FORMA_DINHEIRO };

@@ -362,11 +362,22 @@
         <h2>Fechamento de caixa</h2>
         <form id="caixaForm" class="caixa-form">
           <div class="field"><label for="caixaData">Dia</label><input type="date" id="caixaData"/></div>
+          <div class="field"><label for="caixaFundo">Fundo de troco (R$)</label><input id="caixaFundo" inputmode="decimal" placeholder="Ex.: 100,00"/></div>
           <div class="field"><label for="caixaContado">Dinheiro contado (R$)</label><input id="caixaContado" inputmode="decimal" placeholder="Ex.: 150,00"/></div>
           <button class="btn btn-secondary" type="submit" id="btnConferirCaixa">Conferir</button>
         </form>
-        <p class="body-sm" id="caixaErro" style="color:var(--md-error)"></p>
+        <p class="body-sm" id="caixaErro" role="alert" style="color:var(--md-error)"></p>
         <div id="caixaResultado"></div>
+        <button class="btn btn-primary" type="button" id="btnFecharCaixa" style="margin-top:10px;">Fechar caixa do dia</button>
+        <p class="body-sm" id="caixaFechamentoMsg" role="status" style="margin:6px 0 0;"></p>
+        <form id="caixaAjusteForm" class="caixa-form" style="margin-top:14px;">
+          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Sangria ou suprimento (hoje)</h3>
+          <div class="field"><label for="caixaAjusteTipo">Tipo</label><select id="caixaAjusteTipo"><option value="sangria">Sangria (retirada)</option><option value="suprimento">Suprimento (reforço)</option></select></div>
+          <div class="field"><label for="caixaAjusteValor">Valor (R$)</label><input id="caixaAjusteValor" inputmode="decimal" placeholder="Ex.: 50,00"/></div>
+          <div class="field"><label for="caixaAjusteMotivo">Motivo</label><input id="caixaAjusteMotivo" maxlength="300" placeholder="Ex.: depósito no banco"/></div>
+          <button class="btn btn-secondary" type="submit" id="btnLancarAjuste">Lançar</button>
+          <p class="body-sm" id="caixaAjusteMsg" role="status" style="margin:6px 0 0;"></p>
+        </form>
       </section>
       <section class="card dashboard-list hidden" id="cardComandasEstorno" aria-label="Comandas do dia e estorno">
         <h2>Comandas do dia</h2>
@@ -614,6 +625,15 @@
         <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
         <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
         <div id="ganhosResultado"></div>
+        <div id="ganhosSaldo"></div>
+        <form id="ganhosPagarForm" class="hidden" style="margin-top:12px;">
+          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Registrar pagamento</h3>
+          <div class="field"><label for="ganhosPagarTipo">Tipo</label><select id="ganhosPagarTipo"><option value="pagamento">Pagamento de comissão</option><option value="vale">Vale (adiantamento)</option></select></div>
+          <div class="field"><label for="ganhosPagarValor">Valor (R$)</label><input id="ganhosPagarValor" inputmode="decimal" placeholder="Ex.: 200,00"/></div>
+          <div class="field"><label for="ganhosPagarObs">Observação</label><input id="ganhosPagarObs" maxlength="500" placeholder="Ex.: Pix em 10/11"/></div>
+          <button class="btn btn-primary" type="submit" id="btnGanhosPagar">Registrar</button>
+          <p class="body-sm" id="ganhosPagarMsg" role="status" style="margin:6px 0 0;"></p>
+        </form>
       </div>
     </div>
 

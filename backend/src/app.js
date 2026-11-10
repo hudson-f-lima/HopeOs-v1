@@ -10,6 +10,7 @@ const { estruturaRouter } = require('./routes/estrutura');
 const { caixaRouter } = require('./routes/caixa');
 const { pilotoRouter } = require('./routes/piloto');
 const { relatoriosRouter } = require('./routes/relatorios');
+const { financeiroOpsRouter } = require('./routes/financeiroOps');
 const { randomUUID } = require('crypto');
 const { publicBookingRouter } = require('./routes/publicBooking');
 const { requireAuth } = require('./middleware/auth');
@@ -77,6 +78,7 @@ app.use('/api', estruturaRouter);
 app.use('/api', caixaRouter);
 app.use('/api', pilotoRouter);
 app.use('/api', relatoriosRouter);
+app.use('/api', financeiroOpsRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {

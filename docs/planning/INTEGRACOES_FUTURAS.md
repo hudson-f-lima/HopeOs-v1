@@ -38,7 +38,9 @@ Regras que valem para todos:
 | Aceite | Só recebe quem consentiu; resposta "sim" confirma o agendamento com autoria "cliente"; falha de envio aparece para a recepção |
 | Decisão do dono | Só depois de o piloto medir a taxa de falta com o lembrete manual |
 
-## 4. Pagamento de comissão (sem fornecedor; exige migration)
+## 4. Pagamento de comissão — **IMPLEMENTADO em D-017 (migration 010)**
+Pagamento, vale, estorno e saldo estão em `routes/financeiroOps.js` e na aba Ganhos. O quadro abaixo fica como registro do desenho. Em aberto: trava do teto no banco e parecer trabalhista.
+
 | | |
 |---|---|
 | Já existe | Cálculo por item no checkout; cota-parte do mês; **extrato por profissional** (`GET /api/relatorios/meus-ganhos`, aba Ganhos) |
@@ -46,7 +48,9 @@ Regras que valem para todos:
 | Exige | Migration 010 (tabela de pagamentos de comissão, imutável como o ledger); parecer trabalhista se envolver meta ou piso |
 | Aceite | Saldo = ganhos − pagamentos; pagamento não se edita, só se estorna; profissional vê o próprio saldo |
 
-## 5. Fechamento de caixa salvo (sem fornecedor; exige migration)
+## 5. Fechamento de caixa salvo — **IMPLEMENTADO em D-017 (migration 010)**
+Fundo de troco, sangria, suprimento e fechamento gravado. Em aberto: travar o dia fechado (hoje só avisa "desatualizado").
+
 | | |
 |---|---|
 | Já existe | Conferência do dia na tela (`CaixaEngine.js`): por forma, dinheiro esperado, diferença |
@@ -55,7 +59,9 @@ Regras que valem para todos:
 | Aceite | Dia fechado guarda o valor contado e a diferença; reabrir exige gestão e fica registrado |
 | Referência | PDV de restaurante: relatório Z, contagem da gaveta contra o relatório, nada entra no dia depois do fechamento |
 
-## 6. Alertas de produção
+## 6. Alertas de produção — **PARCIAL em D-017**
+`.github/workflows/monitor.yml` verifica API, login e site a cada 30 minutos e o GitHub avisa por e-mail. Em aberto: rastreio de erro 5xx individual (fornecedor).
+
 | | |
 |---|---|
 | Já existe | `X-Request-Id` em toda resposta e no log; erro 4xx em uma linha; `smoke.js` |
