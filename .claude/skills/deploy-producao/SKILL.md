@@ -10,7 +10,7 @@ Ferramentas (Node puro, sem dependência nova, todas com `--help`), em `backend/
 
 | Ferramenta | Faz | Escreve? |
 |---|---|---|
-| `doctor.js` | variáveis + `/api/health` + tabelas 001–010 via PostgREST (HEAD `limit=0`) + Auth settings | nunca |
+| `doctor.js` | variáveis + `/api/health` + tabelas 001–011 via PostgREST (HEAD `limit=0`) + Auth settings | nunca |
 | `bootstrap-admin.js` | empresa + "Unidade principal" + vínculo admin (passo 7) | só com `--apply` |
 | `smoke.js` | health, 401, headers, CORS, `/api/public` 404, CSP/headers da PWA, `config.json` | nunca |
 
@@ -22,7 +22,7 @@ Segredos só por variável de ambiente; as ferramentas mostram apenas tipo e tam
 - SQL em produção: só com autorização explícita do Platform Owner. `bootstrap-admin` não roda SQL arbitrário (usa o PostgREST do backend), mas grava em produção: `--apply` também precisa de autorização.
 
 ## 1. Ordem (não pular, não inverter)
-1. **Banco já com 001–010** no `hopeos-v1` (`gsttjozcmdvgstcpadiq`). Conferir pela verificação SQL do runbook (passo 4 e §4.1) ou pelo `doctor` (passo 4 abaixo). Migration nova só entra pela `main` com linha em `supabase/migrations.lock` e decisão em `docs/DECISIONS.md`.
+1. **Banco já com 001–011** no `hopeos-v1` (`gsttjozcmdvgstcpadiq`). Conferir pela verificação SQL do runbook (passo 4 e §4.1) ou pelo `doctor` (passo 4 abaixo). Migration nova só entra pela `main` com linha em `supabase/migrations.lock` e decisão em `docs/DECISIONS.md`.
 2. **Supabase Auth → URL Configuration**: Site URL e Redirect URLs = URL pública da PWA. Providers → Email: *Confirm email* ligado; *Allow new users to sign up* desligado (o app é por convite).
 3. **Render → `hopeos-v1` → Environment** (lista exata; nada além disto):
 

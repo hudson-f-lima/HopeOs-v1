@@ -216,6 +216,11 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
     - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
   - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
+- **Metas e ranking** (D-019, migration 011)
+  - `GET /api/metas?mes=YYYY-MM` — RBAC `metas:read` (admin, gestor; profissional só as próprias). Devolve `{mes, metas:[{id, profissionalId, nome, tipo:'faturamento'|'atendimentos', alvo, realizado, percentual, atingida}]}`. `percentual` é truncado.
+  - `PUT /api/metas` — RBAC `metas:write` (admin, gestor; só usuário). Corpo `{profissionalId, mes, tipo, valorAlvo}`; `valorAlvo` em centavos para faturamento; `null` ou `0` remove. 201 ao criar, 200 ao alterar ou remover. 404 `PROFESSIONAL_NOT_FOUND`; 422 `INVALID_MONTH`/`INVALID_FIELD`/`FORBIDDEN_FIELD`.
+  - `GET /api/gamificacao/ranking?mes=YYYY-MM` — RBAC `ranking:read`. Gestão: `{mes, visivelEquipe, ranking:[{posicao, profissionalId, nome, atendimentos, percentualDoLider, faturamentoCentavos}]}`. Profissional: se o salão não ligou, 200 com `visivelEquipe:false` e `ranking:[]`; ligado, recebe `voce` em cada linha e `faturamentoCentavos` só na própria.
+  - `PATCH /api/empresa` aceita `rankingVisivelEquipe` (só `true` liga).
 - **Aviso de privacidade** (D-018)
   - `GET /api/me` (usuário) ganha `privacidade:{versaoAtual, versaoAceita, aceitoEm, pendente}`.
   - `POST /api/auth/privacidade/aceite` — Bearer de usuário; corpo `{versao}`. Só a versão vigente (`PRIVACY_NOTICE_VERSION`): outra → 422 `PRIVACY_VERSION_MISMATCH` (`details.versaoAtual`). Token legado ou ausente → 401; conta desativada → 403; provedor sem suporte → 503 `PRIVACY_NOT_SUPPORTED`.

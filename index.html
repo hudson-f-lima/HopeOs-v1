@@ -642,6 +642,24 @@
         <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
         <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
         <div id="ganhosResultado"></div>
+        <div id="metasBloco" class="hidden">
+          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Metas do mês</h3>
+          <p class="body-sm" id="metasErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+          <div id="metasLista"></div>
+          <form id="metasForm" class="hidden" style="margin-top:8px;">
+            <div class="field"><label for="metaFaturamento">Meta de faturamento em serviços (R$)</label><input id="metaFaturamento" inputmode="decimal" placeholder="Ex.: 5000,00"/></div>
+            <div class="field"><label for="metaAtendimentos">Meta de atendimentos</label><input id="metaAtendimentos" inputmode="numeric" placeholder="Ex.: 80"/></div>
+            <button class="btn btn-secondary" type="submit" id="btnSalvarMetas">Salvar metas</button>
+            <p class="body-sm" id="metasMsg" role="status" style="margin:6px 0 0;"></p>
+            <p class="list-count-hint">Campo vazio remove a meta. A meta não altera comissão, agenda nem distribuição de clientes.</p>
+          </form>
+        </div>
+        <div id="rankingBloco" class="hidden">
+          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Ranking do mês</h3>
+          <div id="rankingLista"></div>
+          <label class="hidden ranking-opcao" id="rankingVisivelWrap"><input type="checkbox" id="rankingVisivel"/> Mostrar o ranking para a equipe</label>
+          <p class="body-sm" id="rankingMsg" role="status" style="margin:6px 0 0;"></p>
+        </div>
         <div id="ganhosSaldo"></div>
         <form id="ganhosPagarForm" class="hidden" style="margin-top:12px;">
           <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Registrar pagamento</h3>

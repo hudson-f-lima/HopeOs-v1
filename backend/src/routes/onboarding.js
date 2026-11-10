@@ -13,7 +13,7 @@ const router = express.Router();
 const MAX_ITENS = 50;
 
 const CAMPOS_EMPRESA = ['id', 'nome', 'telefone', 'whatsapp', 'endereco', 'cidade', 'horario_por_dia', 'slot_padrao', 'intervalo_almoco', 'almoco_inicio', 'almoco_fim',
-  'cnpj', 'razao_social', 'salao_parceiro', 'buffer_min', 'regua_alerta_faltas', 'regua_sinal_faltas'];
+  'cnpj', 'razao_social', 'salao_parceiro', 'buffer_min', 'regua_alerta_faltas', 'regua_sinal_faltas', 'ranking_visivel_equipe'];
 
 async function carregarEmpresa(repo) {
   const empresa = (await repo.list('empresas', { id: repo.empresaId }))[0];

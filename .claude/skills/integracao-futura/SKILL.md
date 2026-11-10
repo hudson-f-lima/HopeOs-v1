@@ -11,7 +11,7 @@ Registro único: `docs/planning/INTEGRACOES_FUTURAS.md`. Não crie um documento 
 Escrever o que permite decidir e depois implementar sem redescobrir nada. **Não** significa código pela metade:
 - sem interface vazia, adaptador "stub" ou rota que responde 501;
 - sem variável de ambiente nova sem uso;
-- sem tabela "para o futuro" (migration 011+ exige autorização e executa em produção no merge).
+- sem tabela "para o futuro" (migration 012+ exige autorização e executa em produção no merge).
 
 Código que ninguém chama apodrece e passa falsa impressão de que a integração existe.
 

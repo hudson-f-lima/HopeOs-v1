@@ -38,6 +38,10 @@ function installMemoryBackend(seed = {}) {
     return row;
   };
   P.insertScoped = P.insert;
+  P.deleteScoped = async function (t, id) {
+    const i = rows(t).findIndex(r => r.id === id && r.empresa_id === this.empresaId);
+    if (i >= 0) rows(t).splice(i, 1);
+  };
   P.updateScoped = async function (t, id, p) {
     const row = rows(t).find(r => r.id === id && r.empresa_id === this.empresaId);
     if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }

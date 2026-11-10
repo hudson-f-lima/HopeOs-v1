@@ -6,7 +6,7 @@ const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const TEXTOS = ['nome', 'telefone', 'whatsapp', 'endereco', 'cidade'];
 const PERMITIDOS = [...TEXTOS, 'horarioPorDia', 'slotPadrao', 'intervaloAlmoco', 'almocoInicio', 'almocoFim',
-  'cnpj', 'razaoSocial', 'salaoParceiro', 'bufferMin', 'reguaAlertaFaltas', 'reguaSinalFaltas'];
+  'cnpj', 'razaoSocial', 'salaoParceiro', 'bufferMin', 'reguaAlertaFaltas', 'reguaSinalFaltas', 'rankingVisivelEquipe'];
 
 const invalido = (field, message) => createAppError('INVALID_FIELD', message, 422, { field });
 const minutos = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
@@ -84,6 +84,8 @@ function validateUpdateEmpresaPayload(payload = {}) {
     out.razao_social = v || null;
   }
   if (payload.salaoParceiro !== undefined) out.salao_parceiro = payload.salaoParceiro === true;
+  // Ranking do mês visível para a equipe (D-019). Só liga com `true` explícito.
+  if (payload.rankingVisivelEquipe !== undefined) out.ranking_visivel_equipe = payload.rankingVisivelEquipe === true;
   if (payload.bufferMin !== undefined) {
     const n = Number(payload.bufferMin);
     if (![0, 5, 10, 15].includes(n)) throw invalido('bufferMin', 'bufferMin deve ser 0, 5, 10 ou 15.');

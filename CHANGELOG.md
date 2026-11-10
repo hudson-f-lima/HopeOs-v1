@@ -1,5 +1,11 @@
 # Changelog
 
+## Metas do mês e ranking (D-019, migration 011)
+- **Gestão > Ganhos > Metas do mês:** a gestão define, para cada profissional, a meta de faturamento em serviços e de atendimentos. O progresso aparece em barra e é calculado das comandas fechadas, já descontados os estornos.
+- **Ranking do mês:** a gestão vê a classificação com os valores. Uma chave liga o ranking para a equipe, que passa a ver a própria posição e a proporção em relação ao primeiro, sem o valor em reais dos colegas.
+- Metas e ranking não alteram comissão, agenda nem distribuição de clientes, e não há prêmio.
+- Testes: offline 23 suítes (nova: gamificação 11); SQL gate_011 com 6 blocos; E2E 15/15.
+
 ## Aviso de privacidade no primeiro acesso (D-018)
 - Quem cria a conta ou entra pela primeira vez lê o aviso de privacidade e toca em "Li e aceito" para continuar. O aceite fica registrado com data e versão.
 - Se o aviso mudar de versão, todos aceitam de novo no próximo acesso.
