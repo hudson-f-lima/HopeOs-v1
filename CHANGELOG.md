@@ -1,5 +1,13 @@
 # Changelog
 
+## Ganhos do profissional, exportação para o contador e código de erro (D-016)
+- **Gestão > Ganhos:** comissão, gorjeta e estornos do mês, dia a dia. O profissional vê só os seus; admin e gestão escolhem o profissional. O pagamento não é registrado.
+- **Dashboard > "Exportar para o contador (CSV)":** uma linha por item vendido no mês e linha negativa por estorno, com a cota-parte do salão e do profissional. Abre no Excel em português. Não substitui a nota fiscal.
+- **Código de erro:** toda resposta da API traz `X-Request-Id`; em erro interno o código aparece também no corpo, para informar ao suporte.
+- **Erro interno sem detalhe técnico:** falha inesperada mostra texto genérico e o código; o detalhe fica no log do servidor.
+- **Correção:** o app não tenta mais carregar a lista de espera para o profissional, e a aba "Espera" some para ele.
+- Testes: offline 20 suítes (nova: ganhos 13); E2E 13/13 (novo: ganhos).
+
 ## Estorno de comanda, histórico da agenda e agendamento online (D-013, D-014)
 - **Estorno de comanda (migration 009):**
   - total ou parcial, pelo botão "Estornar" em "Comandas do dia" no Dashboard (só gestão);

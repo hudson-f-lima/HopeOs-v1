@@ -28,6 +28,7 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
+import { initGanhos } from './ui/ganhos.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
@@ -163,7 +164,12 @@ function aplicarSessaoNaUI() {
     show('sessionChip');
   }
   // Dashboard é relatório operacional/gerencial: profissional não tem acesso no backend.
-  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) hide('navDashboard');
+  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) {
+    hide('navDashboard');
+    // Lista de espera também é só da operação: sem botão nem aba para o profissional.
+    document.getElementById('btnAbrirListaEspera')?.classList.add('hidden');
+    document.querySelector('.subtab-btn[data-subtab="espera"]')?.classList.add('hidden');
+  }
 }
 
 function showFatalError() {
@@ -352,6 +358,7 @@ async function init() {
 
     initEquipe();
     initComissoes();
+    initGanhos();
     initCaixa();
     initEstorno();
     if (sessionRoleIn('admin', 'gestor')) {

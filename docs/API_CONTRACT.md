@@ -216,6 +216,13 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
     - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
   - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
+- **`GET /api/relatorios/meus-ganhos?mes=YYYY-MM[&profissionalId]`** (D-016)
+  - RBAC `relatorios:proprio`: admin, gestor e profissional. Profissional: escopo próprio, `profissionalId` da query é ignorado. Gestão: `profissionalId` obrigatório (422 `PROFESSIONAL_REQUIRED`); de outra empresa ou inexistente → 404 `PROFESSIONAL_NOT_FOUND`.
+  - Devolve `{mes, profissionalId, nome, atendimentos, valorServicosCentavos, comissaoCentavos, gorjetaLiquidaCentavos, estornos:{quantidade, comissaoCentavos, gorjetaCentavos}, totalCentavos, porDia:[{data, atendimentos, comissaoCentavos, gorjetaCentavos}]}`.
+  - Estorno entra no mês do estorno. Só leitura: não há registro de pagamento de comissão.
+- **`GET /api/relatorios/servicos-prestados?mes=YYYY-MM`** (D-016)
+  - RBAC `relatorios:full`. Devolve `{mes, linhas:[{data, lancamento:'venda'|'estorno', comandaId, tipo, descricao, profissional, quantidade, valorCentavos, cotaParteProfissionalCentavos, cotaParteSalaoCentavos}], totais}`. Estornos são linhas negativas. Sem dado de cliente.
+- **`X-Request-Id`** (D-016): cabeçalho em toda resposta; em erro 5xx também em `error.requestId`.
 - **`GET /api/relatorios/piloto[?de&ate]`**
   - RBAC `relatorios:full`. Padrão: últimos 30 dias; máximo 366 (422 `INVALID_DATE`/`INVALID_PERIOD`).
   - KPIs `{numerador, denominador, taxa|null, referencia}`:

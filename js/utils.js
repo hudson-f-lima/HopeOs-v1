@@ -162,3 +162,28 @@ export function confirmAction({ title, message, confirmLabel = 'Confirmar', dang
     dialog.showModal();
   });
 }
+
+// CSV para planilha pt-BR: ";" como separador, vírgula decimal e BOM (acentos no Excel).
+// Texto que começa com = + - @ ganha apóstrofo: planilha não executa como fórmula.
+export function toCsv(cabecalho, linhas) {
+  const cel = v => {
+    let t = v === null || v === undefined ? '' : String(v);
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return /[";\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  return '\uFEFF' + [cabecalho, ...linhas].map(l => l.map(cel).join(';')).join('\r\n') + '\r\n';
+}
+
+export function centsToDecimal(cents) {
+  const n = Number(cents) || 0;
+  const abs = Math.abs(n);
+  return (n < 0 ? '-' : '') + Math.floor(abs / 100) + ',' + String(abs % 100).padStart(2, '0');
+}
+
+export function baixarArquivo(nome, conteudo, tipo = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

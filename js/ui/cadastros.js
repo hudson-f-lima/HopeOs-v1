@@ -1,5 +1,5 @@
 import { api, getListaEspera, createListaEspera, updateListaEspera } from '../api.js';
-import { state, stateBus } from '../state.js';
+import { state, stateBus, sessionRoleIn } from '../state.js';
 import {
   centsToBRL,
   brlToCents,
@@ -491,6 +491,8 @@ function renderListaEsperaRow(item) {
 export async function renderListaEsperaList() {
   const container = document.getElementById('listListaEspera');
   if (!container) return;
+  // Lista de espera é da operação (admin, gestão, recepção): o profissional recebe 403.
+  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) return;
   const mostrarTodas = document.getElementById('chkListaEsperaTodas')?.checked;
   try {
     const items = await getListaEspera();

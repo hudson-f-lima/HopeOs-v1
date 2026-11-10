@@ -323,6 +323,8 @@
             </div>
           </div>
           <div id="dbCotaParteWidget" class="dashboard-widget-body"></div>
+          <button type="button" class="btn btn-secondary" id="btnExportarContador" style="margin-top:10px;">Exportar para o contador (CSV)</button>
+          <p class="body-sm" id="exportarContadorMsg" role="status" style="margin:6px 0 0;"></p>
         </section>
 
         <section class="dashboard-panel hidden" id="dbPilotoPanel">
@@ -601,6 +603,18 @@
       <button class="subtab-btn" data-subtab="espera">Espera</button>
       <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
+      <button class="subtab-btn hidden" data-subtab="ganhos" id="subtabBtnGanhos">Ganhos</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-ganhos">
+      <div class="card">
+        <h2 class="m-0" style="margin-bottom:4px;">Ganhos do mês</h2>
+        <p class="body-sm text-tertiary" style="margin:0 0 10px;">Comissão e gorjeta de cada comanda fechada.</p>
+        <div class="field"><label for="ganhosMes">Mês</label><input type="month" id="ganhosMes"></div>
+        <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
+        <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+        <div id="ganhosResultado"></div>
+      </div>
     </div>
 
     <div class="subtab-content hidden" id="subtab-comissoes">

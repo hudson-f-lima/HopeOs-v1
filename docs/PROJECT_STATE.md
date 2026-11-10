@@ -25,7 +25,7 @@
 | Double-booking concorrente | REAL — fechado no banco (`agendamento_criar` com advisory lock) após aplicar a 007 | `supabase/tests/concurrency_agenda.sh` (controle negativo grava 2; com lock grava 1) |
 | Exposição de tabelas a `anon`/`authenticated` | REAL — revogada + RLS deny-all na 007 (antes: DESCONHECIDO em produção; consultar no passo 3 do runbook) | gate SQL 10 |
 | Relatórios por papel | REAL — CRÍTICO corrigido: snapshot/dashboard/financeiro/insights usavam `DEFAULT_EMPRESA_ID` | identity-gate U07 |
-| Relatórios "leitura própria" do profissional | PARCIAL — profissional fica sem relatórios | ADR-005 "Desvios e limites" |
+| Relatórios "leitura própria" do profissional | REAL para ganhos do mês (`/relatorios/meus-ganhos`, D-016); demais relatórios negados | ganhos-gate 12/12; E2E ganhos |
 | Sugestão de slots-âncora | REAL no backend e na PWA; PENDENTE validação com dados reais | gate `schedule-slots-gate` 18/18; D-006 |
 | Onda B (D-009): fiscal, buffer, cargos/categorias com herança de comissão, régua de faltas (alerta), cota-parte | REAL no código — migration 008 + gate_008 (6 blocos, controle negativo), onda-b-gate 9/9, E2E; PENDENTE em produção | `supabase/migrations/008_*.sql`, `backend/src/engines/CommissionResolver.js`, `js/ui/comissoes.js` |
 | Assistente de configuração em 6 fases (Onda A, D-008) | REAL no código — onboarding-gate 9/9 + E2E do salão vazio até o app; PENDENTE em produção | `js/ui/onboarding.js`, `backend/src/routes/onboarding.js` |
@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-016 (2026-11-10): 2ª auditoria + benchmark (`docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`); ganhos do profissional, CSV para o contador, `X-Request-Id`, correção da lista de espera para o profissional. Integrações futuras encaminhadas em `docs/planning/INTEGRACOES_FUTURAS.md`.
 - D-013/D-014 (PR #18): estorno de comanda (migration 009, ledger imutável por trigger) — aplicada no merge; histórico de status da agenda; agendamento online pelo link (desligado; ligar exige aviso de privacidade aprovado + Red Team).
 - Corrigido (D-012): `isLateCancel`/`scheduledDateTime` liam `horario` só como HH:MM (o Postgres devolve HH:MM:SS → tudo virava meia-noite e cancelamento no mesmo dia nunca era tardio) e em UTC (~3h de erro em Brasília). Afeta confiabilidade do cliente, régua e KPI de falta.
 - D-012 (blueprint Beauty & Wellness): presença na agenda, fechamento de caixa (só leitura), KPIs do piloto, validação de desconto/gorjeta e data da comanda no fuso da empresa. Análise: `docs/planning/BLUEPRINT_BEAUTY_WELLNESS_ANALISE.md`.
@@ -58,14 +59,14 @@
 - P1: CI PARCIAL — gates integrados (Supabase real) não rodam no Actions
 - P1 (antes do 1º cliente pagante): infra gratuita para sistema de caixa — Supabase Free pausa após ~7 dias sem atividade e não tem backup baixável; Render Free dorme quando ocioso
 - Resolvido (D-013): ledger imutável por trigger e sem update/delete para `service_role`; estorno de comanda REAL. Efeito: `clear-test-data` e exclusão de empresa com histórico exigem SQL autorizado (RUNBOOK §4.1)
-- P2: 41 FKs sem índice (advisor de performance, INFO; banco vazio, sem impacto hoje — exigiria migration 009); unidades sem particionar dados; relatórios próprios do profissional; autoria de integração em estado mutável
+- P2: 41 FKs sem índice (advisor de performance, INFO; banco vazio, sem impacto hoje — exigiria migration 010+); unidades sem particionar dados; autoria de integração em estado mutável
 - V1.5: BLOQUEADA
 
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 19 suítes verdes (correções 17) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
-| E2E PWA (Playwright) | REAL — 12 roteiros (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
+| `npm run test:offline` | REAL — 20 suítes verdes (correções 17, ganhos 13) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
+| E2E PWA (Playwright) | REAL — 13 roteiros (novo: ganhos) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
 | Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` (001–009) | REAL — gate_007 12, gate_008 6, gate_009 11, concorrência agenda e estorno, controles negativos da 009, rollback 009→007 e reaplicação; push da 009 simulado com Supabase CLI sobre banco 001–008 | local 2026-11-09 |
@@ -86,6 +87,9 @@
 ## Próxima ação única
 - Platform Owner, no Render/Supabase (nada disso é feito pelo código): `NODE_ENV=production` em minúsculas (HSTS); `APP_PUBLIC_URL`; `LEGACY_TOKEN_AUTH_ENABLED=false`; remover `SERVICE_ROLE_KEY` duplicada; avaliar `GH_TOKEN` e secret file `.env`; Build Command `npm ci --omit=dev`; desligar cadastro aberto e ajustar Site URL/Redirect URLs no Supabase Auth; trocar a senha de teste do admin. Depois: `node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api --pwa https://hudson-f-lima.github.io/HopeOs-v1/`.
 - Marcar os checks de CI como obrigatórios na proteção da `main` (hoje a trava de migrations só avisa).
+- **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
+- NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).
+- Supabase Auth: ligar a proteção contra senha vazada (advisor WARN).
 - Decisões abertas: infra paga antes do 1º cliente; aviso de privacidade + Red Team para ligar o agendamento online; parecer trabalhista (gamificação/metas).
 
 ## Handoff

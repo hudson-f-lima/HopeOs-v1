@@ -309,7 +309,7 @@ test('RT-08 enumeração de clientes: número novo e número conhecido têm o ME
   // O mesmo número, agora já cadastrado, com outro nome: a resposta não pode diferir.
   const repetido = await post(pedido({ profissionalId: BETO, data: DEPOIS, horario: '16:00', nome: 'Outro Nome', whatsapp: '21 92222-0001' }));
   for (const r of [novo, repetido]) assert.strictEqual(r.status, 201, r.raw);
-  const semVariaveis = r => { const { date, etag, 'content-length': _cl, ...h } = r.headers; return h; };
+  const semVariaveis = r => { const { date, etag, 'content-length': _cl, 'x-request-id': _rid, ...h } = r.headers; return h; };
   assert.deepStrictEqual(semVariaveis(repetido), semVariaveis(novo), 'headers diferem entre número novo e conhecido');
   assert.deepStrictEqual(Object.keys(repetido.data.data).sort(), Object.keys(novo.data.data).sort());
   assert.ok(!repetido.raw.includes('Pessoa X') && !repetido.raw.includes('Outro Nome'), 'nome nunca volta na resposta');

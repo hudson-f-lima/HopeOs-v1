@@ -5,7 +5,7 @@ description: Auditoria de estado do HOPE OS / KortexOS (código, banco de produ�
 
 # Auditoria de estado + benchmark — HOPE OS / KortexOS
 
-Modelo pronto: `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md`. Uma auditoria nova é um arquivo novo com data, não uma edição do anterior.
+Modelos prontos: `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md` e `AUDITORIA_E_BENCHMARK_2026-11-10.md` (2ª rodada: o que mudou, o que foi completado, o que foi encaminhado). Uma auditoria nova é um arquivo novo com data, não uma edição do anterior.
 
 ## 1. Fatos antes de opinião (só leitura)
 | O quê | Como |
@@ -58,6 +58,9 @@ Diferencie fato, inferência e hipótese.
 
   Para esses itens: lacuna priorizada + o que exige + pergunta objetiva ao Platform Owner.
 - Cada correção vem com teste que falha sem ela. Rode o teste com a correção revertida e mostre a falha.
+
+- Para executar: skill `completar-lacuna` (o que cabe sem migration) e `integracao-futura` (o que não cabe). Tela nova passa pela `usabilidade-pwa`.
+- Auditoria repetida em poucos dias rende pouco: diga isso no veredito e recomende uso real em vez de mais benchmark.
 
 ## 5. Fechamento
 - Atualizar `docs/PROJECT_STATE.md` (gates, bloqueadores), `docs/DECISIONS.md`, `CHANGELOG.md` e `docs/API_CONTRACT.md` se houver rota nova.

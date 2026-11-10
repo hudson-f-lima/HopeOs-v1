@@ -24,6 +24,8 @@ const ACTIONS = {
   'lista_espera:write': { roles: OPERACAO },
   'relatorios:operacional': { roles: OPERACAO },
   'relatorios:full': { roles: GESTAO },
+  // Leitura própria (ADR-005 "Desvios e limites"): o profissional só vê os seus ganhos.
+  'relatorios:proprio': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
   admin: { roles: ['admin'], userOnly: true }
 };
 
