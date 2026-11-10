@@ -38,7 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
-- D-017 (2026-11-10, PR #22, **aguardando merge**): migration 010 — pagamento de comissão (pagamento, vale, estorno, saldo) e caixa (fundo de troco, sangria, suprimento, fechamento salvo); monitor de produção agendado no GitHub Actions. Gateway de pagamento, NFS-e e WhatsApp automático continuam encaminhados (exigem fornecedor). **Pendente do dono:** atualizar a regra de migrations em `CLAUDE.md`, `AGENTS.md` e skills de "010+/001–009" para "011+/001–010" (a sessão não pode alterar as próprias regras).
+- D-017 (2026-11-10, PR #22, **aguardando merge**): migration 010 — pagamento de comissão (pagamento, vale, estorno, saldo) e caixa (fundo de troco, sangria, suprimento, fechamento salvo); monitor de produção agendado no GitHub Actions. Gateway de pagamento, NFS-e e WhatsApp automático continuam encaminhados (exigem fornecedor).
 - D-016 (2026-11-10): 2ª auditoria + benchmark (`docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`); ganhos do profissional, CSV para o contador, `X-Request-Id`, correção da lista de espera para o profissional. Integrações futuras encaminhadas em `docs/planning/INTEGRACOES_FUTURAS.md`.
 - D-013/D-014 (PR #18): estorno de comanda (migration 009, ledger imutável por trigger) — aplicada no merge; histórico de status da agenda; agendamento online pelo link (desligado; ligar exige aviso de privacidade aprovado + Red Team).
 - Corrigido (D-012): `isLateCancel`/`scheduledDateTime` liam `horario` só como HH:MM (o Postgres devolve HH:MM:SS → tudo virava meia-noite e cancelamento no mesmo dia nunca era tardio) e em UTC (~3h de erro em Brasília). Afeta confiabilidade do cliente, régua e KPI de falta.
@@ -88,6 +88,7 @@
 ## Próxima ação única
 - Platform Owner, no Render/Supabase (nada disso é feito pelo código): `NODE_ENV=production` em minúsculas (HSTS); `APP_PUBLIC_URL`; `LEGACY_TOKEN_AUTH_ENABLED=false`; remover `SERVICE_ROLE_KEY` duplicada; avaliar `GH_TOKEN` e secret file `.env`; Build Command `npm ci --omit=dev`; desligar cadastro aberto e ajustar Site URL/Redirect URLs no Supabase Auth; trocar a senha de teste do admin. Depois: `node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api --pwa https://hudson-f-lima.github.io/HopeOs-v1/`.
 - Marcar os checks de CI como obrigatórios na proteção da `main` (hoje a trava de migrations só avisa).
+- Melhores práticas globais (`docs/audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`): prioridade 1 = **backup com restauração testada** (ausente); 3 = contagem cega no caixa (a tela mostra o esperado antes da contagem).
 - **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).
 - Supabase Auth: ligar a proteção contra senha vazada (advisor WARN).
