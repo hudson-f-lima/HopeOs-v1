@@ -14,6 +14,6 @@ Leia [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) para o estado atual. Este 
 
 ## Fundação
 - Stack: Node.js/Express, Supabase/Postgres e PWA.
-- Migrations físicas: 001–011. 010 = pagamento de comissão + fechamento de caixa salvo (D-017), aplicada em produção em 2026-11-10 no merge do PR #22. 011 = metas e ranking (D-019); só existe em produção depois do merge do PR que a contém. 001–008 aplicadas em produção (`hopeos-v1`) em 2026-11-08 (007 = ADR-005, D-007; 008 = Onda B, D-009); 009 = estorno de comanda + ledger imutável por trigger (D-013), aplicada no merge do PR #18.
+- Migrations físicas: 001–011. 010 = pagamento de comissão + fechamento de caixa salvo (D-017), aplicada em produção em 2026-11-10 no merge do PR #22. 011 = metas e ranking (D-019, D-020), aplicada em produção em 2026-11-11 no merge do PR #23. 001–008 aplicadas em produção (`hopeos-v1`) em 2026-11-08 (007 = ADR-005, D-007; 008 = Onda B, D-009); 009 = estorno de comanda + ledger imutável por trigger (D-013), aplicada no merge do PR #18.
 - **Merge na `main` aplica `supabase/migrations` em produção** (integração GitHub do Supabase, D-010). Toda migration precisa de linha em `supabase/migrations.lock`; o CI (`check_migrations.sh`) barra o resto.
 - Documentação: [`docs/INDEX.md`](docs/INDEX.md).

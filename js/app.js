@@ -29,6 +29,7 @@ import {
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
 import { initGanhos } from './ui/ganhos.js';
+import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
@@ -383,6 +384,7 @@ async function init() {
     initEquipe();
     initComissoes();
     initGanhos();
+    initAgora();
     initCaixa();
     initEstorno();
     if (sessionRoleIn('admin', 'gestor')) {

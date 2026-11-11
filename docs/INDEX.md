@@ -9,6 +9,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`](audit/AUDITORIA_E_BENCHMARK_2026-11-10.md) — 2ª auditoria + benchmark global e cross-indústria
 - [`audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`](audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md) — práticas de outras disciplinas (fintech, caixa, saúde, SRE, LGPD, UX) × HOPE OS
 - [`planning/INTEGRACOES_FUTURAS.md`](planning/INTEGRACOES_FUTURAS.md) — pagamento, NFS-e, WhatsApp, comissão paga, caixa salvo, alertas: contrato e pré-requisitos
+- [`RUNBOOK_BACKUP.md`](RUNBOOK_BACKUP.md) — ferramentas de backup, teste de restauração e a decisão pendente sobre a rotina diária
 - [`promo/README.md`](promo/README.md) — kit promocional (rascunho) e pendências
 - [`adr/ADR-005-identity-tenant-rbac-actor.md`](adr/ADR-005-identity-tenant-rbac-actor.md) — identidade, tenant, RBAC e autoria (aprovada e implementada)
 - [`../CHANGELOG.md`](../CHANGELOG.md) — entregas concluídas

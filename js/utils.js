@@ -136,16 +136,16 @@ export function confirmAction({ title, message, confirmLabel = 'Confirmar', dang
     dialog.innerHTML = `
       <div style="padding:20px;max-width:320px;font-family:inherit">
         <div style="font-size:18px;font-weight:800;margin-bottom:8px">${escapeHtml(title)}</div>
-        <div style="font-size:13px;color:#555;line-height:1.45;margin-bottom:20px">${escapeHtml(message)}</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.45;margin-bottom:20px">${escapeHtml(message)}</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <button id="confirm-action-ok" style="
-            padding:12px;border-radius:10px;border:none;cursor:pointer;
-            background:${danger ? '#ef4444' : '#7c3aed'};color:#fff;font-weight:800;font-size:14px">
+            min-height:48px;padding:12px;border-radius:12px;border:none;cursor:pointer;
+            background:${danger ? 'var(--error)' : 'var(--primary)'};color:var(--on-primary);font-weight:800;font-size:14px">
             ${escapeHtml(confirmLabel)}
           </button>
           <button id="confirm-action-cancel" style="
-            padding:12px;border-radius:10px;border:1px solid #e0e0e0;
-            cursor:pointer;background:#fff;color:#555;font-size:14px">
+            min-height:44px;padding:12px;border-radius:12px;border:1px solid var(--border);
+            cursor:pointer;background:var(--bg-surface);color:var(--text-secondary);font-size:14px">
             Cancelar
           </button>
         </div>

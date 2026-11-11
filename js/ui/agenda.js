@@ -325,10 +325,10 @@ export function renderDayPills() {
     const count = activeAgendaItemsForDate(d).length;
     const countStr = count === 0 ? '0 agend.' : `${count} agend.`;
     const isSelected = d === state.selectedDay;
-    return `<button class="day-pill ${isSelected ? 'selected' : ''}" data-day="${d}" style="background:${isSelected ? '#7c6af7' : '#fff'};">
-      <span class="pill-weekday" style="color:${isSelected ? '#fff' : '#9490a3'};">${WEEKDAY_LABELS[dt.getDay()]}</span>
-      <span class="pill-daynum" style="color:${isSelected ? '#fff' : '#171620'};">${dt.getDate()}</span>
-      <span class="pill-occ" style="color:${isSelected ? '#fff' : '#49454f'};font-weight:700;">${countStr}</span>
+    return `<button class="day-pill ${isSelected ? 'selected' : ''}" data-day="${d}">
+      <span class="pill-weekday">${WEEKDAY_LABELS[dt.getDay()]}</span>
+      <span class="pill-daynum">${dt.getDate()}</span>
+      <span class="pill-occ">${countStr}</span>
     </button>`;
   }).join('');
 }
@@ -709,7 +709,7 @@ async function promptWaitlistCandidates(servicoId) {
     const link = cliente?.whatsapp ? waLink(cliente.whatsapp, texto) : null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee;">
       <span style="font-size:13px;font-weight:600;">${escapeHtml(nome)}</span>
-      ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:#22c55e;text-decoration:none;">WhatsApp</a>` : '<span style="font-size:11px;color:#9490a3;">Sem WhatsApp</span>'}
+      ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:var(--success);text-decoration:none;">WhatsApp</a>` : '<span style="font-size:11px;color:var(--text-tertiary);">Sem WhatsApp</span>'}
     </div>`;
   }).join('');
 
@@ -722,8 +722,8 @@ async function promptWaitlistCandidates(servicoId) {
       </div>
       ${rowsHtml}
       <button id="btn-waitlist-fechar" style="
-        margin-top:16px;width:100%;padding:12px;border-radius:10px;border:1px solid #e0e0e0;
-        cursor:pointer;background:#fff;color:#555;font-size:14px">Fechar</button>
+        margin-top:16px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+        cursor:pointer;background:var(--bg-surface);color:var(--text-secondary);font-size:14px">Fechar</button>
     </div>
   `;
   document.getElementById('btn-waitlist-fechar').onclick = () => dialog.close();
@@ -833,8 +833,8 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
           ${proximoLabel} — Slot mais próximo
         </button>` : ''}
         <button id="btn-cancelar" style="
-          padding:12px; border-radius:10px; border:1px solid #e0e0e0;
-          cursor:pointer; background:#fff; color:#555; font-size:14px">
+          padding:12px; border-radius:10px; border:1px solid var(--border);
+          cursor:pointer; background:var(--bg-surface); color:var(--text-secondary); font-size:14px">
           ✗ Cancelar
         </button>
       </div>

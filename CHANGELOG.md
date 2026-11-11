@@ -1,5 +1,15 @@
 # Changelog
 
+## Novo visual, modo escuro e tela "Agora" do profissional (D-022)
+- Visual redesenhado: cores, tipografia (Inter), botões e campos maiores.
+- **Modo escuro** automático, conforme o aparelho.
+- **Profissional:** a Agenda abre com o atendimento do momento e um único botão para o próximo passo (cliente chegou, iniciar, concluir e abrir comanda), mais os próximos horários do dia.
+- Testes: E2E 17/17 (novo: agora).
+
+## Ferramentas de backup e teste de restauração (D-021)
+- Ferramentas para exportar o banco e para provar que o arquivo restaura (contagem, ids e totais conferidos).
+- **Ainda não há backup automático.** Onde a rotina diária vai rodar depende de decisão do dono (`docs/RUNBOOK_BACKUP.md`).
+
 ## Comanda com vários serviços, produtos e profissionais (D-020)
 - **Checkout:** o botão "+ Adicionar à comanda" inclui quantos serviços e produtos forem necessários, cada um com o profissional que atendeu ou vendeu, e a quantidade de cada produto. A lista mostra os itens, o subtotal e permite remover.
 - As abas "Serviços | Produtos" do checkout, que não funcionavam, foram removidas.
