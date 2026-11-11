@@ -217,9 +217,9 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
   - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
 - **Metas e ranking** (D-019, migration 011)
-  - `GET /api/metas?mes=YYYY-MM` — RBAC `metas:read` (admin, gestor; profissional só as próprias). Devolve `{mes, metas:[{id, profissionalId, nome, tipo:'faturamento'|'atendimentos', alvo, realizado, percentual, atingida}]}`. `percentual` é truncado.
+  - `GET /api/metas?mes=YYYY-MM` — RBAC `metas:read` (admin, gestor; profissional só as próprias). Devolve `{mes, metas:[{id, profissionalId, nome, tipo:'faturamento'|'atendimentos'|'produtos', alvo, realizado, percentual, atingida}]}`. `percentual` é truncado. `produtos` = venda de produtos pelo profissional (D-020).
   - `PUT /api/metas` — RBAC `metas:write` (admin, gestor; só usuário). Corpo `{profissionalId, mes, tipo, valorAlvo}`; `valorAlvo` em centavos para faturamento; `null` ou `0` remove. 201 ao criar, 200 ao alterar ou remover. 404 `PROFESSIONAL_NOT_FOUND`; 422 `INVALID_MONTH`/`INVALID_FIELD`/`FORBIDDEN_FIELD`.
-  - `GET /api/gamificacao/ranking?mes=YYYY-MM` — RBAC `ranking:read`. Gestão: `{mes, visivelEquipe, ranking:[{posicao, profissionalId, nome, atendimentos, percentualDoLider, faturamentoCentavos}]}`. Profissional: se o salão não ligou, 200 com `visivelEquipe:false` e `ranking:[]`; ligado, recebe `voce` em cada linha e `faturamentoCentavos` só na própria.
+  - `GET /api/gamificacao/ranking?mes=YYYY-MM[&criterio=servicos|produtos|total]` — RBAC `ranking:read`. Gestão: `{mes, criterio, visivelEquipe, ranking:[{posicao, profissionalId, nome, atendimentos, percentualDoLider, valorCentavos, faturamentoCentavos, produtosCentavos, totalCentavos, ticketMedioCentavos}]}`. `valorCentavos` é o do critério; critério inválido → 422. Profissional: se o salão não ligou, 200 com `visivelEquipe:false` e `ranking:[]`; ligado, recebe `voce` em cada linha e os valores em reais só na própria.
   - `PATCH /api/empresa` aceita `rankingVisivelEquipe` (só `true` liga).
 - **Aviso de privacidade** (D-018)
   - `GET /api/me` (usuário) ganha `privacidade:{versaoAtual, versaoAceita, aceitoEm, pendente}`.

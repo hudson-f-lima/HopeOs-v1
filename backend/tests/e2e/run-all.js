@@ -14,6 +14,10 @@ const ROOT = path.resolve(__dirname, '../..', '..');
 const API_SCRIPT = process.env.E2E_API_SCRIPT || path.join(ROOT, 'backend/scripts/dev-memory-api.js');
 const NODE_PATH = process.env.NODE_PATH || execSync('npm root -g').toString().trim();
 const amanha = new Date(Date.now() + 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+// O navegador do teste roda no fuso do salão, como o aparelho de quem usa o app. A PWA
+// calcula "hoje" pelo relógio do aparelho; num runner em UTC, entre 21h e meia-noite de
+// Brasília, "hoje" do navegador já era o dia seguinte e os roteiros de agenda falhavam.
+const FUSO_DO_SALAO = 'America/Sao_Paulo';
 
 const CASOS = [
   { nome: 'csp' },
@@ -30,7 +34,8 @@ const CASOS = [
   { nome: 'estorno' },
   { nome: 'ganhos' },
   { nome: 'finops' },
-  { nome: 'metas' }
+  { nome: 'metas' },
+  { nome: 'comanda' }
 ];
 // Linha "ROTULO erros: [...]" / "ERROS: [...]" / "ERRS: [...]" / "VIOLAÇÕES CSP: [...]" com conteúdo.
 const LISTA_NAO_VAZIA = /(erros|ERROS|ERRS|VIOLAÇÕES CSP):\s*\[(?!\])/;
@@ -82,7 +87,7 @@ async function portaLivre(porta) {
       let codigo; let motivo = '';
       try {
         await esperar('http://127.0.0.1:3399/api/health');
-        const e2e = rodar('node', [path.join('backend/tests/e2e', `${caso.nome}.e2e.js`)], { env: { ...process.env, ...caso.env, NODE_PATH } }, `[${caso.nome}]`);
+        const e2e = rodar('node', [path.join('backend/tests/e2e', `${caso.nome}.e2e.js`)], { env: { ...process.env, ...caso.env, NODE_PATH, TZ: FUSO_DO_SALAO } }, `[${caso.nome}]`);
         codigo = await new Promise(r => e2e.on('exit', c => r(c)));
         if (codigo !== 0) motivo = `saiu com código ${codigo}`;
         const linha = e2e.saida.split('\n').find(l => LISTA_NAO_VAZIA.test(l));

@@ -5,10 +5,10 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { computeDesempenho, computeMetas, computeRanking } = require('../engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, CRITERIOS } = require('../engines/insights/gamificacao');
 
 const router = express.Router();
-const ALVO_MAX = { faturamento: 1000000000, atendimentos: 100000 }; // R$ 10 mi; 100 mil atendimentos
+const ALVO_MAX = { faturamento: 1000000000, atendimentos: 100000, produtos: 1000000000 }; // R$ 10 mi; 100 mil atendimentos
 const CAMPOS_PROIBIDOS = ['empresa_id', 'empresaId', 'created_by', 'updated_by', 'actor_id', 'id'];
 
 function mesValido(v) {
@@ -45,10 +45,10 @@ router.put('/metas', authorize('metas:write'), async (req, res, next) => {
       if (!['profissionalId', 'mes', 'tipo', 'valorAlvo'].includes(k)) throw createAppError('INVALID_FIELD', `Campo desconhecido: ${k}.`, 422, { field: k });
     }
     const mes = mesValido(b.mes);
-    if (!['faturamento', 'atendimentos'].includes(b.tipo)) throw createAppError('INVALID_FIELD', 'tipo deve ser faturamento ou atendimentos.', 422, { field: 'tipo' });
+    if (!Object.keys(ALVO_MAX).includes(b.tipo)) throw createAppError('INVALID_FIELD', 'tipo deve ser faturamento, atendimentos ou produtos.', 422, { field: 'tipo' });
     const remover = b.valorAlvo === null || b.valorAlvo === 0;
     if (!remover && (!Number.isInteger(b.valorAlvo) || b.valorAlvo < 1 || b.valorAlvo > ALVO_MAX[b.tipo])) {
-      throw createAppError('INVALID_FIELD', `valorAlvo deve ser inteiro entre 1 e ${ALVO_MAX[b.tipo]} (centavos para faturamento).`, 422, { field: 'valorAlvo' });
+      throw createAppError('INVALID_FIELD', `valorAlvo deve ser inteiro entre 1 e ${ALVO_MAX[b.tipo]} (centavos para faturamento e produtos).`, 422, { field: 'valorAlvo' });
     }
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [prof] = b.profissionalId ? await repo.list('profissionais', { empresa_id: repo.empresaId, id: String(b.profissionalId) }) : [];
@@ -69,14 +69,16 @@ router.put('/metas', authorize('metas:write'), async (req, res, next) => {
 router.get('/gamificacao/ranking', authorize('ranking:read'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query.mes);
+    const criterio = req.query.criterio === undefined ? 'servicos' : String(req.query.criterio);
+    if (!CRITERIOS[criterio]) throw createAppError('INVALID_FIELD', 'criterio deve ser servicos, produtos ou total.', 422, { field: 'criterio' });
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [empresa] = await repo.list('empresas', { id: repo.empresaId });
     const visivelEquipe = Boolean(empresa && empresa.ranking_visivel_equipe);
     // Equipe só vê se o salão ligou. Desligado = resposta normal e vazia (a tela esconde o
     // bloco); não é erro, para não gerar um 403 a cada abertura da aba.
-    if (req.authz.own && !visivelEquipe) return res.json({ ok: true, data: { mes, visivelEquipe: false, ranking: [] } });
-    const ranking = computeRanking({ desempenho: await desempenhoDoMes(repo, mes), comValores: !req.authz.own, destaqueId: req.authz.own ? req.authz.profissionalId : null });
-    res.json({ ok: true, data: { mes, visivelEquipe, ranking } });
+    if (req.authz.own && !visivelEquipe) return res.json({ ok: true, data: { mes, criterio, visivelEquipe: false, ranking: [] } });
+    const ranking = computeRanking({ desempenho: await desempenhoDoMes(repo, mes), criterio, comValores: !req.authz.own, destaqueId: req.authz.own ? req.authz.profissionalId : null });
+    res.json({ ok: true, data: { mes, criterio, visivelEquipe, ranking } });
   } catch (err) { next(err); }
 });
 

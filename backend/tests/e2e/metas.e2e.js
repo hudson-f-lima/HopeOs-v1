@@ -28,7 +28,8 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   const corte = servicos.find(s => s.nome === 'Corte'); const barba = servicos.find(s => s.nome === 'Barba');
   const ana = profs.find(p => p.nome === 'Ana'); const outro = profs.find(p => p.id !== ana.id);
   // Ana: Barba 40,00 (1 atendimento). Colega: Corte 60,00 → colega em 1º, Ana em 2º com 66% do líder.
-  const c1 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-1', itens: [{ tipo: 'servico', servicoId: barba.id, profissionalId: ana.id }], payments: [{ formaCode: 'pix', valorCentavos: 4000 }] });
+  const pomada = await legado('/produtos', { nome: 'Pomada', custoCentavos: 1000, precoVendaCentavos: 3000, estoqueInicial: 10 });
+  const c1 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-1', itens: [{ tipo: 'servico', servicoId: barba.id, profissionalId: ana.id }, { tipo: 'produto', produtoId: pomada.data.id, quantidade: 1, profissionalId: ana.id }], payments: [{ formaCode: 'pix', valorCentavos: 7000 }] });
   const c2 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-2', itens: [{ tipo: 'servico', servicoId: corte.id, profissionalId: outro.id }], payments: [{ formaCode: 'pix', valorCentavos: 6000 }] });
   confere('checkouts do seed', c1.ok && c2.ok, JSON.stringify([c1.error, c2.error]));
 
@@ -46,15 +47,21 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await abrirGanhos(a); await a.waitForSelector('#rankingBloco:not(.hidden)');
   confere('admin: ranking com valores em reais', (await a.textContent('#rankingLista')).includes('R$') && await a.getAttribute('#rankingLista [data-posicao="1"]', 'data-voce') === '0');
   await a.selectOption('#ganhosProfissional', ana.id); await a.waitForSelector('#metasForm:not(.hidden)');
-  await a.fill('#metaFaturamento', '80,00'); await a.fill('#metaAtendimentos', '1'); await a.click('#btnSalvarMetas');
+  await a.fill('#metaFaturamento', '80,00'); await a.fill('#metaProdutos', '60,00'); await a.fill('#metaAtendimentos', '1'); await a.click('#btnSalvarMetas');
   await a.waitForSelector('[data-meta="faturamento"]');
   confere('admin: meta de faturamento 40,00 de 80,00 = 50%', await a.getAttribute('[data-meta="faturamento"]', 'data-percentual') === '50' && await a.getAttribute('[data-meta="faturamento"]', 'data-atingida') === '0');
   confere('admin: meta de atendimentos 1 de 1 atingida', await a.getAttribute('[data-meta="atendimentos"]', 'data-atingida') === '1');
   const metas = await db('metas');
-  confere('admin: 2 metas gravadas com autor', metas.length === 2 && metas.every(m => m.profissional_id === ana.id && Boolean(m.created_by)) && metas.find(m => m.tipo === 'faturamento').valor_alvo === 8000);
+  confere('admin: meta de produtos 30,00 de 60,00 = 50%', await a.getAttribute('[data-meta="produtos"]', 'data-percentual') === '50');
+  confere('admin: 3 metas gravadas com autor', metas.length === 3 && metas.every(m => m.profissional_id === ana.id && Boolean(m.created_by)) && metas.find(m => m.tipo === 'faturamento').valor_alvo === 8000);
   await a.fill('#metaAtendimentos', ''); await a.click('#btnSalvarMetas');
-  await a.waitForFunction(() => document.querySelectorAll('#metasLista [data-meta]').length === 1);
-  confere('admin: campo vazio remove a meta', (await db('metas')).length === 1);
+  await a.waitForFunction(() => document.querySelectorAll('#metasLista [data-meta]').length === 2);
+  confere('admin: campo vazio remove a meta', (await db('metas')).length === 2);
+  await a.selectOption('#rankingCriterio', 'produtos');
+  await a.waitForFunction(nome => (document.querySelector('#rankingLista [data-posicao="1"]') || {}).textContent?.includes(nome), ana.nome);
+  confere('admin: ranking por produtos põe a Ana em 1º com 30,00', (await a.textContent('#rankingLista [data-posicao="1"]')).includes('R$ 30,00'));
+  await a.selectOption('#rankingCriterio', 'servicos');
+  await a.waitForFunction(nome => !(document.querySelector('#rankingLista [data-posicao="1"]') || {}).textContent?.includes(nome), ana.nome);
   await a.check('#rankingVisivel'); await a.waitForFunction(() => /passa a ver/.test(document.getElementById('rankingMsg').textContent));
   confere('admin: visibilidade do ranking gravada na empresa', (await db('empresas'))[0].ranking_visivel_equipe === true);
   await a.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });

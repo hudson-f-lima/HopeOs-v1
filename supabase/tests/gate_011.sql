@@ -29,6 +29,7 @@ do $$ declare e text; begin
   e := pg_temp.erro_de($q$insert into metas (empresa_id, profissional_id, mes, tipo, valor_alvo) values ('e1100000-0000-4000-8000-00000000000a', 'a1100000-0000-4000-8000-00000000000a', '2026-11', 'faturamento', 1)$q$);
   if e is null then raise exception 'gate_011 bloco 2: meta duplicada aceita'; end if;
   insert into metas (empresa_id, profissional_id, mes, tipo, valor_alvo) values ('e1100000-0000-4000-8000-00000000000a', 'a1100000-0000-4000-8000-00000000000a', '2026-11', 'atendimentos', 40);
+  insert into metas (empresa_id, profissional_id, mes, tipo, valor_alvo) values ('e1100000-0000-4000-8000-00000000000a', 'a1100000-0000-4000-8000-00000000000a', '2026-11', 'produtos', 30000);
 end $$;
 
 -- 3. Mês, tipo e alvo inválidos são recusados.
@@ -52,7 +53,7 @@ end $$;
 -- 5. Meta é configuração: update e delete funcionam.
 do $$ begin
   update metas set valor_alvo = 600000 where tipo = 'faturamento';
-  delete from metas where tipo = 'atendimentos';
+  delete from metas where tipo in ('atendimentos', 'produtos');
   if (select count(*) from metas) <> 1 or (select valor_alvo from metas) <> 600000 then raise exception 'gate_011 bloco 5: update/delete não aplicados'; end if;
 end $$;
 

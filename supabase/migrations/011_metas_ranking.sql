@@ -18,8 +18,8 @@ create table if not exists metas (
   empresa_id uuid not null references empresas(id) on delete cascade,
   profissional_id uuid not null references profissionais(id) on delete cascade,
   mes text not null check (mes ~ '^\d{4}-(0[1-9]|1[0-2])$'),
-  tipo text not null check (tipo in ('faturamento', 'atendimentos')),
-  -- faturamento: centavos; atendimentos: quantidade.
+  tipo text not null check (tipo in ('faturamento', 'atendimentos', 'produtos')),
+  -- faturamento (serviços) e produtos (vendidos pelo profissional): centavos; atendimentos: quantidade.
   valor_alvo int not null check (valor_alvo > 0),
   created_by uuid null references app_users(id),
   updated_by uuid null references app_users(id),

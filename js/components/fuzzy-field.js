@@ -13,9 +13,17 @@ export class FuzzyField {
     this.dropdown = null;
     this.selectedValue = null;
 
-    this.input.addEventListener('input', (e) => this.onInput(e));
-    this.input.addEventListener('blur', () => setTimeout(() => this.closeDropdown(), 200));
-    this.input.addEventListener('focus', () => this.onInput({ target: this.input }));
+    // O fechamento ao sair espera 200 ms (para o clique na opção chegar antes). Se o campo
+    // voltar a ser usado nesse intervalo, o fechamento pendente é cancelado: sem isso a
+    // lista recém-aberta sumia sozinha.
+    this.closeTimer = null;
+    const cancelarFechamento = () => { clearTimeout(this.closeTimer); this.closeTimer = null; };
+    this.input.addEventListener('blur', () => { cancelarFechamento(); this.closeTimer = setTimeout(() => this.closeDropdown(), 200); });
+    this.input.addEventListener('focus', () => { cancelarFechamento(); this.onInput({ target: this.input }); });
+    // Texto editado à mão deixa de ser a opção escolhida: o que vale é o que aparece.
+    // Sem isso, apagar o campo mantinha a escolha anterior escondida. Só no evento de
+    // digitação: o foco reabre a lista e não pode desfazer a escolha.
+    this.input.addEventListener('input', (e) => { cancelarFechamento(); this.selectedValue = null; this.onInput(e); });
   }
 
   fuzzyMatch(query, text) {
@@ -98,9 +106,9 @@ export class FuzzyField {
   setValue(value) {
     this.selectedValue = value;
     const item = this.items.find(i => this.valueFn(i) === value);
-    if (item) {
-      this.input.value = this.labelFn(item);
-    }
+    // Valor sem item (inclusive null) limpa o texto: campo vazio = nada escolhido.
+    this.input.value = item ? this.labelFn(item) : '';
+    if (!item) this.selectedValue = null;
   }
 
   setItems(newItems) {

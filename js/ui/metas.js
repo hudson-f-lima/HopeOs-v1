@@ -9,8 +9,9 @@ import { reaisParaCentavos } from './caixa.js';
 
 const el = id => document.getElementById(id);
 const gestao = () => sessionRoleIn('admin', 'gestor');
-const ROTULO = { faturamento: 'Faturamento em serviços', atendimentos: 'Atendimentos' };
-const valor = (tipo, v) => (tipo === 'faturamento' ? centsToBRL(v) : String(v));
+const ROTULO = { faturamento: 'Faturamento em serviços', atendimentos: 'Atendimentos', produtos: 'Venda de produtos' };
+const valor = (tipo, v) => (tipo === 'atendimentos' ? String(v) : centsToBRL(v));
+const emReais = c => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
 let contexto = { mes: null, profissionalId: null };
 
 function renderMetas(lista) {
@@ -31,7 +32,8 @@ export async function atualizarMetas(mes, profissionalId) {
     renderMetas(lista);
     if (gestao()) {
       const alvo = tipo => (lista.find(m => m.tipo === tipo) || {}).alvo;
-      el('metaFaturamento').value = alvo('faturamento') ? (alvo('faturamento') / 100).toFixed(2).replace('.', ',') : '';
+      el('metaFaturamento').value = emReais(alvo('faturamento'));
+      el('metaProdutos').value = emReais(alvo('produtos'));
       el('metaAtendimentos').value = alvo('atendimentos') || '';
       el('metasForm').classList.toggle('hidden', !profissionalId);
     }
@@ -48,13 +50,15 @@ async function salvarMetas() {
   const fat = reaisParaCentavos(el('metaFaturamento').value);
   const atdTexto = el('metaAtendimentos').value.trim();
   const atd = atdTexto === '' ? null : Number(atdTexto);
+  const prod = reaisParaCentavos(el('metaProdutos').value);
   if (Number.isNaN(fat)) { msg.textContent = 'Meta de faturamento inválida. Use, por exemplo, 5000,00.'; return; }
+  if (Number.isNaN(prod)) { msg.textContent = 'Meta de produtos inválida. Use, por exemplo, 800,00.'; return; }
   if (atd !== null && (!Number.isInteger(atd) || atd < 0)) { msg.textContent = 'Meta de atendimentos deve ser um número inteiro.'; return; }
   const botao = el('btnSalvarMetas');
   botao.disabled = true;
   try {
     // Campo vazio remove a meta daquele tipo.
-    for (const [tipo, valorAlvo] of [['faturamento', fat], ['atendimentos', atd]]) {
+    for (const [tipo, valorAlvo] of [['faturamento', fat], ['produtos', prod], ['atendimentos', atd]]) {
       await api('/metas', { method: 'PUT', body: { profissionalId: contexto.profissionalId, mes: contexto.mes, tipo, valorAlvo: valorAlvo || null } });
     }
     msg.textContent = 'Metas salvas.';
@@ -69,14 +73,16 @@ function renderRanking(r) {
   el('rankingLista').innerHTML = r.ranking.length ? r.ranking.map(x => `
     <div class="row" data-posicao="${x.posicao}" data-voce="${x.voce ? 1 : 0}">
       <span>${x.posicao}º · ${escapeHtml(x.nome)}${x.voce ? ' (você)' : ''} · ${x.atendimentos} atend.</span>
-      <b>${comValor || x.voce ? centsToBRL(x.faturamentoCentavos) : `${x.percentualDoLider}% do 1º`}</b>
-    </div>`).join('') : '<p class="empty-state">Ninguém atendeu neste mês ainda.</p>';
+      <b>${comValor || x.voce ? centsToBRL(x.valorCentavos) : `${x.percentualDoLider}% do 1º`}</b>
+    </div>${comValor ? `<p class="list-count-hint ranking-detalhe">serviços ${centsToBRL(x.faturamentoCentavos)} · produtos ${centsToBRL(x.produtosCentavos)} · ticket médio ${centsToBRL(x.ticketMedioCentavos)}</p>` : ''}`).join('') : '<p class="empty-state">Ninguém atendeu neste mês ainda.</p>';
 }
 
 export async function atualizarRanking(mes) {
   const bloco = el('rankingBloco');
+  contexto.mes = mes;
   try {
-    const r = await api(`/gamificacao/ranking?mes=${encodeURIComponent(mes)}`);
+    const criterio = el('rankingCriterio').value || 'servicos';
+    const r = await api(`/gamificacao/ranking?mes=${encodeURIComponent(mes)}&criterio=${criterio}`);
     // Ranking desligado para a equipe: o bloco não aparece para o profissional.
     if (!gestao() && !r.visivelEquipe) { bloco.classList.add('hidden'); return; }
     renderRanking(r);
@@ -108,4 +114,5 @@ export function initMetas() {
   if (!sessionRoleIn('admin', 'gestor', 'profissional')) return;
   el('metasForm').addEventListener('submit', ev => { ev.preventDefault(); salvarMetas(); });
   el('rankingVisivel').addEventListener('change', alternarVisibilidade);
+  el('rankingCriterio').addEventListener('change', () => { if (contexto.mes) atualizarRanking(contexto.mes); });
 }

@@ -73,6 +73,25 @@ test('M04 ranking da equipe: sem o valor em reais dos colegas; empate divide a p
   assert.deepStrictEqual(computeRanking({ desempenho: [] }), []);
 });
 
+test('M12 produtos: contam para quem vendeu; total = serviços + produtos; ticket médio por comanda', () => {
+  const d = Object.fromEntries(desempenho().map(x => [x.nome, [x.produtosCentavos, x.produtosQuantidade, x.totalCentavos, x.comandas, x.ticketMedioCentavos]]));
+  // Ana: 1 pomada de 30,00 em k1; serviços 100,00 → total 130,00 em 2 comandas (k1, k2) → 65,00.
+  assert.deepStrictEqual(d, { Ana: [3000, 1, 13000, 2, 6500], Bia: [0, 0, 20000, 2, 10000], Caio: [0, 0, 0, 0, 0] });
+  const semVendedor = computeDesempenho({ comandos: [{ id: 'k', data: '2026-06-01' }], comandoItens: [{ id: 'i', comando_id: 'k', tipo: 'produto', profissional_id: null, quantidade: 3, valor_liquido_centavos: 9000 }], profissionais: PROFS, mes: MES });
+  assert.ok(semVendedor.every(x => x.produtosCentavos === 0), 'produto sem vendedor não conta para ninguém');
+  const estornado = computeDesempenho({ comandos: COMANDOS.filter(c => c.empresa_id === E), comandoItens: ITENS.filter(i => i.empresa_id === E), estornos: [{ id: 'e9', data: '2026-06-28' }], estornoItens: [{ estorno_id: 'e9', comando_item_id: 'i3', quantidade: 1, valor_liquido_centavos: 3000 }], profissionais: PROFS, mes: MES });
+  assert.deepStrictEqual([estornado.find(x => x.nome === 'Ana').produtosCentavos, estornado.find(x => x.nome === 'Ana').produtosQuantidade], [0, 0], 'estorno de produto desconta');
+});
+
+test('M13 ranking por critério: produtos (Ana 1º) e total (Bia 1º); meta de produtos mede a venda', () => {
+  assert.deepStrictEqual(computeRanking({ desempenho: desempenho(), criterio: 'produtos' }).map(x => [x.posicao, x.nome, x.valorCentavos, x.percentualDoLider]), [[1, 'Ana', 3000, 100], [2, 'Bia', 0, 0], [3, 'Caio', 0, 0]]);
+  assert.deepStrictEqual(computeRanking({ desempenho: desempenho(), criterio: 'total' }).map(x => [x.posicao, x.nome, x.valorCentavos, x.percentualDoLider]), [[1, 'Bia', 20000, 100], [2, 'Ana', 13000, 65], [3, 'Caio', 0, 0]]);
+  const equipe = computeRanking({ desempenho: desempenho(), criterio: 'total', comValores: false, destaqueId: P1 });
+  assert.deepStrictEqual(equipe.map(x => ['valorCentavos' in x, 'produtosCentavos' in x, 'ticketMedioCentavos' in x]), [[false, false, false], [true, true, true], [false, false, false]]);
+  const m = computeMetas({ metas: [{ id: 'mp', profissional_id: P1, mes: MES, tipo: 'produtos', valor_alvo: 6000 }], desempenho: desempenho(), mes: MES });
+  assert.deepStrictEqual(m.map(x => [x.tipo, x.realizado, x.percentual, x.atingida]), [['produtos', 3000, 50, false]]);
+});
+
 // ---------- HTTP ----------
 const U = { admin: 'c0000000-0000-4000-8000-0000000000f1', recep: 'c0000000-0000-4000-8000-0000000000f2', prof: 'c0000000-0000-4000-8000-0000000000f3', adminB: 'c0000000-0000-4000-8000-0000000000f5' };
 setIdentityStore(createMemoryIdentityStore({
@@ -171,7 +190,7 @@ test('M10 ranking: gestão sempre vê, com valores; equipe recebe lista vazia en
   assert.strictEqual(g.status, 200);
   assert.deepStrictEqual([g.data.data.visivelEquipe, g.data.data.ranking.map(r => [r.posicao, r.nome, r.faturamentoCentavos])], [false, [[1, 'Bia', 20000], [2, 'Ana', 10000], [3, 'Caio', 0]]]);
   const p = await ranking({ token: 'h.prof.s' });
-  assert.deepStrictEqual([p.status, p.data.data], [200, { mes: MES, visivelEquipe: false, ranking: [] }]);
+  assert.deepStrictEqual([p.status, p.data.data], [200, { mes: MES, criterio: 'servicos', visivelEquipe: false, ranking: [] }]);
 });
 
 test('M11 salão liga a visibilidade: equipe vê posição e proporção, só o próprio valor em reais', async () => {
@@ -185,6 +204,18 @@ test('M11 salão liga a visibilidade: equipe vê posição e proporção, só o 
   assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.prof.s', body: { rankingVisivelEquipe: false } })).status, 403);
   await request('PATCH', '/api/empresa', { body: { rankingVisivelEquipe: 'sim' } });
   assert.strictEqual(banco.empresas.find(e => e.id === E).ranking_visivel_equipe, false, 'só true explícito liga');
+});
+
+test('M14 HTTP: meta de produtos e ranking por critério; critério inválido → 422', async () => {
+  const r = await meta({ profissionalId: P1, mes: MES, tipo: 'produtos', valorAlvo: 6000 });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.data));
+  assert.deepStrictEqual((await metas()).filter(m => m.tipo === 'produtos').map(m => [m.nome, m.alvo, m.realizado, m.percentual]), [['Ana', 6000, 3000, 50]]);
+  const prod = await request('GET', `/api/gamificacao/ranking?mes=${MES}&criterio=produtos`);
+  assert.deepStrictEqual([prod.data.data.criterio, prod.data.data.ranking.map(x => [x.nome, x.valorCentavos, x.ticketMedioCentavos])], ['produtos', [['Ana', 3000, 6500], ['Bia', 0, 10000], ['Caio', 0, 0]]]);
+  const total = await request('GET', `/api/gamificacao/ranking?mes=${MES}&criterio=total`);
+  assert.deepStrictEqual(total.data.data.ranking.map(x => [x.nome, x.valorCentavos]), [['Bia', 20000], ['Ana', 13000], ['Caio', 0]]);
+  const ruim = await request('GET', `/api/gamificacao/ranking?mes=${MES}&criterio=comissao`);
+  assert.deepStrictEqual([ruim.status, code(ruim)], [422, 'INVALID_FIELD']);
 });
 
 (async () => {
