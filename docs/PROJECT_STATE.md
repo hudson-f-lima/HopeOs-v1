@@ -6,7 +6,7 @@
 ## Identificação
 - Versão: identidade/RBAC/autoria (007), Ondas A/B (008), estorno + ledger imutável (009) **em `main` e aplicadas em produção**; backend e PWA **publicados** (2026-11-09/10); V1.5 BLOQUEADA
 - Branch de trabalho: `ccr-9854814d-ialzxj` (reiniciada a partir de `main` após o merge do #16)
-- Fundação física: migrations 001–011 (007 em D-007, 008 em D-009, 009 em D-013, 010 em D-017, 011 em D-019); 012+ não autorizada. 001–010 em produção; **a 011 só existe em produção depois do merge do PR que a contém.**
+- Fundação física: migrations 001–011 (007 em D-007, 008 em D-009, 009 em D-013, 010 em D-017, 011 em D-019); 012+ não autorizada. 001–010 em produção; 001–011 em produção (011 conferida em 2026-11-11).
 - Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
 - Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. **001–008 aplicadas** (001–005 via conector em 2026-10-16; 006–008 pela integração GitHub no merge do #16, 2026-11-08 — D-010). Verificação do runbook 12/12 `true`; advisor de segurança só INFO "RLS sem policy" (deny-all intencional). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo). 
 - Deploy de migrations: **merge na `main` executa SQL em produção** (integração GitHub do Supabase, "Deploy to production"). Trava: `supabase/migrations.lock` + `check_migrations.sh` no CI (D-010).
@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-021 (2026-11-11): caminho do produto = evoluir o HOPE OS (especificação com outra stack não iniciada). Ferramentas de backup e teste de restauração: REAL. **Backup automático em produção: AUSENTE**; a rotina diária depende de decisão do dono sobre onde rodar (`docs/RUNBOOK_BACKUP.md`). Migrations 010 e 011 conferidas em produção. PR #23 mesclado.
 - D-020 (2026-11-11, PR #23): **primeiro achado de uso real** — a tela do checkout só aceitava um serviço, um produto e um profissional. Corrigido: comanda com vários itens e profissionais. Metas e ranking passam a incluir venda de produtos. Em aberto: marcar "quem vendeu" quando difere de quem executou (exige migration).
 - D-019 (2026-11-10): PR #22 mesclado e **migration 010 aplicada em produção** (conferida por SQL). Em PR aberto, **aguardando merge**: migration 011 — metas mensais por profissional e ranking (gestão sempre; equipe só se o salão ligar, sem valores dos colegas). Risco trabalhista aceito pelo dono, sem parecer.
 - D-018 (2026-11-10, PR #22): aviso de privacidade aceito no primeiro acesso da equipe, gravado com data e versão (sem migration). Gamificação e metas aprovadas pelo dono, **escopo ainda não definido** e não implementadas.
@@ -91,7 +92,8 @@
 ## Próxima ação única
 - Platform Owner, no Render/Supabase (nada disso é feito pelo código): `NODE_ENV=production` em minúsculas (HSTS); `APP_PUBLIC_URL`; `LEGACY_TOKEN_AUTH_ENABLED=false`; remover `SERVICE_ROLE_KEY` duplicada; avaliar `GH_TOKEN` e secret file `.env`; Build Command `npm ci --omit=dev`; desligar cadastro aberto e ajustar Site URL/Redirect URLs no Supabase Auth; trocar a senha de teste do admin. Depois: `node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api --pwa https://hudson-f-lima.github.io/HopeOs-v1/`.
 - Marcar os checks de CI como obrigatórios na proteção da `main` (hoje a trava de migrations só avisa).
-- Melhores práticas globais (`docs/audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`): prioridade 1 = **backup com restauração testada** (ausente); 3 = contagem cega no caixa (a tela mostra o esperado antes da contagem).
+- **Decidir onde roda o backup diário** (plano pago do Supabase, recomendado; ou GitHub com repositório privado) — `docs/RUNBOOK_BACKUP.md`.
+- Melhores práticas globais (`docs/audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`): prioridade 1 = backup com restauração testada (ferramentas em D-021; rotina automática pendente); 3 = contagem cega no caixa (a tela mostra o esperado antes da contagem).
 - **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).
 - Supabase Auth: ligar a proteção contra senha vazada (advisor WARN).

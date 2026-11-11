@@ -374,6 +374,39 @@ test('15 constantes em sincronia com o app e com o render.yaml', () => {
   assert.ok(yaml.includes(`connect-src 'self' ${new URL(cfg.apiBase).origin}`), 'CSP do render.yaml não libera a API do config.json');
 });
 
+test('16 backup: exporta todas as tabelas listadas, pagina de 500 em 500, resume sem depender da ordem e não imprime a chave', async () => {
+  const { exportar, resumir } = require('../scripts/ops/backup');
+  const grandes = Array.from({ length: 1201 }, (_, i) => ({ id: `id-${i}`, valor_centavos: 10 }));
+  const chamadas = [];
+  const fetchFalso = async (url, { headers }) => {
+    chamadas.push([url, headers.range || null, headers.apikey]);
+    if (url.endsWith('/rest/v1/')) return { ok: true, json: async () => ({ definitions: { comandos: {}, formas_pagamento: {} } }) };
+    if (url.includes('/comandos?')) { const [de, ate] = headers.range.split('-').map(Number); return { ok: true, json: async () => grandes.slice(de, ate + 1) }; }
+    return { ok: true, json: async () => [{ empresa_id: 'e', code: 'pix' }] };
+  };
+  const saida = [];
+  const b = await exportar({ url: 'https://gsttjozcmdvgstcpadiq.supabase.co/', key: 'sb_secret_NAO_IMPRIMIR', fetchImpl: fetchFalso, log: m => saida.push(m) });
+  assert.deepStrictEqual(Object.keys(b.dados), ['comandos', 'formas_pagamento']);
+  assert.strictEqual(b.dados.comandos.length, 1201);
+  assert.deepStrictEqual(chamadas.filter(c => c[0].includes('/comandos?')).map(c => c[1]), ['0-499', '500-999', '1000-1499']);
+  assert.deepStrictEqual([b.meta.tabelas.comandos.linhas, b.meta.tabelas.comandos.somasCentavos, b.meta.tabelas.comandos.temId], [1201, { valor_centavos: 12010 }, true]);
+  assert.strictEqual(b.meta.tabelas.formas_pagamento.temId, false);
+  assert.strictEqual(b.meta.projeto, 'gsttjozcmdvgstcpadiq');
+  assert.deepStrictEqual(resumir([...grandes].reverse()), b.meta.tabelas.comandos, 'resumo não depende da ordem');
+  assert.ok(!JSON.stringify([saida, b.meta]).includes('NAO_IMPRIMIR'));
+  await assert.rejects(exportar({ url: 'https://x.supabase.co', key: 'k', fetchImpl: async () => ({ ok: false, status: 401 }) }), /401/);
+});
+
+test('17 backup: recusa o projeto de staging e exige URL, chave e --out', async () => {
+  const { main } = require('../scripts/ops/backup');
+  const oe = console.error; console.error = () => {};
+  try {
+    assert.strictEqual(await main(['--out', '/tmp/x.json'], { SUPABASE_URL: 'https://hyzoocmmtmjlgdyifwhu.supabase.co', SUPABASE_SECRET_KEY: 'k' }), 3);
+    assert.strictEqual(await main(['--out', '/tmp/x.json'], {}), 2);
+    await assert.rejects(main([], { SUPABASE_URL: 'https://gsttjozcmdvgstcpadiq.supabase.co', SUPABASE_SECRET_KEY: 'k' }));
+  } finally { console.error = oe; }
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

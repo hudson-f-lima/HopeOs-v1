@@ -1,5 +1,9 @@
 # Changelog
 
+## Ferramentas de backup e teste de restauração (D-021)
+- Ferramentas para exportar o banco e para provar que o arquivo restaura (contagem, ids e totais conferidos).
+- **Ainda não há backup automático.** Onde a rotina diária vai rodar depende de decisão do dono (`docs/RUNBOOK_BACKUP.md`).
+
 ## Comanda com vários serviços, produtos e profissionais (D-020)
 - **Checkout:** o botão "+ Adicionar à comanda" inclui quantos serviços e produtos forem necessários, cada um com o profissional que atendeu ou vendeu, e a quantidade de cada produto. A lista mostra os itens, o subtotal e permite remover.
 - As abas "Serviços | Produtos" do checkout, que não funcionavam, foram removidas.
