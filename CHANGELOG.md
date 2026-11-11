@@ -1,5 +1,11 @@
 # Changelog
 
+## Novo visual, modo escuro e tela "Agora" do profissional (D-022)
+- Visual redesenhado: cores, tipografia (Inter), botões e campos maiores.
+- **Modo escuro** automático, conforme o aparelho.
+- **Profissional:** a Agenda abre com o atendimento do momento e um único botão para o próximo passo (cliente chegou, iniciar, concluir e abrir comanda), mais os próximos horários do dia.
+- Testes: E2E 17/17 (novo: agora).
+
 ## Ferramentas de backup e teste de restauração (D-021)
 - Ferramentas para exportar o banco e para provar que o arquivo restaura (contagem, ids e totais conferidos).
 - **Ainda não há backup automático.** Onde a rotina diária vai rodar depende de decisão do dono (`docs/RUNBOOK_BACKUP.md`).

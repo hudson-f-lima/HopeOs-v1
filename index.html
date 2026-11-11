@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
-<meta name="theme-color" content="#0b1020"/>
+<meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)"/>
+<meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)"/>
+<meta name="color-scheme" content="light dark"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="HOPE OS"/>
@@ -13,7 +15,7 @@
 <title>HOPE OS — Comanda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="css/app.css"/>
 </head>
 <body>
@@ -107,6 +109,7 @@
     <div id="banner"></div>
 
     <section id="tab-agenda" class="tab-content agenda-android">
+      <section id="agoraCard" class="agora hidden" aria-label="Atendimento de agora"></section>
       <div class="agenda-surface">
         <div class="agenda-hero">
           <div class="agenda-title-row">
@@ -121,7 +124,7 @@
           </div>
           <div class="agenda-actions" aria-hidden="true">
             <span class="agenda-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
-            <span class="agenda-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="2.2" fill="#fff" stroke="currentColor" stroke-width="2"/><line x1="4" y1="14" x2="20" y2="14" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="14" r="2.2" fill="#fff" stroke="currentColor" stroke-width="2"/></svg></span>
+            <span class="agenda-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="2.2" fill="var(--bg-surface)" stroke="currentColor" stroke-width="2"/><line x1="4" y1="14" x2="20" y2="14" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="14" r="2.2" fill="var(--bg-surface)" stroke="currentColor" stroke-width="2"/></svg></span>
             <span class="agenda-bell"></span>
           </div>
         </div>
@@ -140,8 +143,8 @@
           <div><span>👥</span><b id="dayCountLabel">0 agend.</b></div>
           <div class="agenda-occ">
             <svg class="occ-ring" id="dayOccRing" width="20" height="20" viewBox="0 0 20 20">
-              <circle cx="10" cy="10" r="8" fill="none" stroke="#e5e2f2" stroke-width="2.4"></circle>
-              <circle cx="10" cy="10" r="8" fill="none" stroke="#22c55e" stroke-width="2.4" stroke-dasharray="var(--occ-dash, 50.2) 50.2" stroke-linecap="round" transform="rotate(-90 10 10)"></circle>
+              <circle cx="10" cy="10" r="8" fill="none" stroke="var(--border)" stroke-width="2.4"></circle>
+              <circle cx="10" cy="10" r="8" fill="none" stroke="var(--success)" stroke-width="2.4" stroke-dasharray="var(--occ-dash, 50.2) 50.2" stroke-linecap="round" transform="rotate(-90 10 10)"></circle>
             </svg>
             <b id="dayOccupancyLabel">0% Ocupação</b>
           </div>
@@ -168,15 +171,15 @@
           <h2><span class="checkout-step">1</span> Atendimento</h2>
           <div class="field">
             <label for="coCliente">Cliente (opcional)</label>
-            <input id="coCliente" type="text" placeholder="🔍 Digite cliente..." class="input-light"/>
+            <input id="coCliente" type="text" placeholder="Digite cliente..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coServico">Serviço</label>
-            <input id="coServico" type="text" placeholder="🔍 Digite serviço..." class="input-light"/>
+            <input id="coServico" type="text" placeholder="Digite serviço..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coProduto">Produto (opcional)</label>
-            <input id="coProduto" type="text" placeholder="🔍 Digite produto..." class="input-light"/>
+            <input id="coProduto" type="text" placeholder="Digite produto..." class="input-light"/>
           </div>
           <div class="field">
             <label for="coProdutoQtd">Quantidade do produto</label>
@@ -188,7 +191,7 @@
           </div>
           <div class="field">
             <label for="coProfissional">Profissional (quem atendeu ou vendeu)</label>
-            <input id="coProfissional" type="text" placeholder="🔍 Digite profissional..." class="input-light"/>
+            <input id="coProfissional" type="text" placeholder="Digite profissional..." class="input-light"/>
           </div>
           <button type="button" class="btn btn-secondary" id="btnAddItem">+ Adicionar à comanda</button>
           <p class="list-count-hint">Para vários serviços, produtos ou profissionais: escolha, toque em "Adicionar à comanda" e repita.</p>
@@ -199,7 +202,7 @@
           </div>
           <div class="field">
             <label for="coForma">Forma de pagamento</label>
-            <input id="coForma" type="text" placeholder="🔍 Digite forma..." class="input-light"/>
+            <input id="coForma" type="text" placeholder="Digite forma..." class="input-light"/>
           </div>
           <div class="field">
             <label>Gorjeta (R$)</label>
@@ -445,16 +448,16 @@
     <h2>Novo agendamento</h2>
     <div class="field">
       <label for="agCliente">Cliente (opcional)</label>
-      <input id="agCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="agCliente" type="text" placeholder="Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
       <p id="agReguaAviso" class="regua-aviso hidden" role="status"></p>
     </div>
     <div class="field">
       <label for="agServico">Serviço</label>
-      <input id="agServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="agServico" type="text" placeholder="Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="agProfissional">Profissional</label>
-      <input id="agProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="agProfissional" type="text" placeholder="Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="agData">Data</label>
@@ -486,11 +489,11 @@
     </div>
     <div class="field">
       <label for="reNovoServico">Novo serviço (opcional)</label>
-      <input id="reNovoServico" type="text" placeholder="🔍 Manter serviço atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="reNovoServico" type="text" placeholder="Manter serviço atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="reNovoProfissional">Novo profissional (opcional)</label>
-      <input id="reNovoProfissional" type="text" placeholder="🔍 Manter profissional atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="reNovoProfissional" type="text" placeholder="Manter profissional atual ou digite novo..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarReagendar" style="flex:1;">Cancelar</button>
@@ -505,15 +508,15 @@
     <p class="modal-error hidden" id="leError"></p>
     <div class="field">
       <label for="leCliente">Cliente</label>
-      <input id="leCliente" type="text" placeholder="🔍 Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="leCliente" type="text" placeholder="Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="leServico">Serviço</label>
-      <input id="leServico" type="text" placeholder="🔍 Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="leServico" type="text" placeholder="Digite serviço..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="leProfissional">Profissional (opcional)</label>
-      <input id="leProfissional" type="text" placeholder="🔍 Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
+      <input id="leProfissional" type="text" placeholder="Digite profissional..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
     </div>
     <div class="field">
       <label for="leDataPreferencia">Data de preferência (opcional)</label>

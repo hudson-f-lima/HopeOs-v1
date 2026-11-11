@@ -17,7 +17,7 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   // apontando para fonte em fonts.gstatic.com — exercita style-src-elem e font-src.
   // A checagem de CSP acontece antes da requisição, então o stub não a contorna.
   let fonteBaixada = false;
-  await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: "@font-face{font-family:'Plus Jakarta Sans';src:url(https://fonts.gstatic.com/s/pjs/teste.woff2) format('woff2')}" }));
+  await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ contentType: 'text/css', body: "@font-face{font-family:'Inter';src:url(https://fonts.gstatic.com/s/pjs/teste.woff2) format('woff2')}" }));
   await ctx.route('https://fonts.gstatic.com/**', r => { fonteBaixada = true; r.fulfill({ contentType: 'font/woff2', body: '' }); });
   const p = await ctx.newPage();
   const errs = []; const cspConsole = [];

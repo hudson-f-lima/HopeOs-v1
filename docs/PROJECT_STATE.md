@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-022 (2026-11-11, PR #24): redesign fase 1 — tokens de cor, modo escuro, Inter, alvos de toque e cartão "Agora" do profissional. Próximas fases: gaveta de itens da comanda, desktop da recepção e do gestor, Dashboard mais curto.
 - D-021 (2026-11-11): caminho do produto = evoluir o HOPE OS (especificação com outra stack não iniciada). Ferramentas de backup e teste de restauração: REAL. **Backup automático em produção: AUSENTE**; a rotina diária depende de decisão do dono sobre onde rodar (`docs/RUNBOOK_BACKUP.md`). Migrations 010 e 011 conferidas em produção. PR #23 mesclado.
 - D-020 (2026-11-11, PR #23): **primeiro achado de uso real** — a tela do checkout só aceitava um serviço, um produto e um profissional. Corrigido: comanda com vários itens e profissionais. Metas e ranking passam a incluir venda de produtos. Em aberto: marcar "quem vendeu" quando difere de quem executou (exige migration).
 - D-019 (2026-11-10): PR #22 mesclado e **migration 010 aplicada em produção** (conferida por SQL). Em PR aberto, **aguardando merge**: migration 011 — metas mensais por profissional e ranking (gestão sempre; equipe só se o salão ligar, sem valores dos colegas). Risco trabalhista aceito pelo dono, sem parecer.
@@ -71,7 +72,7 @@
 | Gate | Resultado | Evidência |
 |---|---|---|
 | `npm run test:offline` | REAL — 23 suítes verdes (correções 17, ganhos 13, financeiro-ops 14, privacidade 7, gamificação 14) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
-| E2E PWA (Playwright) | REAL — 16 roteiros (novos: ganhos, finops, metas, comanda) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
+| E2E PWA (Playwright) | REAL — 17 roteiros (novos: ganhos, finops, metas, comanda, agora) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
 | Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
 | `supabase/tests/run.sh` (001–011) | REAL — gate_007 12, gate_008 6, gate_009 11, gate_011 6, gate_010 10 (controle negativo: sem o trigger de validação e sem o de imutabilidade o gate falha), ciclo de rollback 010→007 e reaplicação, concorrência agenda e estorno, controles negativos da 009, rollback 009→007 e reaplicação; push da 009 simulado com Supabase CLI sobre banco 001–008 | local 2026-11-09 |
