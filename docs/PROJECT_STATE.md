@@ -92,7 +92,7 @@
 ## Próxima ação única
 - Platform Owner, no Render/Supabase (nada disso é feito pelo código): `NODE_ENV=production` em minúsculas (HSTS); `APP_PUBLIC_URL`; `LEGACY_TOKEN_AUTH_ENABLED=false`; remover `SERVICE_ROLE_KEY` duplicada; avaliar `GH_TOKEN` e secret file `.env`; Build Command `npm ci --omit=dev`; desligar cadastro aberto e ajustar Site URL/Redirect URLs no Supabase Auth; trocar a senha de teste do admin. Depois: `node backend/scripts/ops/smoke.js --api https://hopeos-v1.onrender.com/api --pwa https://hudson-f-lima.github.io/HopeOs-v1/`.
 - Marcar os checks de CI como obrigatórios na proteção da `main` (hoje a trava de migrations só avisa).
-- **Decidir onde roda o backup diário** (plano pago do Supabase, recomendado; ou GitHub com repositório privado) — `docs/RUNBOOK_BACKUP.md`.
+- Backup diário: **adiado pelo dono para outra etapa** (2026-11-11). Risco aceito: sem cópia do banco fora do Supabase. Opções em `docs/RUNBOOK_BACKUP.md`.
 - Melhores práticas globais (`docs/audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`): prioridade 1 = backup com restauração testada (ferramentas em D-021; rotina automática pendente); 3 = contagem cega no caixa (a tela mostra o esperado antes da contagem).
 - **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).

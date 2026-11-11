@@ -1,7 +1,7 @@
 # Runbook — backup e restauração (D-021)
 
 ## Estado
-**Não existe backup automático em produção.** O que existe são as ferramentas e a prova de que o ciclo exportar → restaurar → conferir funciona. A rotina diária depende de uma decisão do Platform Owner (abaixo).
+**Não existe backup automático em produção, e a rotina diária foi adiada pelo Platform Owner em 2026-11-11 para outra etapa** (risco aceito até lá). O que existe são as ferramentas e a prova de que o ciclo exportar → restaurar → conferir funciona. A rotina diária depende de uma decisão do Platform Owner (abaixo).
 
 ## O que existe
 | Peça | O que faz |
