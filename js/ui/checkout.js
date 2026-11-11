@@ -42,31 +42,99 @@ function buildSplitPayments() {
   return payments;
 }
 
-function buildPayload() {
+// ---- Itens da comanda -------------------------------------------------------
+// Uma comanda leva vários serviços e produtos, cada um com o seu profissional. O que
+// está nos campos (e ainda não foi adicionado) entra como mais um item, para o fluxo
+// simples de um serviço continuar sendo "escolher e simular".
+const MAX_ITENS = 50;
+state.comandaItens = state.comandaItens || [];
+
+function precoDoItem(item) {
+  if (item.tipo === 'servico') return (state.catalog.servicos.find(s => s.id === item.servicoId) || {}).valor_centavos || 0;
+  return ((state.catalog.produtos || []).find(p => p.id === item.produtoId) || {}).preco_venda_centavos * item.quantidade || 0;
+}
+function rotuloDoItem(item) {
+  // Texto puro: quem monta o HTML passa por escapeHtml (renderComandaItens).
+  const nomeDe = (lista, id) => ((lista || []).find(x => x.id === id) || {}).nome;
+  const prof = nomeDe(state.catalog.profissionais, item.profissionalId);
+  if (item.tipo === 'servico') return [nomeDe(state.catalog.servicos, item.servicoId) || 'Serviço', prof || 'sem profissional'].join(' · ');
+  return [String(item.quantidade) + '× ' + (nomeDe(state.catalog.produtos, item.produtoId) || 'Produto'), prof || 'sem vendedor'].join(' · ');
+}
+
+// Lê os campos de escolha. exigir=true: reclama se não houver nada escolhido.
+function itensDosCampos(exigir) {
   const servicoId = state.fuzzyServico.getValue();
+  const produtoId = state.fuzzyProduto.getValue();
   const profissionalId = state.fuzzyProfissional.getValue();
+  const itens = [];
+  if (servicoId) {
+    if (!profissionalId) throw new Error('Selecione o profissional do serviço.');
+    itens.push({ tipo: 'servico', servicoId, profissionalId });
+  }
+  if (produtoId) {
+    const quantidade = Number(document.getElementById('coProdutoQtd').value || 1);
+    if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 99) throw new Error('Quantidade do produto deve ser um número inteiro de 1 a 99.');
+    itens.push({ tipo: 'produto', produtoId, quantidade, profissionalId: profissionalId || undefined });
+  }
+  if (exigir && !itens.length) throw new Error('Escolha um serviço ou um produto.');
+  return itens;
+}
+
+function limparCamposDeItem() {
+  state.fuzzyServico.setValue(null);
+  state.fuzzyProduto.setValue(null);
+  state.fuzzyProfissional.setValue(null);
+  document.getElementById('coProdutoQtd').value = '1';
+}
+
+export function renderComandaItens() {
+  const bloco = document.getElementById('coItens');
+  if (!bloco) return;
+  const itens = state.comandaItens;
+  bloco.classList.toggle('hidden', !itens.length);
+  document.getElementById('coItensLista').innerHTML = itens.map((item, i) => `
+    <div class="row" data-item="${i}" data-tipo="${item.tipo}">
+      <span>${escapeHtml(rotuloDoItem(item))}</span>
+      <b>${centsToBRL(precoDoItem(item))}<button type="button" class="co-item-remover" data-remover-item="${i}" aria-label="Remover ${escapeHtml(rotuloDoItem(item))}">×</button></b>
+    </div>`).join('');
+  const subtotal = itens.reduce((t, item) => t + precoDoItem(item), 0);
+  const el = document.getElementById('coItensSubtotal');
+  el.textContent = centsToBRL(subtotal);
+  el.dataset.subtotal = String(subtotal);
+}
+
+function adicionarItem() {
+  clearBanner();
+  try {
+    const novos = itensDosCampos(true);
+    if (state.comandaItens.length + novos.length > MAX_ITENS) throw new Error(`Uma comanda aceita até ${MAX_ITENS} itens.`);
+    state.comandaItens.push(...novos);
+    limparCamposDeItem();
+    renderComandaItens();
+    invalidatePayload();
+  } catch (err) {
+    showBanner(err.message, 'error');
+  }
+}
+
+function removerItem(indice) {
+  state.comandaItens.splice(indice, 1);
+  renderComandaItens();
+  invalidatePayload();
+}
+
+function buildPayload() {
   const formaCode = state.fuzzyForma.getValue();
   const clienteId = state.fuzzyCliente.getValue();
   // V1.3 trocou o input coGorjeta pelo tip stepper; a intenção de gorjeta vive em state.tip (centavos)
   const gorjetaCentavos = state.tip || 0;
 
-  if (!servicoId) throw new Error('Selecione um serviço.');
-  if (!profissionalId) throw new Error('Selecione um profissional.');
+  const itens = [...state.comandaItens, ...itensDosCampos(false)];
+  if (!itens.length) throw new Error('Adicione ao menos um serviço ou produto à comanda.');
+  if (itens.length > MAX_ITENS) throw new Error(`Uma comanda aceita até ${MAX_ITENS} itens.`);
   if (!state.splitEnabled && !formaCode) throw new Error('Selecione uma forma de pagamento.');
 
-  const servico = state.catalog.servicos.find(s => s.id === servicoId);
-  const valorServicoCentavos = servico ? servico.valor_centavos : 0;
-  const itens = [{ tipo: 'servico', servicoId, profissionalId }];
-
-  const produtoId = state.fuzzyProduto.getValue();
-  let valorProdutoCentavos = 0;
-  if (produtoId) {
-    const produto = state.catalog.produtos.find(p => p.id === produtoId);
-    valorProdutoCentavos = produto ? produto.preco_venda_centavos : 0;
-    itens.push({ tipo: 'produto', produtoId, quantidade: 1, profissionalId: profissionalId || undefined });
-  }
-
-  const totalCentavos = valorServicoCentavos + valorProdutoCentavos + gorjetaCentavos;
+  const totalCentavos = itens.reduce((t, item) => t + precoDoItem(item), 0) + gorjetaCentavos;
   const payments = state.splitEnabled
     ? buildSplitPayments()
     : [{ formaCode, valorCentavos: totalCentavos }];
@@ -74,7 +142,7 @@ function buildPayload() {
   return {
     clienteId: clienteId || null,
     idempotencyKey: genIdempotencyKey(),
-    itens,
+    itens: itens.map(i => ({ ...i })),
     payments,
     gorjetaCentavos,
     agendamentoId: state.agendamentoIdParaCheckout || undefined
@@ -145,6 +213,9 @@ export async function fechar() {
     state.currentPreview = null;
     state.agendamentoIdParaCheckout = null;
     state.tip = 0;
+    state.comandaItens = [];
+    limparCamposDeItem();
+    renderComandaItens();
     state.splitEnabled = false;
     state.splits = [{ id: 's1', method: '', amount: '' }];
     renderTipStepper();
@@ -217,6 +288,9 @@ export function prefillCheckoutFromAgendamento(item) {
   state.fuzzyServico.setValue(item.servico_id || null);
   state.fuzzyProfissional.setValue(item.profissional_id || null);
   state.fuzzyProduto.setValue(null);
+  // Comanda nova a partir da agenda: começa sem itens de uma comanda anterior não fechada.
+  state.comandaItens = [];
+  renderComandaItens();
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('cardResultado').classList.add('hidden');
   document.getElementById('rebookingCard').classList.add('hidden');
@@ -246,9 +320,8 @@ function renderCheckoutTabs() {
 
 function renderCheckoutItems() {
   const visibleItems = getVisibleCartItems();
-  // Placeholder for rendering cart items
-  // Will be implemented in future tasks when UI structure is ready
-  console.log(`Rendering ${state.checkoutTab} items:`, visibleItems);
+  // Abas antigas (removidas da tela): a lista de itens real é renderComandaItens().
+  return visibleItems;
 }
 
 export function renderTipStepper() {
@@ -456,6 +529,11 @@ function addAttachSuggestion() {
 export function initCheckout() {
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
+  document.getElementById('btnAddItem').addEventListener('click', adicionarItem);
+  document.getElementById('coItensLista').addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-remover-item]');
+    if (btn) removerItem(Number(btn.dataset.removerItem));
+  });
 
   const tabs = document.getElementById('checkoutTabs');
   if (tabs) {

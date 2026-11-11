@@ -116,6 +116,13 @@ class SupabaseRepository {
     return data;
   }
 
+  // Exclusão sempre restrita à empresa do repositório. Só para configuração (ex.: metas);
+  // tabelas do ledger recusam delete por trigger e por permissão.
+  async deleteScoped(table, id) {
+    const { error } = await this.supabase.from(table).delete().eq('id', id).eq('empresa_id', this.empresaId);
+    if (error) throw error;
+  }
+
   async updateScoped(table, id, payload) {
     const { data, error } = await this.supabase
       .from(table)

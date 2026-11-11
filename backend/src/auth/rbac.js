@@ -26,6 +26,11 @@ const ACTIONS = {
   'relatorios:full': { roles: GESTAO },
   // Leitura própria (ADR-005 "Desvios e limites"): o profissional só vê os seus ganhos.
   'relatorios:proprio': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
+  // D-019 (migration 011): metas e ranking. Gestão define; profissional lê as próprias
+  // metas, e o ranking só quando o salão liga a visibilidade para a equipe.
+  'metas:read': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
+  'metas:write': { roles: GESTAO, userOnly: true },
+  'ranking:read': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
   // D-017 (migration 010): gravam dinheiro com autoria humana obrigatória.
   'comissoes:pagar': { roles: GESTAO, userOnly: true },
   'caixa:operar': { roles: OPERACAO, userOnly: true },

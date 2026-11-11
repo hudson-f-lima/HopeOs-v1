@@ -51,7 +51,7 @@ Diferencie fato, inferência e hipótese.
 ## 4. "Completar o software": o que pode e o que não pode
 - **Pode, sem perguntar:** correção de segurança ou integridade com teste e controle negativo; feature sem migration e sem fornecedor que ataque uma lacuna do relatório. Exemplo: lembrete via wa.me (D-011). Registrar como D-xxx.
 - **Não pode:**
-  - migration 011+ (o merge na `main` executa SQL em produção, D-010; o CI reprova sem linha no `supabase/migrations.lock`);
+  - migration 012+ (o merge na `main` executa SQL em produção, D-010; o CI reprova sem linha no `supabase/migrations.lock`);
   - Onda C (gateway, sinal, clube);
   - fornecedor pago;
   - reativar ou pagar infraestrutura.

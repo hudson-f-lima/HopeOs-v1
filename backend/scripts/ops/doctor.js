@@ -47,7 +47,8 @@ const TABLES = {
   '007': ['app_users', 'empresa_memberships', 'unidades', 'membership_units', 'integrations', 'integration_credentials', 'integration_scopes', 'integration_audit_events'],
   '008': ['cargos', 'servico_categorias'],
   '009': ['comanda_estornos', 'comanda_estorno_itens', 'comanda_estorno_pagamentos', 'comanda_estorno_gorjetas'],
-  '010': ['comissao_pagamentos', 'caixa_ajustes', 'caixa_fechamentos']
+  '010': ['comissao_pagamentos', 'caixa_ajustes', 'caixa_fechamentos'],
+  '011': ['metas']
 };
 const COUNT_TABLES = ['empresas', 'unidades', 'app_users', 'empresa_memberships'];
 const RPCS = ['checkout_close', 'agendamento_criar', 'checkout_close_autoria', 'comanda_estornar'];

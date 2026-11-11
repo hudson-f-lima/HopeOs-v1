@@ -1,5 +1,18 @@
 # Changelog
 
+## Comanda com vários serviços, produtos e profissionais (D-020)
+- **Checkout:** o botão "+ Adicionar à comanda" inclui quantos serviços e produtos forem necessários, cada um com o profissional que atendeu ou vendeu, e a quantidade de cada produto. A lista mostra os itens, o subtotal e permite remover.
+- As abas "Serviços | Produtos" do checkout, que não funcionavam, foram removidas.
+- **Metas e ranking** passam a incluir a venda de produtos: meta de produtos por profissional e ranking por serviços, por produtos ou pelo total.
+- Campo de busca: apagar o texto desfaz a escolha.
+- Testes: gamificação 14; E2E 16/16 (novo: comanda).
+
+## Metas do mês e ranking (D-019, migration 011)
+- **Gestão > Ganhos > Metas do mês:** a gestão define, para cada profissional, a meta de faturamento em serviços e de atendimentos. O progresso aparece em barra e é calculado das comandas fechadas, já descontados os estornos.
+- **Ranking do mês:** a gestão vê a classificação com os valores. Uma chave liga o ranking para a equipe, que passa a ver a própria posição e a proporção em relação ao primeiro, sem o valor em reais dos colegas.
+- Metas e ranking não alteram comissão, agenda nem distribuição de clientes, e não há prêmio.
+- Testes: offline 23 suítes (nova: gamificação 11); SQL gate_011 com 6 blocos; E2E 15/15.
+
 ## Aviso de privacidade no primeiro acesso (D-018)
 - Quem cria a conta ou entra pela primeira vez lê o aviso de privacidade e toca em "Li e aceito" para continuar. O aceite fica registrado com data e versão.
 - Se o aviso mudar de versão, todos aceitam de novo no próximo acesso.

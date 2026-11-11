@@ -6,6 +6,7 @@ import { api } from '../api.js';
 import { state, sessionRoleIn } from '../state.js';
 import { escapeHtml, centsToBRL, todayStr, genIdempotencyKey, confirmAction } from '../utils.js';
 import { reaisParaCentavos } from './caixa.js';
+import { atualizarMetas, atualizarRanking, initMetas } from './metas.js';
 
 const el = id => document.getElementById(id);
 const fmtData = d => { const [, m, dd] = String(d).split('-'); return `${dd}/${m}`; };
@@ -102,12 +103,14 @@ export async function atualizarGanhos() {
   const params = new URLSearchParams({ mes });
   if (sessionRoleIn('admin', 'gestor')) {
     const profissionalId = el('ganhosProfissional').value;
-    if (!profissionalId) { el('ganhosResultado').innerHTML = '<p class="empty-state">Escolha um profissional.</p>'; el('ganhosSaldo').innerHTML = ''; el('ganhosPagarForm').classList.add('hidden'); return; }
+    if (!profissionalId) { el('ganhosResultado').innerHTML = '<p class="empty-state">Escolha um profissional.</p>'; el('ganhosSaldo').innerHTML = ''; el('ganhosPagarForm').classList.add('hidden'); el('metasBloco').classList.add('hidden'); await atualizarRanking(mes); return; }
     params.set('profissionalId', profissionalId);
   }
   try {
     render(await api(`/relatorios/meus-ganhos?${params}`));
     await atualizarSaldo(params.get('profissionalId'));
+    await atualizarMetas(mes, params.get('profissionalId'));
+    await atualizarRanking(mes);
   } catch (err) {
     el('ganhosResultado').innerHTML = '';
     erro.textContent = err.message;
@@ -133,6 +136,7 @@ export function initGanhos() {
   el('subtabBtnGanhos')?.addEventListener('click', abrir);
   el('ganhosMes').addEventListener('change', atualizarGanhos);
   el('ganhosProfissional').addEventListener('change', atualizarGanhos);
+  initMetas();
   el('ganhosPagarForm').addEventListener('submit', ev => { ev.preventDefault(); registrarPagamento(); });
   el('ganhosSaldo').addEventListener('click', ev => {
     const btn = ev.target.closest("[data-estornar-pagamento]");

@@ -6,7 +6,7 @@
 ## Identificação
 - Versão: identidade/RBAC/autoria (007), Ondas A/B (008), estorno + ledger imutável (009) **em `main` e aplicadas em produção**; backend e PWA **publicados** (2026-11-09/10); V1.5 BLOQUEADA
 - Branch de trabalho: `ccr-9854814d-ialzxj` (reiniciada a partir de `main` após o merge do #16)
-- Fundação física: migrations 001–010 (007 em D-007, 008 em D-009, 009 em D-013, 010 em D-017); 011+ não autorizada. **A 010 só existe em produção depois do merge do PR #22.**
+- Fundação física: migrations 001–011 (007 em D-007, 008 em D-009, 009 em D-013, 010 em D-017, 011 em D-019); 012+ não autorizada. 001–010 em produção; **a 011 só existe em produção depois do merge do PR que a contém.**
 - Não misturar: o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto — nunca aplicar migrations, SQL ou configurar o HOPE OS nele (Platform Owner, 2026-10-16).
 - Banco do HOPE OS: projeto Supabase **`hopeos-v1` (`gsttjozcmdvgstcpadiq`, sa-east-1)**, criado em 2026-10-16. **001–008 aplicadas** (001–005 via conector em 2026-10-16; 006–008 pela integração GitHub no merge do #16, 2026-11-08 — D-010). Verificação do runbook 12/12 `true`; advisor de segurança só INFO "RLS sem policy" (deny-all intencional). A 004 foi aplicada sem o `drop table if exists financial_ledger` (no-op em banco novo). 
 - Deploy de migrations: **merge na `main` executa SQL em produção** (integração GitHub do Supabase, "Deploy to production"). Trava: `supabase/migrations.lock` + `check_migrations.sh` no CI (D-010).
@@ -38,8 +38,10 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-020 (2026-11-11, PR #23): **primeiro achado de uso real** — a tela do checkout só aceitava um serviço, um produto e um profissional. Corrigido: comanda com vários itens e profissionais. Metas e ranking passam a incluir venda de produtos. Em aberto: marcar "quem vendeu" quando difere de quem executou (exige migration).
+- D-019 (2026-11-10): PR #22 mesclado e **migration 010 aplicada em produção** (conferida por SQL). Em PR aberto, **aguardando merge**: migration 011 — metas mensais por profissional e ranking (gestão sempre; equipe só se o salão ligar, sem valores dos colegas). Risco trabalhista aceito pelo dono, sem parecer.
 - D-018 (2026-11-10, PR #22): aviso de privacidade aceito no primeiro acesso da equipe, gravado com data e versão (sem migration). Gamificação e metas aprovadas pelo dono, **escopo ainda não definido** e não implementadas.
-- D-017 (2026-11-10, PR #22, **aguardando merge**): migration 010 — pagamento de comissão (pagamento, vale, estorno, saldo) e caixa (fundo de troco, sangria, suprimento, fechamento salvo); monitor de produção agendado no GitHub Actions. Gateway de pagamento, NFS-e e WhatsApp automático continuam encaminhados (exigem fornecedor).
+- D-017 (2026-11-10, PR #22, mesclado; 010 em produção): migration 010 — pagamento de comissão (pagamento, vale, estorno, saldo) e caixa (fundo de troco, sangria, suprimento, fechamento salvo); monitor de produção agendado no GitHub Actions. Gateway de pagamento, NFS-e e WhatsApp automático continuam encaminhados (exigem fornecedor).
 - D-016 (2026-11-10): 2ª auditoria + benchmark (`docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`); ganhos do profissional, CSV para o contador, `X-Request-Id`, correção da lista de espera para o profissional. Integrações futuras encaminhadas em `docs/planning/INTEGRACOES_FUTURAS.md`.
 - D-013/D-014 (PR #18): estorno de comanda (migration 009, ledger imutável por trigger) — aplicada no merge; histórico de status da agenda; agendamento online pelo link (desligado; ligar exige aviso de privacidade aprovado + Red Team).
 - Corrigido (D-012): `isLateCancel`/`scheduledDateTime` liam `horario` só como HH:MM (o Postgres devolve HH:MM:SS → tudo virava meia-noite e cancelamento no mesmo dia nunca era tardio) e em UTC (~3h de erro em Brasília). Afeta confiabilidade do cliente, régua e KPI de falta.
@@ -67,11 +69,11 @@
 ## Gates
 | Gate | Resultado | Evidência |
 |---|---|---|
-| `npm run test:offline` | REAL — 22 suítes verdes (correções 17, ganhos 13, financeiro-ops 14, privacidade 7) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
-| E2E PWA (Playwright) | REAL — 14 roteiros (novos: ganhos, finops) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
+| `npm run test:offline` | REAL — 23 suítes verdes (correções 17, ganhos 13, financeiro-ops 14, privacidade 7, gamificação 14) (exige `API_ACCESS_TOKEN`/`SUPABASE_*` fictícios como no CI; sem eles o auth-gate 06 dá 503 local)  (… onda-b 10, lembretes 8, caixa 7, piloto 10, histórico 12, estorno 14, security 7, agendamento público 19) | local + CI 2026-11-09 |
+| E2E PWA (Playwright) | REAL — 16 roteiros (novos: ganhos, finops, metas, comanda) (csp, login, equipe, convite, onboarding, onda-b, slots, lembretes, presença, caixa) via `backend/tests/e2e/run-all.js`, sob a CSP de produção, zero erro de console e zero violação de CSP; job `e2e-pwa` no CI | local 2026-11-08; Actions: DESCONHECIDO até a 1ª execução |
 | Cabeçalhos de segurança API + CSP do site | REAL — security-headers-gate 7/7; CSP com controle negativo. Limite: atributos `style=` exigem `style-src-attr 'unsafe-inline'` (PARCIAL); `?apiBase=` bloqueado em produção de propósito | 2026-11-08 |
 | `supabase/tests/check_migrations.sh` | REAL — lock confere 001–008; negativos testados (editada, não autorizada, fora do padrão) | CI + local 2026-11-08 |
-| `supabase/tests/run.sh` (001–010) | REAL — gate_007 12, gate_008 6, gate_009 11, gate_010 10 (controle negativo: sem o trigger de validação e sem o de imutabilidade o gate falha), ciclo de rollback 010→007 e reaplicação, concorrência agenda e estorno, controles negativos da 009, rollback 009→007 e reaplicação; push da 009 simulado com Supabase CLI sobre banco 001–008 | local 2026-11-09 |
+| `supabase/tests/run.sh` (001–011) | REAL — gate_007 12, gate_008 6, gate_009 11, gate_011 6, gate_010 10 (controle negativo: sem o trigger de validação e sem o de imutabilidade o gate falha), ciclo de rollback 010→007 e reaplicação, concorrência agenda e estorno, controles negativos da 009, rollback 009→007 e reaplicação; push da 009 simulado com Supabase CLI sobre banco 001–008 | local 2026-11-09 |
 | `supabase/tests/run.sh` (histórico) | REAL — 001–008 + gate_007 (12 blocos) + gate_008 (6 blocos) + concorrência + rollback 008→007/reaplicação | CI (Postgres 16) + local |
 | E2E PWA (Playwright) | REAL — login por papel, Equipe, convite → senha → login → recuperação, slots | `backend/tests/e2e`, execução local 2026-10-16 |
 | `npm run test:gate` | DESCONHECIDO — último 94/94 em 2026-07-12, antes da bomba-relógio do insights | precisa Supabase real com 007 |
@@ -93,7 +95,7 @@
 - **Antes de qualquer feature nova:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita em produção nunca foi exercitada.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Dashboard é o apoio).
 - Supabase Auth: ligar a proteção contra senha vazada (advisor WARN).
-- Decisões abertas: infra paga antes do 1º cliente; para ligar o agendamento online: dados do salão no aviso do cliente + Red Team em produção + `PUBLIC_BOOKING_LINKS`; escopo de gamificação/metas (aprovadas em D-018; meta gravada exige migration 011).
+- Decisões abertas: infra paga antes do 1º cliente; para ligar o agendamento online: dados do salão no aviso do cliente + Red Team em produção + `PUBLIC_BOOKING_LINKS`; prêmio, ligas e demais formas de gamificação além de metas e ranking (D-019) continuam fora.
 
 ## Handoff
 - Ciclo 2026-11-10: PRs #17–#20 mesclados; 006–009 aplicadas via integração GitHub; produção publicada e validada (ver Estado de produção); correção de URLs (D-015 revisado: backend oficial `hopeos-v1.onrender.com`); kit promocional (rascunho). Não fazer: 010+, V1.5, declarar produção aprovada sem Red Team em produção.
