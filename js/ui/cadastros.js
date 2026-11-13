@@ -420,8 +420,25 @@ function openFormaModal(forma) {
   document.getElementById('fmDiasRecebimento').value = forma ? forma.dias_recebimento : '0';
   document.getElementById('fmAtivoField').classList.toggle('hidden', !forma);
   document.getElementById('fmAtivo').checked = forma ? forma.ativo !== false : true;
+  document.getElementById('fmCalc').open = false;
+  document.getElementById('fmCalcMsg').textContent = '';
   clearModalError('fmError');
   openModal('modalForma');
+}
+
+// Calculadora: o servidor devolve a taxa efetiva (MDR + antecipação pro rata) e a tela
+// só preenche o campo "Taxa (%)". O que vale é o que for salvo na forma de pagamento.
+async function calcularTaxaParcelado() {
+  const msg = document.getElementById('fmCalcMsg');
+  const v = id => encodeURIComponent(document.getElementById(id).value.trim().replace(',', '.'));
+  if (!document.getElementById('fmCalcMdr').value.trim()) { msg.textContent = 'Informe a taxa da maquininha.'; return; }
+  try {
+    const r = await api(`/formas-pagamento/simular-taxa?mdrPct=${v('fmCalcMdr')}&antecipacaoMesPct=${v('fmCalcAnt') || 0}&parcelas=${v('fmCalcParcelas')}`);
+    document.getElementById('fmTaxaPct').value = r.taxaEfetivaPct;
+    msg.textContent = `${r.parcelas}x: taxa efetiva de ${String(r.taxaEfetivaPct).replace('.', ',')}% (antecipação ${String(r.antecipacaoPct).replace('.', ',')}%, prazo médio ${r.prazoMedioDias} dias). De cada R$ 100,00 sobram ${centsToBRL(r.liquidoPor100Centavos)}. É estimativa: confira com o extrato da maquininha.`;
+  } catch (err) {
+    msg.textContent = err.message;
+  }
 }
 
 async function submitFormaForm() {
@@ -626,6 +643,7 @@ export function initCadastros() {
   document.getElementById('btnNovaForma').addEventListener('click', () => openFormaModal(null));
   document.getElementById('btnCancelarForma').addEventListener('click', () => closeModal('modalForma'));
   document.getElementById('btnSalvarForma').addEventListener('click', submitFormaForm);
+  document.getElementById('btnFmCalc').addEventListener('click', calcularTaxaParcelado);
   document.getElementById('listFormas').addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-action]');
     if (!btn) return;

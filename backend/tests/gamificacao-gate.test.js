@@ -11,7 +11,8 @@ const { env } = require('../src/config/env');
 const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
-const { computeDesempenho, computeMetas, computeRanking } = require('../src/engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
+const { calcularTaxaEfetiva } = require('../src/engines/taxaEfetiva');
 const { ACTIONS } = require('../src/auth/rbac');
 const { createAppError } = require('../src/errors');
 const { app } = require('../src/app');
@@ -216,6 +217,71 @@ test('M14 HTTP: meta de produtos e ranking por critério; critério inválido �
   assert.deepStrictEqual(total.data.data.ranking.map(x => [x.nome, x.valorCentavos]), [['Bia', 20000], ['Ana', 13000], ['Caio', 0]]);
   const ruim = await request('GET', `/api/gamificacao/ranking?mes=${MES}&criterio=comissao`);
   assert.deepStrictEqual([ruim.status, code(ruim)], [422, 'INVALID_FIELD']);
+});
+
+// ---------- Sugestão de meta e taxa efetiva (Onda 1 da análise de desempenho e margem) ----------
+const dm = (id, nome, atendimentos, fat, prod = 0) => ({ profissionalId: id, nome, atendimentos, faturamentoCentavos: fat, produtosCentavos: prod, totalCentavos: fat + prod });
+
+test('S01 meses anteriores: 3 meses fechados, virando o ano', () => {
+  assert.deepStrictEqual(mesesAnteriores('2026-06'), ['2026-03', '2026-04', '2026-05']);
+  assert.deepStrictEqual(mesesAnteriores('2026-02'), ['2025-11', '2025-12', '2026-01']);
+});
+
+test('S02 sugestão: média de 3 meses + incremento, arredondada para cima; sem histórico completo não sugere', () => {
+  const r = sugerirMetas({ incrementoPct: 10, desempenhoPorMes: [
+    { mes: '2026-03', desempenho: [dm(P1, 'Ana', 10, 100000, 3000), dm(P2, 'Bia', 4, 40000), dm(P3, 'Caio', 0, 0)] },
+    { mes: '2026-04', desempenho: [dm(P1, 'Ana', 12, 120000, 0), dm(P2, 'Bia', 0, 0), dm(P3, 'Caio', 0, 0)] },
+    { mes: '2026-05', desempenho: [dm(P1, 'Ana', 11, 110050, 3000), dm(P2, 'Bia', 6, 60000), dm(P3, 'Caio', 0, 0)] }
+  ] });
+  const ana = r.find(x => x.nome === 'Ana');
+  // Faturamento: média 110.016,67 centavos → ×1,10 = 121.018,33 → sobe para R$ 1.211,00.
+  assert.deepStrictEqual([ana.mesesComMovimento, ana.faturamento, ana.atendimentos, ana.produtos], [3, { media: 110017, sugerido: 121100 }, { media: 11, sugerido: 12 }, { media: 2000, sugerido: 2200 }]);
+  const bia = r.find(x => x.nome === 'Bia');
+  assert.deepStrictEqual([bia.mesesComMovimento, bia.faturamento, bia.atendimentos], [2, null, null], 'mês parado no meio: sem sugestão');
+  assert.deepStrictEqual([r.find(x => x.nome === 'Caio').faturamento, sugerirMetas({ desempenhoPorMes: [] })], [null, []]);
+});
+
+test('T01 taxa efetiva: PIX/1x sem antecipação = só o MDR; parcelado soma antecipação pro rata', () => {
+  assert.deepStrictEqual(calcularTaxaEfetiva({ mdrPct: 0.99 }), { parcelas: 1, mdrPct: 0.99, antecipacaoMesPct: 0, prazoMedioDias: 30, antecipacaoPct: 0, taxaEfetivaPct: 0.99, liquidoPor100Centavos: 9901 });
+  // 6x, MDR 3,5%, antecipação 1,8% a.m.: prazo médio 3,5 meses → 96,5 × 1,8% × 3,5 = 6,0795 → 9,5795%.
+  const seis = calcularTaxaEfetiva({ mdrPct: 3.5, antecipacaoMesPct: 1.8, parcelas: 6 });
+  assert.deepStrictEqual([seis.prazoMedioDias, seis.antecipacaoPct, seis.taxaEfetivaPct, seis.liquidoPor100Centavos], [105, 6.0795, 9.5795, 9042]);
+  // 12x custa mais que 2x com as mesmas taxas.
+  assert.ok(calcularTaxaEfetiva({ mdrPct: 3.5, antecipacaoMesPct: 1.8, parcelas: 12 }).taxaEfetivaPct > calcularTaxaEfetiva({ mdrPct: 3.5, antecipacaoMesPct: 1.8, parcelas: 2 }).taxaEfetivaPct);
+  for (const ruim of [{ mdrPct: -1 }, { mdrPct: 101 }, { mdrPct: 'x' }, { mdrPct: 3, parcelas: 13 }, { mdrPct: 3, parcelas: 0 }, { mdrPct: 3, parcelas: 2.5 }, { mdrPct: 3, antecipacaoMesPct: -1 }]) {
+    assert.throws(() => calcularTaxaEfetiva(ruim), RangeError);
+  }
+});
+
+test('S04 HTTP sugestão: gestão recebe; recepção e profissional não; outra empresa não aparece', async () => {
+  // Março a maio: Ana fez 100,00, 200,00 e 300,00 em serviços (1 atendimento por mês).
+  ['03', '04', '05'].forEach((m, i) => {
+    banco.comandos.push({ id: `s${m}`, empresa_id: E, data: `2026-${m}-10` });
+    banco.comando_itens.push(item(`si${m}`, `s${m}`, 'servico', P1, (i + 1) * 10000));
+    banco.comandos.push({ id: `sb${m}`, empresa_id: EB, data: `2026-${m}-10` });
+    banco.comando_itens.push(item(`sbi${m}`, `sb${m}`, 'servico', PB, 99900, EB));
+  });
+  const r = await request('GET', `/api/metas/sugestao?mes=${MES}&incrementoPct=10`);
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.data.data.mesesBase, ['2026-03', '2026-04', '2026-05']);
+  const ana = r.data.data.sugestoes.find(x => x.nome === 'Ana');
+  assert.deepStrictEqual([ana.faturamento, ana.atendimentos, ana.produtos], [{ media: 20000, sugerido: 22000 }, { media: 1, sugerido: 1 }, null]);
+  assert.ok(!r.data.data.sugestoes.some(x => x.nome === 'Zeca'), 'profissional de outra empresa não aparece');
+  assert.strictEqual(r.data.data.sugestoes.find(x => x.nome === 'Bia').faturamento, null);
+  for (const token of ['h.recep.s', 'h.prof.s']) assert.strictEqual((await request('GET', `/api/metas/sugestao?mes=${MES}`, { token })).status, 403);
+  assert.strictEqual((await request('GET', `/api/metas/sugestao?mes=${MES}`, { token: null })).status, 401);
+  assert.deepStrictEqual([(await request('GET', '/api/metas/sugestao?mes=2026-13')).status, (await request('GET', `/api/metas/sugestao?mes=${MES}&incrementoPct=500`)).status], [422, 422]);
+  const outra = await request('GET', `/api/metas/sugestao?mes=${MES}`, { token: 'h.adminb.s' });
+  assert.deepStrictEqual(outra.data.data.sugestoes.map(x => x.nome), ['Zeca']);
+});
+
+test('T02 HTTP calculadora de taxa: só quem edita cadastros; entrada ruim = 422; não grava nada', async () => {
+  const r = await request('GET', '/api/formas-pagamento/simular-taxa?mdrPct=3,5&antecipacaoMesPct=1.8&parcelas=6');
+  assert.deepStrictEqual([r.status, r.data.data.taxaEfetivaPct], [200, 9.5795]);
+  assert.strictEqual((await request('GET', '/api/formas-pagamento/simular-taxa?mdrPct=3&parcelas=13')).status, 422);
+  assert.strictEqual((await request('GET', '/api/formas-pagamento/simular-taxa')).status, 422);
+  assert.strictEqual((await request('GET', '/api/formas-pagamento/simular-taxa?mdrPct=3', { token: 'h.prof.s' })).status, 403);
+  assert.strictEqual((banco.formas_pagamento || []).length, 0);
 });
 
 (async () => {

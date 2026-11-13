@@ -3,7 +3,7 @@
 // e calcula a diferença. "Conferir" só mostra; "Fechar caixa" grava (D-017): cada
 // fechamento é imutável e fechar de novo o mesmo dia grava outro — vale o mais recente.
 import { api } from '../api.js';
-import { sessionRoleIn } from '../state.js';
+import { sessionRoleIn, stateBus } from '../state.js';
 import { escapeHtml, centsToBRL, genIdempotencyKey, confirmAction } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -77,8 +77,14 @@ export async function atualizarCaixa() {
   try {
     const qs = params.toString();
     const f = await api(`/caixa/fechamento${qs ? `?${qs}` : ''}`);
+    // Sem data na consulta, o servidor responde o dia de hoje do salão.
+    if (!params.has('data')) hojeDoSalao = f.data;
     if (!el('caixaData').value) el('caixaData').value = f.data;
     render(f);
+    if (f.data === hojeDoSalao) {
+      const u = f.ultimoFechamento;
+      stateBus.dispatchEvent(new CustomEvent('caixa:status', { detail: { comandas: f.quantidadeComandas, fechado: !!u, desatualizado: !!(u && u.desatualizado) } }));
+    }
   } catch (err) {
     erro.textContent = err.message;
   }
@@ -86,6 +92,7 @@ export async function atualizarCaixa() {
 
 // Uma chave por intenção: se a rede cair e a pessoa tentar de novo, não grava duas vezes.
 const chaves = { fechamento: null, ajuste: null };
+let hojeDoSalao = null;
 
 async function fecharCaixa() {
   const msg = el('caixaFechamentoMsg');

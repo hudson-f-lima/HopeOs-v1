@@ -79,11 +79,45 @@ function renderLegacyDashboard(dash) {
   }
 }
 
+// "Precisa de você": só o que pede ação hoje, calculado do que a tela já carregou.
+let caixaHoje = null;
+
+function pendencias() {
+  const itens = [];
+  if (caixaHoje && caixaHoje.comandas > 0 && (!caixaHoje.fechado || caixaHoje.desatualizado)) {
+    itens.push({
+      id: 'caixa',
+      titulo: caixaHoje.fechado ? 'O caixa mudou depois do fechamento' : 'O caixa de hoje ainda não foi fechado',
+      meta: `${caixaHoje.comandas} comanda(s) fechada(s) hoje.`,
+      botao: 'Fechar caixa',
+      abrir: 'dobraCaixa'
+    });
+  }
+  const agora = new Date();
+  const hhmmAgora = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+  const semConfirmar = safeArray(state.weekAgenda && state.weekAgenda[todayStr()])
+    .filter(a => a.status === 'agendado' && String(a.horario || '').slice(0, 5) >= hhmmAgora).length;
+  if (semConfirmar) {
+    itens.push({ id: 'confirmar', titulo: `${semConfirmar} horário(s) de hoje sem confirmação`, meta: 'Confirme com o cliente para evitar falta.', botao: 'Ver agenda', tab: 'agenda' });
+  }
+  const chamar = safeArray(state.insights.retention && state.insights.retention.quemChamar).length;
+  if (chamar) {
+    itens.push({ id: 'chamar', titulo: `${chamar} cliente(s) para chamar de volta`, meta: 'Passaram do intervalo normal de retorno.', botao: 'Ver quem', abrir: 'dobraIndicadores', foco: 'dbPeopleWidget' });
+  }
+  return itens;
+}
+
 function renderActionStrip() {
-  // TODO: Integrar lógica da Faixa F4.x para ações dinâmicas (WhatsApp, Retenção).
-  // Função declarada para evitar ReferenceError (crash) durante o carregamento dos insights.
   const actions = el('dashboardActionStrip');
   if (!actions) return;
+  const itens = pendencias();
+  actions.innerHTML = itens.length
+    ? itens.map(i => `
+      <div class="action-card" data-pendencia="${i.id}">
+        <div><div class="action-card-title">${escapeHtml(i.titulo)}</div><div class="action-card-meta">${escapeHtml(i.meta)}</div></div>
+        <button type="button" ${i.tab ? `data-dashboard-tab="${i.tab}"` : `data-dashboard-abrir="${i.abrir}" data-dashboard-foco="${i.foco || i.abrir}"`}>${escapeHtml(i.botao)}</button>
+      </div>`).join('')
+    : '<p class="empty-state" id="dashNadaPendente">Nada pendente agora.</p>';
 }
 
 function safeArray(value) {
@@ -218,16 +252,25 @@ function renderMargin() {
   const profHtml = topRows(margin.porProfissional, p => `
     <div class="row">
       <span>${escapeHtml(findProfissionalNome(p.profissionalId) || p.profissionalNome || '—')}</span>
-      <b>${centsToBRL(safeNumber(p.producaoCentavos))}</b>
+      <b title="Produção em serviços">${centsToBRL(safeNumber(p.producaoCentavos))} · salão ${centsToBRL(safeNumber(p.receitaEmpresaCentavos))}</b>
     </div>
   `, 'Sem dados por profissional.');
+
+  // Quanto cada forma de pagamento custou de taxa no período.
+  const formasHtml = topRows(margin.porForma, f => {
+    const bruto = safeNumber(f.valorCentavos); const taxa = safeNumber(f.taxaCentavos);
+    const pct = bruto > 0 ? (taxa * 100 / bruto).toFixed(2).replace('.', ',') : '0,00';
+    return `<div class="row" data-forma-taxa="${escapeHtml(f.formaCode)}"><span>${escapeHtml(formaLabel(f.formaCode))} (taxa ${pct}%)</span><b>${centsToBRL(bruto - taxa)}</b></div>`;
+  }, 'Sem pagamentos no período.');
 
   node.innerHTML = `
     <div class="row"><span>Ticket médio</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
     <h4 class="insight-subtitle">Top serviços</h4>
     ${servicosHtml}
-    <h4 class="insight-subtitle">Por profissional</h4>
+    <h4 class="insight-subtitle">Por profissional (produção · o que fica no salão)</h4>
     ${profHtml}
+    <h4 class="insight-subtitle">Líquido por forma de pagamento</h4>
+    ${formasHtml}
   `;
 }
 
@@ -406,10 +449,8 @@ async function atualizarInsights() {
   state.insights.error = null;
   
   const status = el('dashboardInsightsStatus');
-  if (status) status.innerHTML = '<div class="banner banner-ok">Atualizando inteligencia operacional...</div>';
-  
-  const actions = el('dashboardActionStrip');
-  if (actions) actions.innerHTML = '';
+  if (status) status.innerHTML = '<p class="body-sm text-tertiary">Atualizando indicadores…</p>';
+  renderActionStrip();
 
   const { from, to } = insightRange();
 
@@ -435,7 +476,8 @@ async function atualizarInsights() {
   state.insights.updatedAt = new Date().toLocaleTimeString('pt-BR');
 
   if (status) {
-    status.innerHTML = `<div class="banner banner-ok">Insights atualizados ${escapeHtml(state.insights.updatedAt)}.</div>`;
+    status.innerHTML = '';
+    renderActionStrip();
   }
 }
 
@@ -458,11 +500,22 @@ export function initDashboard() {
   const actions = el('dashboardActionStrip');
   if (actions) {
     actions.addEventListener('click', (ev) => {
+      const abrir = ev.target.closest('[data-dashboard-abrir]');
+      if (abrir) {
+        const dobra = el(abrir.dataset.dashboardAbrir);
+        if (dobra) dobra.open = true;
+        const reduzir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el(abrir.dataset.dashboardFoco)?.scrollIntoView({ behavior: reduzir ? 'auto' : 'smooth', block: 'start' });
+        return;
+      }
       const btn = ev.target.closest('[data-dashboard-tab]');
       if (!btn) return;
       stateBus.dispatchEvent(new CustomEvent('tab:change', { detail: btn.dataset.dashboardTab }));
     });
   }
+
+  stateBus.addEventListener('caixa:status', (ev) => { caixaHoje = ev.detail; renderActionStrip(); });
+  stateBus.addEventListener('agenda:updated', renderActionStrip);
 
   stateBus.addEventListener('checkout:closed', () => {
     atualizarDashboard();

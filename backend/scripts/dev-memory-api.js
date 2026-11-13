@@ -156,6 +156,14 @@ const { app } = require('../src/app');
 app.get('/__links', (req, res) => res.json(links));
 app.get('/__contas', (req, res) => res.json(contas.map(c => ({ email: c.email, privacy: c.privacy === undefined ? 'seed' : c.privacy }))));
 app.get('/__db/:tabela', (req, res) => res.json(db[req.params.tabela] || store.db[req.params.tabela] || []));
+// Só neste servidor de desenvolvimento (127.0.0.1, banco em memória): semeia linhas
+// que a API real não deixa criar, como comandas de meses passados para um E2E.
+app.post('/__db/:tabela', require('express').json(), (req, res) => {
+  const tabela = db[req.params.tabela];
+  if (!Array.isArray(tabela) || !Array.isArray(req.body)) return res.status(400).json({ ok: false });
+  tabela.push(...req.body);
+  res.json({ ok: true, total: tabela.length });
+});
 const port = Number(process.env.PORT || 3399);
 app.listen(port, '127.0.0.1', () => {
   console.log(`dev-memory-api em http://127.0.0.1:${port}/api — logins *@dev.local / dev12345, token legado: ${process.env.API_ACCESS_TOKEN}`);

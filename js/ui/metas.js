@@ -68,6 +68,33 @@ async function salvarMetas() {
   } finally { botao.disabled = false; }
 }
 
+// Preenche o formulário com a sugestão do servidor (média de 3 meses + crescimento).
+// Nada é gravado até a gestão tocar em "Salvar metas".
+async function sugerirMetas() {
+  const msg = el('metasSugestaoMsg');
+  msg.textContent = '';
+  if (!contexto.profissionalId) { msg.textContent = 'Escolha um profissional.'; return; }
+  const inc = Number(String(el('metaIncremento').value || '0').replace(',', '.'));
+  if (!Number.isFinite(inc) || inc < 0 || inc > 100) { msg.textContent = 'Crescimento deve ficar entre 0 e 100%.'; return; }
+  const botao = el('btnSugerirMetas');
+  botao.disabled = true;
+  try {
+    const r = await api(`/metas/sugestao?mes=${encodeURIComponent(contexto.mes)}&incrementoPct=${inc}`);
+    const s = r.sugestoes.find(x => x.profissionalId === contexto.profissionalId);
+    if (!s || (!s.faturamento && !s.produtos && !s.atendimentos)) {
+      msg.textContent = `Sem histórico suficiente: é preciso movimento nos 3 meses anteriores (${s ? s.mesesComMovimento : 0} de 3). Defina a meta à mão.`;
+      return;
+    }
+    if (s.faturamento) el('metaFaturamento').value = emReais(s.faturamento.sugerido);
+    if (s.produtos) el('metaProdutos').value = emReais(s.produtos.sugerido);
+    if (s.atendimentos) el('metaAtendimentos').value = s.atendimentos.sugerido;
+    const partes = [s.faturamento && `serviços ${centsToBRL(s.faturamento.media)}`, s.produtos && `produtos ${centsToBRL(s.produtos.media)}`, s.atendimentos && `${s.atendimentos.media} atendimentos`].filter(Boolean);
+    msg.textContent = `Média de ${r.mesesBase[0]} a ${r.mesesBase[2]}: ${partes.join(', ')}. Sugestão com +${inc}%. Ajuste se quiser e salve.`;
+  } catch (err) {
+    msg.textContent = err.message;
+  } finally { botao.disabled = false; }
+}
+
 function renderRanking(r) {
   const comValor = gestao();
   el('rankingLista').innerHTML = r.ranking.length ? r.ranking.map(x => `
@@ -113,6 +140,7 @@ async function alternarVisibilidade() {
 export function initMetas() {
   if (!sessionRoleIn('admin', 'gestor', 'profissional')) return;
   el('metasForm').addEventListener('submit', ev => { ev.preventDefault(); salvarMetas(); });
+  el('btnSugerirMetas').addEventListener('click', sugerirMetas);
   el('rankingVisivel').addEventListener('change', alternarVisibilidade);
   el('rankingCriterio').addEventListener('change', () => { if (contexto.mes) atualizarRanking(contexto.mes); });
 }

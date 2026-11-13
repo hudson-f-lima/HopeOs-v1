@@ -277,10 +277,13 @@
       <div class="dashboard-header">
         <div>
           <h2>Dashboard</h2>
-          <p class="dashboard-subtitle">Resumo financeiro e repasses da operação.</p>
+          <p class="dashboard-subtitle">O que pede ação hoje e o resumo do período.</p>
         </div>
         <span class="badge" id="dashUpdatedAt"></span>
       </div>
+
+      <h2 class="dash-precisa-titulo" id="dashPrecisaTitulo">Precisa de você</h2>
+      <section class="dashboard-action-strip" id="dashboardActionStrip" aria-labelledby="dashPrecisaTitulo" aria-live="polite"></section>
 
       <div class="dashboard-bento">
         <div class="stat-card primary">
@@ -307,8 +310,9 @@
 
       <div class="dashboard-status" id="dashboardInsightsStatus"></div>
 
-      <section class="dashboard-action-strip" id="dashboardActionStrip" aria-label="Acao do dia"></section>
 
+      <details class="dash-dobra" id="dobraIndicadores">
+      <summary>Indicadores</summary>
       <div class="dashboard-insights-grid">
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
@@ -373,7 +377,10 @@
           <div id="dbPeopleWidget" class="dashboard-widget-body"></div>
         </section>
       </div>
+      </details>
 
+      <details class="dash-dobra" id="dobraRepasses">
+      <summary>Pagamentos e repasses</summary>
       <div class="dashboard-list-grid">
         <div class="card dashboard-list">
           <h2>Pagamentos por forma</h2>
@@ -384,8 +391,10 @@
           <div id="dbRepasses"><p style="font-size:13px;color:var(--md-outline);">Nenhum repasse calculado ainda.</p></div>
         </div>
       </div>
-      <section class="card dashboard-list hidden" id="cardCaixa" aria-label="Fechamento de caixa">
-        <h2>Fechamento de caixa</h2>
+      </details>
+      <section class="card dashboard-list dash-dobra-card hidden" id="cardCaixa" aria-label="Fechamento de caixa">
+        <details id="dobraCaixa">
+        <summary>Fechamento de caixa</summary>
         <form id="caixaForm" class="caixa-form">
           <div class="field"><label for="caixaData">Dia</label><input type="date" id="caixaData"/></div>
           <div class="field"><label for="caixaFundo">Fundo de troco (R$)</label><input id="caixaFundo" inputmode="decimal" placeholder="Ex.: 100,00"/></div>
@@ -404,13 +413,16 @@
           <button class="btn btn-secondary" type="submit" id="btnLancarAjuste">Lançar</button>
           <p class="body-sm" id="caixaAjusteMsg" role="status" style="margin:6px 0 0;"></p>
         </form>
+        </details>
       </section>
-      <section class="card dashboard-list hidden" id="cardComandasEstorno" aria-label="Comandas do dia e estorno">
-        <h2>Comandas do dia</h2>
+      <section class="card dashboard-list dash-dobra-card hidden" id="cardComandasEstorno" aria-label="Comandas do dia e estorno">
+        <details id="dobraComandas">
+        <summary>Comandas do dia</summary>
         <div class="field"><label for="estornoData">Dia</label><input type="date" id="estornoData"/></div>
         <p class="body-sm" id="estornoErro" style="color:var(--md-error)"></p>
         <div id="estornoLista"></div>
         <p class="list-count-hint">Estorno só por admin ou gestão, até 30 dias da comanda. O valor sai do caixa de hoje; a taxa da maquininha não volta.</p>
+        </details>
       </section>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
@@ -659,6 +671,11 @@
             <div class="field"><label for="metaFaturamento">Meta de faturamento em serviços (R$)</label><input id="metaFaturamento" inputmode="decimal" placeholder="Ex.: 5000,00"/></div>
             <div class="field"><label for="metaProdutos">Meta de venda de produtos (R$)</label><input id="metaProdutos" inputmode="decimal" placeholder="Ex.: 800,00"/></div>
             <div class="field"><label for="metaAtendimentos">Meta de atendimentos</label><input id="metaAtendimentos" inputmode="numeric" placeholder="Ex.: 80"/></div>
+            <div class="meta-sugestao">
+              <div class="field"><label for="metaIncremento">Crescimento sobre a média (%)</label><input id="metaIncremento" inputmode="decimal" value="5"/></div>
+              <button class="btn btn-secondary" type="button" id="btnSugerirMetas">Sugerir pela média de 3 meses</button>
+            </div>
+            <p class="body-sm text-tertiary" id="metasSugestaoMsg" role="status" style="margin:6px 0 10px;"></p>
             <button class="btn btn-secondary" type="submit" id="btnSalvarMetas">Salvar metas</button>
             <p class="body-sm" id="metasMsg" role="status" style="margin:6px 0 0;"></p>
             <p class="list-count-hint">Campo vazio remove a meta. A meta não altera comissão, agenda nem distribuição de clientes.</p>
@@ -857,7 +874,15 @@
     <div class="field"><label for="fmCode">Código</label><input id="fmCode" type="text" placeholder="ex: credito_visa"/></div>
     <div class="field"><label for="fmLabel">Nome (label)</label><input id="fmLabel" type="text"/></div>
     <div class="field"><label for="fmIcon">Ícone (opcional)</label><input id="fmIcon" type="text" placeholder="💳"/></div>
-    <div class="field"><label for="fmTaxaPct">Taxa (%)</label><input id="fmTaxaPct" type="number" min="0" step="0.01" value="0"/></div>
+    <div class="field"><label for="fmTaxaPct">Taxa (%)</label><input id="fmTaxaPct" type="number" min="0" step="0.0001" value="0"/></div>
+    <details class="taxa-calc" id="fmCalc">
+      <summary>Calcular taxa do cartão parcelado</summary>
+      <div class="field"><label for="fmCalcMdr">Taxa da maquininha (MDR, %)</label><input id="fmCalcMdr" inputmode="decimal" placeholder="Ex.: 3,5"/></div>
+      <div class="field"><label for="fmCalcAnt">Antecipação ao mês (%)</label><input id="fmCalcAnt" inputmode="decimal" placeholder="Ex.: 1,8 (0 se não antecipa)"/></div>
+      <div class="field"><label for="fmCalcParcelas">Parcelas</label><select id="fmCalcParcelas"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
+      <button class="btn btn-secondary" type="button" id="btnFmCalc">Calcular e preencher a taxa</button>
+      <p class="body-sm text-tertiary" id="fmCalcMsg" role="status" style="margin:6px 0 0;"></p>
+    </details>
     <div class="field"><label for="fmTaxaFixa">Taxa fixa (R$)</label><input id="fmTaxaFixa" type="number" min="0" step="0.01" value="0.00"/></div>
     <div class="field"><label for="fmDiasRecebimento">Dias para recebimento</label><input id="fmDiasRecebimento" type="number" min="0" step="1" value="0"/></div>
     <div class="field hidden" id="fmAtivoField">

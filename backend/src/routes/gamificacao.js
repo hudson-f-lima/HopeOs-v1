@@ -5,7 +5,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { computeDesempenho, computeMetas, computeRanking, CRITERIOS } = require('../engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
 
 const router = express.Router();
 const ALVO_MAX = { faturamento: 1000000000, atendimentos: 100000, produtos: 1000000000 }; // R$ 10 mi; 100 mil atendimentos
@@ -17,13 +17,34 @@ function mesValido(v) {
   return mes;
 }
 
-async function desempenhoDoMes(repo, mes) {
+async function dadosDeDesempenho(repo) {
   const filtro = { empresa_id: repo.empresaId };
   const [comandos, comandoItens, estornos, estornoItens, profissionais] = await Promise.all([
     repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('comanda_estornos', filtro), repo.list('comanda_estorno_itens', filtro), repo.list('profissionais', filtro)
   ]);
-  return computeDesempenho({ comandos, comandoItens, estornos, estornoItens, profissionais, mes });
+  return { comandos, comandoItens, estornos, estornoItens, profissionais };
 }
+
+async function desempenhoDoMes(repo, mes) {
+  return computeDesempenho({ ...(await dadosDeDesempenho(repo)), mes });
+}
+
+// Sugestão de meta para `mes`: média dos 3 meses fechados anteriores + incremento.
+// Só leitura; a gestão decide e grava pelo PUT /metas.
+router.get('/metas/sugestao', authorize('metas:write'), async (req, res, next) => {
+  try {
+    const mes = mesValido(req.query.mes);
+    const incrementoPct = req.query.incrementoPct === undefined ? 5 : Number(req.query.incrementoPct);
+    if (!Number.isFinite(incrementoPct) || incrementoPct < 0 || incrementoPct > 100) {
+      throw createAppError('INVALID_FIELD', 'incrementoPct deve estar entre 0 e 100.', 422, { field: 'incrementoPct' });
+    }
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const dados = await dadosDeDesempenho(repo);
+    const base = mesesAnteriores(mes, 3);
+    const sugestoes = sugerirMetas({ desempenhoPorMes: base.map(m => ({ mes: m, desempenho: computeDesempenho({ ...dados, mes: m }) })), incrementoPct });
+    res.json({ ok: true, data: { mes, incrementoPct, mesesBase: base, sugestoes } });
+  } catch (err) { next(err); }
+});
 
 router.get('/metas', authorize('metas:read'), async (req, res, next) => {
   try {

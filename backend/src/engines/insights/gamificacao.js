@@ -68,4 +68,45 @@ function computeRanking({ desempenho = [], criterio = 'servicos', comValores = t
   });
 }
 
-module.exports = { computeDesempenho, computeMetas, computeRanking, CRITERIOS };
+// Os `quantos` meses fechados antes de `mes` (YYYY-MM), do mais antigo ao mais recente.
+function mesesAnteriores(mes, quantos = 3) {
+  const [ano, m] = mes.split('-').map(Number);
+  return Array.from({ length: quantos }, (_, i) => {
+    const d = new Date(Date.UTC(ano, m - 1 - (quantos - i), 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
+}
+
+// Sugestão de meta: média dos 3 meses fechados anteriores × (1 + incremento).
+// Só sugere; quem grava a meta é a gestão. Sem movimento nos 3 meses = sem sugestão
+// (profissional novo ou que ficou fora não recebe meta calculada sobre zero).
+// Valores em reais sobem para o real inteiro; atendimentos vão para o inteiro mais próximo.
+function sugerirMetas({ desempenhoPorMes = [], incrementoPct = 5 }) {
+  const inc = 1 + Number(incrementoPct || 0) / 100;
+  const porProf = new Map();
+  for (const { desempenho = [] } of desempenhoPorMes) {
+    for (const d of desempenho) {
+      const l = porProf.get(d.profissionalId) || { profissionalId: d.profissionalId, nome: d.nome, meses: [] };
+      l.meses.push(d);
+      porProf.set(d.profissionalId, l);
+    }
+  }
+  const total = desempenhoPorMes.length;
+  return [...porProf.values()].map(l => {
+    const comMovimento = l.meses.filter(d => d.atendimentos > 0 || d.totalCentavos > 0).length;
+    const completo = total > 0 && comMovimento === total;
+    const sugestao = (tipo, arredonda) => {
+      if (!completo) return null;
+      const media = l.meses.reduce((s, d) => s + Math.max(0, d[CAMPO[tipo]] || 0), 0) / total;
+      if (media <= 0) return null;
+      return { media: Math.round(media), sugerido: arredonda(media * inc) };
+    };
+    const reais = v => Math.ceil(v / 100) * 100;
+    return {
+      profissionalId: l.profissionalId, nome: l.nome, mesesComMovimento: comMovimento,
+      faturamento: sugestao('faturamento', reais), produtos: sugestao('produtos', reais), atendimentos: sugestao('atendimentos', v => Math.max(1, Math.round(v)))
+    };
+  }).sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+module.exports = { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores, CRITERIOS };

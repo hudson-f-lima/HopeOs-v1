@@ -33,6 +33,14 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   const c2 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-2', itens: [{ tipo: 'servico', servicoId: corte.id, profissionalId: outro.id }], payments: [{ formaCode: 'pix', valorCentavos: 6000 }] });
   confere('checkouts do seed', c1.ok && c2.ok, JSON.stringify([c1.error, c2.error]));
 
+  // Histórico da Ana nos 3 meses anteriores (Barba 40,00 por mês) para a sugestão de meta.
+  const mesAnterior = k => { const [y, m] = hojeSP.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 - k, 10)); return d.toISOString().slice(0, 10); };
+  const semear = (t, linhas) => fetch(`${API}/__db/${t}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(linhas) }).then(r => r.json());
+  const empresaId = ana.empresa_id;
+  const h1 = await semear('comandos', [1, 2, 3].map(k => ({ id: `hist-${k}`, empresa_id: empresaId, data: mesAnterior(k) })));
+  const h2 = await semear('comando_itens', [1, 2, 3].map(k => ({ id: `hist-i${k}`, empresa_id: empresaId, comando_id: `hist-${k}`, tipo: 'servico', profissional_id: ana.id, quantidade: 1, valor_liquido_centavos: 4000 })));
+  confere('histórico de 3 meses semeado', h1.ok && h2.ok);
+
   const b = await chromium.launch();
 
   // ---- Profissional antes: sem meta e sem ranking ----
@@ -57,6 +65,17 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await a.fill('#metaAtendimentos', ''); await a.click('#btnSalvarMetas');
   await a.waitForFunction(() => document.querySelectorAll('#metasLista [data-meta]').length === 2);
   confere('admin: campo vazio remove a meta', (await db('metas')).length === 2);
+  // Sugestão de meta: média de 3 meses (40,00) + 5% = 42,00. Só preenche; não grava.
+  await a.click('#btnSugerirMetas');
+  await a.waitForFunction(() => /Média de/.test(document.getElementById('metasSugestaoMsg').textContent));
+  confere('admin: sugestão preenche 42,00 e 1 atendimento', await a.inputValue('#metaFaturamento') === '42,00' && await a.inputValue('#metaAtendimentos') === '1', `${await a.inputValue('#metaFaturamento')} / ${await a.inputValue('#metaAtendimentos')}`);
+  confere('admin: sugestão não grava sozinha', (await db('metas')).length === 2 && (await db('metas')).find(m => m.tipo === 'faturamento').valor_alvo === 8000);
+  await a.selectOption('#ganhosProfissional', outro.id); await a.waitForTimeout(600);
+  await a.click('#btnSugerirMetas');
+  await a.waitForFunction(() => /Sem histórico/.test(document.getElementById('metasSugestaoMsg').textContent));
+  confere('admin: colega sem 3 meses de histórico não recebe sugestão', await a.inputValue('#metaFaturamento') === '');
+  await a.selectOption('#ganhosProfissional', ana.id); await a.waitForTimeout(600);
+  confere('admin: voltar para a Ana mostra a meta gravada (80,00)', await a.inputValue('#metaFaturamento') === '80,00');
   await a.selectOption('#rankingCriterio', 'produtos');
   await a.waitForFunction(nome => (document.querySelector('#rankingLista [data-posicao="1"]') || {}).textContent?.includes(nome), ana.nome);
   confere('admin: ranking por produtos põe a Ana em 1º com 30,00', (await a.textContent('#rankingLista [data-posicao="1"]')).includes('R$ 30,00'));
@@ -65,6 +84,23 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await a.check('#rankingVisivel'); await a.waitForFunction(() => /passa a ver/.test(document.getElementById('rankingMsg').textContent));
   confere('admin: visibilidade do ranking gravada na empresa', (await db('empresas'))[0].ranking_visivel_equipe === true);
   await a.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });
+
+  // Calculadora da taxa do parcelado: 6x, MDR 3,5%, antecipação 1,8% a.m. → 9,5795%.
+  await a.click('.subtab-btn[data-subtab="formas"]'); await a.click('#btnNovaForma'); await a.waitForSelector('#fmCode');
+  await a.click('#fmCalc > summary');
+  await a.fill('#fmCalcMdr', '3,5'); await a.fill('#fmCalcAnt', '1,8'); await a.selectOption('#fmCalcParcelas', '6'); await a.click('#btnFmCalc');
+  await a.waitForFunction(() => /taxa efetiva/.test(document.getElementById('fmCalcMsg').textContent));
+  confere('admin: calculadora preenche a taxa de 6x', await a.inputValue('#fmTaxaPct') === '9.5795', await a.inputValue('#fmTaxaPct'));
+  await a.fill('#fmCode', 'credito_6x'); await a.fill('#fmLabel', 'Crédito 6x'); await a.click('#btnSalvarForma'); await a.waitForTimeout(800);
+  const forma6x = (await db('formas_pagamento')).find(f => f.code === 'credito_6x');
+  confere('admin: forma "Crédito 6x" gravada com a taxa calculada', Boolean(forma6x) && Number(forma6x.taxa_pct) === 9.5795, JSON.stringify(forma6x && forma6x.taxa_pct));
+  // Um Corte de 60,00 em 6x: a comanda grava 5,75 de taxa e o painel mostra o líquido por forma.
+  const c6 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-6x', itens: [{ tipo: 'servico', servicoId: corte.id, profissionalId: outro.id }], payments: [{ formaCode: 'credito_6x', valorCentavos: 6000 }] });
+  const pag6 = (await db('comando_pagamentos')).find(x => x.forma_code === 'credito_6x');
+  confere('checkout em 6x grava a taxa da forma', c6.ok && Boolean(pag6) && pag6.taxa_total_centavos === Math.round(pag6.valor_centavos * 9.5795 / 100), JSON.stringify([c6.error, pag6 && [pag6.valor_centavos, pag6.taxa_total_centavos]]));
+  await a.click('#btnFecharGestao'); await a.click('#navDashboard'); await a.click('#dobraIndicadores > summary');
+  await a.waitForSelector('[data-forma-taxa="credito_6x"]', { timeout: 10000 });
+  confere('painel: líquido por forma mostra a taxa do 6x e a do Pix', /taxa 9,5\d%/.test(await a.textContent('[data-forma-taxa="credito_6x"]')) && await a.isVisible('[data-forma-taxa="pix"]'), await a.textContent('[data-forma-taxa="credito_6x"]'));
   console.log('ADMIN erros:', JSON.stringify(a.erros));
 
   // ---- Profissional depois: própria meta e ranking sem o valor do colega ----
