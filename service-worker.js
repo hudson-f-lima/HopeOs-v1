@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-23-2-atalhos-refino';
+const CACHE_NAME = 'hope-os-shell-v1-24-0-pagamento-dividido';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',

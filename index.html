@@ -205,7 +205,7 @@
             <div id="coItensLista"></div>
             <div class="row total"><span>Subtotal dos itens</span><b id="coItensSubtotal" data-subtotal="0">R$ 0,00</b></div>
           </div>
-          <div class="field">
+          <div class="field" id="coFormaField">
             <label for="coForma">Forma de pagamento</label>
             <input id="coForma" type="text" placeholder="Digite forma..." class="input-light"/>
           </div>
@@ -220,7 +220,7 @@
           </div>
           <div class="split-toggle-row">
             <span class="split-toggle-label">Dividir pagamento</span>
-            <button class="split-toggle" id="splitToggle">
+            <button class="split-toggle" id="splitToggle" type="button" role="switch" aria-checked="false" aria-label="Dividir pagamento em mais de uma forma">
               <div class="toggle-knob"></div>
             </button>
           </div>
@@ -228,7 +228,8 @@
           <div id="splitRowsContainer" class="hidden">
             <label>Formas de pagamento</label>
             <div id="splitRowsList" class="split-rows-container"></div>
-            <button id="addSplitRowBtn" class="split-add-btn">+ Adicionar forma</button>
+            <button id="addSplitRowBtn" class="split-add-btn" type="button">+ Adicionar forma</button>
+            <p class="body-sm text-tertiary" id="splitDica" role="status" style="margin:8px 0 0;"></p>
           </div>
 
           <div class="checkout-actions">

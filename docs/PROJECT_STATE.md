@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-026 (2026-11-13): pagamento dividido na comanda corrigido (ligava só depois de simular com forma única; relato do dono em produção). E2E `split` novo. PENDENTE: o dono repetir o teste em produção depois do merge.
 - D-025 (2026-11-13): cartão parcelado em lote (2x a 12x) e atalhos "Mais vendidos" na comanda: REAL. Gaveta de itens: não existe; decisão do dono pendente. PR #26 mesclado.
 - D-024 (2026-11-13): taxa da forma de pagamento visível na comanda antes de fechar, com a alternativa mais barata e botão de troca: REAL. PR #25 mesclado.
 - D-023 (2026-11-13): proposta externa de desempenho e margem adaptada — sugestão de meta pela média de 3 meses, calculadora de taxa do parcelado e margem por forma no painel: REAL. Painel de desempenho individual: BLOQUEADO até decisão do dono (risco trabalhista).

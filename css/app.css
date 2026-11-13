@@ -316,9 +316,9 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .split-row-input{flex:1;min-width:0;}
 .split-row-amount{flex:1;min-width:0;display:flex;align-items:center;padding:var(--space-md);background:var(--bg-app-light);border-radius:var(--radius-md);border:1px solid var(--border);font-weight:700;color:var(--text-primary);font-size:13px;}
 .split-row-amount.display-only{cursor:default;}
-.split-row-remove{width:40px;height:40px;border-radius:var(--radius-sm);background:transparent;border:1px solid var(--border);color:var(--error);font-weight:700;font-size:16px;cursor:pointer;transition:all 0.2s;}
+.split-row-remove{width:44px;height:44px;flex:none;border-radius:var(--radius-sm);background:transparent;border:1px solid var(--border);color:var(--error);font-weight:700;font-size:16px;cursor:pointer;transition:all 0.2s;}
 .split-row-remove:hover{background:var(--error);color:var(--on-primary);}
-.split-add-btn{background:transparent;border:1px solid var(--primary);color:var(--primary);padding:var(--space-sm) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:13px;transition:all 0.2s;}
+.split-add-btn{min-height:44px;background:transparent;border:1px solid var(--primary);color:var(--primary);padding:var(--space-sm) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:13px;transition:all 0.2s;}
 .split-add-btn:hover{background:var(--primary);color:var(--on-primary);}
 
 /* ============ TIMELINE HEADERS — Avatares de profissional ============ */
