@@ -49,7 +49,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await p.click('#btnCancelarNovoAgendamento'); await p.waitForTimeout(300);
 
   // Cota-parte no Dashboard (gestão)
-  await p.click('#navDashboard'); await p.waitForTimeout(1500);
+  await p.click('#navDashboard'); for (const d of await p.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await p.waitForTimeout(1500);
   console.log('COTA-PARTE:', await p.isVisible('#dbCotaPartePanel'), '|', (await p.textContent('#dbCotaParteWidget')).replace(/\s+/g, ' ').trim().slice(0, 140));
   console.log('ERROS:', JSON.stringify(errs)); if (errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
 
@@ -58,7 +58,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await r.goto(BASE); await r.waitForSelector('#loginScreen:not(.hidden)');
   await r.fill('#loginEmail', 'recepcao@dev.local'); await r.fill('#loginSenha', 'dev12345'); await r.click('#btnLogin');
   await r.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await r.waitForTimeout(800);
-  await r.click('#navDashboard'); await r.waitForTimeout(1200);
+  await r.click('#navDashboard'); for (const d of await r.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await r.waitForTimeout(1200);
   console.log('RECEPÇÃO: aba Comissões', await r.locator('#subtabBtnComissoes').isVisible(), '| cota-parte', await r.isVisible('#dbCotaPartePanel'));
   await b.close();
 })().catch(e => { console.error('E2E FALHOU', e.message); process.exit(1); });

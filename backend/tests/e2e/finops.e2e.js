@@ -36,7 +36,7 @@ const num = async (p, sel, attr) => Number(await p.getAttribute(sel, attr));
 
   // ---- Recepção: caixa ----
   const r = await entrar(b, 'recepcao@dev.local');
-  await r.click('#navDashboard'); await r.waitForSelector('#caixaEsperado');
+  await r.click('#navDashboard'); for (const d of await r.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await r.waitForSelector('#caixaEsperado');
   confere('caixa: esperado inicial = vendas em dinheiro', await num(r, '#caixaEsperado', 'data-esperado') === 5000);
   confere('caixa: dia ainda não fechado', await r.getAttribute('#caixaStatusFechamento', 'data-fechado') === '0');
   await r.selectOption('#caixaAjusteTipo', 'suprimento'); await r.fill('#caixaAjusteValor', '20,00'); await r.fill('#caixaAjusteMotivo', 'Troco do banco');

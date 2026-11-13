@@ -63,7 +63,7 @@ async function entrar(b, email) {
   const totalOutro = Number(await admin.getAttribute('#ganhosTotal', 'data-total'));
   confere('admin: ganhos do profissional escolhido', totalOutro === esperadoOutro && esperadoOutro > 0 && esperadoOutro !== esperadoAna, `tela ${totalOutro} × banco ${esperadoOutro}`);
   await admin.click('#btnFecharGestao');
-  await admin.click('#navDashboard'); await admin.waitForSelector('#dbCotaPartePanel:not(.hidden)', { timeout: 10000 });
+  await admin.click('#navDashboard'); for (const d of await admin.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await admin.waitForSelector('#dbCotaPartePanel:not(.hidden)', { timeout: 10000 });
   const [download] = await Promise.all([admin.waitForEvent('download', { timeout: 10000 }), admin.click('#btnExportarContador')]);
   const csv = fs.readFileSync(await download.path(), 'utf8');
   const linhas = csv.trim().split('\r\n');

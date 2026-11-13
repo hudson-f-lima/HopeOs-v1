@@ -56,7 +56,7 @@ async function entrar(p, email, senha = 'dev12345') {
   p = await novaPagina(b);
   await entrar(p, 'recepcao@dev.local');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(1500);
-  await p.click('#navDashboard'); await p.waitForTimeout(1500);
+  await p.click('#navDashboard'); for (const d of await p.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await p.waitForTimeout(1500);
   out('RECEP margem:', (await p.textContent('#dbMarginWidget')).trim(), '| caixa:', (await p.textContent('#dbMoneyWidget')).trim());
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-recep.png'), fullPage: false });
   out('RECEP erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)

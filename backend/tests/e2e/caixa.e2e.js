@@ -32,7 +32,7 @@ async function entrar(b, email) {
   const p = await entrar(b, 'recepcao@dev.local');
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
-  await p.click('#navDashboard'); await p.waitForTimeout(800);
+  await p.click('#navDashboard'); for (const d of await p.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await p.waitForTimeout(800);
   if (await p.inputValue('#caixaData') !== hojeSP) { await p.fill('#caixaData', hojeSP); await p.dispatchEvent('#caixaData', 'change'); await p.waitForTimeout(600); }
   console.log('CARD VISÍVEL:', await p.isVisible('#cardCaixa'), '| dia:', await p.inputValue('#caixaData'));
   console.log('RESUMO:', await p.textContent('#caixaQtd'), '|', await p.textContent('#caixaBruto'), '| esperado:', await p.textContent('#caixaEsperado'));
