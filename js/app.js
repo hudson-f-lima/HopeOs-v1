@@ -36,7 +36,14 @@ import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorn
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 export function showTab(name) {
+  const anterior = state.activeTab;
   state.activeTab = name;
+  // Abrir o Dashboard busca os números de novo: outra pessoa pode ter fechado comanda
+  // ou caixa em outro aparelho, e as pendências do topo precisam estar em dia.
+  if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionRoleIn('admin', 'gestor', 'recepcao')) {
+    atualizarDashboard();
+    atualizarCaixa();
+  }
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   const target = document.getElementById('tab-' + name);
   if (target) target.classList.remove('hidden');

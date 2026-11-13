@@ -1,6 +1,6 @@
 # Análise — proposta "Desempenho e Margem Variável" (2026-11-13)
 
-**Estado:** análise. Nada implementado. SQL citado é DRAFT ONLY. Migration 012 não autorizada.
+**Estado:** Onda 1 implementada em 2026-11-13 (D-023). Ondas 2 e 3 aguardam decisão. SQL citado é DRAFT ONLY. Migration 012 não autorizada.
 
 ## Classificação item a item
 | Item da proposta | Situação real | Classe | Migration? | Fornecedor? |

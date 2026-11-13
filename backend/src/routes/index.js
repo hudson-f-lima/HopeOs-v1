@@ -259,6 +259,21 @@ router.get('/formas-pagamento', authorize('cadastros:read'), async (req, res, ne
   catch (err) { next(err); }
 });
 
+// Calculadora da taxa efetiva do parcelado (MDR + antecipação pro rata). Só ajuda a
+// preencher a taxa da forma de pagamento; não grava nada.
+router.get('/formas-pagamento/simular-taxa', authorize('cadastros:write'), (req, res, next) => {
+  try {
+    const num = (campo, padrao) => (req.query[campo] === undefined || req.query[campo] === '' ? padrao : Number(String(req.query[campo]).replace(',', '.')));
+    const { calcularTaxaEfetiva } = require('../engines/taxaEfetiva');
+    try {
+      res.json({ ok: true, data: calcularTaxaEfetiva({ mdrPct: num('mdrPct', NaN), antecipacaoMesPct: num('antecipacaoMesPct', 0), parcelas: num('parcelas', 1) }) });
+    } catch (err) {
+      if (err instanceof RangeError) throw createAppError('INVALID_FIELD', err.message, 422);
+      throw err;
+    }
+  } catch (err) { next(err); }
+});
+
 router.post('/formas-pagamento', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);

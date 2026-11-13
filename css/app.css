@@ -577,6 +577,10 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .action-card-title{font-weight:700;font-size:14px;color:var(--text-primary);line-height:1.25;}
 .action-card-meta{font-size:12.5px;color:var(--text-secondary);line-height:1.35;margin-top:3px;}
 .action-card button,.action-card a{flex:0 0 auto;min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--bg-glass-light);color:var(--primary);font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;}
+.meta-sugestao{display:grid;grid-template-columns:1fr;gap:8px;align-items:end;margin-top:8px;}
+.taxa-calc{margin:0 0 12px;padding:0 12px;border:1px solid var(--border);border-radius:12px;}
+.taxa-calc summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:14px;font-weight:600;color:var(--primary);}
+.taxa-calc[open]{padding-bottom:12px;}
 .dash-precisa-titulo{margin:4px 0 0;}
 .dash-dobra{margin-top:12px;}
 .dash-dobra>summary,.dash-dobra-card summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;cursor:pointer;list-style:none;font-size:15px;font-weight:700;color:var(--text-primary);}

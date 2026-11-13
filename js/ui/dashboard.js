@@ -252,16 +252,25 @@ function renderMargin() {
   const profHtml = topRows(margin.porProfissional, p => `
     <div class="row">
       <span>${escapeHtml(findProfissionalNome(p.profissionalId) || p.profissionalNome || '—')}</span>
-      <b>${centsToBRL(safeNumber(p.producaoCentavos))}</b>
+      <b title="Produção em serviços">${centsToBRL(safeNumber(p.producaoCentavos))} · salão ${centsToBRL(safeNumber(p.receitaEmpresaCentavos))}</b>
     </div>
   `, 'Sem dados por profissional.');
+
+  // Quanto cada forma de pagamento custou de taxa no período.
+  const formasHtml = topRows(margin.porForma, f => {
+    const bruto = safeNumber(f.valorCentavos); const taxa = safeNumber(f.taxaCentavos);
+    const pct = bruto > 0 ? (taxa * 100 / bruto).toFixed(2).replace('.', ',') : '0,00';
+    return `<div class="row" data-forma-taxa="${escapeHtml(f.formaCode)}"><span>${escapeHtml(formaLabel(f.formaCode))} (taxa ${pct}%)</span><b>${centsToBRL(bruto - taxa)}</b></div>`;
+  }, 'Sem pagamentos no período.');
 
   node.innerHTML = `
     <div class="row"><span>Ticket médio</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
     <h4 class="insight-subtitle">Top serviços</h4>
     ${servicosHtml}
-    <h4 class="insight-subtitle">Por profissional</h4>
+    <h4 class="insight-subtitle">Por profissional (produção · o que fica no salão)</h4>
     ${profHtml}
+    <h4 class="insight-subtitle">Líquido por forma de pagamento</h4>
+    ${formasHtml}
   `;
 }
 

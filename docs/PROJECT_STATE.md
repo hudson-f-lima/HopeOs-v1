@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-023 (2026-11-13): proposta externa de desempenho e margem adaptada — sugestão de meta pela média de 3 meses, calculadora de taxa do parcelado e margem por forma no painel: REAL. Painel de desempenho individual: BLOQUEADO até decisão do dono (risco trabalhista).
 - D-022 (2026-11-11, PR #24): redesign fase 1 — tokens de cor, modo escuro, Inter, alvos de toque e cartão "Agora" do profissional. Fase 2 (2026-11-13): Dashboard curto — "Precisa de você" no topo e o resto recolhido. Próximas fases: gaveta de itens da comanda, desktop da recepção e do gestor.
 - D-021 (2026-11-11): caminho do produto = evoluir o HOPE OS (especificação com outra stack não iniciada). Ferramentas de backup e teste de restauração: REAL. **Backup automático em produção: AUSENTE**; a rotina diária depende de decisão do dono sobre onde rodar (`docs/RUNBOOK_BACKUP.md`). Migrations 010 e 011 conferidas em produção. PR #23 mesclado.
 - D-020 (2026-11-11, PR #23): **primeiro achado de uso real** — a tela do checkout só aceitava um serviço, um produto e um profissional. Corrigido: comanda com vários itens e profissionais. Metas e ranking passam a incluir venda de produtos. Em aberto: marcar "quem vendeu" quando difere de quem executou (exige migration).
