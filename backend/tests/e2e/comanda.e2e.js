@@ -98,6 +98,9 @@ async function escolher(p, campo, texto) {
   const atalhos = await p.$$eval('#coAtalhosLista [data-atalho]', ns => ns.map(n => [n.dataset.atalho, n.querySelector('span').textContent]));
   // Barba 2 vendas, Corte 1; Pomada 2 unidades, Shampoo 1.
   confere('atalhos: serviços e produtos em ordem de venda', JSON.stringify(atalhos) === JSON.stringify([['servico', 'Barba'], ['servico', 'Corte'], ['produto', 'Pomada'], ['produto', 'Shampoo']]), JSON.stringify(atalhos));
+  const visual = await p.$$eval('#coAtalhosLista [data-atalho]', ns => ns.map(n => [n.children.length, n.querySelector('small').textContent.trim()]));
+  const colunas = await p.$eval('#coAtalhosLista', n => getComputedStyle(n).gridTemplateColumns.split(' ').length);
+  confere('atalhos: só nome e preço, em 2 colunas', colunas === 2 && visual.every(v => v[0] === 2 && /^R\$\s?\d/.test(v[1])), JSON.stringify([colunas, visual]));
   const alturas = await p.$$eval('#coAtalhosLista [data-atalho]', ns => ns.map(n => n.getBoundingClientRect().height));
   confere('atalhos: alvo de toque ≥ 44px', alturas.every(h => h >= 44), JSON.stringify(alturas));
   await p.fill('#coProfissional', ''); await p.fill('#coServico', '');
@@ -109,6 +112,7 @@ async function escolher(p, campo, texto) {
   await p.waitForSelector('#coItensLista [data-item="2"]');
   const viaAtalho = await p.$$eval('#coItensLista [data-item] span', ns => ns.map(n => n.textContent.trim()));
   confere('atalho com profissional escolhido: um toque adiciona serviço e produto', viaAtalho[1] === `Barba · ${ana.nome}` && viaAtalho[2] === `1× Pomada · ${ana.nome}` && await p.getAttribute('#coItensSubtotal', 'data-subtotal') === '13000', JSON.stringify(viaAtalho));
+  confere('atalho usado ganha o retorno visual; o que só pediu profissional não', await p.locator('[data-atalho="produto"].co-atalho-ok').count() === 1 && await p.locator('[data-atalho="servico"].co-atalho-ok').count() === 1);
   confere('atalho não mexe no profissional escolhido nem grava nada', await p.inputValue('#coProfissional') === ana.nome && (await db('comandos')).length === 2);
   await escolher(p, '#coForma', 'Pix'); await p.click('#btnSimular'); await p.waitForSelector('#cardPreview:not(.hidden)'); await p.click('#btnFechar'); await p.waitForSelector('#cardResultado:not(.hidden)');
   const ultimos = (await db('comando_itens')).slice(-3);

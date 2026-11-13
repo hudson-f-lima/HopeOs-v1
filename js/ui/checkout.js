@@ -128,7 +128,7 @@ function renderAtalhos() {
   const produtos = doCatalogo(state.catalog.produtos, maisVendidos.produtos);
   const botao = (tipo, x, preco) => [
     `<button type="button" class="co-atalho" data-atalho="${tipo}" data-id="${escapeHtml(x.id)}">`,
-    `<span>${escapeHtml(x.nome)}</span><small>${tipo === 'produto' ? 'Produto · ' : ''}${centsToBRL(preco || 0)}</small></button>`
+    `<span>${escapeHtml(x.nome)}</span><small>${centsToBRL(preco || 0)}</small></button>`
   ].join('');
   document.getElementById('coAtalhosLista').innerHTML = servicos.map(x => botao('servico', x, x.valor_centavos)).concat(produtos.map(x => botao('produto', x, x.preco_venda_centavos))).join('');
   bloco.classList.toggle('hidden', !(servicos.length + produtos.length));
@@ -612,7 +612,15 @@ export function initCheckout() {
   document.getElementById('btnAddItem').addEventListener('click', adicionarItem);
   document.getElementById('coAtalhosLista').addEventListener('click', ev => {
     const btn = ev.target.closest('[data-atalho]');
-    if (btn) usarAtalho(btn.dataset.atalho, btn.dataset.id);
+    if (!btn) return;
+    const antes = state.comandaItens.length;
+    usarAtalho(btn.dataset.atalho, btn.dataset.id);
+    // Retorno visual curto só quando o item entrou de fato na comanda.
+    if (state.comandaItens.length > antes) {
+      btn.classList.remove('co-atalho-ok');
+      void btn.offsetWidth; // reinicia a animação em toques seguidos
+      btn.classList.add('co-atalho-ok');
+    }
   });
   stateBus.addEventListener('catalog:updated', renderAtalhos);
   stateBus.addEventListener('checkout:closed', carregarAtalhos);
