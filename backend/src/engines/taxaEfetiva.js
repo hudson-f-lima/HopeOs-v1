@@ -28,4 +28,20 @@ function calcularTaxaEfetiva({ mdrPct, antecipacaoMesPct = 0, parcelas = 1 }) {
   };
 }
 
-module.exports = { calcularTaxaEfetiva };
+// Formas "Crédito 2x" … "Crédito Nx" a partir das taxas da maquininha. As adquirentes
+// costumam ter uma taxa para 2–6x e outra para 7–12x; se a segunda não vier, vale a
+// primeira. Com antecipação o dinheiro cai no dia seguinte (1 dia); sem, a primeira
+// parcela cai em 30 dias (o cadastro guarda um prazo só por forma).
+function gerarParcelados({ mdrAte6Pct, mdr7a12Pct, antecipacaoMesPct = 0, ateParcelas = 12 }) {
+  const ate = Number(ateParcelas);
+  if (!Number.isInteger(ate) || ate < 2 || ate > 12) throw new RangeError('ateParcelas deve ser inteiro de 2 a 12.');
+  const segunda = mdr7a12Pct === undefined || mdr7a12Pct === null || mdr7a12Pct === '' ? mdrAte6Pct : mdr7a12Pct;
+  const formas = [];
+  for (let n = 2; n <= ate; n++) {
+    const t = calcularTaxaEfetiva({ mdrPct: n <= 6 ? mdrAte6Pct : segunda, antecipacaoMesPct, parcelas: n });
+    formas.push({ code: `credito_${n}x`, label: `Crédito ${n}x`, parcelas: n, taxaPct: t.taxaEfetivaPct, diasRecebimento: t.antecipacaoMesPct > 0 ? 1 : 30, liquidoPor100Centavos: t.liquidoPor100Centavos });
+  }
+  return formas;
+}
+
+module.exports = { calcularTaxaEfetiva, gerarParcelados };

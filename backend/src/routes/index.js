@@ -274,6 +274,36 @@ router.get('/formas-pagamento/simular-taxa', authorize('cadastros:write'), (req,
   } catch (err) { next(err); }
 });
 
+// Cria (ou atualiza a taxa de) "Crédito 2x" … "Crédito Nx" de uma vez. Sem `gravar: true`
+// só devolve a prévia. Forma que já existe mantém nome e situação (ativa ou não); muda só
+// a taxa e o prazo. Comandas já fechadas não mudam: a taxa fica gravada em cada pagamento.
+router.post('/formas-pagamento/parcelados', authorize('cadastros:write'), async (req, res, next) => {
+  try {
+    const b = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const permitidos = ['mdrAte6Pct', 'mdr7a12Pct', 'antecipacaoMesPct', 'ateParcelas', 'gravar'];
+    for (const k of Object.keys(b)) if (!permitidos.includes(k)) throw createAppError('INVALID_FIELD', `Campo desconhecido: ${k}.`, 422, { field: k });
+    if (b.gravar !== undefined && typeof b.gravar !== 'boolean') throw createAppError('INVALID_FIELD', 'gravar deve ser true ou false.', 422, { field: 'gravar' });
+    const { gerarParcelados } = require('../engines/taxaEfetiva');
+    let formas;
+    try {
+      formas = gerarParcelados({ mdrAte6Pct: b.mdrAte6Pct, mdr7a12Pct: b.mdr7a12Pct, antecipacaoMesPct: b.antecipacaoMesPct === undefined ? 0 : b.antecipacaoMesPct, ateParcelas: b.ateParcelas === undefined ? 12 : b.ateParcelas });
+    } catch (err) {
+      if (err instanceof RangeError) throw createAppError('INVALID_FIELD', err.message, 422);
+      throw err;
+    }
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const atuais = new Map((await repo.list('formas_pagamento', { empresa_id: repo.empresaId })).map(f => [f.code, f]));
+    const linhas = formas.map(f => ({ ...f, jaExiste: atuais.has(f.code), taxaAtualPct: atuais.has(f.code) ? Number(atuais.get(f.code).taxa_pct) : null }));
+    if (b.gravar !== true) return res.json({ ok: true, data: { gravado: false, formas: linhas } });
+    let criadas = 0; let atualizadas = 0;
+    for (const f of linhas) {
+      if (f.jaExiste) { await repo.updateFormaPagamento(f.code, { taxa_pct: f.taxaPct, dias_recebimento: f.diasRecebimento }); atualizadas++; }
+      else { await repo.createFormaPagamento({ code: f.code, label: f.label, icon: null, taxa_pct: f.taxaPct, taxa_fixa_centavos: 0, dias_recebimento: f.diasRecebimento, ativo: true }); criadas++; }
+    }
+    res.status(criadas ? 201 : 200).json({ ok: true, data: { gravado: true, criadas, atualizadas, formas: linhas } });
+  } catch (err) { next(err); }
+});
+
 router.post('/formas-pagamento', authorize('cadastros:write'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);

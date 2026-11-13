@@ -67,6 +67,11 @@ function installMemoryBackend(seed = {}) {
     rows('formas_pagamento').push(row);
     return row;
   };
+  P.updateFormaPagamento = async function (code, payload) {
+    const row = rows('formas_pagamento').find(f => f.empresa_id === this.empresaId && f.code === code);
+    if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }
+    return Object.assign(row, payload);
+  };
   P.replaceProfissionalServicos = async function (profissionalId, servicoIds) {
     db.profissional_servicos = rows('profissional_servicos').filter(v => !(v.empresa_id === this.empresaId && v.profissional_id === profissionalId))
       .concat(servicoIds.map(servico_id => ({ empresa_id: this.empresaId, profissional_id: profissionalId, servico_id })));

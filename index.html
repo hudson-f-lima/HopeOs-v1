@@ -788,6 +788,7 @@
           <h2 style="margin-bottom:0;">Formas de pagamento</h2>
           <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovaForma">+ Nova</button>
         </div>
+        <button class="btn btn-secondary" type="button" id="btnParcelados" style="margin-bottom:10px;">Criar cartão parcelado (2x a 12x)</button>
         <label class="filter-inline"><input type="checkbox" id="chkFormasInativas"/> Mostrar inativas</label>
         <div id="listFormas"></div>
       </div>
@@ -892,6 +893,24 @@
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarForma" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarForma" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalParcelados">
+  <div class="modal-box">
+    <h2>Cartão parcelado</h2>
+    <p class="body-sm text-tertiary" style="margin:0 0 10px;">Informe as taxas da sua maquininha. O sistema cria uma forma de pagamento para cada parcelamento, já com a taxa efetiva.</p>
+    <p class="modal-error hidden" id="pcError"></p>
+    <div class="field"><label for="pcMdr6">Taxa de 2x a 6x (%)</label><input id="pcMdr6" inputmode="decimal" placeholder="Ex.: 3,5"/></div>
+    <div class="field"><label for="pcMdr12">Taxa de 7x a 12x (%)</label><input id="pcMdr12" inputmode="decimal" placeholder="Em branco = igual à de 2x a 6x"/></div>
+    <div class="field"><label for="pcAnt">Antecipação ao mês (%)</label><input id="pcAnt" inputmode="decimal" placeholder="0 se você não antecipa"/></div>
+    <div class="field"><label for="pcAte">Parcelar em até</label><select id="pcAte"><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12" selected>12x</option></select></div>
+    <button class="btn btn-secondary" type="button" id="btnPcPrevia">Ver taxas</button>
+    <div id="pcPrevia" class="dashboard-list" style="margin-top:10px;" aria-live="polite"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-secondary" type="button" id="btnPcCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnPcGravar" style="flex:1;" disabled>Criar formas</button>
     </div>
   </div>
 </div>
