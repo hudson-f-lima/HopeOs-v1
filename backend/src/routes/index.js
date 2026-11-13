@@ -625,6 +625,21 @@ router.post('/checkout/preview', authorize('checkout:write'), async (req, res, n
   } catch (err) { next(err); }
 });
 
+// Atalhos da comanda: os 4 serviços e 2 produtos mais vendidos nos últimos 90 dias.
+// Leitura separada do preview e do painel; a tela chama uma vez ao abrir.
+router.get('/checkout/mais-vendidos', authorize('checkout:write'), async (req, res, next) => {
+  try {
+    const { computeMaisVendidos } = require('../engines/insights/maisVendidos');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const filtro = { empresa_id: repo.empresaId };
+    const [comandos, comandoItens, servicos, produtos] = await Promise.all([
+      repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('servicos', filtro), repo.list('produtos', filtro)
+    ]);
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    res.json({ ok: true, data: computeMaisVendidos({ comandos, comandoItens, servicos, produtos, hoje }) });
+  } catch (err) { next(err); }
+});
+
 router.post('/checkout/close', authorize('checkout:write'), async (req, res, next) => {
   try {
     assertOwnCheckout(req, req.body);

@@ -117,6 +117,53 @@ function adicionarItem() {
   }
 }
 
+// ---- Atalhos "Mais vendidos": um toque põe o item na comanda ----
+let maisVendidos = { servicos: [], produtos: [] };
+
+function renderAtalhos() {
+  const bloco = document.getElementById('coAtalhos');
+  if (!bloco) return;
+  const doCatalogo = (lista, ids) => ids.map(id => (lista || []).find(x => x.id === id && x.ativo !== false)).filter(Boolean);
+  const servicos = doCatalogo(state.catalog.servicos, maisVendidos.servicos);
+  const produtos = doCatalogo(state.catalog.produtos, maisVendidos.produtos);
+  const botao = (tipo, x, preco) => [
+    `<button type="button" class="co-atalho" data-atalho="${tipo}" data-id="${escapeHtml(x.id)}">`,
+    `<span>${escapeHtml(x.nome)}</span><small>${tipo === 'produto' ? 'Produto · ' : ''}${centsToBRL(preco || 0)}</small></button>`
+  ].join('');
+  document.getElementById('coAtalhosLista').innerHTML = servicos.map(x => botao('servico', x, x.valor_centavos)).concat(produtos.map(x => botao('produto', x, x.preco_venda_centavos))).join('');
+  bloco.classList.toggle('hidden', !(servicos.length + produtos.length));
+}
+
+export async function carregarAtalhos() {
+  try {
+    maisVendidos = await api('/checkout/mais-vendidos');
+  } catch (_) {
+    maisVendidos = { servicos: [], produtos: [] }; // sem atalhos a comanda funciona igual
+  }
+  renderAtalhos();
+}
+
+// Serviço precisa de profissional: com um já escolhido no campo, entra direto; sem, o
+// serviço fica escolhido e o foco vai para o campo do profissional. Produto entra direto
+// (1 unidade), com o profissional do campo como vendedor, se houver.
+function usarAtalho(tipo, id) {
+  clearBanner();
+  const msg = document.getElementById('coAtalhosMsg');
+  msg.textContent = '';
+  const profissionalId = state.fuzzyProfissional.getValue();
+  if (tipo === 'servico' && !profissionalId) {
+    state.fuzzyServico.setValue(id);
+    msg.textContent = 'Escolha o profissional e toque em "Adicionar à comanda".';
+    document.getElementById('coProfissional').focus();
+    return;
+  }
+  if (state.comandaItens.length + 1 > MAX_ITENS) { showBanner(`Uma comanda aceita até ${MAX_ITENS} itens.`, 'error'); return; }
+  state.comandaItens.push(tipo === 'servico' ? { tipo, servicoId: id, profissionalId } : { tipo, produtoId: id, quantidade: 1, profissionalId: profissionalId || undefined });
+  renderComandaItens();
+  invalidatePayload();
+  msg.textContent = 'Adicionado. O profissional continua escolhido para o próximo item.';
+}
+
 function removerItem(indice) {
   state.comandaItens.splice(indice, 1);
   renderComandaItens();
@@ -563,6 +610,12 @@ export function initCheckout() {
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnAddItem').addEventListener('click', adicionarItem);
+  document.getElementById('coAtalhosLista').addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-atalho]');
+    if (btn) usarAtalho(btn.dataset.atalho, btn.dataset.id);
+  });
+  stateBus.addEventListener('catalog:updated', renderAtalhos);
+  stateBus.addEventListener('checkout:closed', carregarAtalhos);
   document.getElementById('coTaxaAviso').addEventListener('click', ev => {
     const btn = ev.target.closest('#btnTrocarForma');
     if (!btn) return;

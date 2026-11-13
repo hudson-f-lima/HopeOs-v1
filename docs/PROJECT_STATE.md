@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-025 (2026-11-13): cartão parcelado em lote (2x a 12x) e atalhos "Mais vendidos" na comanda: REAL. Gaveta de itens: não existe; decisão do dono pendente. PR #26 mesclado.
 - D-024 (2026-11-13): taxa da forma de pagamento visível na comanda antes de fechar, com a alternativa mais barata e botão de troca: REAL. PR #25 mesclado.
 - D-023 (2026-11-13): proposta externa de desempenho e margem adaptada — sugestão de meta pela média de 3 meses, calculadora de taxa do parcelado e margem por forma no painel: REAL. Painel de desempenho individual: BLOQUEADO até decisão do dono (risco trabalhista).
 - D-022 (2026-11-11, PR #24): redesign fase 1 — tokens de cor, modo escuro, Inter, alvos de toque e cartão "Agora" do profissional. Fase 2 (2026-11-13): Dashboard curto — "Precisa de você" no topo e o resto recolhido. Próximas fases: gaveta de itens da comanda, desktop da recepção e do gestor.

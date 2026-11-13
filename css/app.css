@@ -883,6 +883,15 @@ dialog {
 .agora-linha-texto{flex:1;display:flex;flex-direction:column;padding:8px 12px;border-radius:12px;background:var(--bg-app-light);font-size:13px;color:var(--text-secondary);}
 .agora-linha-texto b{font-size:14px;font-weight:600;color:var(--text-primary);}
 .agora-vazio{font-size:14px;color:var(--text-tertiary);}
+.co-atalhos{margin:0 0 14px;}
+.co-atalhos h3{margin:0 0 8px;}
+.co-atalhos-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.co-atalho{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:52px;padding:6px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);color:var(--text-primary);font-size:14px;font-weight:600;text-align:left;cursor:pointer;min-width:0;}
+.co-atalho span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.co-atalho small{font-size:12px;font-weight:500;color:var(--text-secondary);}
+.co-atalho:active{background:var(--bg-glass-light);}
+.co-atalho:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+#coAtalhosMsg{margin:6px 0 0;min-height:0;}
 .co-itens{margin:12px 0;padding:10px 12px;border:1px solid var(--md-surface-variant);border-radius:10px;}
 .co-itens h3{margin:0 0 6px;}
 .co-item-remover{min-width:var(--tap-min);min-height:var(--tap-min);margin-left:8px;border-radius:8px;color:var(--md-error);font-weight:700;}

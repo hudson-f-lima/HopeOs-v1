@@ -317,6 +317,36 @@ test('T04 HTTP parcelados: prévia não grava; gravar cria; repetir atualiza só
   assert.strictEqual(doTenant().length, 6, 'entradas ruins não gravam');
 });
 
+test('V01 mais vendidos: conta unidades na janela, ignora inativo e fora da janela, desempata pelo mais recente', () => {
+  const { computeMaisVendidos } = require('../src/engines/insights/maisVendidos');
+  const cs = [{ id: 'c1', data: '2026-06-10' }, { id: 'c2', data: '2026-06-20' }, { id: 'velha', data: '2026-01-01' }];
+  const it = (comando_id, tipo, id, quantidade = 1) => ({ comando_id, tipo, quantidade, [tipo === 'servico' ? 'servico_id' : 'produto_id']: id });
+  const itens = [it('c1', 'servico', 's1'), it('c2', 'servico', 's1'), it('c1', 'servico', 's2'), it('c2', 'servico', 's3'), it('c1', 'servico', 's4'), it('c2', 'servico', 's5'), it('c1', 'servico', 'sInativo'), it('c2', 'servico', 'sInativo'), it('c2', 'servico', 'sInativo'),
+    it('velha', 'servico', 's2'), it('velha', 'servico', 's2'), it('velha', 'servico', 's2'), it('c1', 'produto', 'p1', 5), it('c2', 'produto', 'p2', 2), it('c2', 'produto', 'p3', 1), it('c1', 'produto', 'apagado', 9)];
+  const servicos = ['s1', 's2', 's3', 's4', 's5'].map(id => ({ id, nome: id.toUpperCase(), ativo: true })).concat({ id: 'sInativo', nome: 'X', ativo: false });
+  const produtos = ['p1', 'p2', 'p3'].map(id => ({ id, nome: id, ativo: true }));
+  const r = computeMaisVendidos({ comandos: cs, comandoItens: itens, servicos, produtos, hoje: '2026-06-30' });
+  // s1 = 2; s2, s3, s4, s5 = 1 cada: os de 20/06 (s3, s5) antes dos de 10/06 (s2, s4); cabem 4.
+  assert.deepStrictEqual(r, { dias: 90, servicos: ['s1', 's3', 's5', 's2'], produtos: ['p1', 'p2'] });
+  assert.deepStrictEqual(computeMaisVendidos({ hoje: '2026-06-30' }), { dias: 90, servicos: [], produtos: [] });
+  // Controle negativo: com janela de 365 dias a comanda antiga entra e o s2 passa à frente.
+  assert.deepStrictEqual(computeMaisVendidos({ comandos: cs, comandoItens: itens, servicos, produtos, hoje: '2026-06-30', dias: 365 }).servicos[0], 's2');
+});
+
+test('V02 HTTP mais vendidos: só ids da própria empresa; quem fecha comanda lê; sem login não', async () => {
+  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  banco.servicos = [{ id: 'sv1', empresa_id: E, nome: 'Corte', ativo: true }, { id: 'svb', empresa_id: EB, nome: 'Corte B', ativo: true }];
+  banco.produtos = [{ id: 'pd1', empresa_id: E, nome: 'Pomada', ativo: true }];
+  banco.comandos.push({ id: 'mv1', empresa_id: E, data: hojeSP }, { id: 'mvb', empresa_id: EB, data: hojeSP });
+  banco.comando_itens.push({ id: 'mvi1', empresa_id: E, comando_id: 'mv1', tipo: 'servico', servico_id: 'sv1', quantidade: 1 }, { id: 'mvi2', empresa_id: E, comando_id: 'mv1', tipo: 'produto', produto_id: 'pd1', quantidade: 2 },
+    { id: 'mvib', empresa_id: EB, comando_id: 'mvb', tipo: 'servico', servico_id: 'svb', quantidade: 50 });
+  const r = await request('GET', '/api/checkout/mais-vendidos');
+  assert.deepStrictEqual([r.status, r.data.data], [200, { dias: 90, servicos: ['sv1'], produtos: ['pd1'] }]);
+  for (const token of ['h.recep.s', 'h.prof.s']) assert.strictEqual((await request('GET', '/api/checkout/mais-vendidos', { token })).status, 200);
+  assert.strictEqual((await request('GET', '/api/checkout/mais-vendidos', { token: null })).status, 401);
+  assert.deepStrictEqual((await request('GET', '/api/checkout/mais-vendidos', { token: 'h.adminb.s' })).data.data.servicos, ['svb']);
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));
