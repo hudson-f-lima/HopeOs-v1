@@ -226,6 +226,25 @@ test('B09 onboarding: cargos idempotentes; serviços de preset criam a categoria
   assert.strictEqual(new Set(nomesCat).size, nomesCat.length, 'categoria não duplicada (Barba já existia)');
 });
 
+test('B90 comparativo de formas no preview: mesma conta do fechamento, da mais barata à mais cara; não grava', async () => {
+  const { custoPorForma } = require('../src/engines/PaymentEngine');
+  const formas = [
+    { code: 'credito_6x', label: 'Crédito 6x', taxa_pct: 9.5795, taxa_fixa_centavos: 0, ativo: true },
+    { code: 'pix', label: 'Pix', taxa_pct: 0, taxa_fixa_centavos: 0, ativo: true },
+    { code: 'debito', label: 'Débito', taxa_pct: 1.5, taxa_fixa_centavos: 10, ativo: true },
+    { code: 'cheque', label: 'Cheque', taxa_pct: 50, taxa_fixa_centavos: 0, ativo: false }
+  ];
+  // 60,00: Pix 0; Débito 0,90 + 0,10 = 1,00; 6x 5,7477 → 5,75. Inativa fica fora.
+  assert.deepStrictEqual(custoPorForma({ totalCentavos: 6000, formasPagamento: formas }).map(f => [f.formaCode, f.taxaCentavos, f.liquidoCentavos]), [['pix', 0, 6000], ['debito', 100, 5900], ['credito_6x', 575, 5425]]);
+  assert.deepStrictEqual([custoPorForma({ totalCentavos: 0, formasPagamento: formas }), custoPorForma({ totalCentavos: 6000 })], [[], []]);
+  const r = await preview();
+  assert.strictEqual(r.status, 200);
+  const total = r.data.data.totals.totalRecebidoCentavos;
+  assert.deepStrictEqual(r.data.data.comparativoFormas, [{ formaCode: 'pix', label: 'Pix', taxaCentavos: 0, liquidoCentavos: total }]);
+  // A taxa do comparativo para a forma escolhida é a mesma do resumo.
+  assert.strictEqual(r.data.data.comparativoFormas[0].taxaCentavos, r.data.data.totals.taxaTotalCentavos);
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));
