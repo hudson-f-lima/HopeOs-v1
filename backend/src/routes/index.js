@@ -586,7 +586,12 @@ router.post('/checkout/preview', authorize('checkout:write'), async (req, res, n
     const repo = new SupabaseRepository(req.auth.empresa_id);
     await validarVinculoAgendamento(req, repo);
     const { resolved } = await buildServerResolvedCheckout(repo, req.body);
-    res.json({ ok: true, data: previewCheckout(resolved) });
+    const preview = previewCheckout(resolved);
+    // Comparativo para o balcão: a taxa de cada forma sobre o total desta comanda.
+    // Fica só na resposta do preview; o fechamento recalcula tudo e não lê este campo.
+    const { custoPorForma } = require('../engines/PaymentEngine');
+    const comparativoFormas = custoPorForma({ totalCentavos: preview.totals.totalRecebidoCentavos, formasPagamento: resolved.formasPagamento });
+    res.json({ ok: true, data: { ...preview, comparativoFormas } });
   } catch (err) { next(err); }
 });
 

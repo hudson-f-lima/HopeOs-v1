@@ -21,6 +21,8 @@ async function escolher(p, campo, texto) {
   const pomada = await legado('/produtos', { nome: 'Pomada', custoCentavos: 1000, precoVendaCentavos: 3000, estoqueInicial: 10, comissaoPct: 10 });
   const shampoo = await legado('/produtos', { nome: 'Shampoo', custoCentavos: 1500, precoVendaCentavos: 4500, estoqueInicial: 5 });
   confere('produtos do seed', pomada.ok && shampoo.ok, JSON.stringify([pomada.error, shampoo.error]));
+  const seisx = await legado('/formas-pagamento', { code: 'credito_6x', label: 'Crédito 6x', taxaPct: 9.5795 });
+  confere('forma Crédito 6x criada', seisx.ok, JSON.stringify(seisx.error));
   const profs = await db('profissionais');
   const ana = profs.find(x => x.nome === 'Ana'); const bruno = profs.find(x => x.id !== ana.id);
 
@@ -57,6 +59,16 @@ async function escolher(p, campo, texto) {
   confere('serviço sem profissional é barrado', await p.locator('#coItensLista [data-item]').count() === 4);
   // Apagar o campo à mão desfaz a escolha (antes ela ficava escondida e ia para a comanda).
   await p.fill('#coServico', '');
+  // Taxa visível antes de fechar: 205,00 em 6x a 9,5795% = 19,64 de taxa; no Pix, zero.
+  await escolher(p, '#coForma', 'Crédito 6x'); await p.click('#btnSimular'); await p.waitForSelector('#coTaxaAviso:not(.hidden)');
+  const aviso = (await p.textContent('#coTaxaAviso')).replace(/\s+/g, ' ');
+  confere('aviso: 6x custa 19,64 e o Pix sai 19,64 mais barato', await p.getAttribute('#coTaxaAviso', 'data-taxa') === '1964' && /19,64/.test(aviso) && /Pix/.test(aviso) && /a menos/.test(aviso), aviso);
+  confere('aviso bate com a taxa do resumo', /19,64/.test(await p.textContent('#pvTaxa')), await p.textContent('#pvTaxa'));
+  confere('botão de troca com 44px', (await p.locator('#btnTrocarForma').boundingBox()).height >= 44);
+  await p.click('#btnTrocarForma');
+  await p.waitForFunction(() => /não tem taxa/.test(document.getElementById('coTaxaAviso').textContent));
+  confere('trocar para Pix: campo muda, taxa zera e nada foi gravado', await p.inputValue('#coForma') === 'Pix' && /0,00/.test(await p.textContent('#pvTaxa')) && (await db('comandos')).length === 0);
+  await p.locator('#coTaxaAviso').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-taxa-aviso.png') });
   // Focar um campo já escolhido não desfaz a escolha.
   await escolher(p, '#coForma', 'Pix'); await p.focus('#coCliente'); await p.focus('#coForma'); await p.focus('#coCliente');
 

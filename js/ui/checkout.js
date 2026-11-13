@@ -149,6 +149,36 @@ function buildPayload() {
   };
 }
 
+// Aviso no balcão: quanto a forma escolhida custa ao salão nesta comanda e qual seria a
+// mais barata. Os valores vêm do preview do servidor (mesma conta do fechamento).
+function renderTaxaAviso(preview, payload) {
+  const aviso = document.getElementById('coTaxaAviso');
+  if (!aviso) return;
+  const lista = Array.isArray(preview.comparativoFormas) ? preview.comparativoFormas : [];
+  const pagamentos = payload.payments || [];
+  aviso.classList.add('hidden');
+  aviso.innerHTML = '';
+  // Pagamento dividido: a taxa total já aparece no resumo; não há uma forma única para comparar.
+  if (pagamentos.length !== 1 || !lista.length) return;
+  const escolhida = lista.find(f => f.formaCode === pagamentos[0].formaCode);
+  if (!escolhida) return;
+  const barata = lista[0];
+  aviso.dataset.taxa = String(escolhida.taxaCentavos);
+  if (escolhida.taxaCentavos <= 0) {
+    aviso.innerHTML = '<span>Esta forma não tem taxa para o salão.</span>';
+  } else {
+    const economia = escolhida.taxaCentavos - barata.taxaCentavos;
+    const texto = [`<span>Esta forma custa <b>${centsToBRL(escolhida.taxaCentavos)}</b> de taxa ao salão (ficam ${centsToBRL(escolhida.liquidoCentavos)}).`];
+    if (economia > 0) texto.push(` Com ${escapeHtml(barata.label)} a taxa seria ${centsToBRL(barata.taxaCentavos)}: <b>${centsToBRL(economia)} a menos</b>.`);
+    texto.push('</span>');
+    if (economia > 0) texto.push(`<button type="button" id="btnTrocarForma" data-forma="${escapeHtml(barata.formaCode)}">Trocar para ${escapeHtml(barata.label)}</button>`);
+    aviso.innerHTML = texto.join('');
+  }
+  aviso.classList.remove('hidden');
+  // Com taxa a pagar, garante que o aviso esteja na tela antes do toque em "Fechar".
+  if (escolhida.taxaCentavos > 0) aviso.scrollIntoView({ block: 'nearest' });
+}
+
 export async function simular() {
   clearBanner();
   document.getElementById('cardPreview').classList.add('hidden');
@@ -172,6 +202,7 @@ export async function simular() {
     document.getElementById('pvGorjetaLiquida').textContent = centsToBRL(t.totalGorjetaLiquidaCentavos);
     document.getElementById('pvReceita').textContent = centsToBRL(t.receitaEmpresaCentavos);
     document.getElementById('cardPreview').classList.remove('hidden');
+    renderTaxaAviso(preview, payload);
     renderSplitRows();
     updateSubmitButtonState();
   } catch (err) {
@@ -337,6 +368,7 @@ function invalidatePreview() {
   state.currentPreview = null;
   const card = document.getElementById('cardPreview');
   if (card) card.classList.add('hidden');
+  document.getElementById('coTaxaAviso')?.classList.add('hidden');
   updateSubmitButtonState();
 }
 
@@ -347,6 +379,7 @@ function invalidatePayload() {
   state.currentPayload = null;
   const card = document.getElementById('cardPreview');
   if (card) card.classList.add('hidden');
+  document.getElementById('coTaxaAviso')?.classList.add('hidden');
   updateSubmitButtonState();
 }
 
@@ -530,6 +563,12 @@ export function initCheckout() {
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnAddItem').addEventListener('click', adicionarItem);
+  document.getElementById('coTaxaAviso').addEventListener('click', ev => {
+    const btn = ev.target.closest('#btnTrocarForma');
+    if (!btn) return;
+    state.fuzzyForma.setValue(btn.dataset.forma);
+    simular();
+  });
   document.getElementById('coItensLista').addEventListener('click', ev => {
     const btn = ev.target.closest('[data-remover-item]');
     if (btn) removerItem(Number(btn.dataset.removerItem));

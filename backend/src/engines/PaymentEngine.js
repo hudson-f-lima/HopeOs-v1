@@ -60,4 +60,17 @@ function calculatePayments({ payments, formasPagamento, servicesNetCents, tipGro
   };
 }
 
-module.exports = { calculatePayments };
+// Quanto custaria ao salão receber `totalCentavos` inteiro em cada forma ativa — a
+// mesma conta de taxa do fechamento (feeForPayment). Só informa: quem decide a forma é
+// quem está no caixa, e o que vale é a taxa gravada no fechamento. Da mais barata para
+// a mais cara; empate pelo nome.
+function custoPorForma({ totalCentavos, formasPagamento = [] }) {
+  const total = roundCents(totalCentavos);
+  if (!(total > 0)) return [];
+  return formasPagamento.filter(f => f && f.ativo !== false).map(f => {
+    const taxaCentavos = feeForPayment({ valorCentavos: total }, f);
+    return { formaCode: f.code, label: f.label || f.code, taxaCentavos, liquidoCentavos: total - taxaCentavos };
+  }).sort((a, b) => a.taxaCentavos - b.taxaCentavos || String(a.label).localeCompare(String(b.label)));
+}
+
+module.exports = { calculatePayments, custoPorForma };
