@@ -23,9 +23,28 @@ function renderMetas(lista) {
   el('metasLista').innerHTML = linhas || `<p class="empty-state">${gestao() ? 'Nenhuma meta definida para este mês.' : 'O salão não definiu meta para você neste mês.'}</p>`;
 }
 
+// Meta do salão (D-027): reconhecimento sem valor. Só totais do salão; não entra em
+// comissão nem em pagamento. Some quando o mês não tem metas de faturamento.
+async function atualizarMetaSalao(mes) {
+  const bloco = el('metaSalaoBloco');
+  if (!bloco) return;
+  try {
+    const m = await api(`/gamificacao/meta-salao?mes=${encodeURIComponent(mes)}`);
+    if (!m.temMetas) { bloco.classList.add('hidden'); bloco.innerHTML = ''; return; }
+    const pct = Math.min(100, Math.max(0, m.percentual));
+    bloco.innerHTML = m.reconhecida
+      ? `<div class="meta-salao-selo"><span aria-hidden="true">★</span> Meta do salão atingida neste mês</div><p class="body-sm text-tertiary" style="margin:4px 0 0;">${centsToBRL(m.realizadoCentavos)} de ${centsToBRL(m.metaCentavos)} em serviços.</p>`
+      : `<div class="body-sm"><b>Meta do salão:</b> ${m.percentual}% (${centsToBRL(m.realizadoCentavos)} de ${centsToBRL(m.metaCentavos)} em serviços)</div><progress max="100" value="${pct}" aria-label="Meta do salão: ${m.percentual}%"></progress>`;
+    bloco.classList.remove('hidden');
+  } catch (_) {
+    bloco.classList.add('hidden'); bloco.innerHTML = '';
+  }
+}
+
 export async function atualizarMetas(mes, profissionalId) {
   contexto = { mes, profissionalId: profissionalId || null };
   el('metasErro').textContent = '';
+  atualizarMetaSalao(mes);
   try {
     const r = await api(`/metas?mes=${encodeURIComponent(mes)}`);
     const lista = gestao() ? r.metas.filter(m => m.profissionalId === profissionalId) : r.metas;

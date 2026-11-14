@@ -5,7 +5,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
 
 const router = express.Router();
 const ALVO_MAX = { faturamento: 1000000000, atendimentos: 100000, produtos: 1000000000 }; // R$ 10 mi; 100 mil atendimentos
@@ -54,6 +54,17 @@ router.get('/metas', authorize('metas:read'), async (req, res, next) => {
     let lista = computeMetas({ metas, desempenho, mes });
     if (req.authz.own) lista = lista.filter(m => m.profissionalId === req.authz.profissionalId);
     res.json({ ok: true, data: { mes, metas: lista } });
+  } catch (err) { next(err); }
+});
+
+// Meta do salão (D-027): reconhecimento sem valor para admin, gestão e profissional.
+// Só totais; nenhum nome, nenhum valor por pessoa.
+router.get('/gamificacao/meta-salao', authorize('metas:read'), async (req, res, next) => {
+  try {
+    const mes = mesValido(req.query.mes);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [desempenho, metas] = await Promise.all([desempenhoDoMes(repo, mes), repo.list('metas', { empresa_id: repo.empresaId, mes })]);
+    res.json({ ok: true, data: computeMetaSalao({ desempenho, metas, mes }) });
   } catch (err) { next(err); }
 });
 

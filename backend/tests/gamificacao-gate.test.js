@@ -11,7 +11,7 @@ const { env } = require('../src/config/env');
 const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
-const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
 const { calcularTaxaEfetiva, gerarParcelados } = require('../src/engines/taxaEfetiva');
 const { ACTIONS } = require('../src/auth/rbac');
 const { createAppError } = require('../src/errors');
@@ -221,6 +221,29 @@ test('M14 HTTP: meta de produtos e ranking por critério; critério inválido �
 
 // ---------- Sugestão de meta e taxa efetiva (Onda 1 da análise de desempenho e margem) ----------
 const dm = (id, nome, atendimentos, fat, prod = 0) => ({ profissionalId: id, nome, atendimentos, faturamentoCentavos: fat, produtosCentavos: prod, totalCentavos: fat + prod });
+
+test('R01 meta do salão: soma das metas de faturamento; quem não tem meta fica fora; reconhece só ao chegar', () => {
+  const metas = [{ profissional_id: 'a', mes: MES, tipo: 'faturamento', valor_alvo: 20000 }, { profissional_id: 'b', mes: MES, tipo: 'faturamento', valor_alvo: 30000 },
+    { profissional_id: 'c', mes: MES, tipo: 'atendimentos', valor_alvo: 5 }, { profissional_id: 'd', mes: MES, tipo: 'faturamento', valor_alvo: 0 }];
+  const des = [{ profissionalId: 'a', faturamentoCentavos: 10000 }, { profissionalId: 'b', faturamentoCentavos: 20000 }, { profissionalId: 'c', faturamentoCentavos: 99999 }, { profissionalId: 'd', faturamentoCentavos: 99999 }];
+  const r = computeMetaSalao({ desempenho: des, metas, mes: MES });
+  assert.deepStrictEqual([r.metaCentavos, r.realizadoCentavos, r.percentual, r.reconhecida, r.profissionaisComMeta], [50000, 30000, 60, false, 2]);
+  const bateu = computeMetaSalao({ desempenho: [{ profissionalId: 'a', faturamentoCentavos: 20000 }, { profissionalId: 'b', faturamentoCentavos: 30000 }], metas, mes: MES });
+  assert.deepStrictEqual([bateu.percentual, bateu.reconhecida], [100, true]);
+  assert.deepStrictEqual(computeMetaSalao({ desempenho: des, metas: [], mes: MES }), { mes: MES, temMetas: false, metaCentavos: 0, realizadoCentavos: 0, percentual: null, reconhecida: false, profissionaisComMeta: 0 });
+  assert.ok(Object.keys(r).every(k => !/nome|profissional_?id|profissionalId/i.test(k) || k === 'profissionaisComMeta'), 'sem dados por pessoa');
+});
+
+test('R02 HTTP meta do salão: admin, gestão e profissional leem; recepção não; resposta sem nomes', async () => {
+  for (const token of ['h.admin.s', 'h.prof.s']) {
+    const r = await request('GET', `/api/gamificacao/meta-salao?mes=${MES}`, { token });
+    assert.strictEqual(r.status, 200, token);
+    assert.ok(!/"nome"/.test(JSON.stringify(r.data)), 'sem nome de pessoa');
+    assert.deepStrictEqual(Object.keys(r.data.data).sort(), ['mes', 'metaCentavos', 'percentual', 'profissionaisComMeta', 'realizadoCentavos', 'reconhecida', 'temMetas']);
+  }
+  assert.strictEqual((await request('GET', `/api/gamificacao/meta-salao?mes=${MES}`, { token: 'h.recep.s' })).status, 403);
+  assert.strictEqual((await request('GET', `/api/gamificacao/meta-salao?mes=2026-13`)).status, 422);
+});
 
 test('S01 meses anteriores: 3 meses fechados, virando o ano', () => {
   assert.deepStrictEqual(mesesAnteriores('2026-06'), ['2026-03', '2026-04', '2026-05']);

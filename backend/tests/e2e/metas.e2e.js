@@ -127,6 +127,22 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await p.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-prof.png') });
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
 
+  // ---- Meta do salão (D-027): reconhecimento sem valor ----
+  const mesAtual = hojeSP.slice(0, 7);
+  const aberto = async pg => { await pg.dispatchEvent('#ganhosMes', 'change'); await pg.waitForTimeout(700); };
+  await aberto(a);
+  confere('gestão: bloco "Meta do salão" aparece com percentual', /Meta do salão:/.test(await a.textContent('#metaSalaoBloco')) && !(await a.isVisible('#metaSalaoBloco .meta-salao-selo')), (await a.textContent('#metaSalaoBloco')).replace(/\s+/g, ' ').trim());
+  // Baixa a meta da Ana para o que ela já fez no mês: o salão passa a ter a meta batida.
+  const meta = await a.evaluate(async ({ id, mes }) => { const { api } = await import('/js/api.js'); try { await api('/metas', { method: 'PUT', body: { profissionalId: id, mes, tipo: 'faturamento', valorAlvo: 4000 } }); return { ok: true }; } catch (e) { return { ok: false, erro: e.message }; } }, { id: ana.id, mes: mesAtual });
+  confere('meta de teste baixada para o realizado da Ana', meta.ok === true, JSON.stringify(meta.erro));
+  await abrirGanhos(a); await a.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});
+  confere('gestão: meta do salão atingida aparece como reconhecimento', await a.isVisible('#metaSalaoBloco .meta-salao-selo'));
+  await aberto(p);
+  await p.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});
+  const textoProf = (await p.textContent('#metaSalaoBloco')).replace(/\s+/g, ' ').trim();
+  confere('profissional: vê o reconhecimento sem nomes nem valores de colegas', await p.isVisible('#metaSalaoBloco .meta-salao-selo') && !/Ana|Bruno|Caio/.test(textoProf), textoProf);
+  await p.locator('#metaSalaoBloco').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-meta-salao.png') }).catch(() => {});
+  console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
   await b.close();
   console.log('ERROS:', JSON.stringify(falhas));
   if (falhas.length) process.exitCode = 1;

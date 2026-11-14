@@ -580,6 +580,9 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .taxa-aviso{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:-4px 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);font-size:13px;line-height:1.4;color:var(--text-secondary);}
 .taxa-aviso b{color:var(--text-primary);}
 .taxa-aviso button{flex:none;min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--bg-glass-light);color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;}
+.meta-salao{margin:8px 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);}
+.meta-salao progress{width:100%;margin-top:6px;}
+.meta-salao-selo{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--primary);}
 .meta-sugestao{display:grid;grid-template-columns:1fr;gap:8px;align-items:end;margin-top:8px;}
 .taxa-calc{margin:0 0 12px;padding:0 12px;border:1px solid var(--border);border-radius:12px;}
 .taxa-calc summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:14px;font-weight:600;color:var(--primary);}
