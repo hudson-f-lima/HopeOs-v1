@@ -593,6 +593,16 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
   .desempenho-linha span[data-col]{display:block;}
   .desempenho-linha span[data-col] small{display:none;}
 }
+progress{accent-color:var(--primary);}
+.metas-equipe{margin:0 0 12px;}
+.equipe-lista{display:flex;flex-direction:column;gap:8px;}
+.equipe-item{display:flex;flex-direction:column;gap:6px;width:100%;min-height:60px;padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--bg-surface);color:var(--text-primary);text-align:left;cursor:pointer;font:inherit;}
+.equipe-item progress{width:100%;}
+.equipe-item[aria-current]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset;}
+.equipe-item:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+.equipe-sem-meta{border-style:dashed;}
+.equipe-topo{display:flex;justify-content:space-between;gap:10px;font-size:14px;}
+.equipe-topo span{color:var(--text-secondary);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;}
 .meta-salao{margin:8px 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);}
 .meta-salao progress{width:100%;margin-top:6px;}
 .meta-salao-selo{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--primary);}

@@ -21,7 +21,7 @@ async function entrar(b, email, esperados = []) {
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   return p;
 }
-const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)'); await p.click('#subtabBtnGanhos'); };
+const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSelector('#tab-metas:not(.hidden)'); await p.waitForTimeout(500); };
 
 (async () => {
   const servicos = await db('servicos'); const profs = await db('profissionais');
@@ -54,7 +54,11 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   const a = await entrar(b, 'admin@dev.local');
   await abrirGanhos(a); await a.waitForSelector('#rankingBloco:not(.hidden)');
   confere('admin: ranking com valores em reais', (await a.textContent('#rankingLista')).includes('R$') && await a.getAttribute('#rankingLista [data-posicao="1"]', 'data-voce') === '0');
-  await a.selectOption('#ganhosProfissional', ana.id); await a.waitForSelector('#metasForm:not(.hidden)');
+  // Navegação nova (D-030): a equipe aparece sem escolher ninguém; tocar na pessoa abre o detalhe.
+  await a.waitForSelector('#metasEquipe:not(.hidden) [data-equipe-prof]');
+  confere('gestão: lista da equipe à vista na aba Metas', await a.locator('#metasEquipe [data-equipe-prof]').count() >= 2 && await a.textContent('#navMetasLabel') === 'Metas');
+  await a.click(`#metasEquipe [data-equipe-prof="${ana.id}"]`); await a.waitForSelector('#metasForm:not(.hidden)');
+  confere('gestão: tocar na pessoa escolhe o profissional', await a.inputValue('#ganhosProfissional') === ana.id);
   await a.fill('#metaFaturamento', '80,00'); await a.fill('#metaProdutos', '60,00'); await a.fill('#metaAtendimentos', '1'); await a.click('#btnSalvarMetas');
   await a.waitForSelector('[data-meta="faturamento"]');
   confere('admin: meta de faturamento 40,00 de 80,00 = 50%', await a.getAttribute('[data-meta="faturamento"]', 'data-percentual') === '50' && await a.getAttribute('[data-meta="faturamento"]', 'data-atingida') === '0');
@@ -83,9 +87,10 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await a.waitForFunction(nome => !(document.querySelector('#rankingLista [data-posicao="1"]') || {}).textContent?.includes(nome), ana.nome);
   await a.check('#rankingVisivel'); await a.waitForFunction(() => /passa a ver/.test(document.getElementById('rankingMsg').textContent));
   confere('admin: visibilidade do ranking gravada na empresa', (await db('empresas'))[0].ranking_visivel_equipe === true);
-  await a.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });
+  await a.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });
 
   // Calculadora da taxa do parcelado: 6x, MDR 3,5%, antecipação 1,8% a.m. → 9,5795%.
+  await a.click('#navAvatar'); await a.waitForSelector('#sheetGestao:not(.hidden)');
   await a.click('.subtab-btn[data-subtab="formas"]'); await a.click('#btnNovaForma'); await a.waitForSelector('#fmCode');
   await a.click('#fmCalc > summary');
   await a.fill('#fmCalcMdr', '3,5'); await a.fill('#fmCalcAnt', '1,8'); await a.selectOption('#fmCalcParcelas', '6'); await a.click('#btnFmCalc');
@@ -119,24 +124,25 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   // ---- Profissional depois: própria meta e ranking sem o valor do colega ----
   const p = await entrar(b, 'profissional@dev.local');
   await abrirGanhos(p); await p.waitForSelector('#rankingBloco:not(.hidden)');
+  confere('profissional: aba "Meu mês" na barra e agenda como "Hoje"', await p.textContent('#navMetasLabel') === 'Meu mês' && await p.textContent('#navAgendaLabel') === 'Hoje' && !(await p.isVisible('#metasEquipe')));
   confere('profissional: vê a própria meta em 50%', await p.getAttribute('[data-meta="faturamento"]', 'data-percentual') === '50');
   const linhas = await p.$$eval('#rankingLista [data-posicao]', ns => ns.map(n => [n.dataset.posicao, n.dataset.voce, n.textContent.replace(/\s+/g, ' ').trim()]));
   confere('profissional: está em 2º e marcado como "você"', linhas.length === 2 && linhas[1][0] === '2' && linhas[1][1] === '1' && linhas[1][2].includes('(você)'), JSON.stringify(linhas));
   confere('profissional: não vê o valor em reais do colega', !linhas[0][2].includes('R$') && linhas[0][2].includes('100% do 1º') && linhas[1][2].includes('R$'));
   confere('profissional: sem formulário de meta nem chave do ranking', !(await p.isVisible('#metasForm')) && !(await p.isVisible('#rankingVisivelWrap')));
-  await p.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-prof.png') });
+  await p.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-prof.png') });
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
 
   // ---- Meta do salão (D-027): reconhecimento sem valor ----
   const mesAtual = hojeSP.slice(0, 7);
   const aberto = async pg => { await pg.dispatchEvent('#ganhosMes', 'change'); await pg.waitForTimeout(700); };
   await aberto(a);
-  confere('gestão: bloco "Meta do salão" aparece com percentual', /Meta do salão:/.test(await a.textContent('#metaSalaoBloco')) && !(await a.isVisible('#metaSalaoBloco .meta-salao-selo')), (await a.textContent('#metaSalaoBloco')).replace(/\s+/g, ' ').trim());
+  confere('gestão: bloco "Meta do salão" aparece com percentual', /Meta do salão:/.test(await a.textContent('[data-meta-salao-equipe]')) && !(await a.isVisible('[data-meta-salao-equipe] .meta-salao-selo')), (await a.textContent('[data-meta-salao-equipe]')).replace(/\s+/g, ' ').trim());
   // Baixa a meta da Ana para o que ela já fez no mês: o salão passa a ter a meta batida.
   const meta = await a.evaluate(async ({ id, mes }) => { const { api } = await import('/js/api.js'); try { await api('/metas', { method: 'PUT', body: { profissionalId: id, mes, tipo: 'faturamento', valorAlvo: 4000 } }); return { ok: true }; } catch (e) { return { ok: false, erro: e.message }; } }, { id: ana.id, mes: mesAtual });
   confere('meta de teste baixada para o realizado da Ana', meta.ok === true, JSON.stringify(meta.erro));
-  await abrirGanhos(a); await a.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});
-  confere('gestão: meta do salão atingida aparece como reconhecimento', await a.isVisible('#metaSalaoBloco .meta-salao-selo'));
+  await abrirGanhos(a); await a.waitForSelector('[data-meta-salao-equipe] .meta-salao-selo', { timeout: 8000 }).catch(() => {});
+  confere('gestão: meta do salão atingida aparece como reconhecimento no topo da equipe', await a.isVisible('[data-meta-salao-equipe] .meta-salao-selo') && !(await a.isVisible('#metaSalaoBloco')));
   await aberto(p);
   await p.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});
   const textoProf = (await p.textContent('#metaSalaoBloco')).replace(/\s+/g, ' ').trim();

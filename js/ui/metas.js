@@ -44,7 +44,8 @@ async function atualizarMetaSalao(mes) {
 export async function atualizarMetas(mes, profissionalId) {
   contexto = { mes, profissionalId: profissionalId || null };
   el('metasErro').textContent = '';
-  atualizarMetaSalao(mes);
+  // Gestão vê a meta do salão no topo da lista da equipe; aqui só o profissional.
+  if (!gestao()) atualizarMetaSalao(mes);
   try {
     const r = await api(`/metas?mes=${encodeURIComponent(mes)}`);
     const lista = gestao() ? r.metas.filter(m => m.profissionalId === profissionalId) : r.metas;

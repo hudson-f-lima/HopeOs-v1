@@ -439,6 +439,66 @@
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
     </section>
 
+    <section id="tab-metas" class="tab-content hidden" aria-labelledby="metasTitulo">
+      <div class="dashboard-header">
+        <div>
+          <h2 id="metasTitulo">Metas e desempenho</h2>
+          <p class="dashboard-subtitle" id="metasSubtitulo">Meta do salão, equipe e desempenho do mês.</p>
+        </div>
+      </div>
+      <section id="metasEquipe" class="metas-equipe hidden" aria-label="Equipe"></section>
+      <div id="metasDetalhe">
+      <div class="card">
+        <h2 class="m-0" style="margin-bottom:4px;">Ganhos do mês</h2>
+        <p class="body-sm text-tertiary" style="margin:0 0 10px;">Comissão e gorjeta de cada comanda fechada.</p>
+        <div class="field"><label for="ganhosMes">Mês</label><input type="month" id="ganhosMes"></div>
+        <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
+        <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+        <div id="ganhosResultado"></div>
+        <div id="metasBloco" class="hidden">
+          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Metas do mês</h3>
+          <p class="body-sm" id="metasErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+          <div id="metaSalaoBloco" class="meta-salao hidden" role="status" aria-live="polite"></div>
+          <div id="metasLista"></div>
+          <form id="metasForm" class="hidden" style="margin-top:8px;">
+            <div class="field"><label for="metaFaturamento">Meta de faturamento em serviços (R$)</label><input id="metaFaturamento" inputmode="decimal" placeholder="Ex.: 5000,00"/></div>
+            <div class="field"><label for="metaProdutos">Meta de venda de produtos (R$)</label><input id="metaProdutos" inputmode="decimal" placeholder="Ex.: 800,00"/></div>
+            <div class="field"><label for="metaAtendimentos">Meta de atendimentos</label><input id="metaAtendimentos" inputmode="numeric" placeholder="Ex.: 80"/></div>
+            <div class="meta-sugestao">
+              <div class="field"><label for="metaIncremento">Crescimento sobre a média (%)</label><input id="metaIncremento" inputmode="decimal" value="5"/></div>
+              <button class="btn btn-secondary" type="button" id="btnSugerirMetas">Sugerir pela média de 3 meses</button>
+            </div>
+            <p class="body-sm text-tertiary" id="metasSugestaoMsg" role="status" style="margin:6px 0 10px;"></p>
+            <button class="btn btn-secondary" type="submit" id="btnSalvarMetas">Salvar metas</button>
+            <p class="body-sm" id="metasMsg" role="status" style="margin:6px 0 0;"></p>
+            <p class="list-count-hint">Campo vazio remove a meta. A meta não altera comissão, agenda nem distribuição de clientes.</p>
+          </form>
+        </div>
+        <div id="rankingBloco" class="hidden">
+          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Ranking do mês</h3>
+          <div class="field"><label for="rankingCriterio">Ordenar por</label><select id="rankingCriterio"><option value="servicos">Serviços</option><option value="produtos">Produtos vendidos</option><option value="total">Total (serviços + produtos)</option></select></div>
+          <div id="rankingLista"></div>
+          <label class="hidden ranking-opcao" id="rankingVisivelWrap"><input type="checkbox" id="rankingVisivel"/> Mostrar o ranking para a equipe</label>
+          <p class="body-sm" id="rankingMsg" role="status" style="margin:6px 0 0;"></p>
+        </div>
+        <section id="desempenhoBloco" class="hidden" aria-labelledby="desempenhoTitulo">
+          <h3 class="body-sm text-tertiary" id="desempenhoTitulo" style="margin:14px 0 4px">Desempenho do mês</h3>
+          <p class="body-sm" id="desempenhoErro" role="alert" style="color:var(--md-error);margin:0;"></p>
+          <div id="desempenhoTabela"></div>
+        </section>
+        <div id="ganhosSaldo"></div>
+        <form id="ganhosPagarForm" class="hidden" style="margin-top:12px;">
+          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Registrar pagamento</h3>
+          <div class="field"><label for="ganhosPagarTipo">Tipo</label><select id="ganhosPagarTipo"><option value="pagamento">Pagamento de comissão</option><option value="vale">Vale (adiantamento)</option></select></div>
+          <div class="field"><label for="ganhosPagarValor">Valor (R$)</label><input id="ganhosPagarValor" inputmode="decimal" placeholder="Ex.: 200,00"/></div>
+          <div class="field"><label for="ganhosPagarObs">Observação</label><input id="ganhosPagarObs" maxlength="500" placeholder="Ex.: Pix em 10/11"/></div>
+          <button class="btn btn-primary" type="submit" id="btnGanhosPagar">Registrar</button>
+          <p class="body-sm" id="ganhosPagarMsg" role="status" style="margin:6px 0 0;"></p>
+        </form>
+      </div>
+      </div>
+    </section>
+
   </main>
 
   <button class="fab" id="fab" title="Novo agendamento" aria-label="Criar novo agendamento">
@@ -448,19 +508,23 @@
   <nav class="bottom-nav">
     <button class="nav-btn active" id="navAgenda" data-tab="agenda" aria-label="Abrir agenda">
       <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>
-      Agenda
+      <span class="nav-label" id="navAgendaLabel">Agenda</span>
     </button>
-    <button class="nav-btn" id="navCheckout" data-tab="checkout" aria-label="Abrir checkout">
+    <button class="nav-btn" id="navCheckout" data-tab="checkout" aria-label="Abrir comanda">
       <svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/></svg>
-      Checkout
+      <span class="nav-label">Comanda</span>
     </button>
-    <button class="nav-btn" id="navDashboard" data-tab="dashboard" aria-label="Abrir dashboard">
+    <button class="nav-btn" id="navDashboard" data-tab="dashboard" aria-label="Abrir painel">
       <svg viewBox="0 0 24 24"><rect x="4" y="10" width="4" height="10"/><rect x="10" y="6" width="4" height="14"/><rect x="16" y="13" width="4" height="7"/></svg>
-      Dashboard
+      <span class="nav-label">Painel</span>
     </button>
-    <button class="nav-btn" id="navAvatar" aria-label="Abrir gestão e conta">
+    <button class="nav-btn hidden" id="navMetas" data-tab="metas" aria-label="Abrir metas e desempenho">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>
+      <span class="nav-label" id="navMetasLabel">Metas</span>
+    </button>
+    <button class="nav-btn" id="navAvatar" aria-label="Abrir conta e cadastros">
       <span class="avatar-circle" style="width:26px;height:26px;font-size:11px;">HO</span>
-      Gestão
+      <span class="nav-label">Conta</span>
     </button>
   </nav>
 
@@ -664,59 +728,8 @@
       <button class="subtab-btn" data-subtab="espera">Espera</button>
       <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
-      <button class="subtab-btn hidden" data-subtab="ganhos" id="subtabBtnGanhos">Ganhos</button>
     </div>
 
-    <div class="subtab-content hidden" id="subtab-ganhos">
-      <div class="card">
-        <h2 class="m-0" style="margin-bottom:4px;">Ganhos do mês</h2>
-        <p class="body-sm text-tertiary" style="margin:0 0 10px;">Comissão e gorjeta de cada comanda fechada.</p>
-        <div class="field"><label for="ganhosMes">Mês</label><input type="month" id="ganhosMes"></div>
-        <div class="field hidden" id="ganhosProfissionalWrap"><label for="ganhosProfissional">Profissional</label><select id="ganhosProfissional"></select></div>
-        <p class="body-sm" id="ganhosErro" role="alert" style="color:var(--md-error);margin:0;"></p>
-        <div id="ganhosResultado"></div>
-        <div id="metasBloco" class="hidden">
-          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Metas do mês</h3>
-          <p class="body-sm" id="metasErro" role="alert" style="color:var(--md-error);margin:0;"></p>
-          <div id="metaSalaoBloco" class="meta-salao hidden" role="status" aria-live="polite"></div>
-          <div id="metasLista"></div>
-          <form id="metasForm" class="hidden" style="margin-top:8px;">
-            <div class="field"><label for="metaFaturamento">Meta de faturamento em serviços (R$)</label><input id="metaFaturamento" inputmode="decimal" placeholder="Ex.: 5000,00"/></div>
-            <div class="field"><label for="metaProdutos">Meta de venda de produtos (R$)</label><input id="metaProdutos" inputmode="decimal" placeholder="Ex.: 800,00"/></div>
-            <div class="field"><label for="metaAtendimentos">Meta de atendimentos</label><input id="metaAtendimentos" inputmode="numeric" placeholder="Ex.: 80"/></div>
-            <div class="meta-sugestao">
-              <div class="field"><label for="metaIncremento">Crescimento sobre a média (%)</label><input id="metaIncremento" inputmode="decimal" value="5"/></div>
-              <button class="btn btn-secondary" type="button" id="btnSugerirMetas">Sugerir pela média de 3 meses</button>
-            </div>
-            <p class="body-sm text-tertiary" id="metasSugestaoMsg" role="status" style="margin:6px 0 10px;"></p>
-            <button class="btn btn-secondary" type="submit" id="btnSalvarMetas">Salvar metas</button>
-            <p class="body-sm" id="metasMsg" role="status" style="margin:6px 0 0;"></p>
-            <p class="list-count-hint">Campo vazio remove a meta. A meta não altera comissão, agenda nem distribuição de clientes.</p>
-          </form>
-        </div>
-        <div id="rankingBloco" class="hidden">
-          <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Ranking do mês</h3>
-          <div class="field"><label for="rankingCriterio">Ordenar por</label><select id="rankingCriterio"><option value="servicos">Serviços</option><option value="produtos">Produtos vendidos</option><option value="total">Total (serviços + produtos)</option></select></div>
-          <div id="rankingLista"></div>
-          <label class="hidden ranking-opcao" id="rankingVisivelWrap"><input type="checkbox" id="rankingVisivel"/> Mostrar o ranking para a equipe</label>
-          <p class="body-sm" id="rankingMsg" role="status" style="margin:6px 0 0;"></p>
-        </div>
-        <section id="desempenhoBloco" class="hidden" aria-labelledby="desempenhoTitulo">
-          <h3 class="body-sm text-tertiary" id="desempenhoTitulo" style="margin:14px 0 4px">Desempenho do mês</h3>
-          <p class="body-sm" id="desempenhoErro" role="alert" style="color:var(--md-error);margin:0;"></p>
-          <div id="desempenhoTabela"></div>
-        </section>
-        <div id="ganhosSaldo"></div>
-        <form id="ganhosPagarForm" class="hidden" style="margin-top:12px;">
-          <h3 class="body-sm text-tertiary" style="margin:0 0 6px;">Registrar pagamento</h3>
-          <div class="field"><label for="ganhosPagarTipo">Tipo</label><select id="ganhosPagarTipo"><option value="pagamento">Pagamento de comissão</option><option value="vale">Vale (adiantamento)</option></select></div>
-          <div class="field"><label for="ganhosPagarValor">Valor (R$)</label><input id="ganhosPagarValor" inputmode="decimal" placeholder="Ex.: 200,00"/></div>
-          <div class="field"><label for="ganhosPagarObs">Observação</label><input id="ganhosPagarObs" maxlength="500" placeholder="Ex.: Pix em 10/11"/></div>
-          <button class="btn btn-primary" type="submit" id="btnGanhosPagar">Registrar</button>
-          <p class="body-sm" id="ganhosPagarMsg" role="status" style="margin:6px 0 0;"></p>
-        </form>
-      </div>
-    </div>
 
     <div class="subtab-content hidden" id="subtab-comissoes">
       <div id="comissoesConteudo"></div>

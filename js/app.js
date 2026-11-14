@@ -28,7 +28,7 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
-import { initGanhos } from './ui/ganhos.js';
+import { initGanhos, abrirMetas } from './ui/ganhos.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
@@ -40,6 +40,7 @@ export function showTab(name) {
   state.activeTab = name;
   // Abrir o Dashboard busca os números de novo: outra pessoa pode ter fechado comanda
   // ou caixa em outro aparelho, e as pendências do topo precisam estar em dia.
+  if (name === 'metas' && anterior !== 'metas' && state.session && sessionRoleIn('admin', 'gestor', 'profissional')) abrirMetas();
   if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionRoleIn('admin', 'gestor', 'recepcao')) {
     atualizarDashboard();
     atualizarCaixa();
@@ -198,6 +199,9 @@ function aplicarSessaoNaUI() {
   // Dashboard é relatório operacional/gerencial: profissional não tem acesso no backend.
   if (!sessionRoleIn('admin', 'gestor', 'recepcao')) {
     hide('navDashboard');
+    // Profissional: a agenda é o dia dele (D-030).
+    const rotuloAgenda = document.getElementById('navAgendaLabel');
+    if (rotuloAgenda) rotuloAgenda.textContent = 'Hoje';
     // Lista de espera também é só da operação: sem botão nem aba para o profissional.
     document.getElementById('btnAbrirListaEspera')?.classList.add('hidden');
     document.querySelector('.subtab-btn[data-subtab="espera"]')?.classList.add('hidden');

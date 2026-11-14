@@ -39,30 +39,26 @@ async function entrar(b, email) {
 
   // Profissional: vê a aba, não vê seletor de colega, total = só o dela.
   const prof = await entrar(b, 'profissional@dev.local');
-  await prof.click('#navAvatar'); await prof.waitForSelector('#sheetGestao:not(.hidden)');
-  confere('profissional: aba Ganhos visível', await prof.isVisible('#subtabBtnGanhos'));
-  await prof.click('#subtabBtnGanhos'); await prof.waitForSelector('#ganhosTotal');
+  confere('profissional: aba "Meu mês" visível na barra', await prof.isVisible('#navMetas') && await prof.textContent('#navMetasLabel') === 'Meu mês');
+  await prof.click('#navMetas'); await prof.waitForSelector('#ganhosTotal');
   confere('profissional: sem seletor de profissional', !(await prof.isVisible('#ganhosProfissional')));
   const totalProf = Number(await prof.getAttribute('#ganhosTotal', 'data-total'));
   confere('profissional: total = comissão + gorjeta dela', totalProf === esperadoAna && esperadoAna > 0, `tela ${totalProf} × banco ${esperadoAna}`);
   confere('profissional: não vê botão do contador', !(await prof.isVisible('#btnExportarContador')));
-  await prof.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-ganhos.png') });
+  await prof.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-ganhos.png') });
   console.log('PROFISSIONAL erros:', JSON.stringify(prof.erros));
 
   // Recepção: sem a aba.
   const recep = await entrar(b, 'recepcao@dev.local');
-  await recep.click('#navAvatar'); await recep.waitForSelector('#sheetGestao:not(.hidden)');
-  confere('recepção: aba Ganhos escondida', !(await recep.isVisible('#subtabBtnGanhos')));
+  confere('recepção: sem a aba Metas na barra', !(await recep.isVisible('#navMetas')));
   console.log('RECEPCAO erros:', JSON.stringify(recep.erros));
 
   // Admin: escolhe o profissional; exporta o CSV.
   const admin = await entrar(b, 'admin@dev.local');
-  await admin.click('#navAvatar'); await admin.waitForSelector('#sheetGestao:not(.hidden)');
-  await admin.click('#subtabBtnGanhos'); await admin.waitForSelector('#ganhosProfissional');
+  await admin.click('#navMetas'); await admin.waitForSelector('#ganhosProfissional');
   await admin.selectOption('#ganhosProfissional', outro.id); await admin.waitForSelector('#ganhosTotal');
   const totalOutro = Number(await admin.getAttribute('#ganhosTotal', 'data-total'));
   confere('admin: ganhos do profissional escolhido', totalOutro === esperadoOutro && esperadoOutro > 0 && esperadoOutro !== esperadoAna, `tela ${totalOutro} × banco ${esperadoOutro}`);
-  await admin.click('#btnFecharGestao');
   await admin.click('#navDashboard'); for (const d of await admin.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await admin.waitForSelector('#dbCotaPartePanel:not(.hidden)', { timeout: 10000 });
   const [download] = await Promise.all([admin.waitForEvent('download', { timeout: 10000 }), admin.click('#btnExportarContador')]);
   const csv = fs.readFileSync(await download.path(), 'utf8');

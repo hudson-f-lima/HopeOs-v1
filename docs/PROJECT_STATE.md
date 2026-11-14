@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-030 (2026-11-14): navegação — aba "Metas" (gestão: equipe à vista, toque abre a pessoa) e "Meu mês" (profissional); barra renomeada para Agenda/Hoje · Comanda · Painel · Metas · Conta. REAL.
 - D-029 (2026-11-14): indicadores por colaborador (Fase 2) para admin e gestor; profissional vê os seus; recepção não. Risco trabalhista aceito pelo dono sem parecer (altera o D-012 só neste ponto). REAL; nada gravado, sem nota nem ranking.
 - D-028 (2026-11-14): Fase 1 dos indicadores de agenda e clientes — retorno de novos em 3 categorias (mesmo profissional, outro, não voltou), fidelização e cancelamento, só admin e gestão: REAL. Fase 2 (por colaborador, só admin e gestão): PENDENTE de confirmação explícita do dono sobre o risco trabalhista.
 - D-027 (2026-11-13): meta do salão como reconhecimento sem valor (admin, gestão e profissional; sem comissão nem pagamento): REAL. Sem prêmio em dinheiro: D-012 e D-019 seguem valendo.

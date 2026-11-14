@@ -8,6 +8,7 @@ import { escapeHtml, centsToBRL, todayStr, genIdempotencyKey, confirmAction } fr
 import { reaisParaCentavos } from './caixa.js';
 import { atualizarMetas, atualizarRanking, initMetas } from './metas.js';
 import { atualizarDesempenho } from './desempenho.js';
+import { carregarEquipe, initEquipe } from './metasEquipe.js';
 
 const el = id => document.getElementById(id);
 const fmtData = d => { const [, m, dd] = String(d).split('-'); return `${dd}/${m}`; };
@@ -120,6 +121,12 @@ export async function atualizarGanhos() {
   }
 }
 
+// Ao abrir a aba Metas / Meu mês.
+export function abrirMetas() {
+  abrir();
+  carregarEquipe(el('ganhosMes').value);
+}
+
 function abrir() {
   if (!el('ganhosMes').value) el('ganhosMes').value = todayStr().slice(0, 7);
   if (sessionRoleIn('admin', 'gestor')) {
@@ -134,10 +141,18 @@ function abrir() {
 
 export function initGanhos() {
   if (!sessionRoleIn('admin', 'gestor', 'profissional')) return;
-  el('subtabBtnGanhos')?.classList.remove('hidden');
-  if (sessionRoleIn('admin', 'gestor')) el('ganhosProfissionalWrap').classList.remove('hidden');
-  el('subtabBtnGanhos')?.addEventListener('click', abrir);
-  el('ganhosMes').addEventListener('change', atualizarGanhos);
+  // Aba própria na barra inferior (D-030): "Metas" para a gestão, "Meu mês" para o profissional.
+  el('navMetas')?.classList.remove('hidden');
+  if (sessionRoleIn('admin', 'gestor')) {
+    el('ganhosProfissionalWrap').classList.remove('hidden');
+  } else {
+    el('navMetasLabel').textContent = 'Meu mês';
+    el('navMetas').setAttribute('aria-label', 'Abrir meu mês');
+    el('metasTitulo').textContent = 'Meu mês';
+    el('metasSubtitulo').textContent = 'Minhas metas, meus ganhos e meu desempenho.';
+  }
+  initEquipe();
+  el('ganhosMes').addEventListener('change', () => { atualizarGanhos(); carregarEquipe(el('ganhosMes').value); });
   el('ganhosProfissional').addEventListener('change', atualizarGanhos);
   initMetas();
   el('ganhosPagarForm').addEventListener('submit', ev => { ev.preventDefault(); registrarPagamento(); });
