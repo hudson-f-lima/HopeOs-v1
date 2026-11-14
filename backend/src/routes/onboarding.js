@@ -32,14 +32,14 @@ function itens(body) {
   return lista;
 }
 
-router.get('/empresa', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/empresa', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: publica(await carregarEmpresa(repo)) });
   } catch (err) { next(err); }
 });
 
-router.patch('/empresa', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/empresa', authorize('empresa:configurar'), async (req, res, next) => {
   try {
     const patch = validateUpdateEmpresaPayload(req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -57,7 +57,7 @@ router.patch('/empresa', authorize('cadastros:write'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-router.get('/onboarding/status', authorize('cadastros:write'), async (req, res, next) => {
+router.get('/onboarding/status', authorize('empresa:configurar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
@@ -72,12 +72,12 @@ router.get('/onboarding/status', authorize('cadastros:write'), async (req, res, 
   } catch (err) { next(err); }
 });
 
-router.get('/onboarding/presets', authorize('cadastros:write'), (req, res) => {
+router.get('/onboarding/presets', authorize('empresa:configurar'), (req, res) => {
   res.json({ ok: true, data: listarPresets() });
 });
 
 // Cria os serviços escolhidos; repetir o mesmo nome não duplica (idempotente).
-router.post('/onboarding/servicos', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/onboarding/servicos', authorize('empresa:configurar'), async (req, res, next) => {
   try {
     const payloads = itens(req.body).map(validateCreateServicoPayload);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -102,7 +102,7 @@ router.post('/onboarding/servicos', authorize('cadastros:write'), async (req, re
 });
 
 // Cria as formas de pagamento escolhidas; código já existente é mantido como está.
-router.post('/onboarding/formas', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/onboarding/formas', authorize('empresa:configurar'), async (req, res, next) => {
   try {
     const payloads = itens(req.body).map(validateCreateFormaPagamentoPayload);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -119,7 +119,7 @@ router.post('/onboarding/formas', authorize('cadastros:write'), async (req, res,
 });
 
 // Cargos padrão; nome repetido (sem diferenciar maiúsculas) é ignorado.
-router.post('/onboarding/cargos', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/onboarding/cargos', authorize('empresa:configurar'), async (req, res, next) => {
   try {
     const payloads = itens(req.body).map(c => validateCargoPayload(c));
     const repo = new SupabaseRepository(req.auth.empresa_id);

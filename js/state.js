@@ -9,6 +9,25 @@ export function sessionRoleIn(...roles) {
   return !s || s.principal !== 'user' || roles.includes(s.role);
 }
 
+// Permissões efetivas (D-032): o servidor manda em /api/me o que a pessoa pode, já somando
+// papel e permissões individuais. A tela só mostra o que o servidor permite.
+// Sem a lista (API ainda sem a 012), cai no padrão de cada papel para os códigos usados aqui.
+const PADRAO_SEM_LISTA = {
+  'caixa:conferir': ['admin', 'gestor', 'recepcao'], 'painel:operacional': ['admin', 'gestor', 'recepcao'],
+  'espera:ver': ['admin', 'gestor', 'recepcao'], 'painel:financeiro': ['admin', 'gestor'], 'metas:definir': ['admin', 'gestor'],
+  'metas:ver': ['admin', 'gestor', 'profissional'], 'ganhos:ver': ['admin', 'gestor', 'profissional'], 'comissoes:pagar': ['admin', 'gestor'],
+  'empresa:configurar': ['admin', 'gestor'], 'catalogo:editar': ['admin', 'gestor'], 'comanda:estornar': ['admin', 'gestor'],
+  'comanda:historico': ['admin', 'gestor'], 'equipe:permissoes': []
+};
+export function sessionPode(codigo, precisaTotal = false) {
+  const s = state && state.session;
+  if (!s || s.principal !== 'user') return true;
+  let alcance;
+  if (s.permissoes) alcance = s.permissoes[codigo];
+  else if ((PADRAO_SEM_LISTA[codigo] || []).includes(s.role)) alcance = s.role === 'profissional' && ['metas:ver', 'ganhos:ver'].includes(codigo) ? 'proprio' : 'total';
+  return precisaTotal ? alcance === 'total' : Boolean(alcance);
+}
+
 export const state = {
   catalog: { clientes: [], servicos: [], produtos: [], profissionais: [], formas_pagamento: [] },
   currentWeekStart: startOfWeek(todayStr()),

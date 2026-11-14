@@ -17,7 +17,7 @@ function mesValido(query) {
   return mes;
 }
 
-router.get('/relatorios/meus-ganhos', authorize('relatorios:proprio'), async (req, res, next) => {
+router.get('/relatorios/meus-ganhos', authorize('ganhos:ver'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query);
     const profissionalId = req.authz.own ? req.authz.profissionalId : String(req.query.profissionalId || '');
@@ -35,7 +35,7 @@ router.get('/relatorios/meus-ganhos', authorize('relatorios:proprio'), async (re
   } catch (err) { next(err); }
 });
 
-router.get('/relatorios/servicos-prestados', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/relatorios/servicos-prestados', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query);
     const repo = new SupabaseRepository(req.auth.empresa_id);

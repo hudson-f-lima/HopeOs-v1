@@ -443,7 +443,7 @@ test('C04 métricas de adoção contam cada principal', async () => {
 });
 test('C05 toda rota de negócio declara authorize (nenhuma rota sem RBAC)', async () => {
   const src = require('fs').readFileSync(require.resolve('../src/routes/index.js'), 'utf8');
-  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !l.includes('authorize('));
+  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !/authorize(Por)?\(/.test(l));
   assert.deepStrictEqual(semRbac, []);
   const servicos = ['InsightsService', 'RetentionService'].map(f => require('fs').readFileSync(require.resolve(`../src/services/${f}.js`), 'utf8'));
   assert.ok(servicos.every(s => !s.includes('new SupabaseRepository()')), 'serviço sem tenant explícito');

@@ -1,18 +1,5 @@
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
-import { 
-  state, 
-  stateBus, 
-  sessionRoleIn,
-  activeProfissionais, 
-  profColor, 
-  findClienteNome, 
-  findServicoNome, 
-  findProfissionalNome, 
-  findAgendaItemById, 
-  computeEndTime, 
-  loadWeekAgenda,
-  PROF_COLORS
-} from '../state.js';
+import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
 import {
   todayStr,
   addDays,
@@ -692,7 +679,7 @@ async function onActionSheetClick(ev) {
 // F4.4: vaga aberta por cancelamento -> sugere quem chamar da lista de espera.
 // Best-effort: nunca cria/edita agendamento sozinho, só oferece contato manual via WhatsApp.
 async function promptWaitlistCandidates(servicoId) {
-  if (!servicoId || !sessionRoleIn('admin', 'gestor', 'recepcao')) return;
+  if (!servicoId || !sessionPode('espera:ver')) return;
   let candidatos = [];
   try {
     candidatos = await getListaEspera({ servicoId, status: 'aguardando' });

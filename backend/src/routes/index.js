@@ -33,7 +33,7 @@ const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
 
-const { authorize, assertOwn } = require('../auth/rbac');
+const { authorize, assertOwn, authorizePor, exigirTambem } = require('../auth/rbac');
 const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
@@ -99,31 +99,31 @@ function assertProdutoEconomics(produto) {
   }
 }
 
-router.get('/data-contract', authorize('cadastros:read'), (req, res) => {
+router.get('/data-contract', authorize('cadastros:ver'), (req, res) => {
   res.json({ ok: true, data: loadDataContract() });
 });
 
-router.get('/snapshot', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/snapshot', authorize('painel:financeiro'), async (req, res, next) => {
   try { res.json({ ok: true, data: await getSnapshot(req.auth.empresa_id) }); }
   catch (err) { next(err); }
 });
 
-router.get('/dashboard', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/dashboard', authorize('painel:operacional'), async (req, res, next) => {
   try { res.json({ ok: true, data: buildDashboard(await getSnapshot(req.auth.empresa_id)) }); }
   catch (err) { next(err); }
 });
 
-router.get('/financeiro/resumo', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/financeiro/resumo', authorize('painel:financeiro'), async (req, res, next) => {
   try { res.json({ ok: true, data: buildFinanceReadModel(await getSnapshot(req.auth.empresa_id)) }); }
   catch (err) { next(err); }
 });
 
-router.get('/clientes', authorize('clientes:read'), async (req, res, next) => {
+router.get('/clientes', authorize('clientes:ver'), async (req, res, next) => {
   try { res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('clientes', { empresa_id: req.auth.empresa_id }) }); }
   catch (err) { next(err); }
 });
 
-router.post('/clientes', authorize('clientes:write'), async (req, res, next) => {
+router.post('/clientes', authorize('clientes:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateClientePayload(req.body);
@@ -132,7 +132,7 @@ router.post('/clientes', authorize('clientes:write'), async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.patch('/clientes/:id', authorize('clientes:write'), async (req, res, next) => {
+router.patch('/clientes/:id', authorize('clientes:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -143,7 +143,7 @@ router.patch('/clientes/:id', authorize('clientes:write'), async (req, res, next
   } catch (err) { next(err); }
 });
 
-router.get('/servicos', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/servicos', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('servicos', { empresa_id: repo.empresaId }) });
@@ -151,7 +151,7 @@ router.get('/servicos', authorize('cadastros:read'), async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/servicos', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/servicos', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateServicoPayload(req.body);
@@ -160,7 +160,7 @@ router.post('/servicos', authorize('cadastros:write'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-router.patch('/servicos/:id', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/servicos/:id', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -171,7 +171,7 @@ router.patch('/servicos/:id', authorize('cadastros:write'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
-router.get('/profissionais', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/profissionais', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('profissionais', { empresa_id: repo.empresaId }) });
@@ -179,7 +179,7 @@ router.get('/profissionais', authorize('cadastros:read'), async (req, res, next)
   catch (err) { next(err); }
 });
 
-router.post('/profissionais', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/profissionais', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateProfissionalPayload(req.body);
@@ -188,7 +188,7 @@ router.post('/profissionais', authorize('cadastros:write'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
-router.patch('/profissionais/:id', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/profissionais/:id', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -199,7 +199,7 @@ router.patch('/profissionais/:id', authorize('cadastros:write'), async (req, res
   } catch (err) { next(err); }
 });
 
-router.get('/produtos', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/produtos', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('produtos', { empresa_id: repo.empresaId }) });
@@ -207,7 +207,7 @@ router.get('/produtos', authorize('cadastros:read'), async (req, res, next) => {
   catch (err) { next(err); }
 });
 
-router.post('/produtos', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/produtos', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { produto, estoqueInicial } = validateCreateProdutoPayload(req.body);
@@ -220,7 +220,7 @@ router.post('/produtos', authorize('cadastros:write'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-router.patch('/produtos/:id', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/produtos/:id', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -241,7 +241,7 @@ router.patch('/produtos/:id', authorize('cadastros:write'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
-router.post('/produtos/:id/estoque/ajuste', authorize('estoque:write'), async (req, res, next) => {
+router.post('/produtos/:id/estoque/ajuste', authorize('estoque:ajustar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -251,7 +251,7 @@ router.post('/produtos/:id/estoque/ajuste', authorize('estoque:write'), async (r
   } catch (err) { next(err); }
 });
 
-router.get('/formas-pagamento', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/formas-pagamento', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     res.json({ ok: true, data: await repo.list('formas_pagamento', { empresa_id: repo.empresaId }) });
@@ -261,7 +261,7 @@ router.get('/formas-pagamento', authorize('cadastros:read'), async (req, res, ne
 
 // Calculadora da taxa efetiva do parcelado (MDR + antecipação pro rata). Só ajuda a
 // preencher a taxa da forma de pagamento; não grava nada.
-router.get('/formas-pagamento/simular-taxa', authorize('cadastros:write'), (req, res, next) => {
+router.get('/formas-pagamento/simular-taxa', authorize('pagamentos:editar'), (req, res, next) => {
   try {
     const num = (campo, padrao) => (req.query[campo] === undefined || req.query[campo] === '' ? padrao : Number(String(req.query[campo]).replace(',', '.')));
     const { calcularTaxaEfetiva } = require('../engines/taxaEfetiva');
@@ -277,7 +277,7 @@ router.get('/formas-pagamento/simular-taxa', authorize('cadastros:write'), (req,
 // Cria (ou atualiza a taxa de) "Crédito 2x" … "Crédito Nx" de uma vez. Sem `gravar: true`
 // só devolve a prévia. Forma que já existe mantém nome e situação (ativa ou não); muda só
 // a taxa e o prazo. Comandas já fechadas não mudam: a taxa fica gravada em cada pagamento.
-router.post('/formas-pagamento/parcelados', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/formas-pagamento/parcelados', authorize('pagamentos:editar'), async (req, res, next) => {
   try {
     const b = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
     const permitidos = ['mdrAte6Pct', 'mdr7a12Pct', 'antecipacaoMesPct', 'ateParcelas', 'gravar'];
@@ -304,7 +304,7 @@ router.post('/formas-pagamento/parcelados', authorize('cadastros:write'), async 
   } catch (err) { next(err); }
 });
 
-router.post('/formas-pagamento', authorize('cadastros:write'), async (req, res, next) => {
+router.post('/formas-pagamento', authorize('pagamentos:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateFormaPagamentoPayload(req.body);
@@ -316,7 +316,7 @@ router.post('/formas-pagamento', authorize('cadastros:write'), async (req, res, 
   } catch (err) { next(err); }
 });
 
-router.patch('/formas-pagamento/:code', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/formas-pagamento/:code', authorize('pagamentos:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const existing = await repo.list('formas_pagamento', { empresa_id: repo.empresaId, code: req.params.code });
@@ -326,7 +326,7 @@ router.patch('/formas-pagamento/:code', authorize('cadastros:write'), async (req
   } catch (err) { next(err); }
 });
 
-router.get('/profissionais/:id/servicos', authorize('cadastros:read'), async (req, res, next) => {
+router.get('/profissionais/:id/servicos', authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -335,7 +335,7 @@ router.get('/profissionais/:id/servicos', authorize('cadastros:read'), async (re
   } catch (err) { next(err); }
 });
 
-router.put('/profissionais/:id/servicos', authorize('cadastros:write'), async (req, res, next) => {
+router.put('/profissionais/:id/servicos', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -349,7 +349,7 @@ router.put('/profissionais/:id/servicos', authorize('cadastros:write'), async (r
   } catch (err) { next(err); }
 });
 
-router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('cadastros:write'), async (req, res, next) => {
+router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('catalogo:editar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
@@ -372,7 +372,7 @@ router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('cadas
   } catch (err) { next(err); }
 });
 
-router.get('/agenda', authorize('agenda:read'), async (req, res, next) => {
+router.get('/agenda', authorize('agenda:ver'), async (req, res, next) => {
   try {
     const filters = { empresa_id: req.auth.empresa_id };
     if (req.query.data) filters.data = req.query.data;
@@ -383,7 +383,7 @@ router.get('/agenda', authorize('agenda:read'), async (req, res, next) => {
 
 // Lembretes de confirmação (D-011): agendamentos ainda não confirmados do dia
 // (padrão: amanhã no fuso da empresa) com texto e link wa.me. Só leitura.
-router.get('/agenda/lembretes', authorize('agenda:read'), async (req, res, next) => {
+router.get('/agenda/lembretes', authorize('agenda:ver'), async (req, res, next) => {
   try {
     let data = req.query.data;
     if (data === undefined) {
@@ -410,7 +410,7 @@ router.get('/agenda/lembretes', authorize('agenda:read'), async (req, res, next)
 
 // Sugestão de horários livres (slots-âncora). Somente leitura: o POST /agenda
 // continua revalidando conflito na gravação.
-router.get('/agenda/slots', authorize('agenda:read'), async (req, res, next) => {
+router.get('/agenda/slots', authorize('agenda:ver'), async (req, res, next) => {
   try {
     const query = validateSlotsQuery(req.query);
     assertOwn(req, query.profissionalId);
@@ -438,9 +438,11 @@ router.get('/agenda/slots', authorize('agenda:read'), async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.post('/agenda', authorize('agenda:write'), async (req, res, next) => {
+router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
   try {
     const payload = validateCreateAgendamentoPayload(req.body);
+    // Encaixe (horário já ocupado) é permissão própria (D-032).
+    if (payload.permitirConflito) exigirTambem(req, 'agenda:encaixar');
     assertOwn(req, payload.profissionalId);
     const { actorId } = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -473,7 +475,15 @@ router.post('/agenda', authorize('agenda:write'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, next) => {
+// D-032: o status pedido decide a permissão — cancelar, remarcar ou atender (confirmar,
+// chegada, início, conclusão, falta). Encaixe na remarcação exige agenda:encaixar também.
+const permissaoDoStatus = req => {
+  const status = req.body && req.body.novoStatus;
+  if (status === 'cancelado') return 'agenda:cancelar';
+  if (status === 'reagendado') return 'agenda:editar';
+  return 'agenda:atender';
+};
+router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atender|agenda:cancelar|agenda:editar'), async (req, res, next) => {
   try {
     const { novoStatus } = validateStatusChangePayload(req.body);
     const id = validateUUID(req.params.id, 'id');
@@ -497,6 +507,7 @@ router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, n
     }
 
     const reagendamento = validateReagendamentoPayload(req.body);
+    if (reagendamento.permitirConflito) exigirTambem(req, 'agenda:encaixar');
     const novoServicoId = reagendamento.novoServicoId || original.servico_id;
     const novoProfissionalId = reagendamento.novoProfissionalId || original.profissional_id;
     assertOwn(req, novoProfissionalId);
@@ -540,7 +551,7 @@ router.patch('/agenda/:id/status', authorize('agenda:write'), async (req, res, n
 
 // Trilha de status do agendamento (agendamento_eventos), do mais antigo ao mais
 // novo. Profissional só lê os próprios. Eventos são best-effort: pode haver lacuna.
-router.get('/agenda/:id/historico', authorize('agenda:read'), async (req, res, next) => {
+router.get('/agenda/:id/historico', authorize('agenda:ver'), async (req, res, next) => {
   try {
     const id = validateUUID(req.params.id, 'id');
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -550,7 +561,7 @@ router.get('/agenda/:id/historico', authorize('agenda:read'), async (req, res, n
   } catch (err) { next(err); }
 });
 
-router.patch('/agenda/:id/duracao', authorize('agenda:write'), async (req, res, next) => {
+router.patch('/agenda/:id/duracao', authorize('agenda:editar'), async (req, res, next) => {
   try {
     const duracaoMin = Number(req.body && req.body.duracaoMin);
     if (!Number.isInteger(duracaoMin) || duracaoMin < 10 || duracaoMin > 480) {
@@ -572,7 +583,7 @@ router.patch('/agenda/:id/duracao', authorize('agenda:write'), async (req, res, 
   } catch (err) { next(err); }
 });
 
-router.get('/catalog', authorize('clientes:read'), authorize('cadastros:read'), async (req, res, next) => {
+router.get('/catalog', authorize('clientes:ver'), authorize('cadastros:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos] = await Promise.all([
@@ -610,7 +621,7 @@ async function validarVinculoAgendamento(req, repo) {
   return { ag, jaConcluido: false };
 }
 
-router.post('/checkout/preview', authorize('checkout:write'), async (req, res, next) => {
+router.post('/checkout/preview', authorize('comanda:fechar'), async (req, res, next) => {
   try {
     assertOwnCheckout(req, req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -627,7 +638,7 @@ router.post('/checkout/preview', authorize('checkout:write'), async (req, res, n
 
 // Atalhos da comanda: os 4 serviços e 2 produtos mais vendidos nos últimos 90 dias.
 // Leitura separada do preview e do painel; a tela chama uma vez ao abrir.
-router.get('/checkout/mais-vendidos', authorize('checkout:write'), async (req, res, next) => {
+router.get('/checkout/mais-vendidos', authorize('comanda:fechar'), async (req, res, next) => {
   try {
     const { computeMaisVendidos } = require('../engines/insights/maisVendidos');
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -640,7 +651,7 @@ router.get('/checkout/mais-vendidos', authorize('checkout:write'), async (req, r
   } catch (err) { next(err); }
 });
 
-router.post('/checkout/close', authorize('checkout:write'), async (req, res, next) => {
+router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, next) => {
   try {
     assertOwnCheckout(req, req.body);
     const autoria = autoriaDe(req.auth);
@@ -739,7 +750,7 @@ async function carregarLedgerDasComandas(repo, ids) {
   return { itens, pagamentos, estornos, estornoItens, estornoPagamentos };
 }
 
-router.get('/comandas', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/comandas', authorize('comanda:historico'), async (req, res, next) => {
   try {
     const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
     const data = validarDataQuery(req.query.data, hoje);
@@ -753,7 +764,7 @@ router.get('/comandas', authorize('relatorios:full'), async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.get('/comandas/:id/estornos', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/comandas/:id/estornos', authorize('comanda:historico'), async (req, res, next) => {
   try {
     const id = validateUUID(req.params.id, 'id');
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -776,7 +787,7 @@ router.get('/comandas/:id/estornos', authorize('relatorios:full'), async (req, r
 
 // Só admin/gestor humanos (checkout:estornar é userOnly). Data = hoje no fuso da
 // empresa, definida aqui; o banco recusa outra data, prazo > 30 dias e saldo excedido.
-router.post('/comandas/:id/estorno', authorize('checkout:estornar'), async (req, res, next) => {
+router.post('/comandas/:id/estorno', authorize('comanda:estornar'), async (req, res, next) => {
   try {
     const id = validateUUID(req.params.id, 'id');
     const pedido = validateEstornoPayload(req.body);
@@ -806,7 +817,7 @@ function periodoInsights(query) {
   return { from, to, hoje };
 }
 
-router.get('/insights/occupancy', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/insights/occupancy', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const { from, to, hoje } = periodoInsights(req.query);
     const service = new InsightsService(req.auth.empresa_id);
@@ -815,7 +826,7 @@ router.get('/insights/occupancy', authorize('relatorios:operacional'), async (re
   } catch (err) { next(err); }
 });
 
-router.get('/insights/margin', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/insights/margin', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const { from, to } = periodoInsights(req.query);
     const service = new InsightsService(req.auth.empresa_id);
@@ -824,7 +835,7 @@ router.get('/insights/margin', authorize('relatorios:full'), async (req, res, ne
   } catch (err) { next(err); }
 });
 
-router.get('/insights/cashflow', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/insights/cashflow', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const bruto = req.query.days === undefined || req.query.days === '' ? '30' : String(req.query.days);
     if (!/^\d{1,3}$/.test(bruto) || Number(bruto) < 1) throw createAppError('INVALID_DAYS', 'days deve ser inteiro entre 1 e 90.', 400);
@@ -836,7 +847,7 @@ router.get('/insights/cashflow', authorize('relatorios:full'), async (req, res, 
 });
 
 // F2 Retencao - read-only, backend-only analytics
-router.get('/insights/retention', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/insights/retention', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadRetentionInsights();
@@ -844,7 +855,7 @@ router.get('/insights/retention', authorize('relatorios:operacional'), async (re
   } catch (err) { next(err); }
 });
 
-router.get('/insights/clients/:id/reliability', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/insights/clients/:id/reliability', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const id = validateUUID(req.params.id, 'id');
     const service = new RetentionService(req.auth.empresa_id);
@@ -853,7 +864,7 @@ router.get('/insights/clients/:id/reliability', authorize('relatorios:operaciona
   } catch (err) { next(err); }
 });
 
-router.get('/insights/attach', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/insights/attach', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const service = new RetentionService(req.auth.empresa_id);
     const data = await service.loadAttachInsights();
@@ -861,7 +872,7 @@ router.get('/insights/attach', authorize('relatorios:operacional'), async (req, 
   } catch (err) { next(err); }
 });
 
-router.get('/insights/rebooking/:clienteId', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/insights/rebooking/:clienteId', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const clienteId = validateUUID(req.params.clienteId, 'clienteId');
     const servicoId = req.query.servicoId ? validateUUID(req.query.servicoId, 'servicoId') : null;
@@ -872,7 +883,7 @@ router.get('/insights/rebooking/:clienteId', authorize('relatorios:operacional')
 });
 
 // Cota-parte do mês (Lei do Salão-Parceiro, D-009): salão × profissionais parceiros.
-router.get('/relatorios/cota-parte', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/relatorios/cota-parte', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const mes = String(req.query.mes || '');
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw createAppError('INVALID_MONTH', 'mes deve ser YYYY-MM.', 422);
@@ -889,7 +900,7 @@ router.get('/relatorios/cota-parte', authorize('relatorios:full'), async (req, r
 });
 
 // F4.4 — lista de espera (tabela ja existe desde 001_init.sql; zero migration nova)
-router.get('/lista-espera', authorize('lista_espera:read'), async (req, res, next) => {
+router.get('/lista-espera', authorize('espera:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filters = { empresa_id: repo.empresaId };
@@ -899,7 +910,7 @@ router.get('/lista-espera', authorize('lista_espera:read'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
-router.post('/lista-espera', authorize('lista_espera:write'), async (req, res, next) => {
+router.post('/lista-espera', authorize('espera:gerir'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateListaEsperaPayload(req.body);
@@ -910,7 +921,7 @@ router.post('/lista-espera', authorize('lista_espera:write'), async (req, res, n
   } catch (err) { next(err); }
 });
 
-router.patch('/lista-espera/:id', authorize('lista_espera:write'), async (req, res, next) => {
+router.patch('/lista-espera/:id', authorize('espera:gerir'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');

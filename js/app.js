@@ -1,11 +1,5 @@
 import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, aceitarPrivacidade, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
-import { 
-  state, 
-  stateBus, 
-  loadCatalog, 
-  loadWeekAgenda,
-  sessionRoleIn
-} from './state.js';
+import { state, stateBus, loadCatalog, loadWeekAgenda, sessionRoleIn, sessionPode } from './state.js';
 import { 
   centsToBRL, 
   openModal, 
@@ -28,7 +22,9 @@ import {
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
-import { initGanhos } from './ui/ganhos.js';
+import { initGanhos, abrirMetas } from './ui/ganhos.js';
+import { initTema } from './ui/tema.js';
+import { initPermissoes } from './ui/permissoes.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
@@ -40,7 +36,8 @@ export function showTab(name) {
   state.activeTab = name;
   // Abrir o Dashboard busca os números de novo: outra pessoa pode ter fechado comanda
   // ou caixa em outro aparelho, e as pendências do topo precisam estar em dia.
-  if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionRoleIn('admin', 'gestor', 'recepcao')) {
+  if (name === 'metas' && anterior !== 'metas' && state.session && sessionPode('metas:ver')) abrirMetas();
+  if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionPode('painel:operacional')) {
     atualizarDashboard();
     atualizarCaixa();
   }
@@ -185,7 +182,7 @@ async function carregarSessao() {
   let atual = empresas.find(e => e.empresa_id === getSession().empresa_id);
   if (!atual) atual = empresas.length === 1 ? empresas[0] : await escolherEmpresa(empresas);
   selectEmpresa(atual.empresa_id);
-  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas };
+  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas, permissoes: atual.permissoes || null };
   hide('loginScreen');
 }
 
@@ -195,12 +192,17 @@ function aplicarSessaoNaUI() {
     document.getElementById('sessionLabel').textContent = `${s.nome} · ${ROLE_LABEL[s.role] || s.role}`;
     show('sessionChip');
   }
-  // Dashboard é relatório operacional/gerencial: profissional não tem acesso no backend.
-  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) {
-    hide('navDashboard');
-    // Lista de espera também é só da operação: sem botão nem aba para o profissional.
+  // Painel e lista de espera seguem a permissão efetiva (D-032): um profissional com o
+  // pacote Recepção passa a ver os dois; sem ele, não vê.
+  if (!sessionPode('painel:operacional')) hide('navDashboard');
+  if (!sessionPode('espera:ver')) {
     document.getElementById('btnAbrirListaEspera')?.classList.add('hidden');
     document.querySelector('.subtab-btn[data-subtab="espera"]')?.classList.add('hidden');
+  }
+  // Profissional: a agenda é o dia dele (D-030), salvo se ele também atua na recepção.
+  if (s && s.principal === 'user' && s.role === 'profissional' && !sessionPode('agenda:ver', true)) {
+    const rotuloAgenda = document.getElementById('navAgendaLabel');
+    if (rotuloAgenda) rotuloAgenda.textContent = 'Hoje';
   }
 }
 
@@ -224,6 +226,7 @@ async function init() {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   });
   
+  initTema();
   document.getElementById('navAvatar').addEventListener('click', () => openModal('sheetGestao'));
   document.getElementById('btnFecharGestao').addEventListener('click', () => closeModal('sheetGestao'));
   document.getElementById('btnAbrirListaEspera')?.addEventListener('click', openListaEsperaModal);
@@ -389,12 +392,13 @@ async function init() {
     });
 
     initEquipe();
+    initPermissoes();
     initComissoes();
     initGanhos();
     initAgora();
     initCaixa();
     initEstorno();
-    if (sessionRoleIn('admin', 'gestor')) {
+    if (sessionPode('empresa:configurar')) {
       const btnAssistente = document.getElementById('btnAbrirAssistente');
       btnAssistente.classList.remove('hidden');
       btnAssistente.addEventListener('click', async () => {
@@ -409,8 +413,8 @@ async function init() {
     await Promise.all([
       loadWeekAgenda(),
       carregarAtalhos(),
-      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve(),
-      sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarCaixa() : Promise.resolve(),
+      sessionPode('painel:operacional') ? atualizarDashboard() : Promise.resolve(),
+      sessionPode('caixa:conferir') ? atualizarCaixa() : Promise.resolve(),
       podeEstornar() ? atualizarComandasEstorno() : Promise.resolve()
     ]);
   } catch (err) {
@@ -449,7 +453,7 @@ window.addEventListener('hashchange', () => {
 
 // Comanda fechada: o fechamento do dia muda.
 stateBus.addEventListener('checkout:closed', () => {
-  if (sessionRoleIn('admin', 'gestor', 'recepcao')) atualizarCaixa();
+  if (sessionPode('caixa:conferir')) atualizarCaixa();
   if (podeEstornar()) atualizarComandasEstorno();
 });
 // Estorno feito: caixa do dia e dashboard mudam (linha negativa, relatórios).

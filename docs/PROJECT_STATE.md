@@ -38,6 +38,12 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-032 (2026-11-14): permissões finas por papel e individuais (migration 012); gestor/admin concedem e revogam dentro da própria autoridade, com trilha imutável; matriz em `docs/PERMISSOES.md`; layout de tablet e computador. REAL no código; migration aplica em produção só no merge.
+- D-031 (2026-11-14): seletor de tema em Conta (Automático, Claro, Escuro), guardado no aparelho. REAL.
+- D-030 (2026-11-14): navegação — aba "Metas" (gestão: equipe à vista, toque abre a pessoa) e "Meu mês" (profissional); barra renomeada para Agenda/Hoje · Comanda · Painel · Metas · Conta. REAL.
+- D-029 (2026-11-14): indicadores por colaborador (Fase 2) para admin e gestor; profissional vê os seus; recepção não. Risco trabalhista aceito pelo dono sem parecer (altera o D-012 só neste ponto). REAL; nada gravado, sem nota nem ranking.
+- D-028 (2026-11-14): Fase 1 dos indicadores de agenda e clientes — retorno de novos em 3 categorias (mesmo profissional, outro, não voltou), fidelização e cancelamento, só admin e gestão: REAL. Fase 2 (por colaborador, só admin e gestão): PENDENTE de confirmação explícita do dono sobre o risco trabalhista.
+- D-027 (2026-11-13): meta do salão como reconhecimento sem valor (admin, gestão e profissional; sem comissão nem pagamento): REAL. Sem prêmio em dinheiro: D-012 e D-019 seguem valendo.
 - D-026 (2026-11-13): pagamento dividido na comanda corrigido (ligava só depois de simular com forma única; relato do dono em produção). E2E `split` novo. PENDENTE: o dono repetir o teste em produção depois do merge.
 - D-025 (2026-11-13): cartão parcelado em lote (2x a 12x) e atalhos "Mais vendidos" na comanda: REAL. Gaveta de itens: não existe; decisão do dono pendente. PR #26 mesclado.
 - D-024 (2026-11-13): taxa da forma de pagamento visível na comanda antes de fechar, com a alternativa mais barata e botão de troca: REAL. PR #25 mesclado.

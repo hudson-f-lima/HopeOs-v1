@@ -48,6 +48,20 @@
 //       uma foto do dia atual (não usa de/ate).
 //    `fotoDoDia` (sempre presente) traz a regra b) para comparação.
 //
+// 5. retornoClienteNovo.categorias (D-028): cada cliente novo MADURO cai em uma só:
+//    voltouMesmoProfissional (algum retorno na janela com um profissional que atendeu a
+//    1ª visita), voltouOutroProfissional (voltou, só com profissionais diferentes),
+//    voltouSemInfoProfissional (a 1ª visita ou todos os retornos sem profissional
+//    registrado) ou naoVoltou. Se voltou com o mesmo e com outro, conta como mesmo.
+//    A soma das quatro é o denominador; as três primeiras somam o numerador.
+//
+// 6. fidelizacao = clientes atendidos no período com pelo menos FIDELIDADE_VISITAS
+//    atendimentos (dias distintos) nos FIDELIDADE_JANELA_DIAS dias até `ate` /
+//    clientes atendidos no período.
+//
+// 7. taxaCancelamento = cancelado / (atendidos + no_show + cancelado), mesmo universo
+//    da taxa de falta (cancelamento em qualquer antecedência).
+//
 // Quebra por profissional (`porProfissional`) para falta e reagendamento, com as
 // MESMAS definições, para medir no futuro gatilhos por profissional (ex.: falta
 // < 3%, reagendamento >= 35%) sem lógica nova. Aqui só se mede; nada de bônus.
@@ -57,19 +71,27 @@
 //     comanda fechada). Atendimento com 2 profissionais conta para os dois, por
 //     isso a soma por profissional pode passar do total do salão.
 //   - registro sem profissional não entra na quebra (só no total).
+//   - retorno do cliente novo (D-029): atribuído a cada profissional da 1ª visita,
+//     com as mesmas categorias, vistas por ele: voltou com ele, voltou só com outros,
+//     sem profissional registrado nos retornos, não voltou.
 
 const { normalizeCommands, isLateCancel, addDays } = require('./retention');
 const { agoraNoFuso } = require('../SlotEngine');
 
 const REBOOK_JANELA_DIAS = 1;
-const RETORNO_JANELA_DIAS = 60;
+const RETORNO_JANELA_DIAS = 60; // padrão
+const RETORNO_JANELAS_PERMITIDAS = [60, 90, 120]; // D-028: escolhida no painel
+const FIDELIDADE_VISITAS = 3;
+const FIDELIDADE_JANELA_DIAS = 365;
 const ATENDIDO = ['concluido', 'fechado'];
 
 const REFERENCIAS = {
   taxaFalta: { melhorQuando: 'menor', media: { min: 10, max: 20 }, topo: null, fonte: 'Auditoria 2026-11 §3 (SchedulingKit, Salon Today)' },
   reagendamentoCheckout: { melhorQuando: 'maior', media: { min: 40, max: 52 }, topo: { min: 70, max: 80 }, fonte: 'Auditoria 2026-11 §3 (Kitomba, SalonIQ)' },
   retornoClienteNovo: { melhorQuando: 'maior', media: { min: 30, max: 35 }, topo: { min: 70, max: null }, fonte: 'Auditoria 2026-11 §3 (Phorest, Boulevard)' },
-  confirmacaoPrevia: { melhorQuando: 'maior', media: null, topo: null, fonte: 'Sem referência no relatório §3' }
+  confirmacaoPrevia: { melhorQuando: 'maior', media: null, topo: null, fonte: 'Sem referência no relatório §3' },
+  fidelizacao: { melhorQuando: 'maior', media: null, topo: null, fonte: 'Sem referência consolidada: benchmarks de fornecedores divergem; compare com o histórico do salão' },
+  taxaCancelamento: { melhorQuando: 'menor', media: null, topo: null, fonte: 'Sem referência consolidada: compare com o histórico do salão' }
 };
 
 const dia = v => (v ? String(v).slice(0, 10) : null);
@@ -152,7 +174,8 @@ function confirmacaoPorEventos({ ags, eventos, noPeriodo, hoje, timeZone }) {
   return { confirmados, universo: universo.length, comTrilha: comTrilha.length, semTrilha: chegaram.length - comTrilha.length, canceladosAntes };
 }
 
-function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], eventos = [], de, ate, hoje, timeZone = 'America/Sao_Paulo' }) {
+function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], eventos = [], de, ate, hoje, timeZone = 'America/Sao_Paulo', retornoDias = RETORNO_JANELA_DIAS }) {
+  if (!RETORNO_JANELAS_PERMITIDAS.includes(retornoDias)) throw new RangeError(`retornoDias deve ser ${RETORNO_JANELAS_PERMITIDAS.join(', ')}.`);
   const noPeriodo = d => d && d >= de && d <= ate;
   const ags = agendamentos.map(a => ({ ...a, data: dia(a.data) }));
 
@@ -202,7 +225,7 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
     if (!porCliente.has(v.clienteId)) porCliente.set(v.clienteId, []);
     porCliente.get(v.clienteId).push(v.data);
   });
-  const limiteRetorno = addDays(hoje, -RETORNO_JANELA_DIAS);
+  const limiteRetorno = addDays(hoje, -retornoDias);
   let novos = 0; let maduros = 0; let voltaram = 0;
   porCliente.forEach(datas => {
     const primeira = datas[0];
@@ -210,14 +233,77 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
     novos += 1;
     if (primeira > limiteRetorno) return;
     maduros += 1;
-    const prazo = addDays(primeira, RETORNO_JANELA_DIAS);
+    const prazo = addDays(primeira, retornoDias);
     if (datas.some(d => d > primeira && d <= prazo)) voltaram += 1;
   });
+  // Categorias: com quem o cliente novo voltou (ou não voltou).
+  const visitasPorCliente = new Map();
+  atendimentos.forEach(v => {
+    if (!visitasPorCliente.has(v.clienteId)) visitasPorCliente.set(v.clienteId, []);
+    visitasPorCliente.get(v.clienteId).push(v);
+  });
+  const categorias = { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 0 };
+  visitasPorCliente.forEach(visitas => {
+    const primeira = visitas[0];
+    if (!noPeriodo(primeira.data) || primeira.data > limiteRetorno) return;
+    const prazo = addDays(primeira.data, retornoDias);
+    const retornos = visitas.filter(v => v.data > primeira.data && v.data <= prazo);
+    if (!retornos.length) { categorias.naoVoltou += 1; return; }
+    const comProf = retornos.filter(v => v.profissionais.size > 0);
+    if (!primeira.profissionais.size || !comProf.length) { categorias.voltouSemInfoProfissional += 1; return; }
+    const mesmo = comProf.some(v => [...v.profissionais].some(p => primeira.profissionais.has(p)));
+    if (mesmo) categorias.voltouMesmoProfissional += 1; else categorias.voltouOutroProfissional += 1;
+  });
+  // Quebra por profissional da 1ª visita (D-029).
+  const retornoPorProf = new Map();
+  const somar = (prof, cat) => {
+    if (!retornoPorProf.has(prof)) retornoPorProf.set(prof, { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 0 });
+    retornoPorProf.get(prof)[cat] += 1;
+  };
+  visitasPorCliente.forEach(visitas => {
+    const primeira = visitas[0];
+    if (!noPeriodo(primeira.data) || primeira.data > limiteRetorno || !primeira.profissionais.size) return;
+    const prazo = addDays(primeira.data, retornoDias);
+    const retornos = visitas.filter(v => v.data > primeira.data && v.data <= prazo);
+    const comProf = retornos.filter(v => v.profissionais.size > 0);
+    primeira.profissionais.forEach(prof => {
+      if (!retornos.length) somar(prof, 'naoVoltou');
+      else if (!comProf.length) somar(prof, 'voltouSemInfoProfissional');
+      else somar(prof, comProf.some(v => v.profissionais.has(prof)) ? 'voltouMesmoProfissional' : 'voltouOutroProfissional');
+    });
+  });
+  const retornoDoProf = prof => {
+    const c = retornoPorProf.get(prof) || { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 0 };
+    const num = c.voltouMesmoProfissional + c.voltouOutroProfissional + c.voltouSemInfoProfissional;
+    const { referencia: _r, ...k } = kpi('retornoClienteNovo', num, num + c.naoVoltou, { janelaDias: retornoDias, categorias: c });
+    return k;
+  };
+
   const retornoClienteNovo = kpi('retornoClienteNovo', voltaram, maduros, {
     clientesNovos: novos,
     emMaturacao: novos - maduros,
-    janelaDias: RETORNO_JANELA_DIAS
+    janelaDias: retornoDias,
+    categorias
   });
+
+  // Fidelização e cancelamento.
+  const inicioFidelidade = addDays(ate, -FIDELIDADE_JANELA_DIAS);
+  let clientesNoPeriodo = 0; let recorrentes = 0; let somaVisitas = 0;
+  visitasPorCliente.forEach(visitas => {
+    if (!visitas.some(v => noPeriodo(v.data))) return;
+    const naJanela = visitas.filter(v => v.data > inicioFidelidade && v.data <= ate).length;
+    clientesNoPeriodo += 1; somaVisitas += naJanela;
+    if (naJanela >= FIDELIDADE_VISITAS) recorrentes += 1;
+  });
+  const fidelizacao = kpi('fidelizacao', recorrentes, clientesNoPeriodo, {
+    visitasMinimas: FIDELIDADE_VISITAS,
+    janelaDias: FIDELIDADE_JANELA_DIAS,
+    mediaVisitas: clientesNoPeriodo ? Math.round((somaVisitas / clientesNoPeriodo) * 10) / 10 : null
+  });
+  const atendidosP = passados.filter(a => ATENDIDO.includes(a.status)).length;
+  const noShowP = passados.filter(a => a.status === 'no_show').length;
+  const canceladosP = passados.filter(a => a.status === 'cancelado').length;
+  const taxaCancelamento = kpi('taxaCancelamento', canceladosP, atendidosP + noShowP + canceladosP, { cancelados: canceladosP });
 
   // 4. Confirmação prévia: trilha de eventos no período; sem trilha, foto de hoje.
   const deHoje = ags.filter(a => a.data === hoje && (a.status === 'agendado' || a.status === 'confirmado'));
@@ -242,7 +328,8 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
       limitacao: 'sem trilha de status no período: mede só a agenda de hoje ainda não atendida (status confirmado é sobrescrito no atendimento)'
     });
 
-  return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, porProfissional };
+  const porProfissionalCompleto = porProfissional.map(p => ({ ...p, retornoClienteNovo: retornoDoProf(p.profissionalId) }));
+  return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, fidelizacao, taxaCancelamento, porProfissional: porProfissionalCompleto };
 }
 
-module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS };
+module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };

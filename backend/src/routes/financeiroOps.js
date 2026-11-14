@@ -85,7 +85,7 @@ async function profissionalDaEmpresa(repo, id) {
 const publico = p => ({ id: p.id, profissionalId: p.profissional_id, tipo: p.tipo, valorCentavos: p.valor_centavos, data: String(p.data), referenciaMes: p.referencia_mes || null, observacao: p.observacao || null, estornaId: p.estorna_id || null });
 
 // ---------- Comissão ----------
-router.get('/comissoes/pagamentos', authorize('relatorios:proprio'), async (req, res, next) => {
+router.get('/comissoes/pagamentos', authorize('ganhos:ver'), async (req, res, next) => {
   try {
     const profissionalId = req.authz.own ? req.authz.profissionalId : String(req.query.profissionalId || '');
     if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'Informe profissionalId.', 422);
@@ -149,7 +149,7 @@ async function resumoDoDia(repo, data, { fundoTrocoCentavos = 0, contadoDinheiro
   return aplicarAjustesCaixa(buildFechamentoCaixa({ data, comandos, pagamentos, movimentos, formasPagamento }), { ajustes, fundoTrocoCentavos, contadoDinheiroCentavos });
 }
 
-router.post('/caixa/ajustes', authorize('caixa:operar'), async (req, res, next) => {
+router.post('/caixa/ajustes', authorize('caixa:movimentar'), async (req, res, next) => {
   try {
     const b = corpo(req, ['tipo', 'valorCentavos', 'motivo', 'idempotencyKey']);
     const key = chave(b.idempotencyKey);
@@ -166,7 +166,7 @@ router.post('/caixa/ajustes', authorize('caixa:operar'), async (req, res, next) 
 
 const fechamentoPublico = f => ({ id: f.id, data: String(f.data), fundoTrocoCentavos: f.fundo_troco_centavos, esperadoDinheiroCentavos: f.esperado_dinheiro_centavos, contadoDinheiroCentavos: f.contado_dinheiro_centavos, diferencaCentavos: f.diferenca_centavos, totalBrutoCentavos: f.total_bruto_centavos, quantidadeComandas: f.quantidade_comandas, observacao: f.observacao || null, fechadoEm: f.created_at || null });
 
-router.post('/caixa/fechamentos', authorize('caixa:operar'), async (req, res, next) => {
+router.post('/caixa/fechamentos', authorize('caixa:fechar'), async (req, res, next) => {
   try {
     const b = corpo(req, ['data', 'contadoDinheiroCentavos', 'fundoTrocoCentavos', 'observacao', 'idempotencyKey']);
     const key = chave(b.idempotencyKey);

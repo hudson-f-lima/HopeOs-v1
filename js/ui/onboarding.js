@@ -4,7 +4,7 @@
 // no financeiro; a simulação usa /checkout/preview.
 import { api } from '../api.js';
 import { centsToBRL, escapeHtml, waLink } from '../utils.js';
-import { sessionRoleIn, state } from '../state.js';
+import { sessionRoleIn, state, sessionPode } from '../state.js';
 
 const el = id => document.getElementById(id);
 const ADIADO_KEY = 'hopeos.onboarding.adiado';
@@ -370,7 +370,7 @@ export async function abrirOnboarding(fase) {
 
 // No boot: só para quem configura (admin/gestão ou legado) e só se faltar algo.
 export async function talvezAbrirOnboarding() {
-  if (!sessionRoleIn('admin', 'gestor') || adiado()) return false;
+  if (!sessionPode('empresa:configurar') || adiado()) return false;
   const status = await api('/onboarding/status');
   if (status.completo) return false;
   await abrirOnboarding(status.proximaFase);

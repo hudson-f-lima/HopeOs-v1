@@ -79,7 +79,7 @@
 }
 /* Modo escuro: segue o aparelho. Só os tokens mudam; nenhum componente tem regra própria. */
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg-app:#0b0d12;
     --bg-app-light:#10131a;
     --bg-surface:#141821;
@@ -119,6 +119,48 @@
     --md-neutral:#8b94a5;
   }
 }
+/* Tema escolhido no aparelho (D-031): "Escuro" força os tokens escuros; "Claro" força os claros. */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+    --bg-app:#0b0d12;
+    --bg-app-light:#10131a;
+    --bg-surface:#141821;
+    --bg-glass-light:#171b25;
+    --text-primary:#e8eaf0;
+    --text-secondary:#c3c9d4;
+    --text-tertiary:#a3acba;
+    --text-disabled:#6b7385;
+    --border:#222836;
+    --border-light:#1b202b;
+    --success-light:#10261f;
+    --error-light:#2a1517;
+    --warning-light:#2a2110;
+    --info-light:#131e33;
+    --elevation-1:none;
+    --elevation-2:0 8px 24px -8px rgba(0,0,0,0.5);
+    --elevation-3:0 16px 40px -16px rgba(0,0,0,0.6);
+    --elevation-4:0 6px 16px -6px rgba(0,0,0,0.6);
+    --elevation-glass:none;
+    --surface:#141821;
+    --surface-variant:#222836;
+    --on-surface:#e8eaf0;
+    --outline:#a3acba;
+    --primary:#a78bfa;
+    --primary-soft:#1f1a33;
+    --on-primary:#1a1033;
+    --success:#6ee7b7;
+    --error:#fca5a5;
+    --info:#93c5fd;
+    --warning:#fcd34d;
+    --accent-coral:#fdba74;
+    --accent-teal:#67e8f9;
+    --accent-lilac:#c4b5fd;
+    --accent-blue-soft:#7dd3fc;
+    --glass:rgba(11,13,18,0.88);
+    --glass-border:#222836;
+    --md-neutral:#8b94a5;
+}
+:root[data-theme="light"]{color-scheme:light;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg-app);color:var(--text-primary);font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;padding-bottom:104px;}
 button{cursor:pointer;font-family:inherit;border:none;outline:none;background:none;color:inherit;}
@@ -580,6 +622,55 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .taxa-aviso{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:-4px 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);font-size:13px;line-height:1.4;color:var(--text-secondary);}
 .taxa-aviso b{color:var(--text-primary);}
 .taxa-aviso button{flex:none;min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--bg-glass-light);color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;}
+.janela-retorno{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);flex:none;}
+.janela-retorno select{min-height:44px;padding:0 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg-surface);color:var(--text-primary);font-size:13px;}
+.desempenho-cab{display:none;}
+.desempenho-linha{display:grid;grid-template-columns:1fr;gap:2px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+.desempenho-rotulo{font-weight:600;color:var(--text-primary);}
+.desempenho-linha span[data-col]{display:flex;justify-content:space-between;gap:12px;color:var(--text-primary);font-variant-numeric:tabular-nums;}
+.desempenho-linha span[data-col] small{color:var(--text-secondary);font-size:12px;}
+@media (min-width:768px){
+  .desempenho-cab{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:12px;padding:0 0 6px;font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border);}
+  .desempenho-linha{grid-template-columns:1.4fr 1fr 1fr 1fr;gap:12px;align-items:center;}
+  .desempenho-linha span[data-col]{display:block;}
+  .desempenho-linha span[data-col] small{display:none;}
+}
+progress{accent-color:var(--primary);}
+.tema-escolha{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:var(--bg-surface);}
+.tema-escolha legend{float:left;padding:0;font-size:14px;font-weight:600;color:var(--text-primary);}
+.tema-opcoes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:12px;background:var(--bg-app-light);min-width:240px;flex:1;}
+.tema-opcoes label{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:9px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;}
+.tema-opcoes input{position:absolute;opacity:0;width:1px;height:1px;}
+.tema-opcoes input:checked + span{color:var(--text-primary);font-weight:700;}
+.tema-opcoes label:has(input:checked){background:var(--bg-surface);box-shadow:var(--elevation-1);}
+.tema-opcoes label:has(input:focus-visible){outline:2px solid var(--primary);outline-offset:1px;}
+.perm-pessoa{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.perm-quem{display:flex;flex-direction:column;min-width:0;}
+.perm-quem span{font-size:13px;color:var(--text-secondary);}
+.perm-abrir{width:auto;min-height:44px;padding:0 14px;flex:none;}
+.perm-grupo{margin:12px 0 0;padding:0;border:0;}
+.perm-grupo legend{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:4px;}
+.perm-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 0;font-size:14px;color:var(--text-primary);cursor:pointer;}
+.perm-item input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--primary);}
+.perm-item span{display:flex;flex-direction:column;}
+.perm-item small{font-size:12px;color:var(--text-secondary);}
+.perm-do-papel{cursor:default;opacity:.75;}
+.perm-historico{margin-top:12px;}
+.perm-historico summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;color:var(--primary);}
+.perm-evento{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.perm-evento span:first-child{color:var(--text-secondary);font-size:12px;}
+.metas-equipe{margin:0 0 12px;}
+.equipe-lista{display:flex;flex-direction:column;gap:8px;}
+.equipe-item{display:flex;flex-direction:column;gap:6px;width:100%;min-height:60px;padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--bg-surface);color:var(--text-primary);text-align:left;cursor:pointer;font:inherit;}
+.equipe-item progress{width:100%;}
+.equipe-item[aria-current]{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset;}
+.equipe-item:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+.equipe-sem-meta{border-style:dashed;}
+.equipe-topo{display:flex;justify-content:space-between;gap:10px;font-size:14px;}
+.equipe-topo span{color:var(--text-secondary);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;}
+.meta-salao{margin:8px 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);}
+.meta-salao progress{width:100%;margin-top:6px;}
+.meta-salao-selo{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--primary);}
 .meta-sugestao{display:grid;grid-template-columns:1fr;gap:8px;align-items:end;margin-top:8px;}
 .taxa-calc{margin:0 0 12px;padding:0 12px;border:1px solid var(--border);border-radius:12px;}
 .taxa-calc summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:14px;font-weight:600;color:var(--primary);}
@@ -973,3 +1064,32 @@ body{font-variant-numeric:tabular-nums;}
 .caixa-form .field{margin-bottom:0;}
 .caixa-form .btn{width:auto;}
 @media (max-width:480px){.caixa-form{grid-template-columns:1fr 1fr;}.caixa-form .btn{grid-column:1/-1;width:100%;}}
+
+/* ============ Recepção em celular, tablet e computador (D-032) ============
+   Celular (até 767 px): barra inferior, uma coluna.
+   Tablet (768–1199 px): barra inferior centralizada; conteúdo até 1040 px; comanda e
+   painel em duas colunas (regras de 768 px acima); agenda mais alta.
+   Computador (1200 px ou mais): barra vira trilho lateral, conteúdo até 1280 px,
+   agenda ocupa a altura da tela. Só layout: nenhuma função muda de lugar. */
+@media (min-width:768px){
+  main{max-width:1040px;padding:16px 24px;}
+  .bottom-nav{justify-content:center;}
+  .bottom-nav .nav-btn{flex:0 1 120px;}
+  .modal-box{max-width:520px;}
+  .sheet-box{max-width:720px;}
+}
+@media (min-width:1200px){
+  body{padding-bottom:24px;}
+  #appRoot{padding-left:104px;}
+  .bottom-nav{top:0;bottom:0;right:auto;width:104px;height:auto;flex-direction:column;justify-content:flex-start;gap:6px;padding:96px 8px 24px;border-top:0;border-right:1px solid var(--glass-border);}
+  .bottom-nav .nav-btn{flex:0 0 auto;min-height:64px;border-radius:14px;font-size:12px;}
+  .bottom-nav .nav-btn.active{background:var(--bg-glass-light);}
+  main{max-width:1280px;padding:20px 32px;}
+  .fab{right:32px;bottom:32px;}
+  .agenda-today-pill{left:128px;bottom:32px;}
+  .agenda-lembretes-pill{left:204px;}
+  .agenda-scroll-container{height:calc(100vh - 260px);min-height:600px;}
+  .agenda-grid{grid-template-columns:56px repeat(var(--prof-count, 1), minmax(140px, 1fr));}
+  .checkout-grid{grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);}
+}
+@media (min-width:768px) and (max-width:1199px){ .toast-container{bottom:96px;} }
