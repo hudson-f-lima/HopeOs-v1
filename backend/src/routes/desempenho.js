@@ -13,7 +13,7 @@ const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 
 const router = express.Router();
 
-router.get('/desempenho/profissional', authorize('desempenho:read'), async (req, res, next) => {
+router.get('/desempenho/profissional', authorize('desempenho:ver'), async (req, res, next) => {
   try {
     const mes = String(req.query.mes || '');
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw createAppError('INVALID_MONTH', 'mes deve ser YYYY-MM.', 422);

@@ -30,7 +30,7 @@ function resolverPeriodo(query, hoje) {
   return { de, ate };
 }
 
-router.get('/relatorios/piloto', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/relatorios/piloto', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
     const { de, ate } = resolverPeriodo(req.query, hoje);

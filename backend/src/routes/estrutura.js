@@ -18,14 +18,14 @@ function crud(path, table, validate, rotulo, codigo) {
     return existentes.some(r => r.id !== ignorarId && r.nome.trim().toLowerCase() === nome.trim().toLowerCase());
   };
 
-  router.get(path, authorize('cadastros:read'), async (req, res, next) => {
+  router.get(path, authorize('cadastros:ver'), async (req, res, next) => {
     try {
       const repo = new SupabaseRepository(req.auth.empresa_id);
       res.json({ ok: true, data: await repo.list(table, { empresa_id: repo.empresaId }) });
     } catch (err) { next(err); }
   });
 
-  router.post(path, authorize('cadastros:write'), async (req, res, next) => {
+  router.post(path, authorize('catalogo:editar'), async (req, res, next) => {
     try {
       const payload = validate(req.body);
       const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -34,7 +34,7 @@ function crud(path, table, validate, rotulo, codigo) {
     } catch (err) { next(duplicado(err)); }
   });
 
-  router.patch(`${path}/:id`, authorize('cadastros:write'), async (req, res, next) => {
+  router.patch(`${path}/:id`, authorize('catalogo:editar'), async (req, res, next) => {
     try {
       const id = validateUUID(req.params.id, 'id');
       const payload = validate(req.body, { parcial: true });

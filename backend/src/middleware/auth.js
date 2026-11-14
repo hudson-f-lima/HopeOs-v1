@@ -103,7 +103,9 @@ async function buildUserAuth(identity, req) {
     unit_ids: unitIds,
     unit_id: unitSelector || null,
     membership_id: membership.id,
-    profissional_id: membership.profissional_id || null
+    profissional_id: membership.profissional_id || null,
+    // D-032: permissões individuais, relidas do banco a cada requisição (revogação vale na próxima).
+    permissoes_extras: Array.isArray(membership.permissoes_extras) ? membership.permissoes_extras : []
   };
 }
 

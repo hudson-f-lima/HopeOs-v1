@@ -2,6 +2,7 @@
 // principal user → role da membership; integration → scope com o mesmo nome;
 // legacy (API_ACCESS_TOKEN, transição) → tudo menos administração.
 const { createAppError } = require('../errors');
+const { permissao, alcance } = require('./permissoes');
 
 const ALL = ['admin', 'gestor', 'recepcao', 'profissional'];
 const OPERACAO = ['admin', 'gestor', 'recepcao'];
@@ -44,7 +45,34 @@ function forbidden(code, message, details) {
   return createAppError(code, message, 403, details);
 }
 
+// Permissão fina (D-032): o papel dá o padrão, a permissão individual acrescenta.
+// Token legado e integração continuam pela ação ampla de origem (perm.acao).
+function authorizePermissao(auth, perm) {
+  const rule = ACTIONS[perm.acao];
+  if (!auth) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+  if (auth.principal_type === 'legacy') {
+    if (rule.userOnly) throw forbidden('USER_PRINCIPAL_REQUIRED', 'Ação exige login de usuário administrador.');
+    return { own: false, profissionalId: null };
+  }
+  if (auth.principal_type === 'integration') {
+    if (rule.userOnly) throw forbidden('USER_PRINCIPAL_REQUIRED', 'Integrações não executam ações administrativas.');
+    if (!auth.scopes.includes(perm.acao) && !auth.scopes.includes(perm.codigo)) throw forbidden('INSUFFICIENT_SCOPE', `Scope necessário: ${perm.acao}`, { scope: perm.acao });
+    return { own: false, profissionalId: null };
+  }
+  if (auth.principal_type === 'user') {
+    const a = alcance(auth.role, auth.permissoes_extras, perm.codigo);
+    if (!a) throw forbidden('INSUFFICIENT_ROLE', 'Sem permissão para esta ação.', { action: perm.codigo, role: auth.role });
+    if (a === 'proprio' && !auth.profissional_id) {
+      throw forbidden('PROFESSIONAL_LINK_REQUIRED', 'Usuário profissional sem vínculo ao cadastro de profissional.');
+    }
+    return { own: a === 'proprio', profissionalId: a === 'proprio' ? auth.profissional_id : null };
+  }
+  throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+}
+
 function authorizeAuth(auth, action) {
+  const perm = permissao(action);
+  if (perm) return authorizePermissao(auth, perm);
   const rule = ACTIONS[action];
   if (!rule) throw new Error(`Ação RBAC desconhecida: ${action}`);
   if (!auth) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
@@ -70,7 +98,7 @@ function authorizeAuth(auth, action) {
 }
 
 function authorize(action) {
-  if (!ACTIONS[action]) throw new Error(`Ação RBAC desconhecida: ${action}`);
+  if (!ACTIONS[action] && !permissao(action)) throw new Error(`Ação RBAC desconhecida: ${action}`);
   const guarda = (req, res, next) => {
     try {
       req.authz = authorizeAuth(req.auth, action);
@@ -83,6 +111,28 @@ function authorize(action) {
   return guarda;
 }
 
+// Guarda cuja permissão depende do pedido (ex.: mudar status para "cancelado" exige
+// agenda:cancelar). escolher(req) devolve o código; a marca vale para o inventário RT-20.
+function authorizePor(escolher, rotulo) {
+  const guarda = (req, res, next) => {
+    try {
+      req.authz = authorizeAuth(req.auth, escolher(req));
+      next();
+    } catch (err) { next(err); }
+  };
+  guarda.rbacAction = rotulo;
+  return guarda;
+}
+
+// Exige uma permissão a mais dentro do handler (ex.: encaixe ao criar). O escopo fica o
+// mais restrito dos dois: se qualquer um for "próprio", vale "próprio".
+function exigirTambem(req, codigo) {
+  const extra = authorizeAuth(req.auth, codigo);
+  const own = Boolean((req.authz && req.authz.own) || extra.own);
+  req.authz = { own, profissionalId: own ? (req.authz && req.authz.profissionalId) || extra.profissionalId : null };
+  return req.authz;
+}
+
 // Escopo "Próprio": o recurso precisa pertencer ao profissional do usuário.
 function assertOwn(req, profissionalId) {
   if (req.authz && req.authz.own && profissionalId !== req.authz.profissionalId) {
@@ -90,4 +140,4 @@ function assertOwn(req, profissionalId) {
   }
 }
 
-module.exports = { ACTIONS, authorize, authorizeAuth, assertOwn };
+module.exports = { ACTIONS, authorize, authorizePor, authorizeAuth, exigirTambem, assertOwn };
