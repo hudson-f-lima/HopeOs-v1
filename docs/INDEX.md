@@ -27,6 +27,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`planning/`](planning/) — planejamento e drafts; SQL é DRAFT ONLY
 - [`planning/ONBOARDING_SETUP_ANALISE.md`](planning/ONBOARDING_SETUP_ANALISE.md) — análise da proposta de onboarding em 6 fases (não aprovada)
 - [`planning/DESEMPENHO_MARGEM_ANALISE.md`](planning/DESEMPENHO_MARGEM_ANALISE.md) — análise da proposta de desempenho individual e margem por forma de pagamento (não aprovada)
+- [`planning/REDESIGN_PONTA_A_PONTA.md`](planning/REDESIGN_PONTA_A_PONTA.md) — planejamento do redesign de ponta a ponta: specs, viabilidade, ondas e critérios de aceite
 - [`redteam/`](redteam/) — correções e achados de Red Team
 - [`legacy/`](legacy/) — referências históricas; não representam a fundação física
 - [`archive/`](archive/) — arquivos arquivados
