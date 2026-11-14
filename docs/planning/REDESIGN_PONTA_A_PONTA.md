@@ -47,7 +47,7 @@
 | Gaveta (bottom sheet) | **Sim**, componente próprio com `<dialog>` | Nativo, acessível (foco preso, Esc), sem biblioteca |
 | Esqueletos de carregamento | **Sim** | Só CSS |
 | Atalhos de teclado | **Sim, no computador**, sem atalho global que atrapalhe digitação | Recepção em computador ganha muito |
-| Layout de computador | **Sim, a partir de 1200 px** | Canvas Recepção e Gestor são de computador |
+| Layout de tablet e computador | **Sim: tablet de 768 a 1199 px e computador a partir de 1200 px** | A recepção usa celular, tablet ou computador (dono, 2026-11-14) |
 | Seletores modernos (`:has`) | **Sim, com fallback** | Suporte amplo em navegadores atuais; sem eles a tela continua usável |
 
 **Restrições que continuam:** nenhuma migration; nenhuma mudança de permissão; cache do service worker invalidado a cada entrega; GitHub Pages sem cabeçalhos de segurança (risco já aceito).
@@ -85,7 +85,7 @@ Botão (principal, secundário, perigo, só ícone), campo e rótulo, seletor po
 
 ## 6. Ondas de entrega
 
-Cada onda: um PR, E2E verdes sob a CSP, prints em 390 px e 1280 px nos dois temas, sem mudança de backend. Se uma onda precisar de backend, ela para e pede decisão.
+Cada onda: um PR, E2E verdes sob a CSP, prints em 390 px, 820 px e 1280 px nos dois temas, sem mudança de backend. Se uma onda precisar de backend, ela para e pede decisão.
 
 | Onda | Escopo | Critério de aceite |
 |---|---|---|
@@ -94,7 +94,7 @@ Cada onda: um PR, E2E verdes sob a CSP, prints em 390 px e 1280 px nos dois tema
 | 2 | **Comanda:** gaveta de adicionar item | Comanda de 3 itens com menos toques que a linha de base; estado preservado ao fechar a gaveta; teste dedicado |
 | 3 | **Profissional:** Hoje (linha do tempo) e Meu mês nos cartões do canvas | Fluxo chegou → iniciar → concluir sem sair de Hoje |
 | 4 | **Gestão:** detalhe da pessoa no formato do canvas; Painel em colunas no computador | Sem seletor redundante; Painel ≥1200 px em uma tela |
-| 5 | **Recepção no computador:** grade + comanda lateral + atalhos | Agendar e fechar comanda sem trocar de tela |
+| 5 | **Recepção no tablet e no computador:** grade + comanda lateral + atalhos (atalhos só com teclado) | Agendar e fechar comanda sem trocar de tela, em 768 px e em 1280 px |
 | 6 | **Conta:** cadastros agrupados com busca; entrar e assistente nos componentes novos | Achar qualquer cadastro em até 2 toques |
 
 ## 7. Medição de sucesso
@@ -109,6 +109,7 @@ Cada onda: um PR, E2E verdes sob a CSP, prints em 390 px e 1280 px nos dois tema
 - **Tamanho:** seis ondas são várias entregas. A ordem acima põe primeiro o que reduz esforço no caixa.
 
 ## 9. Decisões do dono
-1. A ordem das ondas (recomendada: 1 → 2 → 3 → 4 → 5 → 6).
-2. A recepção usa computador no balcão? Se não, a Onda 5 cai de prioridade.
+1. ~~Ordem das ondas~~ — **aprovada: 1 → 2 → 3 → 4 → 5 → 6** (2026-11-14).
+2. ~~Aparelho da recepção~~ — **celular, tablet ou computador** (2026-11-14): a Onda 5 cobre tablet e computador.
 3. O merge do PR #28 antes da Onda 1, para a base partir da navegação nova.
+4. Profissional com acesso de recepção: desenho em [`PERMISSOES_POR_PAPEL.md`](PERMISSOES_POR_PAPEL.md); depende da migration 012.
