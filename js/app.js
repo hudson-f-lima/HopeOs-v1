@@ -14,7 +14,7 @@ import {
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
 import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots, avisarReguaCliente } from './ui/agenda.js';
-import { initCheckout, onServicoSelected } from './ui/checkout.js';
+import { initCheckout, onServicoSelected, carregarAtalhos } from './ui/checkout.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
   initCadastros,
@@ -408,6 +408,7 @@ async function init() {
     // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
     await Promise.all([
       loadWeekAgenda(),
+      carregarAtalhos(),
       sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarDashboard() : Promise.resolve(),
       sessionRoleIn('admin', 'gestor', 'recepcao') ? atualizarCaixa() : Promise.resolve(),
       podeEstornar() ? atualizarComandasEstorno() : Promise.resolve()

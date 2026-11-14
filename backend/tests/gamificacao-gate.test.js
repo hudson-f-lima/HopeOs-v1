@@ -12,7 +12,7 @@ const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
 const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
-const { calcularTaxaEfetiva } = require('../src/engines/taxaEfetiva');
+const { calcularTaxaEfetiva, gerarParcelados } = require('../src/engines/taxaEfetiva');
 const { ACTIONS } = require('../src/auth/rbac');
 const { createAppError } = require('../src/errors');
 const { app } = require('../src/app');
@@ -282,6 +282,69 @@ test('T02 HTTP calculadora de taxa: só quem edita cadastros; entrada ruim = 422
   assert.strictEqual((await request('GET', '/api/formas-pagamento/simular-taxa')).status, 422);
   assert.strictEqual((await request('GET', '/api/formas-pagamento/simular-taxa?mdrPct=3', { token: 'h.prof.s' })).status, 403);
   assert.strictEqual((banco.formas_pagamento || []).length, 0);
+});
+
+test('T03 parcelados em lote: 2x–6x com uma taxa, 7x–12x com outra; prazo 1 dia com antecipação, 30 sem', () => {
+  const r = gerarParcelados({ mdrAte6Pct: 3.5, mdr7a12Pct: 4.2, antecipacaoMesPct: 1.8, ateParcelas: 12 });
+  assert.deepStrictEqual([r.length, r[0].code, r[0].label, r[10].code, r.every(f => f.diasRecebimento === 1)], [11, 'credito_2x', 'Crédito 2x', 'credito_12x', true]);
+  assert.strictEqual(r.find(f => f.parcelas === 6).taxaPct, 9.5795);
+  // 7x: 4,2 + 95,8 × 1,8% × 4 = 4,2 + 6,8976 = 11,0976.
+  assert.strictEqual(r.find(f => f.parcelas === 7).taxaPct, 11.0976);
+  assert.ok(r.every((f, i) => i === 0 || f.taxaPct > r[i - 1].taxaPct), 'mais parcelas, mais taxa');
+  const semAnt = gerarParcelados({ mdrAte6Pct: 3.5, ateParcelas: 7 });
+  assert.deepStrictEqual(semAnt.map(f => [f.parcelas, f.taxaPct, f.diasRecebimento]), [2, 3, 4, 5, 6, 7].map(n => [n, 3.5, 30]), 'sem 7–12x informado vale a taxa de 2–6x');
+  for (const ruim of [{ mdrAte6Pct: 3.5, ateParcelas: 1 }, { mdrAte6Pct: 3.5, ateParcelas: 13 }, { ateParcelas: 6 }, { mdrAte6Pct: 3.5, mdr7a12Pct: 'x', ateParcelas: 12 }]) assert.throws(() => gerarParcelados(ruim), RangeError);
+});
+
+test('T04 HTTP parcelados: prévia não grava; gravar cria; repetir atualiza só taxa e prazo; outra empresa e outros papéis fora', async () => {
+  const corpo = { mdrAte6Pct: 3.5, mdr7a12Pct: 4.2, antecipacaoMesPct: 1.8, ateParcelas: 6 };
+  const previa = await request('POST', '/api/formas-pagamento/parcelados', { body: corpo });
+  assert.deepStrictEqual([previa.status, previa.data.data.gravado, previa.data.data.formas.length, previa.data.data.formas.every(f => f.jaExiste === false), (banco.formas_pagamento || []).length], [200, false, 5, true, 0]);
+  const grava = await request('POST', '/api/formas-pagamento/parcelados', { body: { ...corpo, gravar: true } });
+  assert.deepStrictEqual([grava.status, grava.data.data.criadas, grava.data.data.atualizadas], [201, 5, 0]);
+  const doTenant = () => banco.formas_pagamento.filter(f => f.empresa_id === E);
+  assert.deepStrictEqual(doTenant().map(f => [f.code, Number(f.taxa_pct), f.dias_recebimento, f.ativo]).find(x => x[0] === 'credito_6x'), ['credito_6x', 9.5795, 1, true]);
+  // A gestão renomeou e desativou o 3x: o lote seguinte respeita e só muda taxa e prazo.
+  Object.assign(doTenant().find(f => f.code === 'credito_3x'), { label: 'Cartão 3 vezes', ativo: false });
+  const de_novo = await request('POST', '/api/formas-pagamento/parcelados', { body: { mdrAte6Pct: 4, ateParcelas: 7, gravar: true } });
+  assert.deepStrictEqual([de_novo.status, de_novo.data.data.criadas, de_novo.data.data.atualizadas, doTenant().length], [201, 1, 5, 6]);
+  const tres = doTenant().find(f => f.code === 'credito_3x');
+  assert.deepStrictEqual([tres.label, tres.ativo, Number(tres.taxa_pct), tres.dias_recebimento], ['Cartão 3 vezes', false, 4, 30]);
+  assert.strictEqual(banco.formas_pagamento.filter(f => f.empresa_id === EB).length, 0, 'nada na outra empresa');
+  for (const token of ['h.recep.s', 'h.prof.s']) assert.strictEqual((await request('POST', '/api/formas-pagamento/parcelados', { token, body: { ...corpo, gravar: true } })).status, 403);
+  const ruins = [{ ateParcelas: 6 }, { ...corpo, ateParcelas: 13 }, { ...corpo, empresa_id: EB }, { ...corpo, gravar: 'sim' }];
+  for (const body of ruins) assert.strictEqual((await request('POST', '/api/formas-pagamento/parcelados', { body })).status, 422, JSON.stringify(body));
+  assert.strictEqual(doTenant().length, 6, 'entradas ruins não gravam');
+});
+
+test('V01 mais vendidos: conta unidades na janela, ignora inativo e fora da janela, desempata pelo mais recente', () => {
+  const { computeMaisVendidos } = require('../src/engines/insights/maisVendidos');
+  const cs = [{ id: 'c1', data: '2026-06-10' }, { id: 'c2', data: '2026-06-20' }, { id: 'velha', data: '2026-01-01' }];
+  const it = (comando_id, tipo, id, quantidade = 1) => ({ comando_id, tipo, quantidade, [tipo === 'servico' ? 'servico_id' : 'produto_id']: id });
+  const itens = [it('c1', 'servico', 's1'), it('c2', 'servico', 's1'), it('c1', 'servico', 's2'), it('c2', 'servico', 's3'), it('c1', 'servico', 's4'), it('c2', 'servico', 's5'), it('c1', 'servico', 'sInativo'), it('c2', 'servico', 'sInativo'), it('c2', 'servico', 'sInativo'),
+    it('velha', 'servico', 's2'), it('velha', 'servico', 's2'), it('velha', 'servico', 's2'), it('c1', 'produto', 'p1', 5), it('c2', 'produto', 'p2', 2), it('c2', 'produto', 'p3', 1), it('c1', 'produto', 'apagado', 9)];
+  const servicos = ['s1', 's2', 's3', 's4', 's5'].map(id => ({ id, nome: id.toUpperCase(), ativo: true })).concat({ id: 'sInativo', nome: 'X', ativo: false });
+  const produtos = ['p1', 'p2', 'p3'].map(id => ({ id, nome: id, ativo: true }));
+  const r = computeMaisVendidos({ comandos: cs, comandoItens: itens, servicos, produtos, hoje: '2026-06-30' });
+  // s1 = 2; s2, s3, s4, s5 = 1 cada: os de 20/06 (s3, s5) antes dos de 10/06 (s2, s4); cabem 4.
+  assert.deepStrictEqual(r, { dias: 90, servicos: ['s1', 's3', 's5', 's2'], produtos: ['p1', 'p2'] });
+  assert.deepStrictEqual(computeMaisVendidos({ hoje: '2026-06-30' }), { dias: 90, servicos: [], produtos: [] });
+  // Controle negativo: com janela de 365 dias a comanda antiga entra e o s2 passa à frente.
+  assert.deepStrictEqual(computeMaisVendidos({ comandos: cs, comandoItens: itens, servicos, produtos, hoje: '2026-06-30', dias: 365 }).servicos[0], 's2');
+});
+
+test('V02 HTTP mais vendidos: só ids da própria empresa; quem fecha comanda lê; sem login não', async () => {
+  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  banco.servicos = [{ id: 'sv1', empresa_id: E, nome: 'Corte', ativo: true }, { id: 'svb', empresa_id: EB, nome: 'Corte B', ativo: true }];
+  banco.produtos = [{ id: 'pd1', empresa_id: E, nome: 'Pomada', ativo: true }];
+  banco.comandos.push({ id: 'mv1', empresa_id: E, data: hojeSP }, { id: 'mvb', empresa_id: EB, data: hojeSP });
+  banco.comando_itens.push({ id: 'mvi1', empresa_id: E, comando_id: 'mv1', tipo: 'servico', servico_id: 'sv1', quantidade: 1 }, { id: 'mvi2', empresa_id: E, comando_id: 'mv1', tipo: 'produto', produto_id: 'pd1', quantidade: 2 },
+    { id: 'mvib', empresa_id: EB, comando_id: 'mvb', tipo: 'servico', servico_id: 'svb', quantidade: 50 });
+  const r = await request('GET', '/api/checkout/mais-vendidos');
+  assert.deepStrictEqual([r.status, r.data.data], [200, { dias: 90, servicos: ['sv1'], produtos: ['pd1'] }]);
+  for (const token of ['h.recep.s', 'h.prof.s']) assert.strictEqual((await request('GET', '/api/checkout/mais-vendidos', { token })).status, 200);
+  assert.strictEqual((await request('GET', '/api/checkout/mais-vendidos', { token: null })).status, 401);
+  assert.deepStrictEqual((await request('GET', '/api/checkout/mais-vendidos', { token: 'h.adminb.s' })).data.data.servicos, ['svb']);
 });
 
 (async () => {

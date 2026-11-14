@@ -174,6 +174,15 @@
             <input id="coCliente" type="text" placeholder="Digite cliente..." class="input-light"/>
           </div>
           <div class="field">
+            <label for="coProfissional">Profissional (quem atendeu ou vendeu)</label>
+            <input id="coProfissional" type="text" placeholder="Digite profissional..." class="input-light"/>
+          </div>
+          <div class="co-atalhos hidden" id="coAtalhos">
+            <h3 class="body-sm text-tertiary" id="coAtalhosTitulo">Mais vendidos</h3>
+            <div class="co-atalhos-grid" id="coAtalhosLista" role="group" aria-labelledby="coAtalhosTitulo"></div>
+            <p class="body-sm text-tertiary" id="coAtalhosMsg" role="status"></p>
+          </div>
+          <div class="field">
             <label for="coServico">Serviço</label>
             <input id="coServico" type="text" placeholder="Digite serviço..." class="input-light"/>
           </div>
@@ -189,10 +198,6 @@
             <span id="attachSuggestionText"></span>
             <button type="button" class="btn btn-secondary" id="btnAttachSuggestionAdd" style="width:auto;padding:6px 12px;">Adicionar</button>
           </div>
-          <div class="field">
-            <label for="coProfissional">Profissional (quem atendeu ou vendeu)</label>
-            <input id="coProfissional" type="text" placeholder="Digite profissional..." class="input-light"/>
-          </div>
           <button type="button" class="btn btn-secondary" id="btnAddItem">+ Adicionar à comanda</button>
           <p class="list-count-hint">Para vários serviços, produtos ou profissionais: escolha, toque em "Adicionar à comanda" e repita.</p>
           <div id="coItens" class="co-itens hidden" aria-live="polite">
@@ -200,7 +205,7 @@
             <div id="coItensLista"></div>
             <div class="row total"><span>Subtotal dos itens</span><b id="coItensSubtotal" data-subtotal="0">R$ 0,00</b></div>
           </div>
-          <div class="field">
+          <div class="field" id="coFormaField">
             <label for="coForma">Forma de pagamento</label>
             <input id="coForma" type="text" placeholder="Digite forma..." class="input-light"/>
           </div>
@@ -215,7 +220,7 @@
           </div>
           <div class="split-toggle-row">
             <span class="split-toggle-label">Dividir pagamento</span>
-            <button class="split-toggle" id="splitToggle">
+            <button class="split-toggle" id="splitToggle" type="button" role="switch" aria-checked="false" aria-label="Dividir pagamento em mais de uma forma">
               <div class="toggle-knob"></div>
             </button>
           </div>
@@ -223,7 +228,8 @@
           <div id="splitRowsContainer" class="hidden">
             <label>Formas de pagamento</label>
             <div id="splitRowsList" class="split-rows-container"></div>
-            <button id="addSplitRowBtn" class="split-add-btn">+ Adicionar forma</button>
+            <button id="addSplitRowBtn" class="split-add-btn" type="button">+ Adicionar forma</button>
+            <p class="body-sm text-tertiary" id="splitDica" role="status" style="margin:8px 0 0;"></p>
           </div>
 
           <div class="checkout-actions">
@@ -788,6 +794,7 @@
           <h2 style="margin-bottom:0;">Formas de pagamento</h2>
           <button class="btn btn-secondary" style="width:auto;padding:6px 12px;" id="btnNovaForma">+ Nova</button>
         </div>
+        <button class="btn btn-secondary" type="button" id="btnParcelados" style="margin-bottom:10px;">Criar cartão parcelado (2x a 12x)</button>
         <label class="filter-inline"><input type="checkbox" id="chkFormasInativas"/> Mostrar inativas</label>
         <div id="listFormas"></div>
       </div>
@@ -892,6 +899,24 @@
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarForma" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarForma" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalParcelados">
+  <div class="modal-box">
+    <h2>Cartão parcelado</h2>
+    <p class="body-sm text-tertiary" style="margin:0 0 10px;">Informe as taxas da sua maquininha. O sistema cria uma forma de pagamento para cada parcelamento, já com a taxa efetiva.</p>
+    <p class="modal-error hidden" id="pcError"></p>
+    <div class="field"><label for="pcMdr6">Taxa de 2x a 6x (%)</label><input id="pcMdr6" inputmode="decimal" placeholder="Ex.: 3,5"/></div>
+    <div class="field"><label for="pcMdr12">Taxa de 7x a 12x (%)</label><input id="pcMdr12" inputmode="decimal" placeholder="Em branco = igual à de 2x a 6x"/></div>
+    <div class="field"><label for="pcAnt">Antecipação ao mês (%)</label><input id="pcAnt" inputmode="decimal" placeholder="0 se você não antecipa"/></div>
+    <div class="field"><label for="pcAte">Parcelar em até</label><select id="pcAte"><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="5">5x</option><option value="6">6x</option><option value="7">7x</option><option value="8">8x</option><option value="9">9x</option><option value="10">10x</option><option value="11">11x</option><option value="12" selected>12x</option></select></div>
+    <button class="btn btn-secondary" type="button" id="btnPcPrevia">Ver taxas</button>
+    <div id="pcPrevia" class="dashboard-list" style="margin-top:10px;" aria-live="polite"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-secondary" type="button" id="btnPcCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnPcGravar" style="flex:1;" disabled>Criar formas</button>
     </div>
   </div>
 </div>

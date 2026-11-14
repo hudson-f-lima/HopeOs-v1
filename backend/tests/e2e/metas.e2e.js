@@ -94,6 +94,19 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await a.fill('#fmCode', 'credito_6x'); await a.fill('#fmLabel', 'Crédito 6x'); await a.click('#btnSalvarForma'); await a.waitForTimeout(800);
   const forma6x = (await db('formas_pagamento')).find(f => f.code === 'credito_6x');
   confere('admin: forma "Crédito 6x" gravada com a taxa calculada', Boolean(forma6x) && Number(forma6x.taxa_pct) === 9.5795, JSON.stringify(forma6x && forma6x.taxa_pct));
+  // Parcelados em lote: 2x a 12x de uma vez; o 6x que já existe só tem a taxa conferida.
+  await a.click('#btnParcelados'); await a.waitForSelector('#modalParcelados:not(.hidden)');
+  confere('parcelados: "Criar formas" desligado antes da prévia', await a.isDisabled('#btnPcGravar'));
+  await a.fill('#pcMdr6', '3,5'); await a.fill('#pcMdr12', '4,2'); await a.fill('#pcAnt', '1,8'); await a.click('#btnPcPrevia');
+  await a.waitForSelector('#pcPrevia [data-parcelas="12"]');
+  confere('parcelados: prévia com 11 linhas, 6x marcado como existente, 7x a 11,0976%', await a.locator('#pcPrevia [data-parcelas]').count() === 11 && /já existe/.test(await a.textContent('#pcPrevia [data-parcelas="6"]')) && await a.getAttribute('#pcPrevia [data-parcelas="7"]', 'data-taxa') === '11.0976');
+  confere('parcelados: prévia não grava', (await db('formas_pagamento')).filter(f => /^credito_\d+x$/.test(f.code)).length === 1);
+  await a.fill('#pcAnt', '1,8'); confere('parcelados: mexer em um campo desliga o botão de gravar', await a.isDisabled('#btnPcGravar'));
+  await a.click('#btnPcPrevia'); await a.waitForFunction(() => !document.getElementById('btnPcGravar').disabled);
+  await a.click('#btnPcGravar'); await a.waitForSelector('#modalParcelados', { state: 'hidden' });
+  const parcelados = (await db('formas_pagamento')).filter(f => /^credito_\d+x$/.test(f.code));
+  confere('parcelados: 11 formas, 6x mantém 9,5795% e 12x fica acima', parcelados.length === 11 && Number(parcelados.find(f => f.code === 'credito_6x').taxa_pct) === 9.5795 && Number(parcelados.find(f => f.code === 'credito_12x').taxa_pct) > 11.0976 && parcelados.every(f => f.dias_recebimento === 1));
+  confere('parcelados: aparecem na lista de formas', /Crédito 12x/.test(await a.textContent('#listFormas')));
   // Um Corte de 60,00 em 6x: a comanda grava 5,75 de taxa e o painel mostra o líquido por forma.
   const c6 = await legado('/checkout/close', { data: hojeSP, idempotencyKey: 'e2e-mt-6x', itens: [{ tipo: 'servico', servicoId: corte.id, profissionalId: outro.id }], payments: [{ formaCode: 'credito_6x', valorCentavos: 6000 }] });
   const pag6 = (await db('comando_pagamentos')).find(x => x.forma_code === 'credito_6x');

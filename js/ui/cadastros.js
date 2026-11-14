@@ -441,6 +441,59 @@ async function calcularTaxaParcelado() {
   }
 }
 
+// Cartão parcelado em lote: a prévia e a gravação vêm do servidor. Mexer em qualquer
+// campo depois da prévia desliga "Criar formas" até pedir a prévia de novo.
+function corpoParcelados() {
+  const num = id => { const t = document.getElementById(id).value.trim().replace(',', '.'); return t === '' ? undefined : Number(t); };
+  const corpo = { mdrAte6Pct: num('pcMdr6'), antecipacaoMesPct: num('pcAnt') ?? 0, ateParcelas: Number(document.getElementById('pcAte').value) };
+  const segunda = num('pcMdr12');
+  if (segunda !== undefined) corpo.mdr7a12Pct = segunda;
+  return corpo;
+}
+
+function abrirParcelados() {
+  for (const id of ['pcMdr6', 'pcMdr12', 'pcAnt']) document.getElementById(id).value = '';
+  document.getElementById('pcAte').value = '12';
+  document.getElementById('pcPrevia').innerHTML = '';
+  document.getElementById('btnPcGravar').disabled = true;
+  clearModalError('pcError');
+  openModal('modalParcelados');
+}
+
+async function previaParcelados() {
+  clearModalError('pcError');
+  document.getElementById('btnPcGravar').disabled = true;
+  if (!document.getElementById('pcMdr6').value.trim()) { showModalError('pcError', 'Informe a taxa de 2x a 6x.'); return; }
+  try {
+    const r = await api('/formas-pagamento/parcelados', { method: 'POST', body: corpoParcelados() });
+    const pct = v => String(v).replace('.', ',');
+    const linhas = r.formas.map(f => [
+      `<div class="row" data-parcelas="${f.parcelas}" data-taxa="${f.taxaPct}"><span>${escapeHtml(f.label)}`,
+      f.jaExiste ? ` (já existe: ${pct(f.taxaAtualPct)}%)` : '',
+      `</span><b>${pct(f.taxaPct)}% · sobram ${centsToBRL(f.liquidoPor100Centavos)} de R$ 100,00</b></div>`
+    ].join(''));
+    const existentes = r.formas.filter(f => f.jaExiste).length;
+    document.getElementById('pcPrevia').innerHTML = linhas.join('') + `<p class="list-count-hint">${existentes ? `${existentes} forma(s) já existem: só a taxa e o prazo mudam. ` : ''}É estimativa: confira com o extrato da maquininha. Comandas já fechadas não mudam.</p>`;
+    const botao = document.getElementById('btnPcGravar');
+    botao.textContent = existentes === r.formas.length ? 'Atualizar taxas' : 'Criar formas';
+    botao.disabled = false;
+  } catch (err) {
+    document.getElementById('pcPrevia').innerHTML = '';
+    showModalError('pcError', err.message);
+  }
+}
+
+async function gravarParcelados() {
+  const botao = document.getElementById('btnPcGravar');
+  botao.disabled = true;
+  const data = await submitCadastro(
+    () => api('/formas-pagamento/parcelados', { method: 'POST', body: { ...corpoParcelados(), gravar: true } }),
+    'Formas de cartão parcelado gravadas.', renderFormasList, 'pcError'
+  );
+  if (data) closeModal('modalParcelados');
+  else botao.disabled = false;
+}
+
 async function submitFormaForm() {
   const isEdit = document.getElementById('fmCode').disabled;
   const bodyBase = {
@@ -644,6 +697,13 @@ export function initCadastros() {
   document.getElementById('btnCancelarForma').addEventListener('click', () => closeModal('modalForma'));
   document.getElementById('btnSalvarForma').addEventListener('click', submitFormaForm);
   document.getElementById('btnFmCalc').addEventListener('click', calcularTaxaParcelado);
+  document.getElementById('btnParcelados').addEventListener('click', abrirParcelados);
+  document.getElementById('btnPcPrevia').addEventListener('click', previaParcelados);
+  document.getElementById('btnPcGravar').addEventListener('click', gravarParcelados);
+  document.getElementById('btnPcCancelar').addEventListener('click', () => closeModal('modalParcelados'));
+  for (const id of ['pcMdr6', 'pcMdr12', 'pcAnt', 'pcAte']) {
+    document.getElementById(id).addEventListener('input', () => { document.getElementById('btnPcGravar').disabled = true; });
+  }
   document.getElementById('listFormas').addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-action]');
     if (!btn) return;
