@@ -31,6 +31,9 @@ const ACTIONS = {
   'metas:read': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
   'metas:write': { roles: GESTAO, userOnly: true },
   'ranking:read': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'] },
+  // D-029: indicadores por colaborador. Gestão vê qualquer um; o profissional, só os seus;
+  // recepção não. userOnly: precisa de uma pessoa logada (sem token legado nem integração).
+  'desempenho:read': { roles: ['admin', 'gestor', 'profissional'], own: ['profissional'], userOnly: true },
   // D-017 (migration 010): gravam dinheiro com autoria humana obrigatória.
   'comissoes:pagar': { roles: GESTAO, userOnly: true },
   'caixa:operar': { roles: OPERACAO, userOnly: true },

@@ -71,6 +71,9 @@
 //     comanda fechada). Atendimento com 2 profissionais conta para os dois, por
 //     isso a soma por profissional pode passar do total do salão.
 //   - registro sem profissional não entra na quebra (só no total).
+//   - retorno do cliente novo (D-029): atribuído a cada profissional da 1ª visita,
+//     com as mesmas categorias, vistas por ele: voltou com ele, voltou só com outros,
+//     sem profissional registrado nos retornos, não voltou.
 
 const { normalizeCommands, isLateCancel, addDays } = require('./retention');
 const { agoraNoFuso } = require('../SlotEngine');
@@ -251,6 +254,31 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
     const mesmo = comProf.some(v => [...v.profissionais].some(p => primeira.profissionais.has(p)));
     if (mesmo) categorias.voltouMesmoProfissional += 1; else categorias.voltouOutroProfissional += 1;
   });
+  // Quebra por profissional da 1ª visita (D-029).
+  const retornoPorProf = new Map();
+  const somar = (prof, cat) => {
+    if (!retornoPorProf.has(prof)) retornoPorProf.set(prof, { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 0 });
+    retornoPorProf.get(prof)[cat] += 1;
+  };
+  visitasPorCliente.forEach(visitas => {
+    const primeira = visitas[0];
+    if (!noPeriodo(primeira.data) || primeira.data > limiteRetorno || !primeira.profissionais.size) return;
+    const prazo = addDays(primeira.data, retornoDias);
+    const retornos = visitas.filter(v => v.data > primeira.data && v.data <= prazo);
+    const comProf = retornos.filter(v => v.profissionais.size > 0);
+    primeira.profissionais.forEach(prof => {
+      if (!retornos.length) somar(prof, 'naoVoltou');
+      else if (!comProf.length) somar(prof, 'voltouSemInfoProfissional');
+      else somar(prof, comProf.some(v => v.profissionais.has(prof)) ? 'voltouMesmoProfissional' : 'voltouOutroProfissional');
+    });
+  });
+  const retornoDoProf = prof => {
+    const c = retornoPorProf.get(prof) || { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 0 };
+    const num = c.voltouMesmoProfissional + c.voltouOutroProfissional + c.voltouSemInfoProfissional;
+    const { referencia: _r, ...k } = kpi('retornoClienteNovo', num, num + c.naoVoltou, { janelaDias: retornoDias, categorias: c });
+    return k;
+  };
+
   const retornoClienteNovo = kpi('retornoClienteNovo', voltaram, maduros, {
     clientesNovos: novos,
     emMaturacao: novos - maduros,
@@ -300,7 +328,8 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
       limitacao: 'sem trilha de status no período: mede só a agenda de hoje ainda não atendida (status confirmado é sobrescrito no atendimento)'
     });
 
-  return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, fidelizacao, taxaCancelamento, porProfissional };
+  const porProfissionalCompleto = porProfissional.map(p => ({ ...p, retornoClienteNovo: retornoDoProf(p.profissionalId) }));
+  return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, fidelizacao, taxaCancelamento, porProfissional: porProfissionalCompleto };
 }
 
 module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };

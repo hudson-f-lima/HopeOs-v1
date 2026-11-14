@@ -141,6 +141,14 @@ const abrirGanhos = async p => { await p.click('#navAvatar'); await p.waitForSel
   await p.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});
   const textoProf = (await p.textContent('#metaSalaoBloco')).replace(/\s+/g, ' ').trim();
   confere('profissional: vê o reconhecimento sem nomes nem valores de colegas', await p.isVisible('#metaSalaoBloco .meta-salao-selo') && !/Ana|Bruno|Caio/.test(textoProf), textoProf);
+  // ---- Desempenho por colaborador (D-029) ----
+  await a.waitForSelector('#desempenhoBloco:not(.hidden) .desempenho-linha', { timeout: 8000 }).catch(() => {});
+  const linhasAdm = await a.$$eval('#desempenhoTabela .desempenho-linha', ns => ns.map(n => [n.querySelector('.desempenho-rotulo').textContent, n.querySelector('[data-col="atual"]').textContent.replace('Este mês', '').trim()]));
+  confere('gestão: desempenho da Ana com 8 indicadores e 1 atendimento no mês', linhasAdm.length === 8 && linhasAdm[0][0] === 'Atendimentos' && linhasAdm[0][1] === '1', JSON.stringify(linhasAdm.slice(0, 2)));
+  const textoDesempenho = await a.textContent('#desempenhoBloco');
+  confere('gestão: sem ranking, rótulo ou nota no desempenho', !/risco|posição|ranking|nota \d|elegível/i.test(textoDesempenho) && /Média do salão/.test(textoDesempenho));
+  await p.waitForSelector('#desempenhoBloco:not(.hidden) .desempenho-linha', { timeout: 8000 }).catch(() => {});
+  confere('profissional: vê o próprio desempenho, sem escolher pessoa', await p.locator('#desempenhoTabela .desempenho-linha').count() === 8 && !(await p.isVisible('#ganhosProfissional')));
   await p.locator('#metaSalaoBloco').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-meta-salao.png') }).catch(() => {});
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
   await b.close();

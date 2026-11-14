@@ -264,6 +264,23 @@ test('P10 datas inválidas e período > 366 dias → 422', async () => {
   assert.strictEqual((await request('/api/relatorios/piloto?de=2025-01-01&ate=2026-01-01')).status, 200, '366 dias é aceito');
 });
 
+test('C06 retorno por profissional da 1ª visita: cada um vê os seus clientes novos', () => {
+  const r = computePiloto({
+    de: '2026-03-01', ate: '2026-03-31', hoje: '2026-09-01',
+    agendamentos: [
+      ev('a1', 'c1', 'pA', '2026-03-05'), ev('a2', 'c1', 'pA', '2026-04-10'),   // pA: voltou com ele
+      ev('b1', 'c2', 'pA', '2026-03-06'), ev('b2', 'c2', 'pB', '2026-04-12'),   // pA: voltou com outro
+      ev('d1', 'c3', 'pB', '2026-03-07'),                                       // pB: não voltou
+      ev('e1', 'c4', null, '2026-03-08'), ev('e2', 'c4', 'pA', '2026-04-01')    // 1ª visita sem profissional: fora da quebra
+    ]
+  });
+  const por = Object.fromEntries(r.porProfissional.map(p => [p.profissionalId, p.retornoClienteNovo]));
+  assert.deepStrictEqual(por.pA.categorias, { voltouMesmoProfissional: 1, voltouOutroProfissional: 1, voltouSemInfoProfissional: 0, naoVoltou: 0 });
+  assert.deepStrictEqual([por.pA.numerador, por.pA.denominador, por.pA.taxa], [2, 2, 100]);
+  assert.deepStrictEqual(por.pB.categorias, { voltouMesmoProfissional: 0, voltouOutroProfissional: 0, voltouSemInfoProfissional: 0, naoVoltou: 1 });
+  assert.strictEqual(por.pA.referencia, undefined, 'a quebra não traz faixa de mercado');
+});
+
 test('C05 rota: retornoDias=90 e 120 aceitos e devolvidos; outro valor = 422', async () => {
   for (const d of [60, 90, 120]) {
     const r = await request(`/api/relatorios/piloto?retornoDias=${d}`);

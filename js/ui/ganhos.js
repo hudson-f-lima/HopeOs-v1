@@ -7,6 +7,7 @@ import { state, sessionRoleIn } from '../state.js';
 import { escapeHtml, centsToBRL, todayStr, genIdempotencyKey, confirmAction } from '../utils.js';
 import { reaisParaCentavos } from './caixa.js';
 import { atualizarMetas, atualizarRanking, initMetas } from './metas.js';
+import { atualizarDesempenho } from './desempenho.js';
 
 const el = id => document.getElementById(id);
 const fmtData = d => { const [, m, dd] = String(d).split('-'); return `${dd}/${m}`; };
@@ -97,6 +98,7 @@ async function estornarLancamento(id) {
 }
 
 export async function atualizarGanhos() {
+  el('desempenhoBloco')?.classList.add('hidden');
   const erro = el('ganhosErro');
   erro.textContent = '';
   const mes = el('ganhosMes').value || todayStr().slice(0, 7);
@@ -111,6 +113,7 @@ export async function atualizarGanhos() {
     await atualizarSaldo(params.get('profissionalId'));
     await atualizarMetas(mes, params.get('profissionalId'));
     await atualizarRanking(mes);
+    await atualizarDesempenho(mes, params.get('profissionalId'));
   } catch (err) {
     el('ganhosResultado').innerHTML = '';
     erro.textContent = err.message;
