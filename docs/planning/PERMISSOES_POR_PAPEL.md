@@ -1,6 +1,6 @@
 # Permissões por papel e acessos extras — desenho (2026-11-14)
 
-**Estado:** desenho. Nada implementado. SQL abaixo é DRAFT ONLY: a migration 012 não está autorizada.
+**Estado:** implementado em D-032 (migration 012 autorizada em 2026-11-14). A matriz vigente é [`../PERMISSOES.md`](../PERMISSOES.md); este arquivo é o desenho histórico. O SQL abaixo foi substituído pelo da migration 012 real (permissões finas em vez de pacotes fixos).
 
 ## 1. Pedido
 O Platform Owner quer que um **profissional possa ter acesso de recepção**, concedido por gestor ou proprietário, e que as permissões de cada papel fiquem definidas em detalhe ("microabilidades").

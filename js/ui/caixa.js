@@ -3,7 +3,7 @@
 // e calcula a diferença. "Conferir" só mostra; "Fechar caixa" grava (D-017): cada
 // fechamento é imutável e fechar de novo o mesmo dia grava outro — vale o mais recente.
 import { api } from '../api.js';
-import { sessionRoleIn, stateBus } from '../state.js';
+import { sessionRoleIn, stateBus, sessionPode } from '../state.js';
 import { escapeHtml, centsToBRL, genIdempotencyKey, confirmAction } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -63,7 +63,7 @@ function render(f) {
 }
 
 export async function atualizarCaixa() {
-  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) return;
+  if (!sessionPode('caixa:conferir')) return;
   const erro = el('caixaErro');
   erro.textContent = '';
   const params = new URLSearchParams();
@@ -142,7 +142,7 @@ async function lancarAjuste() {
 }
 
 export function initCaixa() {
-  if (!sessionRoleIn('admin', 'gestor', 'recepcao')) return;
+  if (!sessionPode('caixa:conferir')) return;
   el('cardCaixa')?.classList.remove('hidden');
   el('btnFecharCaixa').addEventListener('click', fecharCaixa);
   el('caixaAjusteForm').addEventListener('submit', ev => { ev.preventDefault(); lancarAjuste(); });

@@ -644,6 +644,21 @@ progress{accent-color:var(--primary);}
 .tema-opcoes input:checked + span{color:var(--text-primary);font-weight:700;}
 .tema-opcoes label:has(input:checked){background:var(--bg-surface);box-shadow:var(--elevation-1);}
 .tema-opcoes label:has(input:focus-visible){outline:2px solid var(--primary);outline-offset:1px;}
+.perm-pessoa{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.perm-quem{display:flex;flex-direction:column;min-width:0;}
+.perm-quem span{font-size:13px;color:var(--text-secondary);}
+.perm-abrir{width:auto;min-height:44px;padding:0 14px;flex:none;}
+.perm-grupo{margin:12px 0 0;padding:0;border:0;}
+.perm-grupo legend{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:4px;}
+.perm-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 0;font-size:14px;color:var(--text-primary);cursor:pointer;}
+.perm-item input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--primary);}
+.perm-item span{display:flex;flex-direction:column;}
+.perm-item small{font-size:12px;color:var(--text-secondary);}
+.perm-do-papel{cursor:default;opacity:.75;}
+.perm-historico{margin-top:12px;}
+.perm-historico summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;color:var(--primary);}
+.perm-evento{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.perm-evento span:first-child{color:var(--text-secondary);font-size:12px;}
 .metas-equipe{margin:0 0 12px;}
 .equipe-lista{display:flex;flex-direction:column;gap:8px;}
 .equipe-item{display:flex;flex-direction:column;gap:6px;width:100%;min-height:60px;padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--bg-surface);color:var(--text-primary);text-align:left;cursor:pointer;font:inherit;}
@@ -1049,3 +1064,32 @@ body{font-variant-numeric:tabular-nums;}
 .caixa-form .field{margin-bottom:0;}
 .caixa-form .btn{width:auto;}
 @media (max-width:480px){.caixa-form{grid-template-columns:1fr 1fr;}.caixa-form .btn{grid-column:1/-1;width:100%;}}
+
+/* ============ Recepção em celular, tablet e computador (D-032) ============
+   Celular (até 767 px): barra inferior, uma coluna.
+   Tablet (768–1199 px): barra inferior centralizada; conteúdo até 1040 px; comanda e
+   painel em duas colunas (regras de 768 px acima); agenda mais alta.
+   Computador (1200 px ou mais): barra vira trilho lateral, conteúdo até 1280 px,
+   agenda ocupa a altura da tela. Só layout: nenhuma função muda de lugar. */
+@media (min-width:768px){
+  main{max-width:1040px;padding:16px 24px;}
+  .bottom-nav{justify-content:center;}
+  .bottom-nav .nav-btn{flex:0 1 120px;}
+  .modal-box{max-width:520px;}
+  .sheet-box{max-width:720px;}
+}
+@media (min-width:1200px){
+  body{padding-bottom:24px;}
+  #appRoot{padding-left:104px;}
+  .bottom-nav{top:0;bottom:0;right:auto;width:104px;height:auto;flex-direction:column;justify-content:flex-start;gap:6px;padding:96px 8px 24px;border-top:0;border-right:1px solid var(--glass-border);}
+  .bottom-nav .nav-btn{flex:0 0 auto;min-height:64px;border-radius:14px;font-size:12px;}
+  .bottom-nav .nav-btn.active{background:var(--bg-glass-light);}
+  main{max-width:1280px;padding:20px 32px;}
+  .fab{right:32px;bottom:32px;}
+  .agenda-today-pill{left:128px;bottom:32px;}
+  .agenda-lembretes-pill{left:204px;}
+  .agenda-scroll-container{height:calc(100vh - 260px);min-height:600px;}
+  .agenda-grid{grid-template-columns:56px repeat(var(--prof-count, 1), minmax(140px, 1fr));}
+  .checkout-grid{grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);}
+}
+@media (min-width:768px) and (max-width:1199px){ .toast-container{bottom:96px;} }

@@ -112,4 +112,4 @@ Cada onda: um PR, E2E verdes sob a CSP, prints em 390 px, 820 px e 1280 px nos d
 1. ~~Ordem das ondas~~ — **aprovada: 1 → 2 → 3 → 4 → 5 → 6** (2026-11-14).
 2. ~~Aparelho da recepção~~ — **celular, tablet ou computador** (2026-11-14): a Onda 5 cobre tablet e computador.
 3. O merge do PR #28 antes da Onda 1, para a base partir da navegação nova.
-4. Profissional com acesso de recepção: desenho em [`PERMISSOES_POR_PAPEL.md`](PERMISSOES_POR_PAPEL.md); depende da migration 012.
+4. ~~Profissional com acesso de recepção~~ — implementado em D-032 (migration 012); layout de tablet e computador adiantado como adaptação, a Onda 5 continua com a grade e a comanda lateral.

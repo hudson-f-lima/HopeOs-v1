@@ -3,12 +3,12 @@
 // O profissional vê as próprias metas e, se o salão ligou, a posição dele no ranking —
 // sem o valor em reais dos colegas. O progresso vem do servidor; nada é calculado aqui.
 import { api } from '../api.js';
-import { sessionRoleIn } from '../state.js';
+import { sessionRoleIn, sessionPode } from '../state.js';
 import { escapeHtml, centsToBRL } from '../utils.js';
 import { reaisParaCentavos } from './caixa.js';
 
 const el = id => document.getElementById(id);
-const gestao = () => sessionRoleIn('admin', 'gestor');
+const gestao = () => sessionPode('metas:definir');
 const ROTULO = { faturamento: 'Faturamento em serviços', atendimentos: 'Atendimentos', produtos: 'Venda de produtos' };
 const valor = (tipo, v) => (tipo === 'atendimentos' ? String(v) : centsToBRL(v));
 const emReais = c => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
@@ -158,7 +158,7 @@ async function alternarVisibilidade() {
 }
 
 export function initMetas() {
-  if (!sessionRoleIn('admin', 'gestor', 'profissional')) return;
+  if (!sessionPode('metas:ver')) return;
   el('metasForm').addEventListener('submit', ev => { ev.preventDefault(); salvarMetas(); });
   el('btnSugerirMetas').addEventListener('click', sugerirMetas);
   el('rankingVisivel').addEventListener('change', alternarVisibilidade);

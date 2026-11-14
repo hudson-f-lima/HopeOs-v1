@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-032 (2026-11-14): permissões finas por papel e individuais (migration 012); gestor/admin concedem e revogam dentro da própria autoridade, com trilha imutável; matriz em `docs/PERMISSOES.md`; layout de tablet e computador. REAL no código; migration aplica em produção só no merge.
 - D-031 (2026-11-14): seletor de tema em Conta (Automático, Claro, Escuro), guardado no aparelho. REAL.
 - D-030 (2026-11-14): navegação — aba "Metas" (gestão: equipe à vista, toque abre a pessoa) e "Meu mês" (profissional); barra renomeada para Agenda/Hoje · Comanda · Painel · Metas · Conta. REAL.
 - D-029 (2026-11-14): indicadores por colaborador (Fase 2) para admin e gestor; profissional vê os seus; recepção não. Risco trabalhista aceito pelo dono sem parecer (altera o D-012 só neste ponto). REAL; nada gravado, sem nota nem ranking.

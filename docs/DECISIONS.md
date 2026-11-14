@@ -334,3 +334,15 @@
 - **Pedido (Platform Owner, 2026-11-14):** o modo escuro existia só automático (seguia o aparelho, D-022) e não havia como escolher.
 - **Entregue:** em Conta, "Aparência" com Automático (padrão), Claro e Escuro. Guardado só no aparelho (`localStorage`), não vai ao servidor. Aplicado antes da primeira pintura por um script clássico no `<head>` (`js/tema-inicial.js`; a CSP proíbe script inline), para a tela não piscar. A barra do navegador acompanha a escolha. Só os tokens mudam: nenhum componente ganhou regra própria.
 - **Verificação:** E2E `dashboard` (aparelho claro; "Escuro" muda o fundo na hora; a escolha sobrevive ao recarregar; "Automático" volta a seguir o aparelho; opções com 44 px) e `csp` sem violações.
+
+## D-032 — Permissões finas por papel e permissões individuais (migration 012)
+- **Decisão (Platform Owner, 2026-11-14):** opção A do desenho (`planning/PERMISSOES_POR_PAPEL.md`) aprovada ("Implemente a recomendação aprovada"), o que **autoriza a migration 012**. Recepção em celular, tablet ou computador. Gestor e proprietário concedem e revogam funções a uma pessoa, individualmente, sem tirar o que vem do papel.
+- **Regras implementadas:**
+  - Matriz por papel com ações específicas (30 permissões em 11 grupos; ex.: agenda ver, criar, encaixar, editar, atender, cancelar). Fonte única: `backend/src/auth/permissoes.js`; documento gerado: [`PERMISSOES.md`](PERMISSOES.md), conferido pelo gate.
+  - Padrão mínimo e igual ao comportamento anterior (nenhum papel ganhou nem perdeu acesso padrão).
+  - Permissão individual só acrescenta e dá alcance "todos"; pacote "Recepção" = 14 permissões que a recepção tem e o profissional não tem por inteiro.
+  - Autoridade: só em papéis abaixo do próprio, nunca em si mesmo, só o que o ator tem por inteiro; permissão de nível administração só o proprietário concede.
+  - Servidor decide; o `/me` devolve as permissões efetivas e a tela se ajusta a elas. O vínculo é relido a cada requisição: revogação vale na próxima ação.
+  - Trilha `membership_permissao_eventos` (quem, o quê, para quem, quando), imutável por gatilho; escrita só pela RPC `membership_permissoes_definir` (service_role); anon/authenticated sem acesso.
+- **Fora de escopo e pendente de decisão:** apertar padrões (ex.: profissional cancelar ou encaixar os próprios horários); permissões extras são mantidas ao trocar o papel; a tela só reflete a mudança após novo login (o servidor já aplica na hora).
+- **Verificação:** `gate_012.sql` (6 blocos, controles negativos, ciclo de rollback); `permissoes-gate` G01–G13; Red Team de inventário (C05); E2E `permissoes` (conceder, usar, revogar com sessão aberta → 403, histórico; recepção em 390, 820 e 1280 px fechando comanda).

@@ -2,7 +2,7 @@
 // faturamento do mês, já à vista. Tocar numa pessoa abre o detalhe logo abaixo
 // (ganhos, metas e desempenho), que é o mesmo conteúdo de antes. Só admin e gestor.
 import { api } from '../api.js';
-import { state, sessionRoleIn } from '../state.js';
+import { state, sessionRoleIn, sessionPode } from '../state.js';
 import { escapeHtml, centsToBRL } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -29,7 +29,7 @@ function itemPessoa(p, meta, selecionado) {
 
 export async function carregarEquipe(mes) {
   const bloco = el('metasEquipe');
-  if (!bloco || !sessionRoleIn('admin', 'gestor') || !mes) return;
+  if (!bloco || !sessionPode('metas:definir') || !mes) return;
   const q = encodeURIComponent(mes);
   try {
     const [r, salao] = await Promise.all([api(`/metas?mes=${q}`), api(`/gamificacao/meta-salao?mes=${q}`)]);

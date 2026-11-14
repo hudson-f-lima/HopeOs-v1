@@ -3,7 +3,7 @@
 // Saldo a pagar e lançamentos (D-017): gestão registra pagamento, vale e estorno;
 // cada lançamento é imutável. O profissional só consulta.
 import { api } from '../api.js';
-import { state, sessionRoleIn } from '../state.js';
+import { state, sessionRoleIn, sessionPode } from '../state.js';
 import { escapeHtml, centsToBRL, todayStr, genIdempotencyKey, confirmAction } from '../utils.js';
 import { reaisParaCentavos } from './caixa.js';
 import { atualizarMetas, atualizarRanking, initMetas } from './metas.js';
@@ -33,7 +33,7 @@ const fmtDia = d => { const [a, m, dd] = String(d).split('-'); return `${dd}/${m
 let profissionalAtual = null;
 
 function renderSaldo(s) {
-  const gestao = sessionRoleIn('admin', 'gestor');
+  const gestao = sessionPode('ganhos:ver', true);
   const cor = s.saldoCentavos < 0 ? 'var(--md-error)' : 'var(--md-primary)';
   el('ganhosSaldo').innerHTML = `
     <h3 class="body-sm text-tertiary" style="margin:14px 0 4px">Saldo de comissão (histórico inteiro)</h3>
@@ -52,7 +52,7 @@ async function atualizarSaldo(profissionalId) {
   try {
     const qs = profissionalId ? `?profissionalId=${encodeURIComponent(profissionalId)}` : '';
     renderSaldo(await api(`/comissoes/pagamentos${qs}`));
-    if (sessionRoleIn('admin', 'gestor')) el('ganhosPagarForm').classList.remove('hidden');
+    if (sessionPode('comissoes:pagar')) el('ganhosPagarForm').classList.remove('hidden');
   } catch (err) {
     el('ganhosSaldo').innerHTML = `<p class="body-sm" style="color:var(--md-error)">${escapeHtml(err.message)}</p>`;
   }
@@ -104,7 +104,7 @@ export async function atualizarGanhos() {
   erro.textContent = '';
   const mes = el('ganhosMes').value || todayStr().slice(0, 7);
   const params = new URLSearchParams({ mes });
-  if (sessionRoleIn('admin', 'gestor')) {
+  if (sessionPode('ganhos:ver', true)) {
     const profissionalId = el('ganhosProfissional').value;
     if (!profissionalId) { el('ganhosResultado').innerHTML = '<p class="empty-state">Escolha um profissional.</p>'; el('ganhosSaldo').innerHTML = ''; el('ganhosPagarForm').classList.add('hidden'); el('metasBloco').classList.add('hidden'); await atualizarRanking(mes); return; }
     params.set('profissionalId', profissionalId);
@@ -129,7 +129,7 @@ export function abrirMetas() {
 
 function abrir() {
   if (!el('ganhosMes').value) el('ganhosMes').value = todayStr().slice(0, 7);
-  if (sessionRoleIn('admin', 'gestor')) {
+  if (sessionPode('ganhos:ver', true)) {
     const select = el('ganhosProfissional');
     const atual = select.value;
     const profs = (state.catalog.profissionais || []).filter(p => p.ativo !== false);
@@ -140,10 +140,10 @@ function abrir() {
 }
 
 export function initGanhos() {
-  if (!sessionRoleIn('admin', 'gestor', 'profissional')) return;
+  if (!sessionPode('ganhos:ver')) return;
   // Aba própria na barra inferior (D-030): "Metas" para a gestão, "Meu mês" para o profissional.
   el('navMetas')?.classList.remove('hidden');
-  if (sessionRoleIn('admin', 'gestor')) {
+  if (sessionPode('ganhos:ver', true)) {
     el('ganhosProfissionalWrap').classList.remove('hidden');
   } else {
     el('navMetasLabel').textContent = 'Meu mês';

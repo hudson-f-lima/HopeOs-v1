@@ -746,7 +746,12 @@
     </div>
 
     <div class="subtab-content hidden" id="subtab-equipe">
-      <div class="card">
+      <section class="card hidden" id="cardPermissoes" aria-labelledby="permTitulo">
+        <h2 class="m-0" id="permTitulo" style="margin-bottom:4px;">Permissões individuais</h2>
+        <p class="body-sm text-tertiary" style="margin-bottom:12px;">Cada papel já vem com o mínimo necessário. Aqui você acrescenta permissões a uma pessoa, como um profissional que também atende na recepção. Quem concede, o quê e quando fica registrado.</p>
+        <div id="listPermissoes"></div>
+      </section>
+      <div class="card" id="cardConvite">
         <h2 class="m-0" style="margin-bottom:4px;">Equipe e acessos</h2>
         <p class="body-sm text-tertiary" style="margin-bottom:12px;">Enviamos um convite por e-mail; a pessoa define a própria senha pelo link. Se ela já tiver conta, só ganha o acesso.</p>
         <form id="formEquipe" novalidate>
@@ -760,7 +765,7 @@
           <button class="btn btn-primary" type="submit">Convidar</button>
         </form>
       </div>
-      <div class="card"><div id="listEquipe"></div></div>
+      <div class="card" id="cardListaEquipe"><div id="listEquipe"></div></div>
     </div>
 
     <div class="subtab-content hidden" id="subtab-clientes">
@@ -933,6 +938,21 @@
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarForma" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" id="btnSalvarForma" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalPermissoes" role="dialog" aria-modal="true" aria-labelledby="permModalTitulo">
+  <div class="modal-box">
+    <h2 id="permModalTitulo">Permissões</h2>
+    <p class="body-sm text-tertiary" id="permModalPapel" style="margin:0 0 10px;"></p>
+    <p class="modal-error hidden" id="permErro"></p>
+    <div id="permPacote"></div>
+    <div id="permGrupos"></div>
+    <details class="perm-historico"><summary>Histórico de concessões</summary><div id="permHistorico"></div></details>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-secondary" type="button" id="btnPermCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnPermSalvar" style="flex:1;">Salvar</button>
     </div>
   </div>
 </div>
