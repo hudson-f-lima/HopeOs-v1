@@ -64,6 +64,14 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   await p.locator('#dobraIndicadores > summary').focus(); await p.keyboard.press('Enter');
   confere('Enter abre Indicadores', await p.locator('#dobraIndicadores').evaluate(n => n.open));
 
+  // Indicadores de agenda e clientes (D-028): só admin e gestão; a recepção não vê o painel.
+  confere('recepção não vê o painel "Agenda e clientes"', !(await p.isVisible('#dbPilotoPanel')) && await p.locator('#dbPilotoPanel').evaluate(n => n.classList.contains('hidden')));
+  const adm = await entrar(b, 'admin@dev.local');
+  await adm.click('#navDashboard'); await adm.waitForTimeout(1500);
+  await adm.click('#dobraIndicadores > summary'); await adm.waitForSelector('#dbPilotoPanel:not(.hidden)', { timeout: 8000 });
+  const painel = (await adm.textContent('#dbPilotoWidget')).replace(/\s+/g, ' ');
+  confere('admin vê taxa de cancelamento e fidelização no painel', /Taxa de cancelamento/.test(painel) && /Fidelização/.test(painel) && /Retorno do cliente novo/.test(painel), painel.slice(0, 160));
+  console.log('ADMIN erros:', JSON.stringify(adm.errs)); if (adm.errs.length) falhas++;
   console.log('ERROS:', JSON.stringify(p.errs)); if (p.errs.length) falhas++;
   await b.close();
   if (falhas) process.exit(1);

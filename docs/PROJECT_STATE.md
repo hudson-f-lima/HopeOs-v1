@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-028 (2026-11-14): Fase 1 dos indicadores de agenda e clientes — retorno de novos em 3 categorias (mesmo profissional, outro, não voltou), fidelização e cancelamento, só admin e gestão: REAL. Fase 2 (por colaborador, só admin e gestão): PENDENTE de confirmação explícita do dono sobre o risco trabalhista.
 - D-027 (2026-11-13): meta do salão como reconhecimento sem valor (admin, gestão e profissional; sem comissão nem pagamento): REAL. Sem prêmio em dinheiro: D-012 e D-019 seguem valendo.
 - D-026 (2026-11-13): pagamento dividido na comanda corrigido (ligava só depois de simular com forma única; relato do dono em produção). E2E `split` novo. PENDENTE: o dono repetir o teste em produção depois do merge.
 - D-025 (2026-11-13): cartão parcelado em lote (2x a 12x) e atalhos "Mais vendidos" na comanda: REAL. Gaveta de itens: não existe; decisão do dono pendente. PR #26 mesclado.

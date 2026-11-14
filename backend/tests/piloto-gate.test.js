@@ -121,6 +121,57 @@ test('P06 sem dados → todos os denominadores 0 e taxa null', () => {
   assert.deepStrictEqual(r.porProfissional, []);
 });
 
+// ---------- Categorias de retorno, fidelização e cancelamento (D-028) ----------
+const ev = (id, cliente, prof, data, status = 'concluido') => ({ id, cliente_id: cliente, profissional_id: prof, data, status, created_at: `${data}T10:00:00Z` });
+
+test('P07 retorno do cliente novo em 3 categorias: mesmo profissional, outro, não voltou; sem info fica à parte', () => {
+  const r = computePiloto({
+    de: '2026-03-01', ate: '2026-03-31', hoje: '2026-09-01',
+    agendamentos: [
+      ev('a1', 'c1', 'pA', '2026-03-05'), ev('a2', 'c1', 'pA', '2026-04-10'),            // c1 voltou com o mesmo (pA)
+      ev('b1', 'c2', 'pA', '2026-03-06'), ev('b2', 'c2', 'pB', '2026-04-12'),            // c2 voltou com outro (pB)
+      ev('d1', 'c3', 'pA', '2026-03-07'), ev('d2', 'c3', 'pB', '2026-03-20'), ev('d3', 'c3', 'pA', '2026-04-20'), // c3 voltou com outro E com o mesmo: conta como mesmo
+      ev('e1', 'c4', 'pA', '2026-03-08'),                                                 // c4 não voltou
+      ev('f1', 'c5', 'pA', '2026-03-09'), ev('f2', 'c5', 'pA', '2026-07-20'),            // c5 voltou fora dos 60 dias: não voltou
+      ev('g1', 'c6', null, '2026-03-10'), ev('g2', 'c6', 'pA', '2026-04-15')             // c6: 1ª visita sem profissional: sem info
+    ]
+  });
+  const k = r.retornoClienteNovo;
+  assert.deepStrictEqual(k.categorias, { voltouMesmoProfissional: 2, voltouOutroProfissional: 1, voltouSemInfoProfissional: 1, naoVoltou: 2 });
+  const c = k.categorias;
+  assert.strictEqual(c.voltouMesmoProfissional + c.voltouOutroProfissional + c.voltouSemInfoProfissional + c.naoVoltou, k.denominador, 'as quatro somam o denominador');
+  assert.strictEqual(c.voltouMesmoProfissional + c.voltouOutroProfissional + c.voltouSemInfoProfissional, k.numerador, 'as três de retorno somam o numerador');
+  assert.deepStrictEqual([k.numerador, k.denominador], [4, 6]);
+});
+
+test('P08 fidelização: clientes do período com 3 ou mais atendimentos nos 365 dias; média de visitas', () => {
+  const dias = ['2026-01-10', '2026-02-10', '2026-03-10'];
+  const r = computePiloto({
+    de: '2026-03-01', ate: '2026-03-31', hoje: '2026-04-15',
+    agendamentos: [
+      ...dias.map((d, i) => ev(`f${i}`, 'c1', 'pA', d)),                                   // c1: 3 visitas → recorrente
+      ev('g0', 'c2', 'pA', '2026-03-12'), ev('g1', 'c2', 'pA', '2025-01-05'),              // c2: 1 na janela (a outra tem mais de 365 dias) → não
+      ev('h0', 'c3', 'pA', '2026-03-15'), ev('h1', 'c3', 'pB', '2026-03-16'),              // c3: 2 dias distintos → não
+      ev('i0', 'c4', 'pA', '2026-02-20')                                                   // c4: sem atendimento no período → fora
+    ]
+  });
+  assert.deepStrictEqual(nd(r.fidelizacao), [1, 3, 33.3]);
+  assert.deepStrictEqual([r.fidelizacao.visitasMinimas, r.fidelizacao.janelaDias, r.fidelizacao.mediaVisitas], [3, 365, 2]);
+  assert.strictEqual(r.fidelizacao.referencia.media, null, 'sem referência inventada');
+  assert.deepStrictEqual(nd(computePiloto({ de: '2026-01-01', ate: '2026-01-31', hoje: '2026-03-01' }).fidelizacao), [0, 0, null]);
+});
+
+test('P09 taxa de cancelamento: cancelado / (atendidos + no_show + cancelado), em qualquer antecedência', () => {
+  const r = computePiloto({
+    de: '2026-03-01', ate: '2026-03-31', hoje: '2026-04-15',
+    agendamentos: [ev('a', 'c1', 'pA', '2026-03-02'), ev('b', 'c2', 'pA', '2026-03-03'), ev('c', 'c3', 'pA', '2026-03-04', 'no_show'),
+      ev('d', 'c4', 'pA', '2026-03-05', 'cancelado'), ev('e', 'c5', 'pA', '2026-03-06', 'reagendado'), ev('f', 'c6', 'pA', '2026-05-01', 'cancelado')]
+  });
+  // 2 atendidos + 1 no_show + 1 cancelado = 4; o reagendado e o futuro ficam fora.
+  assert.deepStrictEqual([r.taxaCancelamento.numerador, r.taxaCancelamento.denominador, r.taxaCancelamento.taxa], [1, 4, 25]);
+  assert.strictEqual(r.taxaCancelamento.referencia.melhorQuando, 'menor');
+});
+
 // ---------- HTTP ----------
 const E = env.DEFAULT_EMPRESA_ID;
 const EB = 'e0000000-0000-4000-8000-0000000000bb';

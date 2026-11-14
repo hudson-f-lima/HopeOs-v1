@@ -416,7 +416,9 @@ const PILOTO_KPIS = [
   ['taxaFalta', 'Taxa de falta'],
   ['reagendamentoCheckout', 'Reagendamento no checkout'],
   ['retornoClienteNovo', 'Retorno do cliente novo (60 dias)'],
-  ['confirmacaoPrevia', 'Confirmação prévia (agenda de hoje)']
+  ['confirmacaoPrevia', 'Confirmação prévia (agenda de hoje)'],
+  ['taxaCancelamento', 'Taxa de cancelamento'],
+  ['fidelizacao', 'Fidelização (3+ visitas em 12 meses)']
 ];
 
 function faixaPiloto(ref) {
@@ -435,9 +437,14 @@ async function loadPiloto() {
     node.innerHTML = PILOTO_KPIS.map(([chave, rotulo]) => {
       const k = r[chave];
       const valor = k.taxa == null ? 'sem dados suficientes' : `${String(k.taxa).replace('.', ',')}%`;
-      const extra = k.emMaturacao ? ` · ${k.emMaturacao} em maturação` : '';
+      const extra = (k.emMaturacao ? ` · ${k.emMaturacao} em maturação` : '') + (k.mediaVisitas != null ? ` · média de ${String(k.mediaVisitas).replace('.', ',')} visitas` : '');
+      // Retorno de clientes novos: com quem voltaram (D-028).
+      const c = chave === 'retornoClienteNovo' ? k.categorias : null;
+      const categorias = c && k.denominador > 0
+        ? `<p class="body-sm text-tertiary" data-retorno-categorias>Voltaram com o mesmo profissional: ${c.voltouMesmoProfissional} · com outro: ${c.voltouOutroProfissional}${c.voltouSemInfoProfissional ? ` · sem profissional registrado: ${c.voltouSemInfoProfissional}` : ''} · não voltaram: ${c.naoVoltou}</p>`
+        : '';
       return `<div class="cota-linha"><span>${escapeHtml(rotulo)}</span><b>${escapeHtml(valor)}</b></div>
-        <p class="body-sm text-tertiary">${k.numerador}/${k.denominador}${escapeHtml(extra)} · ${escapeHtml(faixaPiloto(k.referencia))}</p>`;
+        <p class="body-sm text-tertiary">${k.numerador}/${k.denominador}${escapeHtml(extra)} · ${escapeHtml(faixaPiloto(k.referencia))}</p>${categorias}`;
     }).join('') + `<p class="body-sm text-tertiary">Período ${escapeHtml(formatDDMM(r.periodo.de))} a ${escapeHtml(formatDDMM(r.periodo.ate))}.</p>`;
   } catch (err) {
     panel.classList.add('hidden');
