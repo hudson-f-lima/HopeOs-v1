@@ -415,7 +415,7 @@ async function exportarParaContador() {
 const PILOTO_KPIS = [
   ['taxaFalta', 'Taxa de falta'],
   ['reagendamentoCheckout', 'Reagendamento no checkout'],
-  ['retornoClienteNovo', 'Retorno do cliente novo (60 dias)'],
+  ['retornoClienteNovo', 'Retorno do cliente novo'],
   ['confirmacaoPrevia', 'Confirmação prévia (agenda de hoje)'],
   ['taxaCancelamento', 'Taxa de cancelamento'],
   ['fidelizacao', 'Fidelização (3+ visitas em 12 meses)']
@@ -427,12 +427,19 @@ function faixaPiloto(ref) {
   return `Referência: média ${f(ref.media)}${ref.topo ? `, topo ${f(ref.topo)}` : ''}${ref.melhorQuando === 'menor' ? ' (menor é melhor)' : ''}`;
 }
 
+// Janela de retorno escolhida no painel (60, 90 ou 120 dias); lembrada só neste aparelho.
+const JANELAS_RETORNO = ['60', '90', '120'];
+function janelaRetorno() {
+  const sel = el('dbRetornoDias');
+  return sel && JANELAS_RETORNO.includes(sel.value) ? sel.value : '60';
+}
+
 async function loadPiloto() {
   const panel = el('dbPilotoPanel');
   const node = el('dbPilotoWidget');
   if (!panel || !node) return;
   try {
-    const r = await api('/relatorios/piloto');
+    const r = await api(`/relatorios/piloto?retornoDias=${janelaRetorno()}`);
     panel.classList.remove('hidden');
     node.innerHTML = PILOTO_KPIS.map(([chave, rotulo]) => {
       const k = r[chave];
@@ -443,7 +450,8 @@ async function loadPiloto() {
       const categorias = c && k.denominador > 0
         ? `<p class="body-sm text-tertiary" data-retorno-categorias>Voltaram com o mesmo profissional: ${c.voltouMesmoProfissional} · com outro: ${c.voltouOutroProfissional}${c.voltouSemInfoProfissional ? ` · sem profissional registrado: ${c.voltouSemInfoProfissional}` : ''} · não voltaram: ${c.naoVoltou}</p>`
         : '';
-      return `<div class="cota-linha"><span>${escapeHtml(rotulo)}</span><b>${escapeHtml(valor)}</b></div>
+      const nome = chave === 'retornoClienteNovo' ? `${rotulo} (${k.janelaDias} dias)` : rotulo;
+      return `<div class="cota-linha" data-kpi="${chave}"><span>${escapeHtml(nome)}</span><b>${escapeHtml(valor)}</b></div>
         <p class="body-sm text-tertiary">${k.numerador}/${k.denominador}${escapeHtml(extra)} · ${escapeHtml(faixaPiloto(k.referencia))}</p>${categorias}`;
     }).join('') + `<p class="body-sm text-tertiary">Período ${escapeHtml(formatDDMM(r.periodo.de))} a ${escapeHtml(formatDDMM(r.periodo.ate))}.</p>`;
   } catch (err) {
@@ -503,6 +511,14 @@ export function initDashboard() {
   const refreshBtn = el('btnAtualizarDashboard');
   if (refreshBtn) refreshBtn.addEventListener('click', atualizarDashboard);
   el('btnExportarContador')?.addEventListener('click', exportarParaContador);
+  const janela = el('dbRetornoDias');
+  if (janela) {
+    try { const salvo = localStorage.getItem('hopeos.retornoDias'); if (JANELAS_RETORNO.includes(salvo)) janela.value = salvo; } catch (_) { /* sem armazenamento: fica 60 */ }
+    janela.addEventListener('change', () => {
+      try { localStorage.setItem('hopeos.retornoDias', janela.value); } catch (_) { /* segue sem lembrar */ }
+      loadPiloto();
+    });
+  }
 
   const actions = el('dashboardActionStrip');
   if (actions) {

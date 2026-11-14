@@ -76,7 +76,8 @@ const { normalizeCommands, isLateCancel, addDays } = require('./retention');
 const { agoraNoFuso } = require('../SlotEngine');
 
 const REBOOK_JANELA_DIAS = 1;
-const RETORNO_JANELA_DIAS = 60;
+const RETORNO_JANELA_DIAS = 60; // padrão
+const RETORNO_JANELAS_PERMITIDAS = [60, 90, 120]; // D-028: escolhida no painel
 const FIDELIDADE_VISITAS = 3;
 const FIDELIDADE_JANELA_DIAS = 365;
 const ATENDIDO = ['concluido', 'fechado'];
@@ -170,7 +171,8 @@ function confirmacaoPorEventos({ ags, eventos, noPeriodo, hoje, timeZone }) {
   return { confirmados, universo: universo.length, comTrilha: comTrilha.length, semTrilha: chegaram.length - comTrilha.length, canceladosAntes };
 }
 
-function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], eventos = [], de, ate, hoje, timeZone = 'America/Sao_Paulo' }) {
+function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], eventos = [], de, ate, hoje, timeZone = 'America/Sao_Paulo', retornoDias = RETORNO_JANELA_DIAS }) {
+  if (!RETORNO_JANELAS_PERMITIDAS.includes(retornoDias)) throw new RangeError(`retornoDias deve ser ${RETORNO_JANELAS_PERMITIDAS.join(', ')}.`);
   const noPeriodo = d => d && d >= de && d <= ate;
   const ags = agendamentos.map(a => ({ ...a, data: dia(a.data) }));
 
@@ -220,7 +222,7 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
     if (!porCliente.has(v.clienteId)) porCliente.set(v.clienteId, []);
     porCliente.get(v.clienteId).push(v.data);
   });
-  const limiteRetorno = addDays(hoje, -RETORNO_JANELA_DIAS);
+  const limiteRetorno = addDays(hoje, -retornoDias);
   let novos = 0; let maduros = 0; let voltaram = 0;
   porCliente.forEach(datas => {
     const primeira = datas[0];
@@ -228,7 +230,7 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
     novos += 1;
     if (primeira > limiteRetorno) return;
     maduros += 1;
-    const prazo = addDays(primeira, RETORNO_JANELA_DIAS);
+    const prazo = addDays(primeira, retornoDias);
     if (datas.some(d => d > primeira && d <= prazo)) voltaram += 1;
   });
   // Categorias: com quem o cliente novo voltou (ou não voltou).
@@ -241,7 +243,7 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
   visitasPorCliente.forEach(visitas => {
     const primeira = visitas[0];
     if (!noPeriodo(primeira.data) || primeira.data > limiteRetorno) return;
-    const prazo = addDays(primeira.data, RETORNO_JANELA_DIAS);
+    const prazo = addDays(primeira.data, retornoDias);
     const retornos = visitas.filter(v => v.data > primeira.data && v.data <= prazo);
     if (!retornos.length) { categorias.naoVoltou += 1; return; }
     const comProf = retornos.filter(v => v.profissionais.size > 0);
@@ -252,7 +254,7 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
   const retornoClienteNovo = kpi('retornoClienteNovo', voltaram, maduros, {
     clientesNovos: novos,
     emMaturacao: novos - maduros,
-    janelaDias: RETORNO_JANELA_DIAS,
+    janelaDias: retornoDias,
     categorias
   });
 
@@ -301,4 +303,4 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
   return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, fidelizacao, taxaCancelamento, porProfissional };
 }
 
-module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };
+module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };

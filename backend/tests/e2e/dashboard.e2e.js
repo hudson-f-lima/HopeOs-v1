@@ -71,6 +71,11 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   await adm.click('#dobraIndicadores > summary'); await adm.waitForSelector('#dbPilotoPanel:not(.hidden)', { timeout: 8000 });
   const painel = (await adm.textContent('#dbPilotoWidget')).replace(/\s+/g, ' ');
   confere('admin vê taxa de cancelamento e fidelização no painel', /Taxa de cancelamento/.test(painel) && /Fidelização/.test(painel) && /Retorno do cliente novo/.test(painel), painel.slice(0, 160));
+  confere('janela de retorno começa em 60 dias', /Retorno do cliente novo \(60 dias\)/.test(painel));
+  await adm.selectOption('#dbRetornoDias', '120');
+  await adm.waitForFunction(() => /\(120 dias\)/.test(document.getElementById('dbPilotoWidget').textContent), null, { timeout: 8000 }).catch(() => {});
+  confere('trocar para 120 dias recalcula o retorno', /Retorno do cliente novo \(120 dias\)/.test(await adm.textContent('#dbPilotoWidget')));
+  confere('seletor da janela com 44px', (await adm.locator('#dbRetornoDias').boundingBox()).height >= 44);
   console.log('ADMIN erros:', JSON.stringify(adm.errs)); if (adm.errs.length) falhas++;
   console.log('ERROS:', JSON.stringify(p.errs)); if (p.errs.length) falhas++;
   await b.close();

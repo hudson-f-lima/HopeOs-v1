@@ -124,7 +124,7 @@ test('P06 sem dados → todos os denominadores 0 e taxa null', () => {
 // ---------- Categorias de retorno, fidelização e cancelamento (D-028) ----------
 const ev = (id, cliente, prof, data, status = 'concluido') => ({ id, cliente_id: cliente, profissional_id: prof, data, status, created_at: `${data}T10:00:00Z` });
 
-test('P07 retorno do cliente novo em 3 categorias: mesmo profissional, outro, não voltou; sem info fica à parte', () => {
+test('C01 retorno do cliente novo em 3 categorias: mesmo profissional, outro, não voltou; sem info fica à parte', () => {
   const r = computePiloto({
     de: '2026-03-01', ate: '2026-03-31', hoje: '2026-09-01',
     agendamentos: [
@@ -144,7 +144,7 @@ test('P07 retorno do cliente novo em 3 categorias: mesmo profissional, outro, n�
   assert.deepStrictEqual([k.numerador, k.denominador], [4, 6]);
 });
 
-test('P08 fidelização: clientes do período com 3 ou mais atendimentos nos 365 dias; média de visitas', () => {
+test('C02 fidelização: clientes do período com 3 ou mais atendimentos nos 365 dias; média de visitas', () => {
   const dias = ['2026-01-10', '2026-02-10', '2026-03-10'];
   const r = computePiloto({
     de: '2026-03-01', ate: '2026-03-31', hoje: '2026-04-15',
@@ -161,7 +161,7 @@ test('P08 fidelização: clientes do período com 3 ou mais atendimentos nos 365
   assert.deepStrictEqual(nd(computePiloto({ de: '2026-01-01', ate: '2026-01-31', hoje: '2026-03-01' }).fidelizacao), [0, 0, null]);
 });
 
-test('P09 taxa de cancelamento: cancelado / (atendidos + no_show + cancelado), em qualquer antecedência', () => {
+test('C03 taxa de cancelamento: cancelado / (atendidos + no_show + cancelado), em qualquer antecedência', () => {
   const r = computePiloto({
     de: '2026-03-01', ate: '2026-03-31', hoje: '2026-04-15',
     agendamentos: [ev('a', 'c1', 'pA', '2026-03-02'), ev('b', 'c2', 'pA', '2026-03-03'), ev('c', 'c3', 'pA', '2026-03-04', 'no_show'),
@@ -170,6 +170,19 @@ test('P09 taxa de cancelamento: cancelado / (atendidos + no_show + cancelado), e
   // 2 atendidos + 1 no_show + 1 cancelado = 4; o reagendado e o futuro ficam fora.
   assert.deepStrictEqual([r.taxaCancelamento.numerador, r.taxaCancelamento.denominador, r.taxaCancelamento.taxa], [1, 4, 25]);
   assert.strictEqual(r.taxaCancelamento.referencia.melhorQuando, 'menor');
+});
+
+test('C04 janela de retorno variável: 60, 90 ou 120 dias; outro valor é recusado', () => {
+  const ags = [ev('a1', 'c1', 'pA', '2026-03-05'), ev('a2', 'c1', 'pA', '2026-05-20'),   // voltou em 76 dias
+    ev('b1', 'c2', 'pA', '2026-03-06'), ev('b2', 'c2', 'pB', '2026-06-25')];                  // voltou em 111 dias
+  const r = d => computePiloto({ de: '2026-03-01', ate: '2026-03-31', hoje: '2026-09-01', agendamentos: ags, retornoDias: d }).retornoClienteNovo;
+  assert.deepStrictEqual([r(60).numerador, r(90).numerador, r(120).numerador], [0, 1, 2]);
+  assert.deepStrictEqual([r(60).janelaDias, r(90).janelaDias, r(120).janelaDias], [60, 90, 120]);
+  assert.deepStrictEqual([r(90).categorias.voltouMesmoProfissional, r(120).categorias.voltouOutroProfissional], [1, 1]);
+  // Maturação acompanha a janela: com 120 dias, quem chegou há menos de 120 dias fica de fora.
+  const recente = computePiloto({ de: '2026-08-01', ate: '2026-08-31', hoje: '2026-09-01', agendamentos: [ev('x', 'c9', 'pA', '2026-08-10')], retornoDias: 120 }).retornoClienteNovo;
+  assert.deepStrictEqual([recente.denominador, recente.emMaturacao], [0, 1]);
+  for (const ruim of [30, 61, 0, '90']) assert.throws(() => computePiloto({ de: '2026-03-01', ate: '2026-03-31', hoje: '2026-09-01', retornoDias: ruim }), RangeError);
 });
 
 // ---------- HTTP ----------
@@ -249,6 +262,18 @@ test('P10 datas inválidas e período > 366 dias → 422', async () => {
     assert.ok(['INVALID_DATE', 'INVALID_PERIOD'].includes(code(r)), q);
   }
   assert.strictEqual((await request('/api/relatorios/piloto?de=2025-01-01&ate=2026-01-01')).status, 200, '366 dias é aceito');
+});
+
+test('C05 rota: retornoDias=90 e 120 aceitos e devolvidos; outro valor = 422', async () => {
+  for (const d of [60, 90, 120]) {
+    const r = await request(`/api/relatorios/piloto?retornoDias=${d}`);
+    assert.deepStrictEqual([r.status, r.data.data.retornoClienteNovo.janelaDias], [200, d], String(d));
+  }
+  assert.strictEqual((await request('/api/relatorios/piloto')).data.data.retornoClienteNovo.janelaDias, 60, 'padrão 60');
+  for (const q of ['30', '91', 'abc', '']) {
+    const r = await request(`/api/relatorios/piloto?retornoDias=${q}`);
+    assert.deepStrictEqual([r.status, code(r)], [422, 'INVALID_FIELD'], q);
+  }
 });
 
 (async () => {
