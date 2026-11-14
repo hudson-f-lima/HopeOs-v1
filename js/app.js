@@ -29,6 +29,7 @@ import {
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
 import { initGanhos, abrirMetas } from './ui/ganhos.js';
+import { initTema } from './ui/tema.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
@@ -228,6 +229,7 @@ async function init() {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   });
   
+  initTema();
   document.getElementById('navAvatar').addEventListener('click', () => openModal('sheetGestao'));
   document.getElementById('btnFecharGestao').addEventListener('click', () => closeModal('sheetGestao'));
   document.getElementById('btnAbrirListaEspera')?.addEventListener('click', openListaEsperaModal);

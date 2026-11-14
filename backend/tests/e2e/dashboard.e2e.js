@@ -76,6 +76,21 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   await adm.waitForFunction(() => /\(120 dias\)/.test(document.getElementById('dbPilotoWidget').textContent), null, { timeout: 8000 }).catch(() => {});
   confere('trocar para 120 dias recalcula o retorno', /Retorno do cliente novo \(120 dias\)/.test(await adm.textContent('#dbPilotoWidget')));
   confere('seletor da janela com 44px', (await adm.locator('#dbRetornoDias').boundingBox()).height >= 44);
+  // Tema (D-031): aparelho claro; "Escuro" força o escuro e sobrevive ao recarregar; "Automático" volta.
+  const fundo = () => adm.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const claro = await fundo();
+  await adm.click('#navAvatar'); await adm.waitForSelector('#sheetGestao:not(.hidden)');
+  await adm.click('#temaEscolha label:has(input[value="escuro"])');
+  const escuro = await fundo();
+  confere('tema: "Escuro" muda o fundo na hora', await adm.evaluate(() => document.documentElement.dataset.theme) === 'dark' && escuro !== claro, `${claro} → ${escuro}`);
+  await adm.reload(); await adm.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
+  confere('tema: escolha mantida depois de recarregar, sem esperar o app', await adm.evaluate(() => document.documentElement.dataset.theme) === 'dark' && await fundo() === escuro);
+  await adm.click('#navAvatar'); await adm.waitForSelector('#sheetGestao:not(.hidden)');
+  confere('tema: opção marcada corresponde ao salvo', await adm.isChecked('#temaEscolha input[value="escuro"]'));
+  await adm.click('#temaEscolha label:has(input[value="auto"])');
+  confere('tema: "Automático" volta a seguir o aparelho', await adm.evaluate(() => document.documentElement.hasAttribute('data-theme')) === false && await fundo() === claro);
+  const alturas = await adm.$$eval('#temaEscolha label', ns => ns.map(n => n.getBoundingClientRect().height));
+  confere('tema: opções com 44px', alturas.every(h => h >= 44), JSON.stringify(alturas));
   console.log('ADMIN erros:', JSON.stringify(adm.errs)); if (adm.errs.length) falhas++;
   console.log('ERROS:', JSON.stringify(p.errs)); if (p.errs.length) falhas++;
   await b.close();

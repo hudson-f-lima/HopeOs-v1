@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="js/tema-inicial.js"></script>
 <link rel="stylesheet" href="css/app.css"/>
 </head>
 <body>
@@ -718,6 +719,15 @@
       </div>
       <button class="gestao-close" id="btnFecharGestao" aria-label="Fechar gestão">×</button>
     </div>
+
+    <fieldset class="tema-escolha" id="temaEscolha">
+      <legend>Aparência</legend>
+      <div class="tema-opcoes">
+        <label><input type="radio" name="tema" value="auto" checked/><span>Automático</span></label>
+        <label><input type="radio" name="tema" value="claro"/><span>Claro</span></label>
+        <label><input type="radio" name="tema" value="escuro"/><span>Escuro</span></label>
+      </div>
+    </fieldset>
 
     <div class="subtab-row" id="subtabRow">
       <button class="subtab-btn active" data-subtab="servicos">Serviços</button>
