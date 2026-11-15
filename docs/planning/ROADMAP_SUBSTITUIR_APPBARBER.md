@@ -45,23 +45,45 @@ Fatos observados. O que o salão **usa de verdade** ainda precisa de confirmaç�
 - **Clientes:** coluna de pontos (programa de fidelidade).
 - **Relatórios e exportação:** Excel e PDF em quase todas as listas. Isso torna viável importar os dados.
 
-## 3. Itens da fase 1 (proposta, a confirmar)
-| # | Item | Por quê | Exige | Ordem sugerida |
-|---|---|---|---|---|
-| 1 | **Importar dados do app Barber** (clientes, serviços, profissionais, planos, assinantes) a partir das planilhas exportadas | Sem isso, a troca custa semanas de digitação | Sem migration; a validação de dados é o risco | 1 |
-| 2 | **Bloqueio e desbloqueio de horário + fechamento de agenda (feriados)** | Uso diário da agenda | Migration 013 provável | 2 |
-| 3 | **Comanda aberta**: abrir no atendimento, acrescentar itens, fechar no caixa; reabrir só gestão, com trilha | Fluxo real do salão | Migration provável (estado da comanda) | 3 |
-| 4 | **Clube de assinatura**: planos, assinantes, uso por atendimento, comissão sobre assinatura, cobrança recorrente | Bloqueador da migração | Migration + fornecedor de pagamento (cobrança no cartão sem guardar cartão no HOPE OS) | 4, mas começar o **desenho** já |
-| 5 | **Lembrete automático por WhatsApp** (confirmação e retorno) | Hoje é por SMS no app Barber | Fornecedor e custo | 5 |
-| 6 | **Contas a pagar e receber** e várias contas | Se o dono usa (evidência de movimento) | Migration | a confirmar |
-| 7 | **Agendamento recorrente** | Clientes fixos semanais | Talvez sem migration | a confirmar |
-| 8 | **Comissão de auxiliar** | Parâmetro ligado | Migration provável | a confirmar |
-| 9 | **Pacotes, fidelidade, cupons, NFS-e** | Só se o salão usa | Variado | a confirmar |
+## 3. Itens da fase 1 (uso confirmado pelo dono em 2026-11-15)
+**O salão usa toda semana, além de agenda, comanda e caixa:**
+- (a) contas a pagar e a receber;
+- (b) agendamento recorrente;
+- (c) comissão de auxiliar;
+- (d) pacotes;
+- (e) pontos de fidelidade;
+- (f) cupons e vale-presente;
+- (i) fila de chegada e rodízio;
+- clube de assinatura (evidência na conta).
 
-**Fora da fase 1:** várias unidades, conta digital, app próprio do salão, anamnese e documentos, fila e rodízio, notícias e promoções, imagens de marketing e transportadora. Cada um entra só se o dono disser que usa.
+**Não usa:** (g) nota fiscal e (h) várias unidades. Os dois ficam fora da fase 1.
+
+**Detalhe do (b), pedido do dono:**
+- recorrência semanal, quinzenal e mensal;
+- cancelar uma ocorrência ou a série;
+- alterar tocando no próprio card do agendamento, com a escolha "só este", "este e os próximos" ou "todos";
+- referência de facilidade: Booksy. É padrão de mercado, também presente em agendas de calendário; seguimos o comportamento, sem copiar tela.
+
+**Decisão de arquitetura proposta (mais inteligente, menos complexo):** pacote, assinatura, vale-presente e pontos de fidelidade viram **um só mecanismo de saldo do cliente** (créditos de serviço ou de valor, com validade), com um único registro imutável. Pacote é crédito pré-pago; assinatura é crédito renovado por cobrança recorrente; vale-presente é crédito em valor; pontos são crédito ganho. Cupom é desconto na comanda, com o impacto na margem à vista antes de aplicar. Um mecanismo, uma trilha e uma conta de margem, em vez de quatro sistemas separados.
+
+| # | Item | Camada inteligente | Exige | Ordem |
+|---|---|---|---|---|
+| 1 | **Importar dados do app Barber** (clientes, serviços, profissionais, planos, assinantes, pacotes e saldos) | Prévia com duplicatas pelo celular e clientes atrasados no retorno já apontados | Sem migration (valida dados) | 1 |
+| 2 | **Agenda: recorrência (b) + bloqueio de horário + feriados** | Recorrência respeita bloqueio e feriado e avisa o conflito antes de gravar | Migration 013 | 2 |
+| 3 | **Comanda aberta** + **comissão de auxiliar (c)** | Margem do atendimento à vista antes de fechar, já descontada a parte do auxiliar | Migration | 3 |
+| 4 | **Saldo do cliente: pacotes (d) + vale-presente (f)** | Margem por pacote; alerta de pacote vencendo sem uso | Migration | 4 |
+| 5 | **Clube de assinatura** sobre o saldo do cliente | Margem por plano, assinante que usa acima do que paga, risco de cancelamento | Migration + fornecedor de pagamento | 5, com o **desenho começando já** |
+| 6 | **Pontos de fidelidade (e) + cupons (f)** | Custo real do benefício na margem; cupom que só traz desconto, sem retorno, fica marcado | Migration | 6 |
+| 7 | **Contas a pagar e receber (a)** | Fluxo de caixa projetado com assinaturas e recebíveis das maquininhas | Migration | 7 |
+| 8 | **Fila de chegada e rodízio (i)** | Tempo de espera estimado; rodízio justo por ordem e por carga | Migration provável | 8 |
+| 9 | **Lembrete automático por WhatsApp** | Confirmação e retorno no ritmo de cada cliente | Fornecedor e custo | 9 |
+
+A ordem pode mudar por prazo. Itens 5 e 9 dependem de fornecedor e podem ser contratados em paralelo enquanto 1 a 4 são construídos.
+
+**Fora da fase 1:** nota fiscal, várias unidades, conta digital, app próprio do salão, anamnese e documentos, notícias e promoções, imagens de marketing, transportadora.
 
 ## 4. Decisões do dono que destravam o plano
-1. **Uso real:** marcar, entre os itens 6 a 9 e os "fora da fase 1", o que o salão usa toda semana.
+1. ~~Uso real~~ — **respondido em 2026-11-15** (seção 3).
 2. **Fornecedor de pagamento da assinatura:** continuar na GalaxPay (migrar assinantes sem pedir cartão de novo, se a GalaxPay permitir; DESCONHECIDO) ou trocar (Asaas, Mercado Pago, Stripe, Pagar.me). A troca obriga cada assinante a cadastrar o cartão de novo.
 3. **Prazo** desejado para sair do app Barber.
 4. **Migration 013+:** cada item que precisar será desenhado e levado à autorização, como nas anteriores.
