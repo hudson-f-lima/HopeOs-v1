@@ -101,3 +101,26 @@ O salão vê tudo na agenda, com origem e histórico, e é avisado de agendament
 - **Push (item 8):** cabe na C5, ativa, ao lado do WhatsApp pré-configurado. Limites:
   - no iPhone só funciona com o app instalado na tela inicial (iOS 16.4+);
   - o envio no horário exige que o servidor esteja acordado. A instância gratuita do Render dorme, então é preciso uma instância paga ou um gatilho agendado externo.
+
+## 7. Lembrete pela agenda do próprio celular (sugestão do dono, 2026-11-15)
+**Ideia:** o próprio celular do cliente lembra, sem notificação push nem servidor no horário. O cliente toca em "Adicionar à minha agenda" e o calendário dele avisa antes.
+
+| Opção | Como funciona | iPhone | Android | Alarme definido por nós | Atualiza se remarcar | Custo e infraestrutura |
+|---|---|---|---|---|---|---|
+| **A. Arquivo de calendário (.ics) com alarmes** | Botão baixa um evento com 2 alarmes (ex.: 1 dia e 2 h antes), endereço do salão e o link pessoal | Abre direto no Calendário, alarmes respeitados | Depende do app: no Google Agenda a importação é menos direta, e alarmes do arquivo podem ser trocados pelo padrão do usuário | Sim (iPhone); parcial (Android) | Não sozinho: precisa baixar de novo. O link pessoal (C2) segue como fonte da verdade | Zero; sem migration |
+| **B. Link "Adicionar ao Google Agenda"** | Abre o Google Agenda já preenchido | Funciona pelo navegador | Funciona bem | Não: usa o lembrete padrão da pessoa | Não | Zero; sem migration |
+| **C. Agenda assinada (feed de calendário)** | O cliente assina um endereço próprio uma vez; todos os agendamentos futuros aparecem e se atualizam sozinhos | Atualiza de tempos em tempos (o próprio calendário decide quando) | Google Agenda atualiza devagar (horas) | Sim | Sim, com atraso | Sem custo; exige token por cliente (identidade) e revogação |
+| D. Atalhos ou automações do celular | Apps de automação do usuário | Possível, mas complexo para o cliente | Idem | — | — | Inviável como fluxo padrão |
+
+**Recomendação:**
+- **A + B na C2**, na tela de confirmação e no link pessoal ("Adicionar à minha agenda", com Apple/Outlook pelo .ics e Google pelo link). Custo zero, sem migration e sem servidor no horário: o lembrete funciona até sem internet.
+- **C** fica para depois, junto com uma identificação segura do cliente.
+- **Push** continua como complemento na C5.
+- **WhatsApp** fica pré-configurado.
+
+**Limites:**
+- Só lembra quem tocar no botão.
+- O agendamento feito pela recepção precisa mandar o link pessoal (no WhatsApp de confirmação) para o cliente poder adicionar.
+- Remarcação ou cancelamento não apagam sozinhos o evento já salvo no celular. A descrição do evento traz o link pessoal, que mostra o estado real, e ao remarcar a tela oferece adicionar de novo.
+
+**Medição:** contar quantas vezes o botão é usado (sem dado pessoal), para saber se o lembrete pela agenda basta ou se o push faz falta.
