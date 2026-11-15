@@ -2,7 +2,7 @@
 // Sem migration: usa empresas/servicos/formas_pagamento/profissionais existentes.
 const express = require('express');
 const { createAppError } = require('../errors');
-const { authorize } = require('../auth/rbac');
+const { authorize, pode } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { validateUpdateEmpresaPayload } = require('../validators/empresa.validator');
 const { validateCreateServicoPayload, validateCreateFormaPagamentoPayload, validateCargoPayload } = require('../validators/cadastros.validator');
@@ -20,10 +20,20 @@ const CAMPOS_HORARIO = ['horario_por_dia', 'intervalo_almoco', 'almoco_inicio', 
 // Desde a D-033 o horário da unidade vive em disponibilidade_semanal. O assistente continua
 // editando o horário simples (um período por dia + almoço), que é convertido para a escala da
 // unidade. Se a mudança deixar agendamentos de fora, nada é gravado: trata-se na tela de escalas.
+// JSON com chaves ordenadas: compara o horário enviado com o atual sem depender da ordem.
+const canonico = v => Array.isArray(v) ? `[${v.map(canonico).join(',')}]`
+  : (v && typeof v === 'object') ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonico(v[k])}`).join(',')}}`
+  : JSON.stringify(v ?? null);
+
 async function sincronizarHorarioDaUnidade(req, repo, atual, patch) {
-  if (!CAMPOS_HORARIO.some(c => patch[c] !== undefined)) return null;
+  // Só quando o horário mudou de fato: salvar o passo sem mexer no horário (ex.: só o slot)
+  // não apaga a escala da unidade feita em Conta → Escalas (Red Team D-033).
+  const mudou = CAMPOS_HORARIO.some(c => patch[c] !== undefined && canonico(patch[c]) !== canonico(atual[c]));
+  if (!mudou) return null;
   const disp = await repo.carregarDisponibilidade();
-  if (!disp || !req.auth.actor_id) return null;
+  if (!disp) return null;
+  if (!req.auth.actor_id) throw createAppError('USER_PRINCIPAL_REQUIRED', 'Mudar o horário exige login de uma pessoa.', 403);
+  if (!pode(req.auth, 'unidade:horario')) throw createAppError('INSUFFICIENT_ROLE', 'Mudar o horário da unidade exige a permissão de horários.', 403, { action: 'unidade:horario' });
   const periodos = periodosDaUnidade({ ...atual, ...patch });
   const depois = { semanal: [...disp.semanal.filter(r => r.profissional_id), ...periodos.map(x => ({ profissional_id: null, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim }))], excecoes: disp.excecoes };
   const [agendamentos, profissionais] = await Promise.all([repo.list('agendamentos', { empresa_id: repo.empresaId }), repo.list('profissionais', { empresa_id: repo.empresaId })]);
@@ -83,8 +93,8 @@ router.patch('/empresa', authorize('empresa:configurar'), async (req, res, next)
     if (sinal <= alerta) throw createAppError('INVALID_FIELD', 'A falta que pede sinal deve vir depois da que gera alerta.', 422, { field: 'reguaSinalFaltas' });
     const sync = await sincronizarHorarioDaUnidade(req, repo, atual, patch);
     try {
-      const atualizada = await repo.updateEmpresa(patch);
       if (sync) await repo.definirDisponibilidadeSemanal({ profissionalId: null, periodos: sync.periodos, actorId: req.auth.actor_id, decisoes: [] });
+      const atualizada = await repo.updateEmpresa(patch);
       res.json({ ok: true, data: publica(atualizada) });
     } catch (err) {
       if (err && err.code === '23514') throw createAppError('INVALID_FIELD', 'Valor fora do permitido para a empresa.', 422);

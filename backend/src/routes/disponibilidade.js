@@ -50,7 +50,8 @@ function periodosValidos(lista, { comDia }) {
   const chave = p => (comDia ? p.diaSemana : 0);
   const ord = [...out].sort((a, b) => chave(a) - chave(b) || a.inicio.localeCompare(b.inicio));
   for (let i = 1; i < ord.length; i++) {
-    if (chave(ord[i]) === chave(ord[i - 1]) && ord[i].inicio < ord[i - 1].fim && (ord[i].aCadaSemanas || 1) === (ord[i - 1].aCadaSemanas || 1)) {
+    // Semanas alternadas (A/B) podem repetir o horário: só períodos semanais comuns se chocam.
+    if (chave(ord[i]) === chave(ord[i - 1]) && ord[i].inicio < ord[i - 1].fim && !ord[i].aCadaSemanas && !ord[i - 1].aCadaSemanas) {
       throw invalido('periodos', 'Há períodos sobrepostos no mesmo dia.');
     }
   }
@@ -191,13 +192,20 @@ router.put('/disponibilidade/profissionais/:id/semanal', authorize('escala:edita
 // ---------- Exceções por data ----------
 // Permissão pelo alvo e pelo tipo: unidade → unidade:horario; horário excepcional do
 // profissional → escala:editar; ausência e bloqueio → escala:bloquear (o profissional, só o seu).
-const permissaoDaExcecao = x => (!x || !x.profissionalId ? 'unidade:horario' : x.tipo === 'horario' ? 'escala:editar' : 'escala:bloquear');
+// profissionalId que não seja texto (lista, número, objeto) cai na permissão mais forte e é
+// recusado no handler: a escolha da permissão e o alvo gravado nunca divergem (Red Team D-033).
+const permissaoDaExcecao = x => {
+  const id = x && x.profissionalId;
+  if (id !== undefined && id !== null && typeof id !== 'string') return 'unidade:horario';
+  return !id ? 'unidade:horario' : x.tipo === 'horario' ? 'escala:editar' : 'escala:bloquear';
+};
 
 router.post('/disponibilidade/excecoes', authorizePor(req => permissaoDaExcecao(req.body), 'unidade:horario|escala:editar|escala:bloquear'), async (req, res, next) => {
   try {
     exigirUsuario(req);
     const b = corpo(req, ['profissionalId', 'tipo', 'dataInicio', 'dataFim', 'periodos', 'motivo', 'decisoes']);
-    const profissionalId = b.profissionalId ? String(b.profissionalId) : null;
+    if (b.profissionalId !== undefined && b.profissionalId !== null && typeof b.profissionalId !== 'string') throw invalido('profissionalId', 'profissionalId deve ser texto.');
+    const profissionalId = b.profissionalId || null;
     if (profissionalId && !UUID.test(profissionalId)) throw invalido('profissionalId', 'profissionalId inválido.');
     const tipos = profissionalId ? ['horario', 'ausencia', 'bloqueio'] : ['horario', 'fechamento'];
     if (!tipos.includes(b.tipo)) throw invalido('tipo', `tipo deve ser ${tipos.join(', ')}.`);

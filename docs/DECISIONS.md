@@ -389,8 +389,19 @@
   - `escala:conflitos`: recepção e gestão.
   - `escala:editar` e `unidade:horario`: gestão; nível sensível.
 - **Tela:** Conta → Escalas, com semana padrão da unidade e de cada profissional, datas especiais, "Usar o horário da unidade", conflitos com "Manter e salvar". A agenda mostra a origem quando não há horário e oferece "agendar mesmo assim" a quem pode encaixar.
+- **Red Team independente (2026-11-15), corrigido antes do merge:**
+  - **ALTO:** `profissionalId` em formato de lista fazia profissional ou recepção fecharem a unidade. Agora formato inválido cai na permissão mais forte e é recusado (422).
+  - **MÉDIO:** zerar o horário da unidade desligava a checagem do servidor. Agora só uma empresa sem nenhuma regra nem exceção mantém o comportamento anterior.
+  - **MÉDIO:** a conversão tirava o horário de profissional em dia em que a empresa não abria. Agora a unidade abre nesse trecho e só quem tinha horário atende.
+  - **MÉDIO:** salvar o assistente de configuração apagava a escala da unidade. Agora sincroniza só quando o horário muda de fato, exige `unidade:horario` e grava a escala antes do jsonb.
+  - **BAIXO:**
+    - o encaixe forçado na remarcação e na mudança de duração passou a ser registrado;
+    - semanas alternadas podem repetir o horário.
+  - **Riscos aceitos:**
+    - corrida entre o cálculo de conflitos e a gravação: um agendamento criado nesse intervalo vira conflito listado depois;
+    - divergências de borda entre a conversão SQL e o espelho JS em formatos antigos raros (`ativo` como texto, `24:00`).
 - **Fora desta onda:** alteração em lote, modelos de escala, importação e exportação CSV, visual semana × profissional no computador, várias unidades (o salão tem uma). Notificação push não existe.
 - **Verificação:**
   - `gate_013.sql` (6 blocos: conversão, formas, funções, trilha imutável, acesso; ciclo de rollback);
-  - `disponibilidade-gate` D01–D11 (precedência; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
+  - `disponibilidade-gate` D01–D14 (precedência; regressões do Red Team; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
   - E2E `escalas` (data especial pela tela, efeito nos horários, conflito com "Manter e salvar", origem, recepção e profissional com o que podem).

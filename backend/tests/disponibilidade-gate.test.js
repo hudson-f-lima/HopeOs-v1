@@ -233,6 +233,43 @@ test('D11 visão do profissional: vê só a própria escala; a gestão vê todos
   assert.strictEqual((await request('GET', `/api/disponibilidade/dia?data=${D}&profissionalId=${P.a}`, { token: 'h.edu.s' })).status, 403);
 });
 
+test('D12 Red Team: profissionalId que não é texto não vira "unidade" para escapar da permissão', async () => {
+  for (const id of [[], [''], [null], 5, {}]) {
+    const prof = await excecao({ profissionalId: id, tipo: 'fechamento', dataInicio: add(D7, 21), dataFim: add(D7, 21) }, 'h.edu.s');
+    assert.strictEqual(prof.status, 403, `profissional com ${JSON.stringify(id)}: ${prof.status}`);
+    const rec = await excecao({ profissionalId: id, tipo: 'fechamento', dataInicio: add(D7, 21), dataFim: add(D7, 21) }, 'h.recep.s');
+    assert.strictEqual(rec.status, 403, `recepção com ${JSON.stringify(id)}`);
+    const adm = await excecao({ profissionalId: id, tipo: 'fechamento', dataInicio: add(D7, 21), dataFim: add(D7, 21) });
+    assert.strictEqual(adm.status, 422, `admin com ${JSON.stringify(id)} recusado como entrada inválida`);
+  }
+  assert.ok(!db.disponibilidade_excecoes.some(e => e.data_inicio === add(D7, 21)), 'nada gravado');
+});
+
+test('D13 Red Team: zerar o horário da unidade não desliga a checagem do servidor', async () => {
+  const semanalAntes = db.disponibilidade_semanal.filter(r => !r.profissional_id).map(r => ({ diaSemana: r.dia_semana, inicio: r.inicio, fim: r.fim }));
+  const zera = await request('PUT', '/api/disponibilidade/unidade/semanal', { body: { periodos: [], decisoes: db.agendamentos.map(a => ({ agendamentoId: a.id, decisao: 'manter' })) } });
+  assert.strictEqual(zera.status, 200, JSON.stringify(zera.data));
+  const r = await agendar(P.a, add(SEG, 7), '03:00');
+  assert.deepStrictEqual([r.status, code(r)], [409, 'FORA_DA_DISPONIBILIDADE']);
+  assert.strictEqual((await request('PUT', '/api/disponibilidade/unidade/semanal', { body: { periodos: semanalAntes } })).status, 200);
+});
+
+test('D14 Red Team: conversão mantém o dia em que só o profissional tinha horário', () => {
+  const { periodosDaUnidade, periodosDoProfissional, periodosExtrasDaUnidade } = require('../src/engines/disponibilidadeLegado');
+  const empresa = { horario_por_dia: { seg: { ativo: true, inicio: '09:00', fim: '18:00' }, dom: { ativo: false } } };
+  const prof = { horario: { seg: { ativo: true, inicio: '10:00', fim: '20:00' }, dom: { ativo: true, inicio: '09:00', fim: '13:00' } } };
+  const unidade = periodosDaUnidade(empresa);
+  const dele = periodosDoProfissional(prof, empresa);
+  const extras = periodosExtrasDaUnidade(unidade, [dele]);
+  assert.deepStrictEqual(extras, [{ diaSemana: 0, inicio: '09:00', fim: '13:00' }]);
+  const semanal = [...unidade, ...extras].map(x => ({ profissional_id: null, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim }))
+    .concat(dele.map(x => ({ profissional_id: 'p', dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim })));
+  const domingo = disponibilidadeDoDia({ data: '2026-11-22', semanal, excecoes: [], profissional: { id: 'p', escala_publicada_em: 'x' } });
+  assert.deepStrictEqual(domingo.periodos, [{ start: 540, end: 780 }], 'domingo dele continua 09–13, como antes');
+  const outro = disponibilidadeDoDia({ data: '2026-11-22', semanal, excecoes: [], profissional: { id: 'q', escala_publicada_em: 'x' } });
+  assert.strictEqual(outro.codigo, 'FOLGA', 'quem não tinha domingo continua sem');
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

@@ -36,8 +36,9 @@ const { timeToMinutes } = require('../engines/ScheduleEngine');
 async function assertDentroDaDisponibilidade(req, repo, { profissional, data, horario, duracaoMin, forcar }) {
   const disp = await repo.carregarDisponibilidade();
   if (!disp) return { forcado: false };
-  const configurada = disp.semanal.some(r => !r.profissional_id) || disp.excecoes.some(e => !e.profissional_id);
-  if (!configurada) return { forcado: false };
+  // Só uma empresa que nunca configurou nada (nenhuma regra nem exceção) fica com o comportamento
+  // anterior. Zerar o horário da unidade não desliga a checagem (Red Team D-033).
+  if (!disp.semanal.length && !disp.excecoes.length) return { forcado: false };
   const d = disponibilidadeDoDia({ data, semanal: disp.semanal, excecoes: disp.excecoes, profissional });
   if (cabe(d.periodos, timeToMinutes(String(horario).slice(0, 5)), Number(duracaoMin) || 30)) return { forcado: false };
   if (!forcar) {
@@ -575,7 +576,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     const profNovo = await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
     const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
-    await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
+    const foraRe = await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
 
     // O original ainda está ativo neste momento: é ignorado na checagem de conflito.
     const novo = await repo.criarAgendamento({
@@ -601,7 +602,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     });
     await registrarEventoAgenda(repo, req.auth, {
       agendamentoId: novo && novo.id, tipo: 'reagendado', de: null, para: (novo && novo.status) || 'agendado',
-      origem: 'reagendamento', extra: { reagendado_de: original.id }
+      origem: 'reagendamento', extra: { reagendado_de: original.id, ...(foraRe.forcado ? { fora_da_disponibilidade: foraRe.origem } : {}) }
     });
 
     res.json({ ok: true, data: { original: updatedOriginal, novo } });
@@ -632,16 +633,17 @@ router.patch('/agenda/:id/duracao', authorize('agenda:editar'), async (req, res,
     assertOwn(req, agendamento.profissional_id);
     const { actorId } = autoriaDe(req.auth);
     const duracaoAnterior = agendamento.duracao_min ?? null;
+    let foraDur = { forcado: false };
     if (duracaoMin > Number(duracaoAnterior || 0)) {
       const prof = await requireScopedEntity(repo, 'profissionais', agendamento.profissional_id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
-      await assertDentroDaDisponibilidade(req, repo, { profissional: prof, data: agendamento.data, horario: agendamento.horario, duracaoMin, forcar: req.body && req.body.foraDaDisponibilidade === true });
+      foraDur = await assertDentroDaDisponibilidade(req, repo, { profissional: prof, data: agendamento.data, horario: agendamento.horario, duracaoMin, forcar: req.body && req.body.foraDaDisponibilidade === true });
     }
     const updated = await repo.updateScoped('agendamentos', id, {
       duracao_min: duracaoMin,
       updated_at: new Date().toISOString(),
       updated_by: actorId
     });
-    await registrarEventoAgenda(repo, req.auth, { agendamentoId: id, tipo: 'duracao', de: duracaoAnterior, para: duracaoMin });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: id, tipo: 'duracao', de: duracaoAnterior, para: duracaoMin, extra: foraDur.forcado ? { fora_da_disponibilidade: foraDur.origem } : {} });
     res.json({ ok: true, data: { id: updated.id, duracaoMin: updated.duracao_min } });
   } catch (err) { next(err); }
 });

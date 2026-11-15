@@ -345,7 +345,7 @@ function installMemoryBackend(seed = {}) {
 // Mesma conversão da migration 013 (disponibilidade_converter_legado): o horário que vale hoje
 // vira regra semanal (almoço da empresa vira intervalo) e quem existe fica com escala publicada.
 function converterDisponibilidadeLegada(db) {
-  const { periodosDaUnidade, periodosDoProfissional } = require('../engines/disponibilidadeLegado');
+  const { periodosDaUnidade, periodosDoProfissional, periodosExtrasDaUnidade } = require('../engines/disponibilidadeLegado');
   db.disponibilidade_semanal = db.disponibilidade_semanal || [];
   db.disponibilidade_excecoes = db.disponibilidade_excecoes || [];
   db.disponibilidade_eventos = db.disponibilidade_eventos || [];
@@ -354,8 +354,10 @@ function converterDisponibilidadeLegada(db) {
   });
   for (const e of db.empresas || []) {
     if (db.disponibilidade_semanal.some(r => r.empresa_id === e.id)) continue;
-    periodosDaUnidade(e).forEach(x => linha(e.id, null, x));
-    for (const p of (db.profissionais || []).filter(x => x.empresa_id === e.id)) periodosDoProfissional(p, e).forEach(x => linha(e.id, p.id, x));
+    const unidade = periodosDaUnidade(e);
+    const porProf = (db.profissionais || []).filter(x => x.empresa_id === e.id).map(p => ({ p, periodos: periodosDoProfissional(p, e) }));
+    [...unidade, ...periodosExtrasDaUnidade(unidade, porProf.map(x => x.periodos))].forEach(x => linha(e.id, null, x));
+    porProf.forEach(({ p, periodos }) => periodos.forEach(x => linha(e.id, p.id, x)));
   }
   for (const p of db.profissionais || []) if (!p.escala_publicada_em) p.escala_publicada_em = '2026-01-01T00:00:00.000Z';
 }

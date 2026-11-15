@@ -37,4 +37,19 @@ function periodosDoProfissional(profissional, empresa) {
   return out;
 }
 
-module.exports = { periodosDaUnidade, periodosDoProfissional };
+// Dias em que a empresa não abria mas algum profissional tinha horário próprio: a unidade
+// passa a abrir nesses trechos (antes valia o horário do profissional). Igual à migration.
+function periodosExtrasDaUnidade(unidade, porProfissional) {
+  const diasUnidade = new Set(unidade.map(p => p.diaSemana));
+  const vistos = new Set();
+  const out = [];
+  for (const x of porProfissional.flat()) {
+    const k = `${x.diaSemana}|${x.inicio}|${x.fim}`;
+    if (diasUnidade.has(x.diaSemana) || vistos.has(k)) continue;
+    vistos.add(k);
+    out.push({ diaSemana: x.diaSemana, inicio: x.inicio, fim: x.fim });
+  }
+  return out;
+}
+
+module.exports = { periodosDaUnidade, periodosDoProfissional, periodosExtrasDaUnidade };

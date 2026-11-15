@@ -49,6 +49,10 @@ do $$ begin
      or pg_temp.periodos('e1300000-0000-4000-8000-00000000000a', 'a1300000-0000-4000-8000-0000000000a2', 3) <> '' then
     raise exception 'gate_013 bloco 1: horário próprio convertido errado';
   end if;
+  -- Terça: a empresa não abria, mas a profissional tinha horário próprio (valia o dela).
+  if pg_temp.periodos('e1300000-0000-4000-8000-00000000000a', null, 2) <> '10:00-14:00' then
+    raise exception 'gate_013 bloco 1: dia só do profissional não abriu a unidade: %', pg_temp.periodos('e1300000-0000-4000-8000-00000000000a', null, 2);
+  end if;
   if pg_temp.periodos('e1300000-0000-4000-8000-00000000000b', null, 3) <> '08:00-12:00' then
     raise exception 'gate_013 bloco 1: formato numérico { 3: { start, end } } não convertido';
   end if;

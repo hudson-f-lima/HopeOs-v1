@@ -152,6 +152,15 @@ begin
         end if;
       end loop;
     end loop;
+    -- Dia em que a empresa não abria, mas um profissional tinha horário próprio: antes valia o
+    -- horário dele (prof || empresa). A unidade passa a abrir nesse trecho, e só quem tem escala
+    -- nesse dia atende (Red Team D-033).
+    insert into public.disponibilidade_semanal (empresa_id, dia_semana, inicio, fim)
+    select distinct e.id, s.dia_semana, s.inicio, s.fim
+      from public.disponibilidade_semanal s
+     where s.empresa_id = e.id and s.profissional_id is not null
+       and not exists (select 1 from public.disponibilidade_semanal u
+                        where u.empresa_id = e.id and u.profissional_id is null and u.dia_semana = s.dia_semana);
   end loop;
   -- Quem já existia continua disponível como hoje: escala publicada na conversão.
   update public.profissionais set escala_publicada_em = now() where escala_publicada_em is null;
