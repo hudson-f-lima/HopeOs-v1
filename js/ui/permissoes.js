@@ -1,6 +1,8 @@
 // Conta → Equipe: permissões individuais (D-032). Proprietário e gerente acrescentam
 // permissões a uma pessoa, dentro da própria autoridade. O servidor decide o que cada um
 // pode mexer (campo "editaveis"); a tela só mostra isso. Nada é tirado do papel.
+// Ao profissional só se concede o que não mexe em dinheiro (decisão de 2026-11-15): agenda
+// de todos (as ações da agenda acompanham) e fechar comanda de qualquer profissional.
 import { api } from '../api.js';
 import { state, sessionPode } from '../state.js';
 import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError } from '../utils.js';
@@ -38,16 +40,6 @@ export async function carregarPermissoes() {
 }
 
 const marcadasNaTela = () => [...el('permGrupos').querySelectorAll('input[data-perm]:checked')].map(i => i.dataset.perm);
-const pacoteEditavel = () => dados.pacotes.recepcao.permissoes.filter(c => atual.editaveis.includes(c));
-
-function atualizarBotaoPacote() {
-  const b = el('btnPermPacote');
-  if (!b) return;
-  const marcadas = marcadasNaTela();
-  const tem = pacoteEditavel().every(c => marcadas.includes(c));
-  b.textContent = tem ? 'Tirar acesso de recepção' : 'Dar acesso de recepção';
-  b.dataset.estado = tem ? 'tem' : 'nao';
-}
 
 function abrir(id) {
   atual = dados.pessoas.find(p => p.membershipId === id);
@@ -56,32 +48,32 @@ function abrir(id) {
   el('permModalTitulo').textContent = `Permissões de ${atual.nome || atual.email || 'pessoa'}`;
   el('permModalPapel').textContent = `Papel: ${PAPEL[atual.role] || atual.role}. O que vem do papel fica; aqui você só acrescenta.`;
   const marcadas = new Set(atual.permissoesExtras);
-  el('permPacote').innerHTML = pacoteEditavel().length
-    ? `<button type="button" class="btn btn-secondary" id="btnPermPacote">Dar acesso de recepção</button>
-       <p class="list-count-hint">Marca de uma vez o que a recepção faz: agenda de todos, encaixes, lista de espera, comanda de qualquer profissional, caixa do dia, clientes e painel da operação. Ganhos, metas e desempenho continuam só dela.</p>`
-    : '';
+  const ehProf = atual.role === 'profissional';
+  el('permPacote').innerHTML = ehProf
+    ? '<p class="list-count-hint">Ao profissional só se concede o que não mexe em dinheiro: a agenda de todos (agendar, remarcar e cancelar para qualquer profissional) e fechar comanda de qualquer profissional. Caixa, estorno, comissão e números de colegas, nunca. Ganhos, metas e desempenho continuam só dele.</p>'
+    : '<p class="list-count-hint">Itens marcados como "Sensível" (dinheiro ou dado pessoal) só o proprietário concede.</p>';
   const grupos = [...new Set(dados.catalogo.map(x => x.grupo))];
   el('permGrupos').innerHTML = grupos.map(g => {
-    const itens = dados.catalogo.filter(x => x.grupo === g).map(x => {
+    const itens = dados.catalogo.filter(x => x.grupo === g && !x.segue).map(x => {
       const doPapel = x.padrao[atual.role];
+      const rotulo = escapeHtml(ehProf && x.rotuloProfissional ? x.rotuloProfissional : x.rotulo) + (x.nivel === 'sensivel' ? '<span class="perm-tag">Sensível</span>' : '');
       const editavel = atual.editaveis.includes(x.codigo);
       if (doPapel === 'total') {
-        return `<label class="perm-item perm-do-papel"><input type="checkbox" checked disabled/><span>${escapeHtml(x.rotulo)}<small>Do papel</small></span></label>`;
+        return `<label class="perm-item perm-do-papel"><input type="checkbox" checked disabled/><span>${rotulo}<small>Do papel</small></span></label>`;
       }
       if (!editavel) {
         return marcadas.has(x.codigo)
-          ? `<label class="perm-item"><input type="checkbox" checked disabled/><span>${escapeHtml(x.rotulo)}<small>Concedida pelo proprietário; só ele altera</small></span></label>`
+          ? `<label class="perm-item"><input type="checkbox" checked disabled/><span>${rotulo}<small>Concedida pelo proprietário; só ele altera</small></span></label>`
           : '';
       }
       const nota = doPapel === 'proprio' ? '<small>Hoje só o próprio; marcada, vale para todos</small>' : '';
-      return `<label class="perm-item"><input type="checkbox" data-perm="${escapeHtml(x.codigo)}"${marcadas.has(x.codigo) ? ' checked' : ''}/><span>${escapeHtml(x.rotulo)}${nota}</span></label>`;
+      return `<label class="perm-item"><input type="checkbox" data-perm="${escapeHtml(x.codigo)}"${marcadas.has(x.codigo) ? ' checked' : ''}/><span>${rotulo}${nota}</span></label>`;
     }).filter(Boolean).join('');
     return itens ? `<fieldset class="perm-grupo"><legend>${escapeHtml(g)}</legend>${itens}</fieldset>` : '';
   }).join('');
   const hist = el('permHistorico');
   hist.innerHTML = '';
   hist.closest('details').open = false;
-  atualizarBotaoPacote();
   openModal('modalPermissoes');
 }
 
@@ -131,17 +123,6 @@ export function initPermissoes() {
     const b = ev.target.closest('[data-perm-abrir]');
     if (b) abrir(b.dataset.permAbrir);
   });
-  el('permPacote').addEventListener('click', ev => {
-    const b = ev.target.closest('#btnPermPacote');
-    if (!b) return;
-    const marcar = b.dataset.estado !== 'tem';
-    pacoteEditavel().forEach(c => {
-      const input = el('permGrupos').querySelector(`input[data-perm="${c}"]`);
-      if (input) input.checked = marcar;
-    });
-    atualizarBotaoPacote();
-  });
-  el('permGrupos').addEventListener('change', atualizarBotaoPacote);
   el('btnPermSalvar').addEventListener('click', salvar);
   el('btnPermCancelar').addEventListener('click', () => closeModal('modalPermissoes'));
   el('permHistorico').closest('details').addEventListener('toggle', ev => { if (ev.target.open) carregarHistorico(); });

@@ -46,12 +46,12 @@ end $$;
 -- 3. Conceder e revogar pela função: lista gravada e um evento por diferença.
 do $$ declare r jsonb; begin
   r := membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2',
-                                     'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver', 'caixa:fechar', 'agenda:ver']);
+                                     'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver', 'caixa:fechar', 'agenda:ver'], '{}');
   if r->'concedidas' <> '["agenda:ver", "caixa:fechar"]'::jsonb or r->'revogadas' <> '[]'::jsonb then
     raise exception 'gate_012 bloco 3: concessão errada: %', r;
   end if;
   r := membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2',
-                                     'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver']);
+                                     'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver'], array['caixa:fechar', 'agenda:ver']);
   if r->'revogadas' <> '["caixa:fechar"]'::jsonb or r->'concedidas' <> '[]'::jsonb then
     raise exception 'gate_012 bloco 3: revogação errada: %', r;
   end if;
@@ -82,16 +82,16 @@ end $$;
 
 -- 5. Empresa e ator: vínculo de outra empresa, ator de fora e ator nulo são recusados.
 do $$ begin
-  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000b1', 'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver'])$q$) is null then
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000b1', 'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver'], array['agenda:ver'])$q$) is null then
     raise exception 'gate_012 bloco 5: vínculo de outra empresa aceito';
   end if;
-  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000b1', array['agenda:ver'])$q$) is null then
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000b1', array['agenda:ver'], array['agenda:ver'])$q$) is null then
     raise exception 'gate_012 bloco 5: ator de outra empresa aceito';
   end if;
-  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', null, array['agenda:ver'])$q$) is null then
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', null, array['agenda:ver'], array['agenda:ver'])$q$) is null then
     raise exception 'gate_012 bloco 5: ator nulo aceito';
   end if;
-  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000a1', array['Errado'])$q$) is null then
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000a1', array['Errado'], array['agenda:ver'])$q$) is null then
     raise exception 'gate_012 bloco 5: código inválido aceito pela função';
   end if;
 end $$;
@@ -101,11 +101,11 @@ do $$ begin
   if has_table_privilege('anon', 'membership_permissao_eventos', 'select') or has_table_privilege('authenticated', 'membership_permissao_eventos', 'select') then
     raise exception 'gate_012 bloco 6: trilha exposta';
   end if;
-  if has_function_privilege('anon', 'membership_permissoes_definir(uuid, uuid, uuid, text[])', 'execute')
-     or has_function_privilege('authenticated', 'membership_permissoes_definir(uuid, uuid, uuid, text[])', 'execute') then
+  if has_function_privilege('anon', 'membership_permissoes_definir(uuid, uuid, uuid, text[], text[])', 'execute')
+     or has_function_privilege('authenticated', 'membership_permissoes_definir(uuid, uuid, uuid, text[], text[])', 'execute') then
     raise exception 'gate_012 bloco 6: função exposta';
   end if;
-  if not has_function_privilege('service_role', 'membership_permissoes_definir(uuid, uuid, uuid, text[])', 'execute') then
+  if not has_function_privilege('service_role', 'membership_permissoes_definir(uuid, uuid, uuid, text[], text[])', 'execute') then
     raise exception 'gate_012 bloco 6: service_role sem acesso à função';
   end if;
   if has_table_privilege('service_role', 'membership_permissao_eventos', 'update') then
@@ -113,5 +113,30 @@ do $$ begin
   end if;
 end $$;
 
+-- 7. Corrida (Red Team D-032, achado 2): a lista esperada precisa ser a atual; vínculo
+--    inativo só perde permissões. Controles negativos: esperado certo passa; revogar passa.
+do $$ declare r jsonb; begin
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver', 'comanda:fechar'], '{}')$q$) is null then
+    raise exception 'gate_012 bloco 7: lista esperada desatualizada aceita';
+  end if;
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver'], null)$q$) is null then
+    raise exception 'gate_012 bloco 7: lista esperada nula aceita';
+  end if;
+  r := membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2',
+                                     'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver', 'comanda:fechar'], array['agenda:ver']);
+  if r->'concedidas' <> '["comanda:fechar"]'::jsonb then
+    raise exception 'gate_012 bloco 7: controle negativo falhou (esperado certo recusado): %', r;
+  end if;
+  update empresa_memberships set status = 'inativo' where id = 'd1200000-0000-4000-8000-0000000000a2';
+  if pg_temp.erro_de($q$select membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2', 'c1200000-0000-4000-8000-0000000000a1', array['agenda:ver', 'comanda:fechar', 'espera:ver'], array['agenda:ver', 'comanda:fechar'])$q$) is null then
+    raise exception 'gate_012 bloco 7: vínculo inativo ganhou permissão';
+  end if;
+  r := membership_permissoes_definir('e1200000-0000-4000-8000-00000000000a', 'd1200000-0000-4000-8000-0000000000a2',
+                                     'c1200000-0000-4000-8000-0000000000a1', '{}', array['agenda:ver', 'comanda:fechar']);
+  if r->'revogadas' <> '["agenda:ver", "comanda:fechar"]'::jsonb then
+    raise exception 'gate_012 bloco 7: vínculo inativo não conseguiu perder permissões: %', r;
+  end if;
+end $$;
+
 rollback;
-\echo gate_012 OK (6 blocos)
+\echo gate_012 OK (7 blocos)

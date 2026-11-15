@@ -1,6 +1,8 @@
 // Lembretes de confirmação (D-011). O backend monta a lista e o texto
 // (GET /agenda/lembretes); aqui a recepção abre o WhatsApp de cada cliente e
 // marca "Confirmou" quando a resposta chega. Nada é enviado automaticamente.
+// WhatsApp só para recepção e gestão (D-032, 2026-11-15): o profissional recebe os próprios
+// horários a confirmar, sem contato do cliente (whatsapp: false na resposta).
 import { api } from '../api.js';
 import { loadWeekAgenda } from '../state.js';
 import { addDays, escapeHtml, formatDDMM, showBanner, todayStr } from '../utils.js';
@@ -10,21 +12,23 @@ const MOTIVO = { sem_whatsapp: 'Sem WhatsApp no cadastro', whatsapp_invalido: 'W
 let dataAtual = null;
 
 function render(r) {
+  const porWhatsapp = r.whatsapp !== false;
   const corpo = r.itens.length
     ? r.itens.map(i => `
       <div class="eq-row" data-id="${i.agendamentoId}">
         <div class="eq-quem"><b>${escapeHtml(i.horario)} · ${escapeHtml(i.clienteNome || 'Sem cliente')}</b>
           <span>${escapeHtml([i.servicoNome, i.profissionalNome].filter(Boolean).join(' · '))}</span></div>
         <div class="eq-ctrl">
-          ${i.link
-            ? `<a class="btn btn-secondary lembrete-zap" href="${escapeHtml(i.link)}" target="_blank" rel="noopener">WhatsApp</a>`
-            : `<span class="body-sm text-tertiary">${escapeHtml(MOTIVO[i.motivo] || 'Sem contato')}</span>`}
+          ${!porWhatsapp ? ''
+            : i.link
+              ? `<a class="btn btn-secondary lembrete-zap" href="${escapeHtml(i.link)}" target="_blank" rel="noopener">WhatsApp</a>`
+              : `<span class="body-sm text-tertiary">${escapeHtml(MOTIVO[i.motivo] || 'Sem contato')}</span>`}
           <button class="btn" type="button" data-confirmar="${i.agendamentoId}">Confirmou</button>
         </div>
       </div>`).join('')
     : '<p class="body-sm text-tertiary">Nenhum horário pendente de confirmação neste dia.</p>';
   el('lembretesConteudo').innerHTML = `
-    <p class="body-sm text-tertiary" id="lembretesResumo">${r.pendentes} a confirmar · ${r.confirmados} já confirmado(s) · ${r.comLink} com WhatsApp</p>
+    <p class="body-sm text-tertiary" id="lembretesResumo">${r.pendentes} a confirmar · ${r.confirmados} já confirmado(s)${porWhatsapp ? ` · ${r.comLink} com WhatsApp` : ' · seus horários; a recepção avisa o cliente'}</p>
     ${corpo}`;
 }
 

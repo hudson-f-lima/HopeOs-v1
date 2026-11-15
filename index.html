@@ -539,6 +539,18 @@
       <label for="agCliente">Cliente (opcional)</label>
       <input id="agCliente" type="text" placeholder="Digite cliente..." style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--md-surface-variant); background:var(--md-surface);"/>
       <p id="agReguaAviso" class="regua-aviso hidden" role="status"></p>
+      <button type="button" class="btn-link" id="btnAgNovoCliente">+ Cadastrar cliente novo</button>
+      <div id="agNovoCliente" class="ag-novo-cliente hidden">
+        <label for="agNovoClienteNome">Nome do cliente</label>
+        <input id="agNovoClienteNome" type="text" autocomplete="off" maxlength="120"/>
+        <label for="agNovoClienteZap">WhatsApp (opcional)</label>
+        <input id="agNovoClienteZap" type="tel" inputmode="tel" autocomplete="off" maxlength="30"/>
+        <p id="agNovoClienteErro" class="body-sm hidden" role="alert"></p>
+        <div class="ag-novo-cliente-acoes">
+          <button type="button" class="btn btn-secondary" id="btnAgNovoClienteCancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnAgNovoClienteSalvar">Salvar cliente</button>
+        </div>
+      </div>
     </div>
     <div class="field">
       <label for="agServico">Serviço</label>

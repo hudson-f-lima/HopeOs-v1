@@ -33,7 +33,7 @@ const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
 
-const { authorize, assertOwn, authorizePor, exigirTambem } = require('../auth/rbac');
+const { authorize, assertOwn, authorizePor, exigirTambem, pode } = require('../auth/rbac');
 const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
@@ -118,12 +118,19 @@ router.get('/financeiro/resumo', authorize('painel:financeiro'), async (req, res
   catch (err) { next(err); }
 });
 
+// Contato e observações do cliente são dado pessoal (D-032, decisão de 2026-11-15): quem não
+// tem clientes:contato (o profissional) recebe só o nome, para agendar e fechar comanda.
+const semContato = c => ({ id: c.id, nome: c.nome, ativo: c.ativo });
+const clientesVisiveis = (req, lista) => (pode(req.auth, 'clientes:contato') ? lista : lista.map(semContato));
+
 router.get('/clientes', authorize('clientes:ver'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('clientes', { empresa_id: req.auth.empresa_id }) }); }
+  try { res.json({ ok: true, data: clientesVisiveis(req, await new SupabaseRepository(req.auth.empresa_id).list('clientes', { empresa_id: req.auth.empresa_id })) }); }
   catch (err) { next(err); }
 });
 
-router.post('/clientes', authorize('clientes:editar'), async (req, res, next) => {
+// Cadastro de cliente novo (inclusive o rápido, do novo agendamento). Editar um cliente que
+// já existe continua com clientes:editar.
+router.post('/clientes', authorize('clientes:criar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const payload = validateCreateClientePayload(req.body);
@@ -396,7 +403,11 @@ router.get('/agenda/lembretes', authorize('agenda:ver'), async (req, res, next) 
     }
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtroAgenda = { empresa_id: repo.empresaId, data };
-    if (req.authz.own) filtroAgenda.profissional_id = req.authz.profissionalId;
+    // WhatsApp do cliente só para recepção e gestão (decisão de 2026-11-15). Sem
+    // agenda:lembretes, a pessoa vê só os próprios horários a confirmar, sem contato.
+    const porWhatsapp = pode(req.auth, 'agenda:lembretes');
+    if (!porWhatsapp && !req.auth.profissional_id) throw createAppError('INSUFFICIENT_ROLE', 'Sem permissão para esta ação.', 403, { action: 'agenda:lembretes' });
+    if (req.authz.own || !porWhatsapp) filtroAgenda.profissional_id = req.authz.profissionalId || req.auth.profissional_id;
     const [empresas, agendamentos, clientes, servicos, profissionais] = await Promise.all([
       repo.list('empresas', { id: repo.empresaId }),
       repo.list('agendamentos', filtroAgenda),
@@ -404,7 +415,12 @@ router.get('/agenda/lembretes', authorize('agenda:ver'), async (req, res, next) 
       repo.list('servicos', { empresa_id: repo.empresaId }),
       repo.list('profissionais', { empresa_id: repo.empresaId })
     ]);
-    res.json({ ok: true, data: montarLembretes({ data, agendamentos, clientes, servicos, profissionais, empresa: empresas[0] }) });
+    const r = montarLembretes({ data, agendamentos, clientes, servicos, profissionais, empresa: empresas[0] });
+    if (!porWhatsapp) {
+      r.itens = r.itens.map(({ texto, link, motivo, ...i }) => ({ ...i, link: null, motivo: null }));
+      r.comLink = 0;
+    }
+    res.json({ ok: true, data: { ...r, whatsapp: porWhatsapp } });
   } catch (err) { next(err); }
 });
 
@@ -594,7 +610,7 @@ router.get('/catalog', authorize('clientes:ver'), authorize('cadastros:ver'), as
       repo.list('formas_pagamento', { empresa_id: repo.empresaId }),
       repo.list('profissional_servicos', { empresa_id: repo.empresaId })
     ]);
-    res.json({ ok: true, data: { clientes, servicos, produtos, profissionais, formas_pagamento, profissional_servicos } });
+    res.json({ ok: true, data: { clientes: clientesVisiveis(req, clientes), servicos, produtos, profissionais, formas_pagamento, profissional_servicos } });
   } catch (err) { next(err); }
 });
 

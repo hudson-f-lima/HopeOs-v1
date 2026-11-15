@@ -7,7 +7,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { getIdentityStore } = require('../auth/identityStore');
-const { PERMISSOES, PACOTES, permissoesEfetivas, motivoAlvo, motivoRecusa, extrasValidos, permissao } = require('../auth/permissoes');
+const { PERMISSOES, permissoesEfetivas, motivoAlvo, motivoRecusa, extrasValidos, permissao } = require('../auth/permissoes');
 
 const router = express.Router();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,8 +39,7 @@ router.get('/equipe/permissoes', authorize('equipe:permissoes'), async (req, res
     res.json({
       ok: true,
       data: {
-        catalogo: PERMISSOES.map(({ codigo, grupo, rotulo, nivel, padrao }) => ({ codigo, grupo, rotulo, nivel, padrao })),
-        pacotes: PACOTES,
+        catalogo: PERMISSOES.map(({ codigo, grupo, rotulo, rotuloProfissional, nivel, padrao, profissional, segue }) => ({ codigo, grupo, rotulo, rotuloProfissional, nivel, padrao, profissional, segue })),
         pessoas
       }
     });
@@ -74,7 +73,11 @@ router.put('/equipe/permissoes/:membershipId', authorize('equipe:permissoes'), a
     }
     // Códigos antigos que saíram do catálogo continuam guardados até alguém mexer de novo.
     const legados = (Array.isArray(alvo.permissoes_extras) ? alvo.permissoes_extras : []).filter(c => !permissao(c));
-    const r = await store.definirPermissoes({ empresaId: req.auth.empresa_id, membershipId: alvo.id, actorId: req.auth.actor_id, permissoes: [...depois, ...legados] });
+    // esperado: a lista lida acima. Se alguém salvou no meio do caminho, nada é gravado (409).
+    const r = await store.definirPermissoes({
+      empresaId: req.auth.empresa_id, membershipId: alvo.id, actorId: req.auth.actor_id,
+      permissoes: [...depois, ...legados], esperado: Array.isArray(alvo.permissoes_extras) ? alvo.permissoes_extras : []
+    });
     res.json({ ok: true, data: { membershipId: alvo.id, ...r, efetivas: permissoesEfetivas(alvo.role, r.permissoes) } });
   } catch (err) { next(err); }
 });

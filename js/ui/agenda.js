@@ -1,3 +1,4 @@
+import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
 import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
 import {
@@ -356,6 +357,7 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || state.selectedDay || todayStr();
 
   state.fuzzyAgCliente.clear();
+  resetClienteRapido();
   avisarReguaCliente(null);
   state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));
   state.fuzzyAgServico.clear();
@@ -1081,6 +1083,7 @@ function onTimelineClick(ev) {
 }
 
 export function initAgenda() {
+  initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));
   document.getElementById('btnPrevWeekMobile')?.addEventListener('click', () => shiftWeek(-1));

@@ -133,6 +133,13 @@ function exigirTambem(req, codigo) {
   return req.authz;
 }
 
+// Sem lançar erro: a pessoa tem esta permissão com alcance total? Usado para recortar a
+// resposta (ex.: contato do cliente) em rotas que outras permissões já liberaram. Token
+// legado e integração seguem a ação ampla, como antes (nada muda para eles).
+function pode(auth, codigo) {
+  try { return !authorizeAuth(auth, codigo).own; } catch { return false; }
+}
+
 // Escopo "Próprio": o recurso precisa pertencer ao profissional do usuário.
 function assertOwn(req, profissionalId) {
   if (req.authz && req.authz.own && profissionalId !== req.authz.profissionalId) {
@@ -140,4 +147,4 @@ function assertOwn(req, profissionalId) {
   }
 }
 
-module.exports = { ACTIONS, authorize, authorizePor, authorizeAuth, exigirTambem, assertOwn };
+module.exports = { ACTIONS, authorize, authorizePor, authorizeAuth, exigirTambem, assertOwn, pode };

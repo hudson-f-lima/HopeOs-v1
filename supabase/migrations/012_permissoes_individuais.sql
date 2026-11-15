@@ -9,7 +9,9 @@
 -- 2. membership_permissao_eventos: trilha imutável de quem concedeu ou revogou o quê, para
 --    quem e quando (reusa public.ledger_imutavel da 009).
 -- 3. membership_permissoes_definir: grava as permissões e os eventos numa transação só.
---    Os limites de autoridade (quem pode conceder o quê) são decididos no backend.
+--    Os limites de autoridade (quem pode conceder o quê) são decididos no backend, sobre a
+--    lista que ele leu; p_esperado garante que ninguém mudou essa lista no meio do caminho
+--    (Red Team D-032, achado 2). Vínculo inativo só perde permissões, nunca ganha.
 begin;
 
 -- 1. Formato do código: 'grupo:acao' em minúsculas; no máximo 64 por vínculo.
@@ -53,7 +55,8 @@ create or replace function public.membership_permissoes_definir(
   p_empresa_id uuid,
   p_membership_id uuid,
   p_actor_id uuid,
-  p_permissoes text[]
+  p_permissoes text[],
+  p_esperado text[]
 ) returns jsonb
 language plpgsql
 security definer
@@ -80,6 +83,13 @@ begin
     raise exception 'permissões: vínculo não encontrado na empresa' using errcode = 'P0002';
   end if;
 
+  if p_esperado is null
+     or (select coalesce(array_agg(distinct c order by c), '{}'::text[]) from unnest(v_m.permissoes_extras) as c)
+        is distinct from
+        (select coalesce(array_agg(distinct c order by c), '{}'::text[]) from unnest(p_esperado) as c) then
+    raise exception 'permissões: a lista mudou desde a leitura; recarregue' using errcode = '40001';
+  end if;
+
   select coalesce(array_agg(distinct c order by c), '{}'::text[]) into v_novas
     from unnest(coalesce(p_permissoes, '{}'::text[])) as c;
   if not public.permissoes_codigos_validos(v_novas) then
@@ -90,6 +100,10 @@ begin
     from unnest(v_novas) as c where not (c = any (v_m.permissoes_extras));
   select coalesce(array_agg(c order by c), '{}'::text[]) into v_rem
     from unnest(v_m.permissoes_extras) as c where not (c = any (v_novas));
+
+  if v_m.status <> 'ativo' and cardinality(v_add) > 0 then
+    raise exception 'permissões: vínculo inativo não recebe permissões' using errcode = 'P0001';
+  end if;
 
   update public.empresa_memberships
      set permissoes_extras = v_novas, updated_at = now()
@@ -112,7 +126,7 @@ grant select, insert on table public.membership_permissao_eventos to service_rol
 
 revoke all on function public.permissoes_codigos_validos(text[]) from public, anon, authenticated;
 grant execute on function public.permissoes_codigos_validos(text[]) to service_role;
-revoke all on function public.membership_permissoes_definir(uuid, uuid, uuid, text[]) from public, anon, authenticated;
-grant execute on function public.membership_permissoes_definir(uuid, uuid, uuid, text[]) to service_role;
+revoke all on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[]) from public, anon, authenticated;
+grant execute on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[]) to service_role;
 
 commit;

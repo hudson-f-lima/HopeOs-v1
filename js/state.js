@@ -17,7 +17,9 @@ const PADRAO_SEM_LISTA = {
   'espera:ver': ['admin', 'gestor', 'recepcao'], 'painel:financeiro': ['admin', 'gestor'], 'metas:definir': ['admin', 'gestor'],
   'metas:ver': ['admin', 'gestor', 'profissional'], 'ganhos:ver': ['admin', 'gestor', 'profissional'], 'comissoes:pagar': ['admin', 'gestor'],
   'empresa:configurar': ['admin', 'gestor'], 'catalogo:editar': ['admin', 'gestor'], 'comanda:estornar': ['admin', 'gestor'],
-  'comanda:historico': ['admin', 'gestor'], 'equipe:permissoes': []
+  'comanda:historico': ['admin', 'gestor'], 'equipe:permissoes': [],
+  'agenda:lembretes': ['admin', 'gestor', 'recepcao'], 'clientes:contato': ['admin', 'gestor', 'recepcao'],
+  'clientes:criar': ['admin', 'gestor', 'recepcao']
 };
 export function sessionPode(codigo, precisaTotal = false) {
   const s = state && state.session;

@@ -14,7 +14,7 @@ const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
 const { ACTIONS, authorizeAuth } = require('../src/auth/rbac');
-const { PERMISSOES, PACOTES, permissoesEfetivas } = require('../src/auth/permissoes');
+const { PERMISSOES, permissoesEfetivas } = require('../src/auth/permissoes');
 const { gerarMatriz } = require('../scripts/gerar-matriz-permissoes');
 const { createAppError } = require('../src/errors');
 const { app } = require('../src/app');
@@ -26,6 +26,8 @@ const EB = 'e0000000-0000-4000-8000-0000000000fb';
 const UNIT = 'f0000000-0000-4000-8000-0000000000f1';
 const P1 = 'a0000000-0000-4000-8000-0000000000f1';
 const P2 = 'a0000000-0000-4000-8000-0000000000f2';
+const C1 = '90000000-0000-4000-8000-0000000000c1';
+const C2 = '90000000-0000-4000-8000-0000000000c2';
 const U = {
   admin: 'c0000000-0000-4000-8000-000000000a01', gestor: 'c0000000-0000-4000-8000-000000000a02', gestor2: 'c0000000-0000-4000-8000-000000000a03',
   recep: 'c0000000-0000-4000-8000-000000000a04', prof: 'c0000000-0000-4000-8000-000000000a05', adminB: 'c0000000-0000-4000-8000-000000000a06'
@@ -57,7 +59,13 @@ const banco = installMemoryBackend({
   profissionais: [{ id: P1, empresa_id: E, nome: 'Ana', ativo: true }, { id: P2, empresa_id: E, nome: 'Bruno', ativo: true }],
   agendamentos: [
     { id: 'b0000000-0000-4000-8000-000000000001', empresa_id: E, profissional_id: P2, cliente_id: null, servico_id: null, data: hoje, horario: '15:00', duracao_min: 30, status: 'agendado' },
-    { id: 'b0000000-0000-4000-8000-000000000002', empresa_id: E, profissional_id: P2, cliente_id: null, servico_id: null, data: hoje, horario: '16:00', duracao_min: 30, status: 'agendado' }
+    { id: 'b0000000-0000-4000-8000-000000000002', empresa_id: E, profissional_id: P2, cliente_id: null, servico_id: null, data: hoje, horario: '16:00', duracao_min: 30, status: 'agendado' },
+    { id: 'b0000000-0000-4000-8000-000000000003', empresa_id: E, profissional_id: P1, cliente_id: C1, servico_id: null, data: hoje, horario: '17:00', duracao_min: 30, status: 'agendado' },
+    { id: 'b0000000-0000-4000-8000-000000000004', empresa_id: E, profissional_id: P2, cliente_id: C2, servico_id: null, data: hoje, horario: '18:00', duracao_min: 30, status: 'agendado' }
+  ],
+  clientes: [
+    { id: C1, empresa_id: E, nome: 'Carla Cliente', whatsapp: '11999990001', observacoes: 'alergia', faltas: 0, ativo: true },
+    { id: C2, empresa_id: E, nome: 'Davi Cliente', whatsapp: '11999990002', observacoes: null, faltas: 2, ativo: true }
   ],
   lista_espera: [], comandos: [], comando_itens: []
 });
@@ -81,7 +89,6 @@ const code = r => r.data && r.data.error && r.data.error.code;
 const motivo = r => r.data && r.data.error && r.data.error.details && r.data.error.details.motivo;
 const definir = (alvo, permissoes, token = 'h.admin.s') => request('PUT', `/api/equipe/permissoes/${M[alvo]}`, { token, body: { permissoes } });
 const me = async token => (await request('GET', '/api/me', { token })).data.data.empresas.find(e => e.empresa_id === E).permissoes;
-const recepcao = [...PACOTES.recepcao.permissoes];
 
 // ---------- matriz ----------
 test('G01 catálogo coerente: toda rota exige um código conhecido; toda permissão aponta para uma ação ampla existente', () => {
@@ -91,6 +98,7 @@ test('G01 catálogo coerente: toda rota exige um código conhecido; toda permiss
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     for (const m of src.matchAll(/authorize\('([^']+)'\)/g)) usados.add(m[1]);
     for (const m of src.matchAll(/authorizePor\([^,]+, '([^']+)'\)/g)) m[1].split('|').forEach(c => usados.add(c));
+    for (const m of src.matchAll(/pode\(req\.auth, '([^']+)'\)/g)) usados.add(m[1]);
   }
   const desconhecidos = [...usados].filter(c => !PERMISSOES.some(p => p.codigo === c) && !ACTIONS[c]);
   assert.deepStrictEqual(desconhecidos, []);
@@ -98,6 +106,8 @@ test('G01 catálogo coerente: toda rota exige um código conhecido; toda permiss
   assert.deepStrictEqual(amplasNaRota, ['admin'], 'só o router /admin continua na ação ampla');
   assert.ok(PERMISSOES.every(p => ACTIONS[p.acao]), 'ação de origem inexistente');
   assert.ok(PERMISSOES.every(p => /^[a-z_]+:[a-z_]+$/.test(p.codigo)), 'formato do código igual ao do banco');
+  assert.ok(PERMISSOES.every(p => ['operacao', 'sensivel', 'administracao'].includes(p.nivel)), 'nível conhecido');
+  assert.ok(PERMISSOES.filter(p => p.segue).every(p => PERMISSOES.some(x => x.codigo === p.segue && !x.segue)), 'segue aponta para permissão principal');
 });
 
 test('G02 matriz documentada = matriz implementada (docs/PERMISSOES.md gerado do catálogo)', () => {
@@ -105,19 +115,21 @@ test('G02 matriz documentada = matriz implementada (docs/PERMISSOES.md gerado do
   assert.strictEqual(doc, gerarMatriz(), 'rode: node backend/scripts/gerar-matriz-permissoes.js --escrever');
 });
 
-test('G03 mínimo necessário por papel: recepção sem estorno nem financeiro; profissional só o próprio na agenda e na comanda', () => {
+test('G03 mínimo por papel; ao profissional só se concede agenda de todos e comanda de qualquer um (nada de dinheiro)', () => {
   const r = permissoesEfetivas('recepcao', []);
   for (const c of ['comanda:estornar', 'painel:financeiro', 'comissoes:pagar', 'metas:definir', 'catalogo:editar', 'equipe:permissoes', 'ganhos:ver']) assert.ok(!r[c], `recepção não deveria ter ${c}`);
+  assert.deepStrictEqual([r['agenda:lembretes'], r['clientes:contato']], ['total', 'total']);
   const p = permissoesEfetivas('profissional', []);
   for (const c of ['agenda:ver', 'agenda:criar', 'agenda:encaixar', 'agenda:editar', 'agenda:atender', 'agenda:cancelar', 'comanda:fechar', 'ganhos:ver', 'metas:ver', 'desempenho:ver']) assert.strictEqual(p[c], 'proprio', c);
-  for (const c of ['espera:ver', 'caixa:conferir', 'painel:operacional', 'clientes:editar']) assert.ok(!p[c], `profissional não deveria ter ${c}`);
-  assert.deepStrictEqual(recepcao, ['agenda:ver', 'agenda:criar', 'agenda:encaixar', 'agenda:editar', 'agenda:atender', 'agenda:cancelar', 'espera:ver', 'espera:gerir', 'comanda:fechar', 'caixa:conferir', 'caixa:fechar', 'caixa:movimentar', 'clientes:editar', 'painel:operacional']);
-  const a = permissoesEfetivas('admin', []);
-  assert.strictEqual(Object.keys(a).length, PERMISSOES.length, 'administrador tem todas');
+  for (const c of ['espera:ver', 'caixa:conferir', 'painel:operacional', 'clientes:editar', 'clientes:contato', 'agenda:lembretes']) assert.ok(!p[c], `profissional não deveria ter ${c}`);
+  assert.deepStrictEqual([p['clientes:ver'], p['clientes:criar']], ['total', 'total'], 'vê o nome e cadastra cliente novo');
+  assert.deepStrictEqual(PERMISSOES.filter(x => x.profissional).map(x => x.codigo), ['agenda:ver', 'comanda:fechar']);
+  const dinheiro = PERMISSOES.filter(x => x.nivel !== 'operacao').map(x => x.codigo);
+  for (const c of ['comanda:estornar', 'comissoes:pagar', 'caixa:fechar', 'caixa:movimentar', 'catalogo:editar', 'pagamentos:editar', 'estoque:ajustar', 'painel:financeiro', 'ganhos:ver', 'clientes:contato']) assert.ok(dinheiro.includes(c), `${c} deveria ser sensível`);
+  assert.strictEqual(Object.keys(permissoesEfetivas('admin', [])).length, PERMISSOES.length, 'administrador tem todas');
 });
 
-// ---------- concessão, uso e revogação ----------
-test('G04 profissional sem pacote: agenda e comanda só próprias; sem lista de espera, caixa e painel', async () => {
+test('G04 profissional sem permissão individual: agenda e comanda só próprias; sem lista de espera, caixa e painel', async () => {
   const p = await me('h.prof.s');
   assert.deepStrictEqual([p['agenda:ver'], p['espera:ver'], p['caixa:conferir']], ['proprio', undefined, undefined]);
   for (const rota of ['/api/lista-espera', '/api/dashboard', `/api/caixa/fechamento?data=${hoje}`]) assert.strictEqual((await request('GET', rota, { token: 'h.prof.s' })).status, 403, rota);
@@ -125,48 +137,89 @@ test('G04 profissional sem pacote: agenda e comanda só próprias; sem lista de 
   assert.deepStrictEqual([r.status, code(r)], [403, 'NOT_OWN_RESOURCE'], 'horário de colega');
 });
 
-test('G05 conceder só "cancelar": cancela o horário do colega, mas confirmar continua só no próprio', async () => {
+test('G05 clientes: profissional vê só o nome e cadastra cliente novo; não edita; recepção e legado veem o contato', async () => {
+  for (const rota of ['/api/clientes', '/api/catalog']) {
+    const r = await request('GET', rota, { token: 'h.prof.s' });
+    const lista = rota === '/api/clientes' ? r.data.data : r.data.data.clientes;
+    assert.strictEqual(r.status, 200, rota);
+    assert.ok(lista.length >= 2 && lista.every(c => Object.keys(c).sort().join() === 'ativo,id,nome'), `${rota}: ${JSON.stringify(lista[0])}`);
+  }
+  for (const token of ['h.recep.s', process.env.API_ACCESS_TOKEN]) {
+    const r = await request('GET', '/api/clientes', { token });
+    assert.strictEqual(r.data.data.find(c => c.id === C1).whatsapp, '11999990001', `controle negativo (${token === 'h.recep.s' ? 'recepção' : 'legado'})`);
+  }
+  const novo = await request('POST', '/api/clientes', { token: 'h.prof.s', body: { nome: 'Cliente Rápido', whatsapp: '11988887777' } });
+  assert.strictEqual(novo.status, 201, JSON.stringify(novo.data));
+  const edit = await request('PATCH', `/api/clientes/${C1}`, { token: 'h.prof.s', body: { nome: 'Outro nome' } });
+  assert.deepStrictEqual([edit.status, code(edit)], [403, 'INSUFFICIENT_ROLE']);
+});
+
+test('G06 lembretes: WhatsApp só para recepção e gestão; profissional vê só os próprios, sem contato (mesmo com agenda de todos)', async () => {
+  const rec = await request('GET', `/api/agenda/lembretes?data=${hoje}`, { token: 'h.recep.s' });
+  assert.strictEqual(rec.data.data.whatsapp, true);
+  assert.ok(rec.data.data.itens.some(i => i.agendamentoId.endsWith('04') && /^https:\/\/wa\.me\//.test(i.link)), 'controle negativo: recepção recebe o link');
+  for (const extras of [[], ['agenda:ver']]) {
+    await definir('prof', extras);
+    const r = await request('GET', `/api/agenda/lembretes?data=${hoje}`, { token: 'h.prof.s' });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.data.data.whatsapp, false);
+    assert.deepStrictEqual(r.data.data.itens.map(i => i.agendamentoId), ['b0000000-0000-4000-8000-000000000003'], `extras ${extras}`);
+    assert.ok(r.data.data.itens.every(i => i.link === null && i.texto === undefined) && r.data.data.comLink === 0);
+  }
+  await definir('prof', []);
+});
+
+// ---------- concessão, uso e revogação ----------
+test('G07 ação da agenda não se concede sozinha: segue a visão (agenda própria ou de todos)', async () => {
   const r = await definir('prof', ['agenda:cancelar']);
-  assert.deepStrictEqual([r.status, r.data.data.concedidas, r.data.data.efetivas['agenda:cancelar'], r.data.data.efetivas['agenda:atender']], [200, ['agenda:cancelar'], 'total', 'proprio']);
+  assert.deepStrictEqual([r.status, motivo(r)], [403, 'SEGUE_OUTRA_PERMISSAO']);
+});
+
+test('G08 agenda de todos: agenda, confirma e cancela para colegas; continua sem lista de espera, caixa e ganhos alheios', async () => {
+  const r = await definir('prof', ['agenda:ver'], 'h.gestor.s');
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  for (const c of ['agenda:ver', 'agenda:criar', 'agenda:encaixar', 'agenda:editar', 'agenda:atender', 'agenda:cancelar']) assert.strictEqual(r.data.data.efetivas[c], 'total', c);
+  const conf = await request('PATCH', '/api/agenda/b0000000-0000-4000-8000-000000000002/status', { token: 'h.prof.s', body: { novoStatus: 'confirmado' } });
+  assert.strictEqual(conf.status, 200, JSON.stringify(conf.data));
   const cancel = await request('PATCH', '/api/agenda/b0000000-0000-4000-8000-000000000001/status', { token: 'h.prof.s', body: { novoStatus: 'cancelado' } });
   assert.strictEqual(cancel.status, 200, JSON.stringify(cancel.data));
-  const conf = await request('PATCH', '/api/agenda/b0000000-0000-4000-8000-000000000002/status', { token: 'h.prof.s', body: { novoStatus: 'confirmado' } });
-  assert.deepStrictEqual([conf.status, code(conf)], [403, 'NOT_OWN_RESOURCE']);
-});
-
-test('G06 conceder o pacote Recepção: passa a usar lista de espera, caixa e painel; mantém ganhos e metas só próprios', async () => {
-  const r = await definir('prof', recepcao);
-  assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual(r.data.data.concedidas, recepcao.filter(c => c !== 'agenda:cancelar').sort());
-  for (const rota of ['/api/lista-espera', '/api/dashboard', `/api/caixa/fechamento?data=${hoje}`]) assert.strictEqual((await request('GET', rota, { token: 'h.prof.s' })).status, 200, rota);
+  for (const rota of ['/api/lista-espera', '/api/dashboard', `/api/caixa/fechamento?data=${hoje}`]) assert.strictEqual((await request('GET', rota, { token: 'h.prof.s' })).status, 403, rota);
   const p = await me('h.prof.s');
-  assert.deepStrictEqual([p['agenda:ver'], p['espera:gerir'], p['ganhos:ver'], p['metas:ver'], p['comanda:estornar']], ['total', 'total', 'proprio', 'proprio', undefined]);
-  const conf = await request('PATCH', '/api/agenda/b0000000-0000-4000-8000-000000000002/status', { token: 'h.prof.s', body: { novoStatus: 'confirmado' } });
-  assert.strictEqual(conf.status, 200, 'atender agora vale para o colega');
+  assert.deepStrictEqual([p['ganhos:ver'], p['metas:ver'], p['comanda:fechar'], p['comanda:estornar']], ['proprio', 'proprio', 'proprio', undefined]);
 });
 
-test('G07 revogar: a permissão deixa de valer já na próxima requisição', async () => {
-  const r = await definir('prof', []);
-  assert.deepStrictEqual([r.status, r.data.data.revogadas.length, r.data.data.concedidas], [200, recepcao.length, []]);
-  assert.strictEqual((await request('GET', '/api/lista-espera', { token: 'h.prof.s' })).status, 403);
-  assert.strictEqual((await me('h.prof.s'))['espera:ver'], undefined);
+test('G09 revogar: a permissão deixa de valer já na próxima requisição', async () => {
+  const r = await definir('prof', [], 'h.gestor.s');
+  assert.deepStrictEqual([r.status, r.data.data.revogadas], [200, ['agenda:ver']]);
+  const conf = await request('PATCH', '/api/agenda/b0000000-0000-4000-8000-000000000004/status', { token: 'h.prof.s', body: { novoStatus: 'confirmado' } });
+  assert.deepStrictEqual([conf.status, code(conf)], [403, 'NOT_OWN_RESOURCE']);
+  assert.strictEqual((await me('h.prof.s'))['agenda:cancelar'], 'proprio');
 });
 
-test('G08 trilha: quem concedeu ou revogou, o quê, para quem e quando; recepção não lê', async () => {
+test('G10 trilha: quem concedeu ou revogou, o quê, para quem e quando; recepção não lê', async () => {
   const h = await request('GET', `/api/equipe/permissoes/${M.prof}/historico`);
   assert.strictEqual(h.status, 200);
   const ev = h.data.data;
-  assert.ok(ev.length >= 1 + recepcao.length * 2 - 1, `eventos: ${ev.length}`);
-  assert.ok(ev.every(e => e.por === 'Dona' && e.para === 'Ana' && /^\d{4}-\d{2}-\d{2}T/.test(e.quando) && ['conceder', 'revogar'].includes(e.acao)));
-  assert.ok(ev.some(e => e.acao === 'revogar' && e.permissao === 'caixa:fechar'));
+  assert.ok(ev.length >= 4, `eventos: ${ev.length}`);
+  assert.ok(ev.every(e => ['Dona', 'Gerente'].includes(e.por) && e.para === 'Ana' && /^\d{4}-\d{2}-\d{2}T/.test(e.quando) && ['conceder', 'revogar'].includes(e.acao)));
+  assert.ok(ev.some(e => e.acao === 'revogar' && e.permissao === 'agenda:ver' && e.por === 'Gerente'));
   assert.strictEqual((await request('GET', `/api/equipe/permissoes/${M.prof}/historico`, { token: 'h.recep.s' })).status, 403);
 });
 
 // ---------- limites de autoridade ----------
-test('G09 gerente concede dentro da autoridade; não concede administração, não mexe em gerente, dono nem em si', async () => {
-  assert.strictEqual((await definir('prof', recepcao, 'h.gestor.s')).status, 200);
-  const adm = await definir('prof', [...recepcao, 'empresa:configurar'], 'h.gestor.s');
-  assert.deepStrictEqual([adm.status, motivo(adm)], [403, 'SO_ADMIN_CONCEDE']);
+test('G11 profissional nunca recebe dinheiro (nem do dono); gerente não concede o que é sensível nem administração', async () => {
+  for (const c of ['caixa:fechar', 'caixa:movimentar', 'comissoes:pagar', 'comanda:estornar', 'catalogo:editar', 'ganhos:ver', 'clientes:contato', 'agenda:lembretes', 'espera:ver']) {
+    for (const token of ['h.admin.s', 'h.gestor.s']) {
+      const r = await definir('prof', [c], token);
+      assert.deepStrictEqual([r.status, motivo(r)], [403, 'NAO_CONCEDIVEL_AO_PROFISSIONAL'], `${c} por ${token}`);
+    }
+  }
+  const ok = await definir('prof', ['agenda:ver', 'comanda:fechar'], 'h.gestor.s');
+  assert.strictEqual(ok.status, 200, 'controle negativo: o que é permitido passa');
+  for (const c of ['comanda:estornar', 'comissoes:pagar', 'painel:financeiro', 'ganhos:ver']) {
+    const r = await definir('recep', [c], 'h.gestor.s');
+    assert.deepStrictEqual([r.status, motivo(r)], [403, 'SO_ADMIN_CONCEDE'], c);
+  }
   assert.deepStrictEqual(motivo(await definir('gestor2', ['comanda:estornar'], 'h.gestor.s')), 'ALVO_FORA_DA_AUTORIDADE');
   assert.deepStrictEqual(motivo(await definir('admin', [], 'h.gestor.s')), 'ALVO_FORA_DA_AUTORIDADE');
   assert.deepStrictEqual(motivo(await definir('gestor', ['equipe:permissoes'], 'h.gestor.s')), 'NAO_PODE_SI_MESMO');
@@ -174,7 +227,7 @@ test('G09 gerente concede dentro da autoridade; não concede administração, n�
   assert.strictEqual((await definir('prof', [])).status, 200);
 });
 
-test('G10 só o dono concede administração; o gerente não consegue revogar o que é de administração', async () => {
+test('G12 só o dono concede o que é sensível ou de administração; o gerente não consegue revogar', async () => {
   const r = await definir('recep', ['empresa:configurar', 'comanda:estornar']);
   assert.strictEqual(r.status, 200);
   const e = await me('h.recep.s');
@@ -184,15 +237,43 @@ test('G10 só o dono concede administração; o gerente não consegue revogar o 
   assert.strictEqual((await definir('recep', [])).status, 200);
 });
 
-test('G11 quem não tem a permissão, token legado, outra empresa e entradas ruins são recusados', async () => {
+test('G13 corrida: se a lista mudou entre a leitura e a gravação, nada é gravado (409)', async () => {
+  assert.strictEqual((await definir('prof', ['comanda:fechar'])).status, 200);
+  const real = ident.getMembership;
+  ident.getMembership = async id => { const m = await real(id); return id === M.prof ? { ...m, permissoes_extras: [] } : m; };
+  try {
+    const r = await definir('prof', ['agenda:ver'], 'h.gestor.s');
+    assert.deepStrictEqual([r.status, code(r)], [409, 'PERMISSIONS_CHANGED']);
+  } finally { ident.getMembership = real; }
+  assert.deepStrictEqual((await ident.getMembership(M.prof)).permissoes_extras, ['comanda:fechar'], 'nada mudou');
+  assert.strictEqual((await definir('prof', ['agenda:ver', 'comanda:fechar'], 'h.gestor.s')).status, 200, 'controle negativo: lista atual passa');
+});
+
+test('G14 mudar o papel ou desativar tira as permissões individuais, com registro na trilha', async () => {
+  const antes = (await request('GET', `/api/equipe/permissoes/${M.prof}/historico`)).data.data.length;
+  const mudou = await request('PATCH', `/api/admin/memberships/${M.prof}`, { body: { role: 'recepcao' } });
+  assert.strictEqual(mudou.status, 200, JSON.stringify(mudou.data));
+  assert.deepStrictEqual((await ident.getMembership(M.prof)).permissoes_extras, []);
+  const h = (await request('GET', `/api/equipe/permissoes/${M.prof}/historico`)).data.data;
+  assert.strictEqual(h.length, antes + 2);
+  assert.ok(h.slice(0, 2).every(e => e.acao === 'revogar' && e.por === 'Dona'));
+  assert.strictEqual((await request('PATCH', `/api/admin/memberships/${M.prof}`, { body: { role: 'profissional', profissionalId: P1 } })).status, 200);
+  assert.strictEqual((await definir('prof', ['agenda:ver'])).status, 200);
+  assert.strictEqual((await request('PATCH', `/api/admin/memberships/${M.prof}`, { body: { status: 'inativo' } })).status, 200);
+  assert.deepStrictEqual((await ident.getMembership(M.prof)).permissoes_extras, []);
+  assert.strictEqual((await request('PATCH', `/api/admin/memberships/${M.prof}`, { body: { status: 'ativo' } })).status, 200);
+  assert.strictEqual((await me('h.prof.s'))['agenda:ver'], 'proprio', 'volta só com o padrão do papel');
+});
+
+test('G15 quem não tem a permissão, token legado, outra empresa e entradas ruins são recusados', async () => {
   for (const token of ['h.recep.s', 'h.prof.s']) {
-    const r = await definir('prof', recepcao, token);
+    const r = await definir('prof', ['agenda:ver'], token);
     assert.deepStrictEqual([r.status, code(r)], [403, 'INSUFFICIENT_ROLE'], token);
     assert.strictEqual((await request('GET', '/api/equipe/permissoes', { token })).status, 403, token);
   }
-  assert.strictEqual((await definir('prof', recepcao, process.env.API_ACCESS_TOKEN)).status, 403, 'legado não concede');
-  assert.strictEqual((await definir('prof', recepcao, null)).status, 401);
-  assert.strictEqual((await definir('prof', recepcao, 'h.adminB.s')).status, 404, 'vínculo de outra empresa');
+  assert.strictEqual((await definir('prof', ['agenda:ver'], process.env.API_ACCESS_TOKEN)).status, 403, 'legado não concede');
+  assert.strictEqual((await definir('prof', ['agenda:ver'], null)).status, 401);
+  assert.strictEqual((await definir('prof', ['agenda:ver'], 'h.adminB.s')).status, 404, 'vínculo de outra empresa');
   assert.deepStrictEqual([(await definir('prof', ['agenda:voar'])).status, code(await definir('prof', ['agenda:voar']))], [422, 'UNKNOWN_PERMISSION']);
   for (const body of [{ permissoes: 'agenda:ver' }, { permissoes: [1] }, { permissoes: [], empresa_id: EB }]) {
     assert.strictEqual((await request('PUT', `/api/equipe/permissoes/${M.prof}`, { body })).status, 422, JSON.stringify(body));
@@ -200,22 +281,24 @@ test('G11 quem não tem a permissão, token legado, outra empresa e entradas rui
   assert.strictEqual((ident.db.membership_permissao_eventos || []).filter(e => e.empresa_id === EB).length, 0);
 });
 
-test('G12 tela de equipe: o gerente vê o que pode mexer em cada pessoa; nada de administração', async () => {
+test('G16 tela de equipe: o gerente só mexe no profissional, e só em agenda de todos e comanda', async () => {
   const r = await request('GET', '/api/equipe/permissoes', { token: 'h.gestor.s' });
   assert.strictEqual(r.status, 200);
   const por = Object.fromEntries(r.data.data.pessoas.map(p => [p.role === 'gestor' && p.voce ? 'eu' : p.nome, p]));
-  assert.ok(por.Ana.editaveis.includes('agenda:ver') && !por.Ana.editaveis.includes('empresa:configurar') && !por.Ana.editaveis.includes('equipe:permissoes'));
-  assert.deepStrictEqual([por.eu.editaveis, por['Gerente Dois'].editaveis, por.Dona.editaveis], [[], [], []]);
+  assert.deepStrictEqual(por.Ana.editaveis, ['agenda:ver', 'comanda:fechar']);
+  assert.deepStrictEqual([por.eu.editaveis, por['Gerente Dois'].editaveis, por.Dona.editaveis, por.Recepcionista.editaveis], [[], [], [], []]);
+  const doDono = (await request('GET', '/api/equipe/permissoes')).data.data.pessoas.find(p => p.nome === 'Recepcionista');
+  assert.ok(doDono.editaveis.includes('comanda:estornar'), 'controle negativo: o dono concede o sensível à recepção');
   assert.strictEqual(r.data.data.catalogo.length, PERMISSOES.length);
   assert.ok(!r.data.data.pessoas.some(p => p.nome === 'Outro Dono'), 'só a própria empresa');
 });
 
-test('G13 controle negativo: sem a permissão individual no pedido, o mesmo profissional volta a ser recusado', () => {
-  const auth = { principal_type: 'user', role: 'profissional', profissional_id: P1, permissoes_extras: ['espera:ver'] };
-  assert.deepStrictEqual(authorizeAuth(auth, 'espera:ver'), { own: false, profissionalId: null });
-  assert.throws(() => authorizeAuth({ ...auth, permissoes_extras: [] }, 'espera:ver'), /Sem permissão/);
-  assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: ['agenda:ver'] }, 'agenda:ver'), { own: false, profissionalId: null });
-  assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: [] }, 'agenda:ver'), { own: true, profissionalId: P1 });
+test('G17 controle negativo: sem a permissão individual no pedido, o mesmo profissional volta ao próprio', () => {
+  const auth = { principal_type: 'user', role: 'profissional', profissional_id: P1, permissoes_extras: ['agenda:ver'] };
+  assert.deepStrictEqual(authorizeAuth(auth, 'agenda:cancelar'), { own: false, profissionalId: null });
+  assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: [] }, 'agenda:cancelar'), { own: true, profissionalId: P1 });
+  assert.throws(() => authorizeAuth({ ...auth, permissoes_extras: ['espera:ver'] }, 'caixa:fechar'), /Sem permissão/);
+  assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: ['espera:ver'] }, 'espera:ver'), { own: false, profissionalId: null }, 'extra antigo no banco continua lido');
 });
 
 (async () => {

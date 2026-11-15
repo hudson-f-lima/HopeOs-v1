@@ -142,6 +142,14 @@ router.patch('/admin/memberships/:id', async (req, res, next) => {
     if (body.profissionalId !== undefined) patch.profissional_id = await validateProfissional(req, body.profissionalId);
     const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
     await assertKeepsAnAdmin(store, m.empresa_id, m.id, { role: patch.role || m.role, status: patch.status || m.status });
+    // Mudou o papel ou desativou: as permissões individuais saem, com registro na trilha
+    // (Red Team D-032, achado 3). Antes do update, enquanto o vínculo ainda está ativo.
+    const mudouPapel = patch.role !== undefined && patch.role !== m.role;
+    const desativou = patch.status === 'inativo' && m.status !== 'inativo';
+    const extras = Array.isArray(m.permissoes_extras) ? m.permissoes_extras : [];
+    if ((mudouPapel || desativou) && extras.length) {
+      await store.definirPermissoes({ empresaId: m.empresa_id, membershipId: m.id, actorId: req.auth.actor_id, permissoes: [], esperado: extras });
+    }
     const updated = Object.keys(patch).length ? await store.updateMembership(m.id, patch) : m;
     if (unitIds) await store.replaceMembershipUnits(m.id, unitIds);
     res.json({ ok: true, data: { ...updated, unit_ids: unitIds || (await store.listMembershipUnits(m.id)).map(x => x.unit_id) } });

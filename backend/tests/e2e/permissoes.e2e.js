@@ -33,37 +33,55 @@ async function abrirPermissoesDaAna(a) {
 
   // ---- Profissional antes: só o próprio ----
   const antes = await entrar(b, 'profissional@dev.local');
-  confere('profissional sem pacote: sem Painel, agenda como "Hoje"', !(await antes.isVisible('#navDashboard')) && await antes.textContent('#navAgendaLabel') === 'Hoje');
+  confere('profissional sem permissão individual: sem Painel, agenda como "Hoje"', !(await antes.isVisible('#navDashboard')) && await antes.textContent('#navAgendaLabel') === 'Hoje');
   await antes.close();
 
-  // ---- Proprietário concede o pacote Recepção ----
+  // ---- Proprietário concede "agenda de todos" e "comanda de qualquer profissional" ----
   const a = await entrar(b, 'admin@dev.local');
   await abrirPermissoesDaAna(a);
   confere('editor: o que vem do papel aparece marcado e travado', await a.locator('#permGrupos .perm-do-papel').count() >= 2);
-  await a.click('#btnPermPacote');
-  confere('pacote marca as permissões de recepção', await a.textContent('#btnPermPacote') === 'Tirar acesso de recepção' && await a.isChecked('#permGrupos input[data-perm="caixa:fechar"]'));
+  const concediveis = await a.$$eval('#permGrupos input[data-perm]', ns => ns.map(n => n.dataset.perm).sort());
+  confere('ao profissional só se oferece agenda de todos e comanda (nada de dinheiro)', JSON.stringify(concediveis) === '["agenda:ver","comanda:fechar"]', JSON.stringify(concediveis));
+  await a.check('#permGrupos input[data-perm="agenda:ver"]');
+  await a.check('#permGrupos input[data-perm="comanda:fechar"]');
   const alvos = await a.$$eval('#modalPermissoes button, #permGrupos .perm-item', ns => ns.filter(n => n.offsetParent).map(n => Math.round(n.getBoundingClientRect().height)));
   confere('editor: alvos de toque ≥ 44px', alvos.every(h => h >= 44), JSON.stringify(alvos));
   await a.click('#btnPermSalvar'); await a.waitForSelector('#modalPermissoes', { state: 'hidden' });
   const concedidas = await extrasDaAna();
-  confere('servidor gravou o pacote para a Ana', concedidas.includes('agenda:ver') && concedidas.includes('caixa:conferir') && !concedidas.includes('comanda:estornar'), JSON.stringify(concedidas));
+  confere('servidor gravou as duas permissões para a Ana', JSON.stringify([...concedidas].sort()) === '["agenda:ver","comanda:fechar"]', JSON.stringify(concedidas));
   const eventos = (await db('membership_permissao_eventos')) || [];
-  confere('trilha registrada: quem, o quê, para quem', eventos.length === concedidas.length && eventos.every(e => e.acao === 'conceder' && e.actor_id && e.alvo_user_id), String(eventos.length));
+  confere('trilha registrada: quem, o quê, para quem', eventos.length === 2 && eventos.every(e => e.acao === 'conceder' && e.actor_id && e.alvo_user_id), String(eventos.length));
 
-  // ---- Profissional com o pacote ----
+  // ---- Profissional com a agenda de todos ----
   const com = await entrar(b, 'profissional@dev.local');
-  confere('com pacote: Painel aparece e a agenda volta a ser "Agenda"', await com.isVisible('#navDashboard') && await com.textContent('#navAgendaLabel') === 'Agenda');
-  await com.click('#navDashboard'); await com.waitForTimeout(1200);
-  confere('com pacote: Painel e caixa do dia abrem sem erro', com.erros.length === 0 && await com.locator('#cardCaixa').evaluate(n => !n.classList.contains('hidden')), JSON.stringify(com.erros));
-  confere('com pacote: continua sem estorno', await com.locator('#cardComandasEstorno').evaluate(n => n.classList.contains('hidden')));
-  await com.click('#navMetas'); await com.waitForTimeout(600);
-  confere('com pacote: "Meu mês" continua só dela (sem seletor de colega)', !(await com.isVisible('#ganhosProfissional')));
+  confere('com agenda de todos: a aba volta a ser "Agenda" e continua sem Painel', await com.textContent('#navAgendaLabel') === 'Agenda' && !(await com.isVisible('#navDashboard')));
+  await com.click('#btnAgendaLembretes'); await com.waitForSelector('#lembretesResumo');
+  confere('lembretes do profissional: sem WhatsApp', await com.locator('.lembrete-zap').count() === 0 && /a recepção avisa/.test(await com.textContent('#lembretesResumo')));
+  await com.click('#btnFecharLembretes');
+  await com.click('#fab'); await com.waitForSelector('#modalNovoAgendamento:not(.hidden)');
+  await com.fill('#agCliente', 'Cliente Rápido Ana');
+  await com.click('#btnAgNovoCliente');
+  confere('cadastro rápido: o nome digitado vem preenchido', await com.inputValue('#agNovoClienteNome') === 'Cliente Rápido Ana');
+  await com.fill('#agNovoClienteZap', '11977776666');
+  await com.click('#btnAgNovoClienteSalvar'); await com.waitForSelector('#agNovoCliente.hidden', { state: 'attached' });
+  const clientes = await db('clientes');
+  confere('cadastro rápido: cliente gravado e escolhido no agendamento', clientes.some(c => c.nome === 'Cliente Rápido Ana' && c.whatsapp === '11977776666') && await com.inputValue('#agCliente') === 'Cliente Rápido Ana');
+  confere('profissional não recebe contato de clientes', await com.evaluate(async () => { const { api } = await import('/js/api.js'); return (await api('/clientes')).every(c => !('whatsapp' in c) && !('observacoes' in c)); }));
+  await com.keyboard.press('Escape').catch(() => {});
+  await com.goto(BASE); await com.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await com.waitForTimeout(600);
+  await com.click('#navCheckout');
+  await escolher(com, '#coProfissional', 'Bruno'); await escolher(com, '#coServico', 'Corte'); await escolher(com, '#coForma', 'Pix');
+  await com.click('#btnSimular'); await com.waitForSelector('#cardPreview:not(.hidden)'); await com.click('#btnFechar'); await com.waitForSelector('#cardResultado:not(.hidden)');
+  confere('com permissão: fecha comanda de outro profissional', (await db('comandos')).length === 1 && com.erros.length === 0, JSON.stringify(com.erros));
+  const caixa = await com.evaluate(async () => { const { api } = await import('/js/api.js'); try { await api('/lista-espera'); return 200; } catch (e) { return e.status || 0; } });
+  confere('continua sem lista de espera e caixa', caixa === 403, String(caixa));
 
   // ---- Proprietário revoga ----
   await a.keyboard.press('Escape').catch(() => {});
   await a.goto(BASE); await a.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await a.waitForTimeout(600);
   await abrirPermissoesDaAna(a);
-  await a.click('#btnPermPacote');
+  await a.uncheck('#permGrupos input[data-perm="agenda:ver"]');
+  await a.uncheck('#permGrupos input[data-perm="comanda:fechar"]');
   await a.click('#btnPermSalvar'); await a.waitForSelector('#modalPermissoes', { state: 'hidden' });
   confere('revogado no servidor', (await extrasDaAna()).length === 0);
   await a.locator('.perm-pessoa').filter({ hasText: 'Ana' }).locator('[data-perm-abrir]').click();
@@ -73,10 +91,11 @@ async function abrirPermissoesDaAna(a) {
   console.log('ADMIN erros:', JSON.stringify(a.erros));
 
   // A sessão aberta da Ana: a próxima ação no servidor já é recusada.
-  const status = await com.evaluate(async () => { const { api } = await import('/js/api.js'); try { await api('/lista-espera'); return 200; } catch (e) { return e.status || 0; } });
-  confere('revogação vale na próxima ação da sessão já aberta', status === 403, String(status));
+  const status = await com.evaluate(async () => { const { api } = await import('/js/api.js'); try { await api('/agenda?data=2000-01-01'); return 200; } catch (e) { return e.status || 0; } });
+  const agenda = await com.evaluate(async () => { const { api } = await import('/js/api.js'); const s = await import('/js/state.js'); const outro = s.state.catalog.profissionais.find(p => p.nome === 'Bruno'); try { await api('/agenda/slots?data=2030-01-07&profissionalId=' + outro.id + '&servicoId=' + s.state.catalog.servicos[0].id); return 200; } catch (e) { return e.status || 0; } });
+  confere('revogação vale na próxima ação da sessão já aberta (agenda do colega recusada)', status === 200 && agenda === 403, `${status}/${agenda}`);
   const depois = await entrar(b, 'profissional@dev.local');
-  confere('depois de revogar: sem Painel, "Hoje" de novo', !(await depois.isVisible('#navDashboard')) && await depois.textContent('#navAgendaLabel') === 'Hoje');
+  confere('depois de revogar: "Hoje" de novo', await depois.textContent('#navAgendaLabel') === 'Hoje');
   console.log('PROFISSIONAL erros:', JSON.stringify(depois.erros));
 
   // ---- Recepção em celular, tablet e computador ----
@@ -95,7 +114,7 @@ async function abrirPermissoesDaAna(a) {
     await r.screenshot({ path: require('path').join(require('os').tmpdir(), `hopeos-recepcao-${nome}.png`) });
     await r.close();
   }
-  confere('três comandas da recepção gravadas', (await db('comandos')).length === 3, String((await db('comandos')).length));
+  confere('comandas gravadas: 1 da Ana e 3 da recepção', (await db('comandos')).length === 4, String((await db('comandos')).length));
 
   await b.close();
   console.log('ERROS:', JSON.stringify(falhas));
