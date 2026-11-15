@@ -433,3 +433,12 @@
   - `gate_015.sql` (5 blocos: lote com trilha, tudo ou nada, mais de 50 exceções, modelos, acesso);
   - `disponibilidade-gate` D15–D20 (prévia sem gravar, aplicação em lote, conflito no lote, ciclo de vida do modelo, modelo no período e como semana, permissões);
   - E2E `escalas` (modelo pela tela; lote com prévia e aplicação).
+
+## D-036 — Clube de assinatura: regras definidas pelo dono (desenho, sem implementação)
+- **Decisão (Platform Owner, 2026-11-15)** sobre [`planning/ASSINATURAS_DESENHO.md`](planning/ASSINATURAS_DESENHO.md):
+  - comissão do serviço coberto em **múltipla escolha por plano**: valor de tabela, rateio da mensalidade pelos usos ou valor fixo por uso (padrão sugerido: fixo por uso);
+  - **tolerância de inadimplência de 7 dias**;
+  - cancelamento no fim do ciclo pago, sem reembolso proporcional;
+  - usos não feitos não acumulam;
+  - **Onda A** (planos, uso, limites, comissão e margem, com a cobrança ainda fora) **antes** de escolher o fornecedor.
+- **Estado:** desenho. A Onda A exige migration nova, que depende de autorização. O fornecedor de pagamento ainda não foi escolhido.

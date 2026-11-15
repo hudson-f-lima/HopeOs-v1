@@ -1,6 +1,6 @@
 # Clube de assinatura — desenho completo, independente de fornecedor (2026-11-15)
 
-**Estado:** desenho. Nada implementado. O SQL é DRAFT ONLY: as migrations deste desenho não estão autorizadas.
+**Estado:** desenho com as decisões do dono registradas (§11). Nada implementado. O SQL é DRAFT ONLY: as migrations deste desenho não estão autorizadas.
 
 **Pedido do dono (2026-11-15):** "Fazer o desenho completo e deixar preparado para posteriormente escolher o fornecedor do pagamento."
 
@@ -41,13 +41,13 @@
   - o serviço coberto entra com valor zero para o cliente e gera um **uso**;
   - o que não estiver coberto é cobrado normal;
   - produto nunca é coberto, salvo se um plano o incluir.
-- **Comissão do serviço coberto (decisão do dono, ver §11):**
+- **Comissão do serviço coberto (regra escolhida por plano, decisão do dono na §11):**
   - (a) sobre o valor de tabela do serviço (como o parâmetro do app Barber);
   - (b) sobre o valor rateado (mensalidade ÷ usos no ciclo, calculado no fechamento do ciclo);
   - (c) valor fixo por uso definido no plano.
 
-  A recomendada é **(c)**: é previsível para o profissional e protege a margem. A (a) pode levar o plano a prejuízo com assinante frequente.
-- **Inadimplência:** tolerância configurável (padrão de 5 dias); depois disso a assinatura fica `suspensa` e o uso é bloqueado com aviso. Ao pagar, volta na hora.
+  As três ficam disponíveis e cada plano escolhe a sua; o padrão sugerido é **(c)**, que é previsível para o profissional e protege a margem. A (a) pode levar o plano a prejuízo com assinante frequente, e o simulador mostra isso antes de salvar.
+- **Inadimplência:** tolerância configurável (padrão de 7 dias, decisão do dono); depois disso a assinatura fica `suspensa` e o uso é bloqueado com aviso. Ao pagar, volta na hora.
 - **Cancelamento:** o padrão é valer no fim do ciclo pago, sem reembolso proporcional; o cancelamento imediato com reembolso fica a critério da gestão e é registrado. Regras de direito do consumidor, como o arrependimento em 7 dias na contratação online, ficam para validação jurídica.
 - **Troca de plano:** vale no próximo ciclo (simples e sem proporcional). Troca imediata fica para depois, se houver demanda.
 - **Pausa:** a gestão pode pausar (ex.: férias do cliente) por até N ciclos; o fornecedor deixa de cobrar.
@@ -122,13 +122,18 @@ Mais: RLS que nega tudo para anon e authenticated; escrita só por funções do 
 
 **A Onda A entrega valor sem esperar o fornecedor.** O salão pode controlar uso e comissão no HOPE OS enquanto a cobrança segue onde está.
 
-## 11. Decisões do dono
-1. **Comissão do serviço coberto:** (a) valor de tabela, (b) rateio ou (c) fixo por uso. Recomendação: (c).
-2. **Tolerância de inadimplência** antes de suspender: recomendação de 5 dias.
-3. **Cancelamento:** no fim do ciclo, sem proporcional (recomendado), ou imediato com proporcional.
-4. **Usos não feitos** acumulam para o próximo ciclo? Recomendação: não acumulam.
-5. **Fornecedor:** cotar com os critérios da §6. Perguntar à GalaxPay se dá para migrar os assinantes sem novo cadastro de cartão.
-6. **Ordem:** fazer a Onda A antes de escolher o fornecedor? Recomendação: sim.
+## 11. Decisões do dono (2026-11-15)
+1. **Comissão do serviço coberto: múltipla escolha.** O plano escolhe a regra, e as três ficam disponíveis:
+   - (a) valor de tabela;
+   - (b) rateio da mensalidade pelos usos do ciclo;
+   - (c) valor fixo por uso.
+
+   O padrão sugerido ao criar um plano é (c). O simulador mostra a margem de cada regra antes de salvar.
+2. **Tolerância de inadimplência: 7 dias** antes de suspender o uso.
+3. **Cancelamento:** no fim do ciclo pago, sem reembolso proporcional (como recomendado).
+4. **Usos não feitos não acumulam** para o próximo ciclo (como recomendado).
+5. **Fornecedor:** cotar depois, com os critérios da §6. Perguntar à GalaxPay sobre migrar os assinantes sem recadastro de cartão.
+6. **Ordem:** a Onda A vem antes da escolha do fornecedor (como recomendado).
 
 ## 12. Riscos
 - **Cobrança em dobro na virada** (app Barber e HOPE OS cobrando juntos): virada com data marcada e conferência da lista.
