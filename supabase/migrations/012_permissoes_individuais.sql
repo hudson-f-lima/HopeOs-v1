@@ -11,7 +11,8 @@
 -- 3. membership_permissoes_definir: grava as permissões e os eventos numa transação só.
 --    Os limites de autoridade (quem pode conceder o quê) são decididos no backend, sobre a
 --    lista que ele leu; p_esperado garante que ninguém mudou essa lista no meio do caminho
---    (Red Team D-032, achado 2). Vínculo inativo só perde permissões, nunca ganha.
+--    (Red Team D-032, achado 2), e p_role_esperado que o papel também não mudou (a autoridade
+--    é decidida pelo papel). Vínculo inativo só perde permissões, nunca ganha.
 begin;
 
 -- 1. Formato do código: 'grupo:acao' em minúsculas; no máximo 64 por vínculo.
@@ -51,12 +52,16 @@ create trigger trg_ledger_imutavel before update or delete on public.membership_
   for each row execute function public.ledger_imutavel();
 
 -- 3. Definir as permissões de um vínculo (substitui a lista) e registrar a diferença.
+--    Versões anteriores desta função (em bancos de teste) saem, para não sobrar grant nelas.
+drop function if exists public.membership_permissoes_definir(uuid, uuid, uuid, text[]);
+drop function if exists public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[]);
 create or replace function public.membership_permissoes_definir(
   p_empresa_id uuid,
   p_membership_id uuid,
   p_actor_id uuid,
   p_permissoes text[],
-  p_esperado text[]
+  p_esperado text[],
+  p_role_esperado text
 ) returns jsonb
 language plpgsql
 security definer
@@ -88,6 +93,9 @@ begin
         is distinct from
         (select coalesce(array_agg(distinct c order by c), '{}'::text[]) from unnest(p_esperado) as c) then
     raise exception 'permissões: a lista mudou desde a leitura; recarregue' using errcode = '40001';
+  end if;
+  if p_role_esperado is null or v_m.role::text is distinct from p_role_esperado then
+    raise exception 'permissões: o papel mudou desde a leitura; recarregue' using errcode = '40001';
   end if;
 
   select coalesce(array_agg(distinct c order by c), '{}'::text[]) into v_novas
@@ -126,7 +134,7 @@ grant select, insert on table public.membership_permissao_eventos to service_rol
 
 revoke all on function public.permissoes_codigos_validos(text[]) from public, anon, authenticated;
 grant execute on function public.permissoes_codigos_validos(text[]) to service_role;
-revoke all on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[]) from public, anon, authenticated;
-grant execute on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[]) to service_role;
+revoke all on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[], text) from public, anon, authenticated;
+grant execute on function public.membership_permissoes_definir(uuid, uuid, uuid, text[], text[], text) to service_role;
 
 commit;

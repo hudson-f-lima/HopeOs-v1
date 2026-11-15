@@ -7,7 +7,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
 const { getIdentityStore } = require('../auth/identityStore');
-const { PERMISSOES, permissoesEfetivas, motivoAlvo, motivoRecusa, extrasValidos, permissao } = require('../auth/permissoes');
+const { PERMISSOES, permissoesEfetivas, motivoAlvo, motivoRecusa, motivoRevogacao, extrasValidos, permissao } = require('../auth/permissoes');
 
 const router = express.Router();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,7 +15,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ator = req => ({ role: req.auth.role, permissoes_extras: req.auth.permissoes_extras, membership_id: req.auth.membership_id });
 
 // Quais permissões quem pede pode mexer nesta pessoa (conceder ou revogar).
-const editaveis = (req, alvo) => PERMISSOES.map(x => x.codigo).filter(codigo => !motivoRecusa({ ator: ator(req), alvo, codigo }));
+const editaveis = (req, alvo) => PERMISSOES.map(x => x.codigo).filter(codigo => !motivoRecusa({ ator: ator(req), alvo, codigo })
+  || (extrasValidos(alvo.permissoes_extras).includes(codigo) && !motivoRevogacao({ ator: ator(req), alvo, codigo })));
 
 router.get('/equipe/permissoes', authorize('equipe:permissoes'), async (req, res, next) => {
   try {
@@ -66,9 +67,9 @@ router.put('/equipe/permissoes/:membershipId', authorize('equipe:permissoes'), a
 
     const antes = extrasValidos(alvo.permissoes_extras);
     const depois = [...new Set(b.permissoes)];
-    const mudancas = [...depois.filter(c => !antes.includes(c)), ...antes.filter(c => !depois.includes(c))];
-    for (const codigo of mudancas) {
-      const motivo = motivoRecusa({ ator: ator(req), alvo, codigo });
+    const novas = depois.filter(c => !antes.includes(c));
+    const retiradas = antes.filter(c => !depois.includes(c));
+    for (const [codigo, motivo] of [...novas.map(c => [c, motivoRecusa({ ator: ator(req), alvo, codigo: c })]), ...retiradas.map(c => [c, motivoRevogacao({ ator: ator(req), alvo, codigo: c })])]) {
       if (motivo) throw createAppError('PERMISSION_GRANT_FORBIDDEN', `Sem autoridade para mudar "${codigo}" desta pessoa.`, 403, { codigo, motivo });
     }
     // Códigos antigos que saíram do catálogo continuam guardados até alguém mexer de novo.
@@ -76,7 +77,7 @@ router.put('/equipe/permissoes/:membershipId', authorize('equipe:permissoes'), a
     // esperado: a lista lida acima. Se alguém salvou no meio do caminho, nada é gravado (409).
     const r = await store.definirPermissoes({
       empresaId: req.auth.empresa_id, membershipId: alvo.id, actorId: req.auth.actor_id,
-      permissoes: [...depois, ...legados], esperado: Array.isArray(alvo.permissoes_extras) ? alvo.permissoes_extras : []
+      permissoes: [...depois, ...legados], esperado: Array.isArray(alvo.permissoes_extras) ? alvo.permissoes_extras : [], roleEsperado: alvo.role
     });
     res.json({ ok: true, data: { membershipId: alvo.id, ...r, efetivas: permissoesEfetivas(alvo.role, r.permissoes) } });
   } catch (err) { next(err); }

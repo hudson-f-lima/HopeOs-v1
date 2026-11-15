@@ -27,7 +27,7 @@ const {
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
 const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
-const { montarLembretes } = require('../engines/ReminderEngine');
+const { montarLembretes, normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
@@ -133,9 +133,23 @@ router.get('/clientes', authorize('clientes:ver'), async (req, res, next) => {
 router.post('/clientes', authorize('clientes:criar'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
-    const payload = validateCreateClientePayload(req.body);
+    let payload = validateCreateClientePayload(req.body);
+    // Cadastro rápido (quem não edita clientes, ex.: profissional): só nome e WhatsApp, cliente
+    // ativo e sem faltas; número já cadastrado é recusado, para não duplicar nem bloquear o
+    // agendamento online daquele número (Red Team D-032, 2ª passada).
+    if (!pode(req.auth, 'clientes:editar')) {
+      const numero = payload.whatsapp ? normalizarWhatsapp(payload.whatsapp) : null;
+      if (numero) {
+        const existentes = await repo.list('clientes', { empresa_id: repo.empresaId });
+        if (existentes.some(c => normalizarWhatsapp(c.whatsapp || c.telefone) === numero)) {
+          throw createAppError('CLIENT_EXISTS', 'Já existe cliente com este WhatsApp. Procure pelo nome ao agendar.', 409);
+        }
+      }
+      payload = { nome: payload.nome, ...(payload.whatsapp ? { whatsapp: payload.whatsapp } : {}), faltas: 0, ativo: true, ...(payload.updated_at ? { updated_at: payload.updated_at } : {}) };
+    }
     const { actorId } = autoriaDe(req.auth);
-    res.status(201).json({ ok: true, data: await repo.insertScoped('clientes', { ...payload, created_by: actorId }) });
+    const criado = await repo.insertScoped('clientes', { ...payload, created_by: actorId });
+    res.status(201).json({ ok: true, data: pode(req.auth, 'clientes:contato') ? criado : { ...semContato(criado), whatsapp: criado.whatsapp || null } });
   } catch (err) { next(err); }
 });
 
@@ -384,7 +398,11 @@ router.get('/agenda', authorize('agenda:ver'), async (req, res, next) => {
     const filters = { empresa_id: req.auth.empresa_id };
     if (req.query.data) filters.data = req.query.data;
     if (req.authz.own) filters.profissional_id = req.authz.profissionalId;
-    res.json({ ok: true, data: await new SupabaseRepository(req.auth.empresa_id).list('agendamentos', filters) });
+    const lista = await new SupabaseRepository(req.auth.empresa_id).list('agendamentos', filters);
+    // Observações (texto livre, pode ter contato do cliente) dos horários de colegas só para
+    // quem vê contato de clientes; as do próprio profissional continuam (Red Team D-032).
+    const proprio = req.auth.profissional_id || null;
+    res.json({ ok: true, data: pode(req.auth, 'clientes:contato') ? lista : lista.map(a => (a.profissional_id === proprio ? a : { ...a, observacoes: undefined })) });
   } catch (err) { next(err); }
 });
 

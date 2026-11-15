@@ -61,7 +61,7 @@ const banco = installMemoryBackend({
     { id: 'b0000000-0000-4000-8000-000000000001', empresa_id: E, profissional_id: P2, cliente_id: null, servico_id: null, data: hoje, horario: '15:00', duracao_min: 30, status: 'agendado' },
     { id: 'b0000000-0000-4000-8000-000000000002', empresa_id: E, profissional_id: P2, cliente_id: null, servico_id: null, data: hoje, horario: '16:00', duracao_min: 30, status: 'agendado' },
     { id: 'b0000000-0000-4000-8000-000000000003', empresa_id: E, profissional_id: P1, cliente_id: C1, servico_id: null, data: hoje, horario: '17:00', duracao_min: 30, status: 'agendado' },
-    { id: 'b0000000-0000-4000-8000-000000000004', empresa_id: E, profissional_id: P2, cliente_id: C2, servico_id: null, data: hoje, horario: '18:00', duracao_min: 30, status: 'agendado' }
+    { id: 'b0000000-0000-4000-8000-000000000004', empresa_id: E, profissional_id: P2, cliente_id: C2, servico_id: null, data: hoje, horario: '18:00', duracao_min: 30, status: 'agendado', observacoes: 'liga antes' }
   ],
   clientes: [
     { id: C1, empresa_id: E, nome: 'Carla Cliente', whatsapp: '11999990001', observacoes: 'alergia', faltas: 0, ativo: true },
@@ -298,7 +298,56 @@ test('G17 controle negativo: sem a permissão individual no pedido, o mesmo prof
   assert.deepStrictEqual(authorizeAuth(auth, 'agenda:cancelar'), { own: false, profissionalId: null });
   assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: [] }, 'agenda:cancelar'), { own: true, profissionalId: P1 });
   assert.throws(() => authorizeAuth({ ...auth, permissoes_extras: ['espera:ver'] }, 'caixa:fechar'), /Sem permissão/);
-  assert.deepStrictEqual(authorizeAuth({ ...auth, permissoes_extras: ['espera:ver'] }, 'espera:ver'), { own: false, profissionalId: null }, 'extra antigo no banco continua lido');
+  assert.throws(() => authorizeAuth({ ...auth, permissoes_extras: ['espera:ver', 'agenda:criar'] }, 'espera:ver'), /Sem permissão/, 'extra antigo que o papel não recebe não vale');
+  assert.deepStrictEqual(authorizeAuth({ ...auth, role: 'recepcao', permissoes_extras: ['comanda:estornar'] }, 'comanda:estornar'), { own: false, profissionalId: null }, 'controle negativo: extra válido para o papel vale');
+});
+
+test('G18 extra antigo (gravado antes da regra atual) sempre pode ser revogado, pelo dono', async () => {
+  const m = await ident.getMembership(M.prof);
+  m.permissoes_extras = ['caixa:conferir', 'agenda:criar'];
+  const tela = (await request('GET', '/api/equipe/permissoes')).data.data.pessoas.find(p => p.nome === 'Ana');
+  assert.ok(tela.editaveis.includes('caixa:conferir') && tela.editaveis.includes('agenda:criar'), 'o dono vê como revogáveis');
+  const g = await definir('prof', [], 'h.gestor.s');
+  assert.deepStrictEqual([g.status, motivo(g)], [403, 'SO_ADMIN_CONCEDE'], 'gerente não tira o que é sensível');
+  const r = await definir('prof', []);
+  assert.deepStrictEqual([r.status, r.data.data.revogadas], [200, ['agenda:criar', 'caixa:conferir']]);
+});
+
+test('G19 cadastro rápido: quem não edita clientes grava só nome e WhatsApp; número repetido é recusado', async () => {
+  const r = await request('POST', '/api/clientes', { token: 'h.prof.s', body: { nome: 'Bloqueio', whatsapp: '11955554444', ativo: false, faltas: 9, observacoes: 'x' } });
+  assert.strictEqual(r.status, 201, JSON.stringify(r.data));
+  const gravado = (await request('GET', '/api/clientes', { token: 'h.recep.s' })).data.data.find(c => c.nome === 'Bloqueio');
+  assert.deepStrictEqual([gravado.ativo, gravado.faltas, gravado.observacoes || null], [true, 0, null]);
+  const rep = await request('POST', '/api/clientes', { token: 'h.prof.s', body: { nome: 'Outra', whatsapp: '(11) 99999-0001' } });
+  assert.deepStrictEqual([rep.status, code(rep)], [409, 'CLIENT_EXISTS']);
+  const rec = await request('POST', '/api/clientes', { token: 'h.recep.s', body: { nome: 'Inativo', ativo: false, faltas: 1 } });
+  const vr = (await request('GET', '/api/clientes', { token: 'h.recep.s' })).data.data.find(c => c.id === rec.data.data.id);
+  assert.deepStrictEqual([vr.ativo, vr.faltas], [false, 1], 'controle negativo: recepção grava o cadastro completo');
+});
+
+test('G20 corrida com troca de papel: concessão decidida com o papel antigo é recusada', async () => {
+  const real = ident.getMembership;
+  ident.getMembership = async id => { const m = await real(id); return id === M.recep ? { ...m, role: 'recepcao' } : m; };
+  (await real(M.recep)).role = 'profissional';
+  try {
+    const r = await definir('recep', ['comanda:historico']);
+    assert.deepStrictEqual([r.status, code(r)], [409, 'PERMISSIONS_CHANGED']);
+  } finally { ident.getMembership = real; (await real(M.recep)).role = 'recepcao'; }
+  assert.deepStrictEqual((await ident.getMembership(M.recep)).permissoes_extras || [], []);
+  const ok = await definir('recep', ['comanda:historico']);
+  assert.strictEqual(ok.status, 200, 'controle negativo: papel atual passa');
+  assert.strictEqual((await definir('recep', [])).status, 200);
+});
+
+test('G21 agenda de todos: observações dos horários de colegas não vão para o profissional', async () => {
+  await definir('prof', ['agenda:ver']);
+  const r = await request('GET', `/api/agenda?data=${hoje}`, { token: 'h.prof.s' });
+  assert.strictEqual(r.status, 200);
+  const deColega = r.data.data.filter(a => a.profissional_id === P2);
+  assert.ok(deColega.length >= 1 && deColega.every(a => !('observacoes' in a)), JSON.stringify(deColega[0]));
+  const rec = await request('GET', `/api/agenda?data=${hoje}`, { token: 'h.recep.s' });
+  assert.ok(rec.data.data.some(a => a.observacoes === 'liga antes'), 'controle negativo: recepção vê');
+  await definir('prof', []);
 });
 
 (async () => {

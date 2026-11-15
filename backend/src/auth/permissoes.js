@@ -84,11 +84,16 @@ function extrasValidos(extras) {
   return (Array.isArray(extras) ? extras : []).filter(c => POR_CODIGO.has(c));
 }
 
+// O papel pode receber esta permissão individualmente? (ação da agenda segue a visão; o
+// profissional só recebe o que não mexe em dinheiro.)
+const receptivel = (role, perm) => !perm.segue && (role !== 'profissional' || perm.profissional);
+
 // Alcance de um papel + extras numa permissão: 'total' | 'proprio' | null.
 function alcance(role, extras, codigo) {
   const perm = POR_CODIGO.get(codigo);
   if (!perm) return null;
-  if (extrasValidos(extras).includes(codigo)) return T;
+  // Extra que o papel atual não pode receber (gravado antes de uma mudança de regra) não vale.
+  if (extrasValidos(extras).includes(codigo) && receptivel(role, perm)) return T;
   const base = perm.padrao[role] || null;
   // Ação da agenda acompanha a visão: quem vê a agenda de todos age em todos.
   if (base === P && perm.segue && alcance(role, extras, perm.segue) === T) return T;
@@ -107,7 +112,7 @@ function permissoesEfetivas(role, extras) {
 
 // Permissões que alguém pode receber individualmente, por quem quer que conceda.
 function concediveisPara(roleAlvo) {
-  return PERMISSOES.filter(x => x.padrao[roleAlvo] !== T && !x.segue && (roleAlvo !== 'profissional' || x.profissional)).map(x => x.codigo);
+  return PERMISSOES.filter(x => x.padrao[roleAlvo] !== T && receptivel(roleAlvo, x)).map(x => x.codigo);
 }
 
 // Limite de autoridade de quem concede (D-032):
@@ -135,4 +140,15 @@ function motivoRecusa({ ator, alvo, codigo }) {
   return null;
 }
 
-module.exports = { PERMISSOES, PAPEIS, HIERARQUIA, permissao, alcance, permissoesEfetivas, concediveisPara, motivoAlvo, motivoRecusa, extrasValidos };
+// Revogar é mais simples que conceder: basta ter autoridade sobre a pessoa e sobre o nível
+// (o gerente não tira o que só o proprietário dá). Assim um extra antigo, que hoje não se
+// concederia, sempre pode ser retirado (Red Team D-032, 2ª passada).
+function motivoRevogacao({ ator, alvo, codigo }) {
+  const perm = POR_CODIGO.get(codigo);
+  const recusaAlvo = motivoAlvo({ ator, alvo });
+  if (recusaAlvo) return recusaAlvo;
+  if (perm && perm.nivel !== 'operacao' && ator.role !== 'admin') return 'SO_ADMIN_CONCEDE';
+  return null;
+}
+
+module.exports = { PERMISSOES, PAPEIS, HIERARQUIA, permissao, alcance, permissoesEfetivas, concediveisPara, motivoAlvo, motivoRecusa, motivoRevogacao, extrasValidos };
