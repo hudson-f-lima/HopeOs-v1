@@ -78,10 +78,26 @@ O salão vê tudo na agenda, com origem e histórico, e é avisado de agendament
 - **Limite por IP em memória:** com mais de uma instância da API, o limite vale por instância. É aceitável no piloto; um limite compartilhado exigiria infraestrutura.
 - **Dados pessoais:** o aviso de privacidade precisa dos dados reais do salão (o controlador). O texto é modelo, não parecer jurídico.
 
-## 6. Decisões do dono
-1. **Dados do salão para o aviso de privacidade:** razão social, CNPJ, contato para assuntos de dados pessoais.
-2. **Prazo para o cliente cancelar ou remarcar:** no app Barber o salão usa **45 min**. Manter?
-3. **Antecedência mínima para agendar online:** o HOPE OS usa 2 h por padrão; no app Barber o salão usa **10 min**. Qual vale?
-4. **Agendamentos futuros por número:** o padrão é 2. Manter?
-5. **Mostrar preço** na página do cliente?
-6. **Começar pela C1** (ligar o link) e seguir na ordem recomendada?
+## 6. Decisões do dono (2026-11-15)
+1. **Os dados do salão no aviso de privacidade são variáveis por salão.** Cada empresa que se cadastrar terá os seus: razão social, CNPJ e contato para dados pessoais. O aviso é montado a partir do cadastro da empresa, não fixado no código.
+2. **Prazo para o cliente cancelar ou remarcar: variável por salão**, configurado pela gestão.
+3. **Antecedência mínima para agendar online: variável por salão.**
+4. **Agendamentos futuros por número: variável por salão.**
+5. **A página do cliente mostra preço, duração e disponibilidade conforme o override do profissional.** O preço e a duração podem mudar por profissional (`profissional_servicos`, valor e duração próprios).
+6. **Ordem C1 → C5: aprovada.**
+7. **O cliente não cria agendamento recorrente pelo app (risco de fraude).** Série recorrente só pela recepção ou gestão (C4).
+8. **Lembrete automático por notificação push** entra no plano. Web Push não tem custo de fornecedor; precisa das chaves VAPID, do cadastro das inscrições (migration) e de um agendador de envio.
+9. **C5 (WhatsApp ou SMS automático): fica pré-configurada para ativação futura.** Terá o adaptador e a configuração prontos, desligados até a escolha do fornecedor.
+
+### Consequências no plano
+- **Os itens 1 a 4 exigem configuração por salão no banco.** Hoje são variáveis de ambiente iguais para todos, e o link é um mapa `PUBLIC_BOOKING_LINKS` no servidor. A C1 passa a precisar de uma **migration 016** com:
+  - o endereço (slug) do salão;
+  - liga e desliga do agendamento online;
+  - antecedência, janela, prazo de cancelamento e limite por número;
+  - mostrar ou não o preço;
+  - contato de privacidade.
+
+  Ela depende de autorização.
+- **Push (item 8):** cabe na C5, ativa, ao lado do WhatsApp pré-configurado. Limites:
+  - no iPhone só funciona com o app instalado na tela inicial (iOS 16.4+);
+  - o envio no horário exige que o servidor esteja acordado. A instância gratuita do Render dorme, então é preciso uma instância paga ou um gatilho agendado externo.
