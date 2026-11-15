@@ -442,3 +442,27 @@
   - usos não feitos não acumulam;
   - **Onda A** (planos, uso, limites, comissão e margem, com a cobrança ainda fora) **antes** de escolher o fornecedor.
 - **Estado:** desenho. A Onda A exige migration nova, que depende de autorização. O fornecedor de pagamento ainda não foi escolhido.
+
+## D-037 — Agendamento online configurado por salão (migration 016, C1)
+- **Decisão (Platform Owner, 2026-11-15)** sobre [`planning/AGENDAMENTO_PONTA_A_PONTA_AUDITORIA.md`](planning/AGENDAMENTO_PONTA_A_PONTA_AUDITORIA.md):
+  - os dados do salão no aviso de privacidade variam por salão (SaaS futuro);
+  - prazo de cancelamento/remarcação, antecedência e máximo de horários futuros por número variam por salão;
+  - a página do cliente mostra preço, duração e disponibilidade conforme o override do profissional;
+  - ordem C1→C5 aprovada; o cliente não marca horário recorrente sozinho (risco de fraude);
+  - migration 016 autorizada ("1. Autorizado").
+- **Entregue:**
+  - Migration 016: colunas em `empresas` — `online_slug` (único, formato fixo), `online_ativo` (nasce desligado), `online_antecedencia_min` (0–10080), `online_janela_dias` (1–180), `online_cancelamento_prazo_min` (0–10080), `online_max_futuros` (1–10), `online_mostrar_preco`, `privacidade_contato` (3–200). O banco recusa ligar sem slug, razão social e contato de privacidade. Rollback em `supabase/rollback/016_down.sql`.
+  - Link público (`backend/src/routes/publicBooking.js`):
+    - o salão vem do slug gravado no banco; o mapa `PUBLIC_BOOKING_LINKS` da env vale só para slug que não está no banco (e antes da 016). Slug no banco com o link desligado = 404, mesmo que esteja no mapa;
+    - o corpo do POST só é lido depois de resolver um salão ligado (slug desconhecido nem chega ao parser);
+    - consulta do slug com cache de 30 s por instância (inclusive "não existe", até 500 entradas); salvar a configuração limpa o cache da instância. Em mais de uma instância, desligar leva até 30 s para valer em todas;
+    - antecedência, janela e limite de futuros vêm da linha do salão; a env é reserva;
+    - preço e duração por profissional (override); no serviço, a faixa; `online_mostrar_preco = false` tira todos os preços da resposta;
+    - o agendamento grava o preço de quem atende (antes gravava o do serviço);
+    - "sem preferência" (`profissionalId = "qualquer"`): mostra os horários de qualquer profissional do serviço e grava com o de agenda mais leve no dia que tem o horário (empate: nome);
+    - aviso de privacidade com razão social, CNPJ e contato do salão; o evento de origem guarda a versão, um hash curto do texto exibido, a fonte do link e se o profissional foi escolhido pelo cliente ou pelo sistema.
+  - `GET/PATCH /api/empresa/agendamento-online` (`empresa:configurar`): faixas validadas, ligar sem requisitos → 422 com a lista do que falta, slug de outro salão (banco ou env) → 409, sem a 016 → 503.
+  - Tela Conta → Link online e página `agendar.html` (faixa de preço e duração, "sem preferência", controlador no aviso, prazo de cancelamento na confirmação).
+  - Smoke: liga/desliga agora é por salão (`--public-slug`); slug inexistente continua 404 no GET e no POST.
+- **Verificação:** `gate_016.sql` (5 blocos); `agendamento-online-config-gate` 13/13 (3 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-online` (admin liga, cliente agenda sem preferência, admin desliga).
+- **Fora do escopo (próximas etapas):** C2 link pessoal do cliente (confirmar, cancelar, remarcar, .ics/Google Agenda), C3 aviso à recepção, C4 série recorrente só pela equipe, C5 push e WhatsApp pré-configurado. Ícone de instalação da página do cliente fica para a C2.

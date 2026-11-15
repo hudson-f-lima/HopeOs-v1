@@ -97,7 +97,7 @@ O salão vê tudo na agenda, com origem e histórico, e é avisado de agendament
   - mostrar ou não o preço;
   - contato de privacidade.
 
-  Ela depende de autorização.
+  Ela depende de autorização. **Autorizada e implementada em 2026-11-15 (D-037)**, junto com "sem preferência", preço e duração pelo override e o aviso com o controlador. Falta da C1: Red Team em produção, depois do merge e com o link ligado. O ícone de instalação foi para a C2.
 - **Push (item 8):** cabe na C5, ativa, ao lado do WhatsApp pré-configurado. Limites:
   - no iPhone só funciona com o app instalado na tela inicial (iOS 16.4+);
   - o envio no horário exige que o servidor esteja acordado. A instância gratuita do Render dorme, então é preciso uma instância paga ou um gatilho agendado externo.

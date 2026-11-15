@@ -53,10 +53,19 @@ function installMemoryBackend(seed = {}) {
     return row ? Object.assign(row, p) : null;
   };
 
+  P.empresaOnlinePorSlug = async function (slug) {
+    if (typeof slug !== 'string' || !slug) return null;
+    const row = rows('empresas').find(e => e.online_slug === slug);
+    return row ? { id: row.id, online_ativo: row.online_ativo === true } : null;
+  };
   P.updateEmpresa = async function (patch) {
     const row = rows('empresas').find(r => r.id === this.empresaId);
     if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }
     const { id, empresa_id, ...safe } = patch;
+    // Índice único do slug do link público (migration 016).
+    if (safe.online_slug && rows('empresas').some(e => e.id !== this.empresaId && e.online_slug === safe.online_slug)) {
+      const err = new Error('duplicate key value violates unique constraint "ux_empresas_online_slug"'); err.code = '23505'; throw err;
+    }
     return Object.assign(row, safe);
   };
   P.createFormaPagamento = async function (payload) {

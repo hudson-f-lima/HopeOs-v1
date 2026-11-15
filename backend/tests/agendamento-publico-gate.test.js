@@ -147,8 +147,11 @@ test('P03 GET do salão: só serviços ativos com profissional ativo, primeiro n
   assert.strictEqual(r.headers['cache-control'], 'no-store');
   const d = r.data.data;
   assert.deepStrictEqual(d.salao, { nome: 'Salão Alfa' });
-  assert.deepStrictEqual(d.servicos, [{ id: CORTE, nome: 'Corte', duracaoMin: 30, precoCentavos: 5000, profissionais: [{ id: ANA, nome: 'Ana' }, { id: BETO, nome: 'Beto' }] }]);
-  assert.deepStrictEqual(d.regras, { hoje: HOJE, primeiroDia: HOJE, ultimoDia: DIA30, antecedenciaMin: 120, janelaDias: 30 });
+  assert.deepStrictEqual(d.servicos, [{
+    id: CORTE, nome: 'Corte', duracaoMin: 30, duracaoMaxMin: 30, precoCentavos: 5000, precoMaxCentavos: 5000, semPreferencia: true,
+    profissionais: [{ id: ANA, nome: 'Ana', duracaoMin: 30, precoCentavos: 5000 }, { id: BETO, nome: 'Beto', duracaoMin: 30, precoCentavos: 5000 }]
+  }]);
+  assert.deepStrictEqual(d.regras, { hoje: HOJE, primeiroDia: HOJE, ultimoDia: DIA30, antecedenciaMin: 120, janelaDias: 30, cancelamentoPrazoMin: 120 });
   const txt = r.raw.toLowerCase();
   for (const proibido of ['whatsapp', '9111', '8888', '0000111', 'comiss', 'cliente', 'joão', 'segredo', 'souza', 'carla', 'desativado', 'beta', 'empresa_id', A]) {
     assert.ok(!txt.includes(proibido.toLowerCase()), `vazou "${proibido}"`);

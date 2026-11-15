@@ -26,6 +26,7 @@ import { initGanhos, abrirMetas } from './ui/ganhos.js';
 import { initTema } from './ui/tema.js';
 import { initPermissoes } from './ui/permissoes.js';
 import { initEscalas } from './ui/escalas.js';
+import { initAgendamentoOnline } from './ui/agendamentoOnline.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
@@ -395,6 +396,7 @@ async function init() {
     initEquipe();
     initPermissoes();
   initEscalas();
+  initAgendamentoOnline();
     initComissoes();
     initGanhos();
     initAgora();

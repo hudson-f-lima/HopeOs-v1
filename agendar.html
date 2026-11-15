@@ -73,11 +73,11 @@
         </div>
         <details class="privacidade">
           <summary>Aviso de privacidade</summary>
-          <p><strong>Quem decide sobre seus dados (controlador):</strong> o <strong id="avisoSalao">salão</strong>. O sistema HOPE OS só os guarda e processa em nome dele (operador).</p>
+          <p><strong>Quem decide sobre seus dados (controlador):</strong> <strong id="avisoSalao">o salão</strong><span id="avisoCnpj"></span>. O sistema HOPE OS só os guarda e processa em nome dele (operador).</p>
           <p><strong>Quais dados e para quê (finalidade):</strong> nome, WhatsApp, serviço, profissional, dia e horário, para registrar este agendamento e falar com você sobre ele (confirmação, lembrete, remarcação ou cancelamento). Para evitar abuso, guardamos também a data do aceite deste aviso e parte do endereço de internet (sem o número completo). Não usamos para propaganda. Não escreva informações de saúde aqui.</p>
           <p><strong>Base legal:</strong> execução de procedimentos preliminares ao serviço que você pediu (LGPD, art. 7º, V).</p>
           <p><strong>Por quanto tempo:</strong> os dados ficam guardados enquanto você for cliente do salão ou até você pedir a exclusão, respeitado o prazo que a lei exigir do salão.</p>
-          <p><strong>Seus direitos:</strong> confirmar se tratamos seus dados, acessar, corrigir, pedir exclusão ou anonimização e tirar dúvidas. Fale com o salão pelo WhatsApp dele.</p>
+          <p><strong>Seus direitos:</strong> confirmar se tratamos seus dados, acessar, corrigir, pedir exclusão ou anonimização e tirar dúvidas. <span id="avisoContato">Fale com o salão pelo WhatsApp dele.</span></p>
           <p class="versao">Versão do aviso: <span id="avisoVersao">—</span></p>
         </details>
         <label class="consentimento">
@@ -93,6 +93,7 @@
     <h2>Horário agendado</h2>
     <p id="confirmacaoTexto"></p>
     <p class="pg-info">O salão pode entrar em contato pelo WhatsApp para confirmar.</p>
+    <p id="confirmacaoPrazo" class="pg-info" hidden></p>
     <button id="btnNovo" class="btn-secundario" type="button">Agendar outro horário</button>
   </section>
 </main>

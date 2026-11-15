@@ -16,8 +16,9 @@ API:
     Cross-Origin-Resource-Policy, sem X-Powered-By; HSTS quando https)
   - CORS: preflight libera a origem da PWA e NÃO libera origem estranha nem sufixo
     (https://hudson-f-lima.github.io.<outro>); localhost liberado = WARN
-  - /api/public/*: 404 quando desligado (padrão --public-booking off). A sonda usa um
-    POST com JSON malformado: desligado → 404; ligado → 400 do parser. Nada é gravado.
+  - /api/public/*: slug inexistente = 404 (GET e POST). Com --public-slug, confere o estado
+    esperado daquele salão (--public-booking, padrão off) por um POST com JSON malformado:
+    desligado → 404 antes do parser; ligado → 400 do parser. Nada é gravado.
 PWA (com --pwa):
   - GET / = 200 HTML; CSP com connect-src liberando a API, frame-ancestors 'none',
     object-src 'none', script-src sem 'unsafe-inline'/'unsafe-eval'; nosniff,
@@ -28,7 +29,8 @@ PWA (com --pwa):
 Opções:
   --api URL                base da API (termina em /api)
   --pwa URL                URL pública da PWA
-  --public-booking off|on  estado esperado do agendamento online (padrão off)
+  --public-booking off|on  estado esperado do link de --public-slug (padrão off)
+  --public-slug SLUG       slug de um salão para conferir se o link dele está ligado/desligado
   --timeout MS             timeout por requisição (padrão 15000; o Render free acorda devagar)
   --json  --strict  --help
 
@@ -50,7 +52,7 @@ function headerProblems(res, expected) {
   return out;
 }
 
-async function checkApi(api, pwaOrigin, report, { timeoutMs, publicBooking }) {
+async function checkApi(api, pwaOrigin, report, { timeoutMs, publicBooking, publicSlug }) {
   const base = api.replace(/\/+$/, '');
   const get = (p, o = {}) => request(`${base}${p}`, { timeoutMs, ...o });
 
@@ -98,14 +100,22 @@ async function checkApi(api, pwaOrigin, report, { timeoutMs, publicBooking }) {
   if (local.headers['access-control-allow-origin']) report.warn('api.cors.localhost', 'localhost/LAN liberados por código (app.js) mesmo em produção');
   else report.ok('api.cors.localhost', 'localhost não liberado');
 
-  // Agendamento online: GET de slug inexistente = 404 sempre; POST com JSON
+  // Agendamento online (D-037: liga por salão): slug inexistente = 404 no GET e no POST
+  // (o corpo não é lido antes de resolver o salão). Com --public-slug, o POST com JSON
   // malformado distingue desligado (404 antes do parser) de ligado (400 do parser).
   const g = await get('/public/agendar/smoke-sonda');
-  const p = await get('/public/agendar/smoke-sonda', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' });
-  const estado = p.status === 404 ? 'off' : p.status === 400 ? 'on' : `HTTP ${p.status}`;
-  if (g.status !== 404) report.fail('api.public', `GET /public/agendar/<slug inexistente> = ${g.status} (esperado 404)`);
-  else if (estado === publicBooking) report.ok('api.public', publicBooking === 'off' ? '/api/public/* = 404 (desligado)' : 'agendamento online LIGADO, como esperado');
-  else report.fail('api.public', `agendamento online ${estado === 'on' ? 'LIGADO' : estado}; esperado ${publicBooking === 'off' ? 'desligado' : 'ligado'}`);
+  const sonda = async slug => {
+    const p = await get(`/public/agendar/${slug}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' });
+    return p.status === 404 ? 'off' : p.status === 400 ? 'on' : `HTTP ${p.status}`;
+  };
+  const inexistente = await sonda('smoke-sonda');
+  if (g.status !== 404 || inexistente !== 'off') report.fail('api.public', `slug inexistente: GET ${g.status}, POST ${inexistente} (esperado 404 nos dois)`);
+  else if (!publicSlug) report.ok('api.public', publicBooking === 'off' ? 'slug inexistente = 404' : 'slug inexistente = 404 (sem --public-slug, estado do salão não conferido)');
+  else {
+    const estado = await sonda(encodeURIComponent(publicSlug));
+    if (estado === publicBooking) report.ok('api.public', `link ${publicSlug} ${publicBooking === 'on' ? 'LIGADO' : 'desligado'}, como esperado`);
+    else report.fail('api.public', `link ${publicSlug} ${estado === 'on' ? 'LIGADO' : estado}; esperado ${publicBooking === 'off' ? 'desligado' : 'ligado'}`);
+  }
   if (!/no-store/.test(g.headers['cache-control'] || '')) report.warn('api.public.cache', 'Cache-Control sem no-store em /api/public');
 }
 
@@ -151,10 +161,10 @@ async function checkPwa(pwa, api, report, { timeoutMs }) {
   else report.ok('pwa.publicacao', 'backend/ não servido');
 }
 
-async function runSmoke({ api, pwa = '', publicBooking = 'off', timeoutMs = 15000 }) {
+async function runSmoke({ api, pwa = '', publicBooking = 'off', publicSlug = '', timeoutMs = 15000 }) {
   const report = createReport('smoke');
   const pwaOrigin = pwa ? originOf(pwa) : null;
-  await checkApi(api, pwaOrigin, report, { timeoutMs, publicBooking });
+  await checkApi(api, pwaOrigin, report, { timeoutMs, publicBooking, publicSlug });
   if (pwa) await checkPwa(pwa, api, report, { timeoutMs });
   else report.warn('pwa', 'sem --pwa: CSP/headers do site e CORS da PWA não conferidos');
   return report;
@@ -163,7 +173,7 @@ async function runSmoke({ api, pwa = '', publicBooking = 'off', timeoutMs = 1500
 async function main(argv) {
   let opts;
   try {
-    opts = parseArgs(argv, { boolean: ['help', 'json', 'strict'], string: ['api', 'pwa', 'public-booking', 'timeout'] });
+    opts = parseArgs(argv, { boolean: ['help', 'json', 'strict'], string: ['api', 'pwa', 'public-booking', 'public-slug', 'timeout'] });
     if (opts.help) return { code: EXIT.OK, stdout: HELP };
     if (!opts.api || !/^https?:\/\//.test(opts.api)) throw new UsageError('--api é obrigatório (URL http(s) terminando em /api)');
     if (opts.pwa && !/^https?:\/\//.test(opts.pwa)) throw new UsageError('--pwa precisa ser URL http(s)');
@@ -173,7 +183,7 @@ async function main(argv) {
     if (err instanceof UsageError) return { code: EXIT.USAGE, stderr: `${err.message}\n\nVeja --help.` };
     throw err;
   }
-  const report = await runSmoke({ api: opts.api, pwa: opts.pwa || '', publicBooking: opts['public-booking'] || 'off', timeoutMs: Number(opts.timeout || 15000) });
+  const report = await runSmoke({ api: opts.api, pwa: opts.pwa || '', publicBooking: opts['public-booking'] || 'off', publicSlug: opts['public-slug'] || '', timeoutMs: Number(opts.timeout || 15000) });
   const code = report.exitCode({ strict: opts.strict });
   if (opts.json) return { code, stdout: JSON.stringify(report.toJSON({ strict: opts.strict }), null, 2) };
   return { code, stdout: `HOPE OS smoke (read-only)\n\n${report.render({ strict: opts.strict })}` };
