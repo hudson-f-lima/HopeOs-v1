@@ -1,18 +1,6 @@
+import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
-import { 
-  state, 
-  stateBus, 
-  sessionRoleIn,
-  activeProfissionais, 
-  profColor, 
-  findClienteNome, 
-  findServicoNome, 
-  findProfissionalNome, 
-  findAgendaItemById, 
-  computeEndTime, 
-  loadWeekAgenda,
-  PROF_COLORS
-} from '../state.js';
+import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
 import {
   todayStr,
   addDays,
@@ -369,6 +357,7 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || state.selectedDay || todayStr();
 
   state.fuzzyAgCliente.clear();
+  resetClienteRapido();
   avisarReguaCliente(null);
   state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));
   state.fuzzyAgServico.clear();
@@ -412,7 +401,9 @@ function duracaoNovoAgendamento(servicoId, profissionalId) {
 function renderAgendaSlots(el, result) {
   const todos = result.slots || [];
   if (!result.janela) {
-    el.innerHTML = '<span class="ag-slots-msg">Sem expediente configurado para este profissional neste dia.</span>';
+    // D-033: o servidor diz a origem (unidade fechada, folga, escala não publicada...).
+    const motivo = (result.disponibilidade && result.disponibilidade.origem) || 'Sem expediente configurado para este profissional neste dia';
+    el.innerHTML = `<span class="ag-slots-msg">${escapeHtml(motivo)}.</span>`;
     return;
   }
   if (!todos.length) {
@@ -502,14 +493,21 @@ function closeReagendarModal() {
   state.reagendarAlvoId = null;
 }
 
-async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito) {
+// Fora da disponibilidade (D-033): o servidor recusa; quem pode encaixar decide forçar.
+async function confirmarForaDaDisponibilidade(err) {
+  if (err.code !== 'FORA_DA_DISPONIBILIDADE' || !sessionPode('agenda:encaixar')) return false;
+  return confirmAction({ title: 'Fora do horário', message: `${err.message} Agendar mesmo assim? Fica registrado como encaixe.`, confirmLabel: 'Agendar mesmo assim' });
+}
+
+async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false) {
   clearBanner();
   try {
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito } });
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade } });
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
     await loadWeekAgenda();
   } catch (err) {
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, true);
     showBanner(err.message, 'error');
   }
 }
@@ -692,7 +690,7 @@ async function onActionSheetClick(ev) {
 // F4.4: vaga aberta por cancelamento -> sugere quem chamar da lista de espera.
 // Best-effort: nunca cria/edita agendamento sozinho, só oferece contato manual via WhatsApp.
 async function promptWaitlistCandidates(servicoId) {
-  if (!servicoId || !sessionRoleIn('admin', 'gestor', 'recepcao')) return;
+  if (!servicoId || !sessionPode('espera:ver')) return;
   let candidatos = [];
   try {
     candidatos = await getListaEspera({ servicoId, status: 'aguardando' });
@@ -857,7 +855,7 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
   dialog.showModal();
 }
 
-function executarReagendar(agId, profId, data, horario, permitirConflito) {
+function executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade = false) {
   api('/agenda/' + agId + '/status', {
     method: 'PATCH',
     body: {
@@ -865,14 +863,18 @@ function executarReagendar(agId, profId, data, horario, permitirConflito) {
       novaData: data,
       novoHorario: horario,
       novoProfissionalId: profId,
-      permitirConflito: !!permitirConflito
+      permitirConflito: !!permitirConflito,
+      foraDaDisponibilidade
     }
   })
   .then(() => {
     loadWeekAgenda();
     navigator.vibrate?.([10, 50, 10]);
   })
-  .catch(err => showBanner('Erro ao reagendar: ' + err.message, 'error'));
+  .catch(async err => {
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true);
+    showBanner('Erro ao reagendar: ' + err.message, 'error');
+  });
 }
 
 function startDrag(agId, e) {
@@ -1094,6 +1096,7 @@ function onTimelineClick(ev) {
 }
 
 export function initAgenda() {
+  initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));
   document.getElementById('btnPrevWeekMobile')?.addEventListener('click', () => shiftWeek(-1));

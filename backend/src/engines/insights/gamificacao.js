@@ -109,4 +109,29 @@ function sugerirMetas({ desempenhoPorMes = [], incrementoPct = 5 }) {
   }).sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
-module.exports = { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores, CRITERIOS };
+// Meta do salão (reconhecimento sem valor, D-027): a soma das metas de FATURAMENTO já
+// definidas para o mês, e o faturamento de serviços só dos profissionais que têm meta.
+// Devolve totais, nunca nomes. Não entra em comissão, repasse ou pagamento.
+function computeMetaSalao({ desempenho = [], metas = [], mes }) {
+  const comMeta = new Map();
+  for (const m of metas) {
+    if (m.mes !== mes || m.tipo !== 'faturamento' || !(n(m.valor_alvo) > 0)) continue;
+    comMeta.set(m.profissional_id, (comMeta.get(m.profissional_id) || 0) + n(m.valor_alvo));
+  }
+  let alvo = 0; let realizado = 0; let profissionaisComMeta = 0;
+  for (const d of desempenho) {
+    if (!comMeta.has(d.profissionalId)) continue;
+    alvo += comMeta.get(d.profissionalId);
+    realizado += Math.max(0, n(d.faturamentoCentavos));
+    profissionaisComMeta++;
+  }
+  const temMetas = alvo > 0;
+  return {
+    mes, temMetas, metaCentavos: alvo, realizadoCentavos: realizado,
+    percentual: temMetas ? Math.floor((realizado * 100) / alvo) : null,
+    reconhecida: temMetas && realizado >= alvo,
+    profissionaisComMeta
+  };
+}
+
+module.exports = { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores, CRITERIOS };

@@ -3,6 +3,11 @@
 // Injetável (setIdentityStore) para testes e para o dev-memory-api.
 const { randomUUID } = require('crypto');
 const { getSupabase } = require('../db/supabaseClient');
+const { createAppError } = require('../errors');
+
+function permissoesMudaram() {
+  return createAppError('PERMISSIONS_CHANGED', 'As permissões desta pessoa mudaram enquanto você editava. Abra de novo e confira.', 409);
+}
 
 async function q(promise) {
   const { data, error } = await promise;
@@ -84,6 +89,18 @@ const supabaseStore = {
   },
   async listAudit(integrationId, limit = 100) {
     return q(getSupabase().from('integration_audit_events').select('*').eq('integration_id', integrationId).order('created_at', { ascending: false }).limit(limit));
+  },
+  // D-032 (migration 012): grava a lista e a trilha numa transação só (RPC).
+  // esperado: a lista que o backend leu e sobre a qual decidiu a autoridade. Se mudou no
+  // meio do caminho (outra pessoa salvou antes), a RPC recusa e nada é gravado.
+  async definirPermissoes({ empresaId, membershipId, actorId, permissoes, esperado, roleEsperado }) {
+    const { data, error } = await getSupabase().rpc('membership_permissoes_definir', { p_empresa_id: empresaId, p_membership_id: membershipId, p_actor_id: actorId, p_permissoes: permissoes, p_esperado: esperado, p_role_esperado: roleEsperado });
+    if (error && error.code === '40001') throw permissoesMudaram();
+    if (error) throw error;
+    return data;
+  },
+  async listPermissaoEventos(empresaId, membershipId, limit = 50) {
+    return q(getSupabase().from('membership_permissao_eventos').select('*').eq('empresa_id', empresaId).eq('membership_id', membershipId).order('created_at', { ascending: false }).limit(limit));
   }
 };
 
@@ -131,7 +148,31 @@ function createMemoryIdentityStore(seed = {}) {
       db.integration_scopes = db.integration_scopes.filter(s => s.integration_id !== integrationId).concat(scopes.map(scope => ({ integration_id: integrationId, scope })));
     },
     async insertAudit(row) { db.integration_audit_events.push({ id: randomUUID(), created_at: now(), ...row }); },
-    async listAudit(integrationId) { return db.integration_audit_events.filter(e => e.integration_id === integrationId).reverse(); }
+    async listAudit(integrationId) { return db.integration_audit_events.filter(e => e.integration_id === integrationId).reverse(); },
+    // Espelho da RPC membership_permissoes_definir (migration 012): mesmas recusas.
+    async definirPermissoes({ empresaId, membershipId, actorId, permissoes, esperado, roleEsperado }) {
+      if (!actorId || !db.empresa_memberships.some(m => m.empresa_id === empresaId && m.user_id === actorId && m.status === 'ativo')) throw new Error('permissões: ator sem vínculo ativo na empresa');
+      const m = db.empresa_memberships.find(x => x.id === membershipId && x.empresa_id === empresaId);
+      if (!m) throw new Error('permissões: vínculo não encontrado na empresa');
+      const novas = [...new Set(permissoes || [])].sort();
+      if (novas.length > 64 || novas.some(c => !/^[a-z_]+:[a-z_]+$/.test(c))) throw new Error('permissões: código inválido');
+      const antes = Array.isArray(m.permissoes_extras) ? m.permissoes_extras : [];
+      const ordenada = l => [...new Set(l)].sort().join(',');
+      if (!Array.isArray(esperado) || ordenada(esperado) !== ordenada(antes) || !roleEsperado || m.role !== roleEsperado) throw permissoesMudaram();
+      const concedidas = novas.filter(c => !antes.includes(c));
+      if (m.status !== 'ativo' && concedidas.length) throw new Error('permissões: vínculo inativo não recebe permissões');
+      const revogadas = antes.filter(c => !novas.includes(c)).sort();
+      m.permissoes_extras = novas;
+      db.membership_permissao_eventos = db.membership_permissao_eventos || [];
+      const quando = now();
+      for (const [acao, lista] of [['conceder', concedidas], ['revogar', revogadas]]) {
+        for (const permissao of lista) db.membership_permissao_eventos.push({ id: randomUUID(), empresa_id: empresaId, membership_id: m.id, alvo_user_id: m.user_id, actor_id: actorId, acao, permissao, created_at: quando });
+      }
+      return { permissoes: novas, concedidas, revogadas };
+    },
+    async listPermissaoEventos(empresaId, membershipId) {
+      return (db.membership_permissao_eventos || []).filter(e => e.empresa_id === empresaId && e.membership_id === membershipId).slice().reverse();
+    }
   };
 }
 

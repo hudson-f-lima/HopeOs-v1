@@ -12,7 +12,7 @@ const legado = (method, path, body) => fetch(`${API}/api${path}`, { method, head
   const amanha = new Date(Date.now() + 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const cliente = (await legado('POST', '/clientes', { nome: 'Joana Lembrete', whatsapp: '11 98888-7777' })).data;
   const profs = await db('profissionais'); const servs = await db('servicos');
-  const novo = await legado('POST', '/agenda', { clienteId: cliente.id, servicoId: servs.find(s => s.nome === 'Barba').id, profissionalId: profs.find(p => p.nome === 'Bruno').id, data: amanha, horario: '16:00', permitirConflito: true });
+  const novo = await legado('POST', '/agenda', { clienteId: cliente.id, servicoId: servs.find(s => s.nome === 'Barba').id, profissionalId: profs.find(p => p.nome === 'Bruno').id, data: amanha, horario: '12:00', permitirConflito: true });
   console.log('PREPARO:', novo.ok, amanha);
 
   const b = await chromium.launch();

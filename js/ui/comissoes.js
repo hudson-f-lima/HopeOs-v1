@@ -2,7 +2,7 @@
 // profissional e modelo de herança de cada serviço. O backend calcula a comissão
 // (ajuste do profissional → cargo/categoria pelo modelo do serviço → serviço).
 import { api } from '../api.js';
-import { state, sessionRoleIn } from '../state.js';
+import { state, sessionRoleIn, sessionPode } from '../state.js';
 import { escapeHtml, showBanner } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -107,7 +107,7 @@ async function criar(form) {
 }
 
 export async function renderComissoes() {
-  if (!sessionRoleIn('admin', 'gestor')) return;
+  if (!sessionPode('catalogo:editar')) return;
   try {
     const [cargos, categorias] = await Promise.all([api('/cargos'), api('/categorias')]);
     dados = { cargos, categorias };
@@ -118,7 +118,7 @@ export async function renderComissoes() {
 }
 
 export function initComissoes() {
-  if (!sessionRoleIn('admin', 'gestor')) return;
+  if (!sessionPode('catalogo:editar')) return;
   el('subtabBtnComissoes')?.classList.remove('hidden');
   el('comissoesConteudo').addEventListener('change', ev => {
     const linha = ev.target.closest('[data-tipo][data-id]');

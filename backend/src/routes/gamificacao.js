@@ -3,9 +3,9 @@
 // `ranking_visivel_equipe`, e sem o valor em reais dos colegas.
 const express = require('express');
 const { createAppError } = require('../errors');
-const { authorize } = require('../auth/rbac');
+const { authorize, assertNaoProprioDinheiro } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
 
 const router = express.Router();
 const ALVO_MAX = { faturamento: 1000000000, atendimentos: 100000, produtos: 1000000000 }; // R$ 10 mi; 100 mil atendimentos
@@ -31,7 +31,7 @@ async function desempenhoDoMes(repo, mes) {
 
 // Sugestão de meta para `mes`: média dos 3 meses fechados anteriores + incremento.
 // Só leitura; a gestão decide e grava pelo PUT /metas.
-router.get('/metas/sugestao', authorize('metas:write'), async (req, res, next) => {
+router.get('/metas/sugestao', authorize('metas:definir'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query.mes);
     const incrementoPct = req.query.incrementoPct === undefined ? 5 : Number(req.query.incrementoPct);
@@ -46,7 +46,7 @@ router.get('/metas/sugestao', authorize('metas:write'), async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-router.get('/metas', authorize('metas:read'), async (req, res, next) => {
+router.get('/metas', authorize('metas:ver'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query.mes);
     const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -57,8 +57,19 @@ router.get('/metas', authorize('metas:read'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Meta do salão (D-027): reconhecimento sem valor para admin, gestão e profissional.
+// Só totais; nenhum nome, nenhum valor por pessoa.
+router.get('/gamificacao/meta-salao', authorize('metas:ver'), async (req, res, next) => {
+  try {
+    const mes = mesValido(req.query.mes);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [desempenho, metas] = await Promise.all([desempenhoDoMes(repo, mes), repo.list('metas', { empresa_id: repo.empresaId, mes })]);
+    res.json({ ok: true, data: computeMetaSalao({ desempenho, metas, mes }) });
+  } catch (err) { next(err); }
+});
+
 // Define, altera ou remove (valorAlvo null ou 0) a meta de um profissional no mês.
-router.put('/metas', authorize('metas:write'), async (req, res, next) => {
+router.put('/metas', authorize('metas:definir'), async (req, res, next) => {
   try {
     const b = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
     for (const k of Object.keys(b)) {
@@ -74,6 +85,7 @@ router.put('/metas', authorize('metas:write'), async (req, res, next) => {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [prof] = b.profissionalId ? await repo.list('profissionais', { empresa_id: repo.empresaId, id: String(b.profissionalId) }) : [];
     if (!prof) throw createAppError('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado.', 404);
+    assertNaoProprioDinheiro(req, [prof.id]);
     const [atual] = await repo.list('metas', { empresa_id: repo.empresaId, profissional_id: prof.id, mes, tipo: b.tipo });
     if (remover) {
       if (atual) await repo.deleteScoped('metas', atual.id);
@@ -87,7 +99,7 @@ router.put('/metas', authorize('metas:write'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/gamificacao/ranking', authorize('ranking:read'), async (req, res, next) => {
+router.get('/gamificacao/ranking', authorize('ranking:ver'), async (req, res, next) => {
   try {
     const mes = mesValido(req.query.mes);
     const criterio = req.query.criterio === undefined ? 'servicos' : String(req.query.criterio);

@@ -11,7 +11,7 @@ const { env } = require('../src/config/env');
 const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
-const { computeDesempenho, computeMetas, computeRanking, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
+const { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores } = require('../src/engines/insights/gamificacao');
 const { calcularTaxaEfetiva, gerarParcelados } = require('../src/engines/taxaEfetiva');
 const { ACTIONS } = require('../src/auth/rbac');
 const { createAppError } = require('../src/errors');
@@ -221,6 +221,63 @@ test('M14 HTTP: meta de produtos e ranking por critério; critério inválido �
 
 // ---------- Sugestão de meta e taxa efetiva (Onda 1 da análise de desempenho e margem) ----------
 const dm = (id, nome, atendimentos, fat, prod = 0) => ({ profissionalId: id, nome, atendimentos, faturamentoCentavos: fat, produtosCentavos: prod, totalCentavos: fat + prod });
+
+test('R01 meta do salão: soma das metas de faturamento; quem não tem meta fica fora; reconhece só ao chegar', () => {
+  const metas = [{ profissional_id: 'a', mes: MES, tipo: 'faturamento', valor_alvo: 20000 }, { profissional_id: 'b', mes: MES, tipo: 'faturamento', valor_alvo: 30000 },
+    { profissional_id: 'c', mes: MES, tipo: 'atendimentos', valor_alvo: 5 }, { profissional_id: 'd', mes: MES, tipo: 'faturamento', valor_alvo: 0 }];
+  const des = [{ profissionalId: 'a', faturamentoCentavos: 10000 }, { profissionalId: 'b', faturamentoCentavos: 20000 }, { profissionalId: 'c', faturamentoCentavos: 99999 }, { profissionalId: 'd', faturamentoCentavos: 99999 }];
+  const r = computeMetaSalao({ desempenho: des, metas, mes: MES });
+  assert.deepStrictEqual([r.metaCentavos, r.realizadoCentavos, r.percentual, r.reconhecida, r.profissionaisComMeta], [50000, 30000, 60, false, 2]);
+  const bateu = computeMetaSalao({ desempenho: [{ profissionalId: 'a', faturamentoCentavos: 20000 }, { profissionalId: 'b', faturamentoCentavos: 30000 }], metas, mes: MES });
+  assert.deepStrictEqual([bateu.percentual, bateu.reconhecida], [100, true]);
+  assert.deepStrictEqual(computeMetaSalao({ desempenho: des, metas: [], mes: MES }), { mes: MES, temMetas: false, metaCentavos: 0, realizadoCentavos: 0, percentual: null, reconhecida: false, profissionaisComMeta: 0 });
+  assert.ok(Object.keys(r).every(k => !/nome|profissional_?id|profissionalId/i.test(k) || k === 'profissionaisComMeta'), 'sem dados por pessoa');
+});
+
+test('R02 HTTP meta do salão: admin, gestão e profissional leem; recepção não; resposta sem nomes', async () => {
+  for (const token of ['h.admin.s', 'h.prof.s']) {
+    const r = await request('GET', `/api/gamificacao/meta-salao?mes=${MES}`, { token });
+    assert.strictEqual(r.status, 200, token);
+    assert.ok(!/"nome"/.test(JSON.stringify(r.data)), 'sem nome de pessoa');
+    assert.deepStrictEqual(Object.keys(r.data.data).sort(), ['mes', 'metaCentavos', 'percentual', 'profissionaisComMeta', 'realizadoCentavos', 'reconhecida', 'temMetas']);
+  }
+  assert.strictEqual((await request('GET', `/api/gamificacao/meta-salao?mes=${MES}`, { token: 'h.recep.s' })).status, 403);
+  assert.strictEqual((await request('GET', `/api/gamificacao/meta-salao?mes=2026-13`)).status, 422);
+});
+
+test('D01 indicadores individuais: mês, mês anterior e média do salão; amostra pequena marcada; nada de nota', () => {
+  const { computeDesempenhoIndividual } = require('../src/engines/insights/desempenhoIndividual');
+  const cs = [{ id: 'j1', data: '2026-06-03', cliente_id: 'cl1' }, { id: 'j2', data: '2026-06-10', cliente_id: 'cl2' }, { id: 'j3', data: '2026-05-20', cliente_id: 'cl3' }];
+  const it = (id, c, prof, v) => ({ id, comando_id: c, tipo: 'servico', profissional_id: prof, quantidade: 1, valor_liquido_centavos: v });
+  const dados = {
+    comandos: cs, comandoItens: [it('x1', 'j1', P1, 10000), it('x2', 'j2', P2, 30000), it('x3', 'j3', P1, 5000)],
+    estornos: [], estornoItens: [], eventos: [], agendamentos: [],
+    profissionais: [{ id: P1, nome: 'Ana', ativo: true }, { id: P2, nome: 'Bia', ativo: true }]
+  };
+  const r = computeDesempenhoIndividual({ dados, profissional: dados.profissionais[0], mes: '2026-06', hoje: '2026-06-30' });
+  assert.deepStrictEqual([r.atual.atendimentos, r.atual.faturamentoCentavos, r.mesAnterior.mes, r.mesAnterior.atendimentos, r.mesAnterior.faturamentoCentavos], [1, 10000, '2026-05', 1, 5000]);
+  // Média do salão em junho: Ana 100,00 e Bia 300,00 → 200,00 por pessoa; 1 atendimento cada.
+  assert.deepStrictEqual([r.mediaSalao.profissionaisConsiderados, r.mediaSalao.faturamentoCentavos, r.mediaSalao.atendimentos], [2, 20000, 1]);
+  assert.deepStrictEqual([r.atual.taxaFalta.denominador, r.atual.taxaFalta.amostraPequena], [0, true]);
+  assert.strictEqual(r.amostraMinima, 5);
+  assert.ok(!/posicao|ranking|rotulo|risco|nota/i.test(JSON.stringify(r)), 'sem posição, rótulo ou nota');
+  assert.strictEqual(computeDesempenhoIndividual({ dados, profissional: dados.profissionais[0], mes: '2026-07', hoje: '2026-06-30' }), null, 'mês futuro');
+});
+
+test('D02 HTTP indicadores individuais: gestão escolhe; profissional só os seus; recepção, legado e outra empresa não', async () => {
+  const url = q => `/api/desempenho/profissional?mes=${MES}${q}`;
+  const adm = await request('GET', url(`&profissionalId=${P1}`));
+  assert.deepStrictEqual([adm.status, adm.data.data.profissional.nome, adm.data.data.retornoDias], [200, 'Ana', 60]);
+  const proprio = await request('GET', url(`&profissionalId=${P2}`), { token: 'h.prof.s' });
+  assert.deepStrictEqual([proprio.status, proprio.data.data.profissional.id], [200, P1], 'o profissional sempre recebe os próprios números');
+  assert.strictEqual((await request('GET', url(`&profissionalId=${P1}`), { token: 'h.recep.s' })).status, 403);
+  assert.strictEqual((await request('GET', url(`&profissionalId=${P1}`), { token: null })).status, 401);
+  assert.strictEqual((await request('GET', url(`&profissionalId=${P1}`), { token: process.env.API_ACCESS_TOKEN })).status, 403, 'token legado não lê');
+  assert.strictEqual((await request('GET', url(`&profissionalId=${P1}`), { token: 'h.adminb.s' })).status, 404, 'profissional de outra empresa');
+  for (const q of ['', `&profissionalId=${P1}&retornoDias=30`]) assert.strictEqual((await request('GET', url(q))).status, 422, q || 'sem profissionalId');
+  assert.strictEqual((await request('GET', `/api/desempenho/profissional?mes=2026-13&profissionalId=${P1}`)).status, 422);
+  assert.strictEqual((await request('GET', `/api/desempenho/profissional?mes=2099-01&profissionalId=${P1}`)).status, 422, 'mês futuro');
+});
 
 test('S01 meses anteriores: 3 meses fechados, virando o ano', () => {
   assert.deepStrictEqual(mesesAnteriores('2026-06'), ['2026-03', '2026-04', '2026-05']);

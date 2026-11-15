@@ -139,7 +139,7 @@ test('K03 RBAC: recepção e gestão leem; profissional recebe 403; sem credenci
   assert.strictEqual(p.status, 403); assert.strictEqual(code(p), 'INSUFFICIENT_ROLE');
   assert.strictEqual((await fechamento(`?data=${D}`, { token: null })).status, 401);
   const src = fs.readFileSync(require.resolve('../src/routes/caixa.js'), 'utf8');
-  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !l.includes("authorize('relatorios:operacional')"));
+  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !l.includes("authorize('caixa:conferir')"));
   assert.deepStrictEqual(semRbac, [], 'toda rota de caixa declara authorize');
   assert.ok(!/router\.(post|patch|put|delete)\(/.test(src), 'caixa é somente leitura');
 });

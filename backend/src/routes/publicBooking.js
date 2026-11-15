@@ -182,13 +182,13 @@ function resolverSalao(req) {
 // Catálogo público: serviços ativos com pelo menos um profissional ativo vinculado
 // (profissional_servicos). Toda leitura é filtrada pela empresa do slug.
 async function carregarCatalogo(repo) {
-  const [empresas, servicos, profissionais, vinculos] = await Promise.all([
-    repo.list('empresas', { id: repo.empresaId }),
+  // A empresa vem com a disponibilidade (D-033): o mesmo cálculo da recepção.
+  const [empresa, servicos, profissionais, vinculos] = await Promise.all([
+    repo.empresaComDisponibilidade(),
     repo.list('servicos', { empresa_id: repo.empresaId }),
     repo.list('profissionais', { empresa_id: repo.empresaId }),
     repo.list('profissional_servicos', { empresa_id: repo.empresaId })
   ]);
-  const empresa = empresas[0];
   if (!empresa) throw naoEncontrado();
   const servicosAtivos = servicos.filter(s => s.ativo !== false);
   const profAtivos = new Map(profissionais.filter(p => p.ativo !== false).map(p => [p.id, p]));

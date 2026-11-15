@@ -142,7 +142,26 @@ router.patch('/admin/memberships/:id', async (req, res, next) => {
     if (body.profissionalId !== undefined) patch.profissional_id = await validateProfissional(req, body.profissionalId);
     const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
     await assertKeepsAnAdmin(store, m.empresa_id, m.id, { role: patch.role || m.role, status: patch.status || m.status });
-    const updated = Object.keys(patch).length ? await store.updateMembership(m.id, patch) : m;
+    const roleAntes = m.role;
+    const statusAntes = m.status;
+    let updated = Object.keys(patch).length ? await store.updateMembership(m.id, patch) : m;
+    // Mudou o papel ou desativou: as permissões individuais saem, com registro na trilha
+    // (Red Team D-032). Depois de gravar o papel novo: uma concessão feita em paralelo com o
+    // papel antigo é recusada pela RPC (papel esperado) ou cai aqui, relida e zerada.
+    const mudouPapel = patch.role !== undefined && patch.role !== roleAntes;
+    const desativou = patch.status === 'inativo' && statusAntes !== 'inativo';
+    for (let tentativa = 0; (mudouPapel || desativou) && tentativa < 3; tentativa++) {
+      const atual = await store.getMembership(m.id);
+      const extras = Array.isArray(atual.permissoes_extras) ? atual.permissoes_extras : [];
+      if (!extras.length) break;
+      try {
+        await store.definirPermissoes({ empresaId: m.empresa_id, membershipId: m.id, actorId: req.auth.actor_id, permissoes: [], esperado: extras, roleEsperado: atual.role });
+        updated = await store.getMembership(m.id);
+        break;
+      } catch (err) {
+        if (err.code !== 'PERMISSIONS_CHANGED' || tentativa === 2) throw err;
+      }
+    }
     if (unitIds) await store.replaceMembershipUnits(m.id, unitIds);
     res.json({ ok: true, data: { ...updated, unit_ids: unitIds || (await store.listMembershipUnits(m.id)).map(x => x.unit_id) } });
   } catch (err) { next(err); }

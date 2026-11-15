@@ -58,8 +58,8 @@ const num = async (p, sel, attr) => Number(await p.getAttribute(sel, attr));
 
   // ---- Admin: comissão ----
   const a = await entrar(b, 'admin@dev.local', ['422 /api/comissoes/pagamentos']);
-  await a.click('#navAvatar'); await a.waitForSelector('#sheetGestao:not(.hidden)');
-  await a.click('#subtabBtnGanhos'); await a.selectOption('#ganhosProfissional', ana.id); await a.waitForSelector('#ganhosSaldoValor');
+  await a.click('#navMetas'); await a.waitForSelector('#tab-metas:not(.hidden)');
+  await a.selectOption('#ganhosProfissional', ana.id); await a.waitForSelector('#ganhosSaldoValor');
   confere('comissão: saldo inicial = ganho', await num(a, '#ganhosSaldoValor', 'data-saldo') === ganhoAna && ganhoAna > 0, `tela × banco ${ganhoAna}`);
   await a.selectOption('#ganhosPagarTipo', 'vale'); await a.fill('#ganhosPagarValor', '5,00'); await a.fill('#ganhosPagarObs', 'Adiantamento');
   await a.click('#btnGanhosPagar'); await a.click('#confirm-action-ok'); await a.waitForSelector('[data-tipo="vale"]');
@@ -73,13 +73,12 @@ const num = async (p, sel, attr) => Number(await p.getAttribute(sel, attr));
   await a.waitForFunction(v => Number(document.getElementById('ganhosSaldoValor')?.dataset.saldo) === v, ganhoAna - 1000);
   const pagos = await db('comissao_pagamentos');
   confere('comissão: pagamento gravado com autor e mês de referência', pagos.length === 3 && pagos[2].tipo === 'pagamento' && pagos[2].valor_centavos === 1000 && Boolean(pagos[2].actor_id) && pagos[2].referencia_mes === hojeSP.slice(0, 7));
-  await a.locator('#subtab-ganhos').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-finops-comissao.png') });
+  await a.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-finops-comissao.png') });
   console.log('ADMIN erros:', JSON.stringify(a.erros));
 
   // ---- Profissional: só leitura ----
   const p = await entrar(b, 'profissional@dev.local');
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
-  await p.click('#subtabBtnGanhos'); await p.waitForSelector('#ganhosSaldoValor');
+  await p.click('#navMetas'); await p.waitForSelector('#ganhosSaldoValor');
   confere('profissional: vê o próprio saldo', await num(p, '#ganhosSaldoValor', 'data-saldo') === ganhoAna - 1000);
   confere('profissional: sem formulário de pagamento nem botão de estorno', !(await p.isVisible('#ganhosPagarForm')) && await p.locator('[data-estornar-pagamento]').count() === 0);
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));

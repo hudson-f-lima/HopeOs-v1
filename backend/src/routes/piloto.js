@@ -8,7 +8,7 @@ const { env } = require('../config/env');
 const clock = require('../config/clock');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { addDays, daysBetween } = require('../engines/insights/retention');
-const { computePiloto } = require('../engines/insights/piloto');
+const { computePiloto, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS } = require('../engines/insights/piloto');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 
 const router = express.Router();
@@ -30,17 +30,21 @@ function resolverPeriodo(query, hoje) {
   return { de, ate };
 }
 
-router.get('/relatorios/piloto', authorize('relatorios:full'), async (req, res, next) => {
+router.get('/relatorios/piloto', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
     const { de, ate } = resolverPeriodo(req.query, hoje);
+    const retornoDias = req.query.retornoDias === undefined ? RETORNO_JANELA_DIAS : Number(req.query.retornoDias);
+    if (!RETORNO_JANELAS_PERMITIDAS.includes(retornoDias)) {
+      throw createAppError('INVALID_FIELD', `retornoDias deve ser ${RETORNO_JANELAS_PERMITIDAS.join(', ')}.`, 422, { field: 'retornoDias' });
+    }
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
     const [agendamentos, comandos, comandoItens, profissionais, eventos] = await Promise.all([
       repo.list('agendamentos', filtro), repo.list('comandos', filtro), repo.list('comando_itens', filtro), repo.list('profissionais', filtro),
       repo.list('agendamento_eventos', filtro)
     ]);
-    const data = computePiloto({ agendamentos, comandos, comandoItens, eventos, de, ate, hoje, timeZone: env.APP_TIMEZONE });
+    const data = computePiloto({ agendamentos, comandos, comandoItens, eventos, de, ate, hoje, timeZone: env.APP_TIMEZONE, retornoDias });
     const nomes = new Map(profissionais.map(p => [String(p.id), p.nome]));
     data.porProfissional = data.porProfissional.map(p => ({ ...p, nome: nomes.get(p.profissionalId) || null }));
     res.json({ ok: true, data });

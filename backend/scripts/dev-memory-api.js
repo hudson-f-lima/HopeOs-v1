@@ -71,7 +71,7 @@ const db = installMemoryBackend({
 // DEV_EMPRESA_VAZIA=1: salão recém-criado (só o nome), para testar o assistente de configuração.
 if (process.env.DEV_EMPRESA_VAZIA === '1') {
   Object.assign(db.empresas[0], { whatsapp: null, horario_por_dia: {} });
-  for (const t of ['servicos', 'profissionais', 'profissional_servicos', 'agendamentos', 'formas_pagamento']) db[t] = [];
+  for (const t of ['servicos', 'profissionais', 'profissional_servicos', 'agendamentos', 'formas_pagamento', 'disponibilidade_semanal']) db[t] = [];
 }
 
 const contas = [

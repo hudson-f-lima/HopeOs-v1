@@ -202,7 +202,8 @@ test('U09 unidade não autorizada → 403; sem unidade → 403; unidade inativa 
 test('U10 role insuficiente → 403 (recepção ajusta estoque, profissional edita cliente, recepção administra)', async () => {
   const r1 = await request('POST', `/api/produtos/${PROD_A}/estoque/ajuste`, { token: jwt('recepcao'), body: { tipo: 'entrada', quantidade: 1 } });
   assert.strictEqual(code(r1), 'INSUFFICIENT_ROLE');
-  const r2 = await request('POST', '/api/clientes', { token: jwt('prof'), body: { nome: 'X' } });
+  // D-032 (2026-11-15): o profissional cadastra cliente novo, mas não edita o que já existe.
+  const r2 = await request('PATCH', `/api/clientes/${'90000000-0000-4000-8000-0000000000ee'}`, { token: jwt('prof'), body: { nome: 'X' } });
   assert.strictEqual(code(r2), 'INSUFFICIENT_ROLE');
   const r3 = await request('GET', '/api/admin/memberships', { token: jwt('recepcao') });
   assert.strictEqual(code(r3), 'INSUFFICIENT_ROLE');
@@ -245,7 +246,7 @@ test('U15 suspensão de membership/role vale na próxima requisição', async ()
   assert.strictEqual(code(await request('GET', '/api/clientes', { token: jwt('recepcao') })), 'NO_ACTIVE_MEMBERSHIP');
   store.db.empresa_memberships.find(m => m.id === 'm2').status = 'ativo';
   store.db.empresa_memberships.find(m => m.id === 'm2').role = 'profissional';
-  assert.strictEqual(code(await request('POST', '/api/clientes', { token: jwt('recepcao'), body: { nome: 'Y' } })), 'INSUFFICIENT_ROLE');
+  assert.strictEqual(code(await request('PATCH', `/api/clientes/${'90000000-0000-4000-8000-0000000000ee'}`, { token: jwt('recepcao'), body: { nome: 'Y' } })), 'INSUFFICIENT_ROLE');
   store.db.empresa_memberships.find(m => m.id === 'm2').role = 'recepcao';
 });
 test('U16 profissional: escopo "Próprio" na agenda, slots e checkout', async () => {
@@ -443,7 +444,7 @@ test('C04 métricas de adoção contam cada principal', async () => {
 });
 test('C05 toda rota de negócio declara authorize (nenhuma rota sem RBAC)', async () => {
   const src = require('fs').readFileSync(require.resolve('../src/routes/index.js'), 'utf8');
-  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !l.includes('authorize('));
+  const semRbac = src.split('\n').filter(l => /^router\.(get|post|patch|put|delete)\(/.test(l) && !/authorize(Por)?\(/.test(l));
   assert.deepStrictEqual(semRbac, []);
   const servicos = ['InsightsService', 'RetentionService'].map(f => require('fs').readFileSync(require.resolve(`../src/services/${f}.js`), 'utf8'));
   assert.ok(servicos.every(s => !s.includes('new SupabaseRepository()')), 'serviço sem tenant explícito');

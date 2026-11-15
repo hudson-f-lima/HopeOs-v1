@@ -392,12 +392,17 @@ async function comServidor(appMutante, fn) {
 
 test('NC1 controle negativo: sem o filtro de empresa nas leituras, o ataque do P12 (ids de B no slug de A) GRAVA', async () => {
   const mutante = routerMutante([['empresa_id: repo.empresaId', 'empresa_id: undefined']]);
+  // Desde a D-033 a escala de A também não conhece o profissional de B (segunda barreira).
+  // Para o controle provar o P12, a escala dele é posta em A só durante o mutante.
+  const escalaB = db.disponibilidade_semanal.filter(r => r.profissional_id === PROF_B).map(r => ({ ...r, id: `${r.id}-x`, empresa_id: A }));
+  db.disponibilidade_semanal.push(...escalaB);
   await comServidor(mutante, async url => {
     const r = await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '10:00', whatsapp: '21 94444-0001' }), 'salao-alfa', url);
     assert.strictEqual(r.status, 201, `o mutante deveria aceitar (prova que P12 detecta): ${r.raw}`);
     const ag = db.agendamentos[db.agendamentos.length - 1];
     assert.strictEqual(ag.empresa_id, A); assert.strictEqual(ag.servico_id, SERV_B, 'referência cruzada gravada em A');
   });
+  db.disponibilidade_semanal = db.disponibilidade_semanal.filter(r => !escalaB.includes(r));
 });
 
 test('NC2 controle negativo: sem a revalidação de slot, horário fora do expediente (P06) GRAVA', async () => {

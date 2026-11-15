@@ -284,3 +284,124 @@
   - Botões com 44 px, rótulos para leitor de tela e `role="switch"` no interruptor.
 - **Limites:** com pagamento dividido não há o aviso de taxa por forma (a taxa total aparece no resumo). Continua sendo preciso simular antes de fechar. Verificado em navegador de teste com dados de teste; o dono precisa repetir o teste em produção depois do deploy.
 - **Verificação:** E2E novo `split` — ligar sem simular, três formas, vírgula, soma acima do total, fechamento com três pagamentos gravados (Pix 30,50 + Débito 20,00 + Dinheiro 49,50) e taxa só do débito.
+
+## D-027 — Meta do salão: reconhecimento sem valor
+- **Decisão (Platform Owner, 2026-11-13):** o aplicativo mostra só um reconhecimento quando o salão atinge a meta do mês. Sem valor em dinheiro, sem efeito em comissão, repasse ou pagamento. Qualquer gesto físico (um brinde, um momento da equipe) é decisão do salão e fica fora do sistema.
+- **Ponto aberto que motivou a decisão:** o D-012 bloqueava "gamificação com prêmio, metas e bônus" sem parecer. O D-019 aprovou metas e ranking explicitamente sem prêmio. Esta entrega fica dentro do D-019; qualquer recompensa com valor exige nova decisão escrita, alterando D-012 e D-019.
+- **Regra:** a meta do salão é a soma das metas de faturamento já definidas para o mês, pelos profissionais que têm meta. Quem não tem meta fica fora da soma e do realizado. Não há meta nova para guardar, então não há migration.
+- **Quem vê:** admin, gestão e profissional (mesmo acesso de `metas:read`). A recepção não vê, como antes nas metas.
+- **O que aparece:** "Meta do salão: X%" enquanto não bate, e "★ Meta do salão atingida neste mês" quando bate, com o faturamento de serviços do salão e a meta. Não aparece nome, nem valor por pessoa.
+- **Limite:** como a meta do salão vem das metas individuais, quem define o alvo é a gestão. Metas baixas tornam o reconhecimento fácil de atingir; a gestão precisa cuidar disso.
+- **Verificação:** `gamificacao-gate` R01 (soma, exclusão de quem não tem meta, reconhecimento só ao chegar) e R02 (acesso por papel, resposta sem nomes); E2E `metas` (bloco aparece para gestão e profissional, reconhecimento aparece depois que a meta é atingida, sem nomes para o profissional).
+
+## D-028 — Indicadores de agenda e clientes: Fase 1 (visão do salão)
+- **Pedido (Platform Owner, 2026-11-14):** ver os indicadores de metas e desempenho de forma global e, depois, por colaborador, para avaliação pontual caso a caso. A visão individual (Fase 2) só para gerente e proprietário; a recepção não tem acesso.
+- **O que já existia (não refeito):** o motor do Piloto (`engines/insights/piloto.js`) já media faltas, reagendamento, retorno de clientes novos (janela de 60 dias) e confirmação prévia; ocupação, ticket médio, produtos e complementares já tinham painel. A rota `/relatorios/piloto` (`relatorios:full`, só admin e gestão) já devolve, por profissional, faltas e reagendamento; o painel não os mostra.
+- **Entregue na Fase 1, sem migration:**
+  - **Retorno de clientes novos em três categorias**, com as mesmas definições de "novo", "maduro" e janela de 60 dias: voltou com o mesmo profissional, voltou com outro, não voltou. Quando a primeira visita ou os retornos não têm profissional registrado, o cliente vai para uma quarta contagem, "sem profissional registrado". Voltar com o mesmo e com outro conta como mesmo.
+  - **Fidelização:** clientes atendidos no período com 3 ou mais atendimentos (dias distintos) nos 365 dias até o fim do período, mais a média de visitas.
+  - **Taxa de cancelamento:** cancelado / (atendidos + faltas + cancelado), em qualquer antecedência.
+  - Painel renomeado de "Piloto — 4 números" para "Agenda e clientes". Só admin e gestão veem.
+- **Janela de retorno variável (pedido do dono, 2026-11-14):** 60, 90 ou 120 dias, escolhida no painel (`?retornoDias=`); padrão 60, o valor que o Piloto já usava. Outros valores são recusados (422). A maturação acompanha a janela: com 120 dias, clientes que chegaram há menos de 120 dias ficam fora do denominador. A escolha fica lembrada só no aparelho.
+- **Limites:** o cliente é opcional no fechamento da comanda; atendimentos sem cliente cadastrado não entram em retorno nem em fidelização. Cadastro duplicado da mesma pessoa tende a contar como "não voltou". Não há referência de mercado para fidelização e cancelamento: as fontes de fornecedores divergem, e o painel diz isso em vez de inventar uma faixa. O relatório lê as tabelas da empresa e calcula em memória, como os demais.
+- **Fase 2 (indicadores por colaborador): NÃO implementada.** Regra de acesso decidida pelo dono: somente admin e gestão. Pendente: confirmação explícita de que o dono assume o risco trabalhista de exibir indicadores individuais à gestão (alteração do D-012), a ser registrada como decisão própria. Desenho proposto: gestão escolhe pessoa e período; componentes com tamanho de amostra; comparação com o histórico da própria pessoa e com a média do salão; sem ranking, rótulo ou nota; nada gravado; a própria pessoa vê os mesmos números sobre ela.
+- **Verificação:** `piloto-gate` C01 (categorias, soma igual ao denominador e ao numerador), C02 (fidelização), C03 (cancelamento), C04 e C05 (janela 60/90/120, maturação, 422 para outros valores); E2E `dashboard` (admin vê os indicadores novos e troca a janela; recepção não vê o painel).
+
+## D-029 — Indicadores por colaborador (Fase 2 do D-028)
+- **Decisão (Platform Owner, 2026-11-14):** ver os indicadores por colaborador para avaliação pontual, caso a caso. Acesso só para gerente (gestor) e proprietário (admin); a recepção não tem acesso. O dono declarou que o parecer trabalhista não é necessário e confirmou a Fase 2 ("2", em resposta à lista em que o item 2 era a confirmação de assumir o risco trabalhista de exibir indicadores individuais à gestão). Esta decisão **altera o D-012** no ponto "indicadores individuais de desempenho"; o D-012 continua valendo para prêmio, bônus e efeito em comissão.
+- **Recomendação registrada e não seguida:** parecer trabalhista antes de exibir indicadores individuais (risco de caracterizar subordinação no salão-parceiro, Lei 13.352/2016; LGPD art. 20). Classificação do risco: DESCONHECIDO, aceito pelo dono.
+- **Entregue, sem migration:**
+  - `GET /api/desempenho/profissional?mes=&profissionalId=&retornoDias=` (`desempenho:read`: admin e gestor qualquer pessoa da empresa; profissional só a si mesmo, a query é ignorada; recepção 403; token legado e integração 403 por `userOnly`).
+  - Indicadores do mês: atendimentos, faturamento em serviços, produtos (valor e unidades), ticket médio, ocupação da agenda, faltas dos clientes, reagendamento no fechamento e clientes novos que voltaram (com as três categorias, vistas a partir de quem fez a primeira visita). Comparados com o mês anterior da própria pessoa e com a média do salão (valores por pessoa entre os profissionais com movimento; taxas pelo total do salão).
+  - Na tela: aba Ganhos, seção "Desempenho do mês". A gestão escolhe o profissional no seletor que já existia; o profissional vê os próprios números.
+- **Salvaguardas:** nada é gravado (calculado na hora, sem histórico de avaliação); sem ranking, posição, rótulo, cor de julgamento ou nota; taxas com menos de 5 casos aparecem como "amostra pequena"; o texto da tela diz que é apoio para conversa e que a decisão é de uma pessoa; o profissional vê o mesmo que a gestão vê sobre ele.
+- **Limites:** o mês corrente é parcial (até hoje); ocupação depende do expediente cadastrado; os limites de cadastro de cliente do D-028 valem aqui. A navegação continua escondida (Gestão → Ganhos); o desenho de uma entrada própria "Metas e desempenho" está pendente.
+- **Verificação:** `gamificacao-gate` D01 (cálculo, mês anterior, média do salão, amostra pequena, ausência de nota) e D02 (acesso por papel, profissional forçado a si mesmo, legado 403, outra empresa 404, entradas inválidas 422); `piloto-gate` C06 (retorno por profissional da primeira visita); E2E `metas` (gestão vê 8 indicadores da pessoa escolhida; profissional vê os seus, sem seletor).
+
+## D-030 — Navegação: aba "Metas" para a gestão e "Meu mês" para o profissional
+- **Problema (relato do dono, 2026-11-14):** metas, ranking e desempenho existiam, mas não eram achados: ficavam em Gestão → aba Ganhos (uma de nove abas) e o formulário de metas só aparecia depois de escolher um profissional num seletor. A navegação dessas funções nunca tinha sido desenhada.
+- **Desenho aprovado pelo dono (canvas de redesign, fileira "Onde cada coisa fica"):** barra inferior por papel.
+- **Implementado, sem migration e sem mudança de regra ou permissão:**
+  - Barra inferior renomeada: Agenda · Comanda · Painel · **Metas** · Conta (antes Checkout, Dashboard e Gestão).
+  - **Metas** (admin e gestor): meta do salão no topo e a lista da equipe com o progresso da meta de faturamento, à vista sem escolher ninguém; tocar numa pessoa abre, logo abaixo, os ganhos, as metas e o desempenho dela (o mesmo conteúdo da antiga aba Ganhos, movido com os mesmos identificadores).
+  - **Meu mês** (profissional): a mesma aba, só com os próprios números; a Agenda aparece como **Hoje**.
+  - **Recepção:** sem a aba.
+  - A aba Ganhos saiu do painel de Conta.
+- **Desvio do desenho:** o profissional continua com **Comanda** e **Conta** na barra (o desenho mostrava só Hoje e Meu mês), porque ele fecha a própria comanda e o cartão "Agora" abre a comanda; tirar seria perda de função. A aba "Clientes" do desenho não foi feita: os indicadores de agenda e clientes continuam no Painel.
+- **Verificação:** E2E `metas` (lista da equipe à vista; tocar na pessoa escolhe o profissional; "Meu mês" e "Hoje" para o profissional; meta do salão no topo da equipe), `ganhos` (recepção sem a aba) e `finops` (pagamento de comissão pelo novo caminho).
+
+## D-031 — Seletor de tema: Automático, Claro ou Escuro
+- **Pedido (Platform Owner, 2026-11-14):** o modo escuro existia só automático (seguia o aparelho, D-022) e não havia como escolher.
+- **Entregue:** em Conta, "Aparência" com Automático (padrão), Claro e Escuro. Guardado só no aparelho (`localStorage`), não vai ao servidor. Aplicado antes da primeira pintura por um script clássico no `<head>` (`js/tema-inicial.js`; a CSP proíbe script inline), para a tela não piscar. A barra do navegador acompanha a escolha. Só os tokens mudam: nenhum componente ganhou regra própria.
+- **Verificação:** E2E `dashboard` (aparelho claro; "Escuro" muda o fundo na hora; a escolha sobrevive ao recarregar; "Automático" volta a seguir o aparelho; opções com 44 px) e `csp` sem violações.
+
+## D-032 — Permissões finas por papel e permissões individuais (migration 012)
+- **Decisão (Platform Owner, 2026-11-14):** opção A do desenho (`planning/PERMISSOES_POR_PAPEL.md`) aprovada ("Implemente a recomendação aprovada"), o que **autoriza a migration 012**. Recepção em celular, tablet ou computador. Gestor e proprietário concedem e revogam funções a uma pessoa, individualmente, sem tirar o que vem do papel.
+- **Regras implementadas:**
+  - Matriz por papel com ações específicas (34 permissões em 11 grupos; ex.: agenda ver, criar, encaixar, editar, atender, cancelar). Fonte única: `backend/src/auth/permissoes.js`; documento gerado: [`PERMISSOES.md`](PERMISSOES.md), conferido pelo gate.
+  - Padrão mínimo e igual ao comportamento anterior (nenhum papel ganhou nem perdeu acesso padrão).
+  - Permissão individual só acrescenta e dá alcance "todos".
+  - Autoridade: só em papéis abaixo do próprio, nunca em si mesmo, só o que o ator tem por inteiro; permissões sensíveis e de administração só o proprietário concede (revisão de 2026-11-15 abaixo).
+  - Servidor decide; o `/me` devolve as permissões efetivas e a tela se ajusta a elas. O vínculo é relido a cada requisição: revogação vale na próxima ação.
+  - Trilha `membership_permissao_eventos` (quem, o quê, para quem, quando), imutável por gatilho; escrita só pela RPC `membership_permissoes_definir` (service_role); anon/authenticated sem acesso.
+- **Revisão após o Red Team (Platform Owner, 2026-11-15):**
+  - **Profissional só recebe o que não mexe em valores financeiros críticos:** a **agenda de todos** (as ações de agendar, encaixar, remarcar, atender e cancelar acompanham a visão; não se concedem sozinhas) e **fechar comanda de qualquer profissional**. Caixa, estorno, comissão, preços, estoque, painel financeiro, contato de clientes e números de colegas nunca são concedidos ao profissional, nem pelo proprietário. O pacote "Recepção" para profissional saiu: para cobrir o caixa, a pessoa precisa do papel Recepção.
+  - **Três níveis de concessão:** operação (gerente ou proprietário), **sensível** (dinheiro ou dado pessoal; só o proprietário) e administração (só o proprietário). Fecha o achado MÉDIO do Red Team (gerente dando acesso a dinheiro ou a ganhos de colegas).
+  - **Clientes:** todos veem o nome e cadastram cliente novo (`clientes:criar`, também pelo cadastro rápido no novo agendamento); WhatsApp e observações só com `clientes:contato` (recepção e gestão). Editar cliente existente continua `clientes:editar`. Antes, o profissional recebia o contato de todos os clientes em `/clientes` e `/catalog`.
+  - **Lembretes:** por WhatsApp só com `agenda:lembretes` (recepção e gestão). O profissional vê, no app, os próprios horários a confirmar, sem contato. Notificação push no aparelho não existe hoje (exige infraestrutura de push e consentimento); fica encaminhada.
+  - **Corrida (achado BAIXO 2):** a migration 012 foi ajustada antes do merge (autorizado pelo dono, "5. Sim"): a RPC recebe a lista lida (`p_esperado`) e recusa se ela mudou (409 `PERMISSIONS_CHANGED`); vínculo inativo só perde permissões.
+  - **Troca de papel ou desativação (achado BAIXO 3):** as permissões individuais saem, com eventos de revogação na trilha.
+  - **Segunda passada do Red Team (2026-11-15), sem achado crítico ou alto, quatro correções:** cadastro rápido de quem não edita clientes grava só nome e WhatsApp (cliente ativo, sem faltas) e recusa número já cadastrado (evita bloquear o agendamento online de um número); a RPC também confere o papel lido (`p_role_esperado`) e a troca de papel grava o papel novo antes de zerar as permissões, com releitura; extra antigo que o papel atual não recebe deixa de valer e sempre pode ser revogado pelo proprietário; observações dos horários de colegas não vão para o profissional com agenda de todos. A 012 remove versões anteriores da função.
+- **Decisões do dono (2026-11-15):**
+  - **Padrões do profissional mantidos:** ele continua agendando, encaixando, remarcando e cancelando os próprios horários sem permissão extra.
+  - **"Ninguém mexe no próprio dinheiro", ligado e desligado pelo proprietário:** quem não é o proprietário e está vinculado a um cadastro de profissional (ex.: gerente que também atende) não paga nem estorna a própria comissão, não estorna comanda com atendimento ou venda própria, não muda o próprio cadastro (comissão), os próprios serviços e overrides, nem a própria meta (403 `OWN_MONEY_FORBIDDEN`). O proprietário libera por gerente com a permissão individual `financeiro:proprio` (só para o papel gerente, só o proprietário concede) e retira quando quiser; vale na próxima ação. **Padrão: regra ligada** (mínimo acesso). Sem migration: usa as permissões individuais da 012.
+  - Limite: a comissão definida pelo cargo (vale para várias pessoas, inclusive o próprio gerente) não entra na regra.
+- **Pendente:** a tela só reflete a mudança de permissão após novo login (o servidor já aplica na hora).
+- **Verificação:** `gate_012.sql` (7 blocos, controles negativos, corrida de lista e de papel, ciclo de rollback); `permissoes-gate` G01–G22; `identity-gate` U10/U15 ajustados (profissional cadastra cliente novo, não edita); Red Team de inventário (C05); E2E `permissoes` (conceder agenda de todos e comanda, usar, lembretes sem WhatsApp, cadastro rápido de cliente, comanda de colega, revogar com sessão aberta → 403, histórico; recepção em 390, 820 e 1280 px).
+
+## D-033 — Disponibilidade da unidade e escalas dos profissionais (migration 013)
+- **Decisão (Platform Owner, 2026-11-15):** "Todas as recomendações aprovadas" sobre [`planning/DISPONIBILIDADE_ESCALAS.md`](planning/DISPONIBILIDADE_ESCALAS.md), o que **autoriza a migration 013**:
+  - o profissional pode bloquear o próprio horário (só bloqueio e ausência);
+  - agendar fora da disponibilidade só com `agenda:encaixar`, marcando "forçar", com registro;
+  - o horário atual de cada profissional vira escala publicada; profissionais novos nascem indisponíveis até publicar.
+- **Auditoria (antes):** não havia disponibilidade padrão do profissional. Ele herdava inteiro o horário da empresa (`empresas.horario_por_dia`, um período por dia), com um almoço global, e `profissionais.horario` não tinha tela. Não havia exceção por data. O agendamento pela equipe não conferia o expediente.
+- **Fonte única:** `disponibilidade_semanal` (unidade e profissional, vários períodos, alternância de semanas) + `disponibilidade_excecoes` (unidade: horário excepcional e fechamento integral ou parcial; profissional: horário excepcional, ausência, bloqueio) + `profissionais.escala_publicada_em`.
+  - Os jsonb antigos foram convertidos na migration e não são mais lidos pelo cálculo, salvo em banco ainda sem a 013.
+  - O assistente de configuração converte o horário simples para a escala da unidade.
+- **Precedência** (`DisponibilidadeEngine`):
+  1. Fechamento integral da unidade.
+  2. Horário excepcional da unidade.
+  3. Semanal da unidade.
+  4. Ausência do profissional.
+  5. Horário excepcional do profissional.
+  6. Semanal publicado do profissional.
+  7. Bloqueios e fechamentos parciais retiram trechos.
+
+  Efetivo = unidade ∩ profissional − bloqueios − atendimentos, com o serviço inteiro cabendo. Abrir a unidade num dia excepcional não libera ninguém. Sem regra, nada é oferecido.
+- **Servidor:**
+  - `GET /agenda/slots`, o agendamento online e a ocupação usam o mesmo cálculo.
+  - `POST /agenda`, remarcação e aumento de duração recusam fora da disponibilidade (409 `FORA_DA_DISPONIBILIDADE`), salvo encaixe forçado, registrado no evento de criação.
+  - Empresa sem nenhuma regra da unidade mantém o comportamento anterior.
+- **Conflitos:** mudança que deixa agendamentos de fora devolve 409 `CONFLITOS_PENDENTES` com a lista. Só grava quando quem tem `escala:conflitos` decide "manter" cada um; a decisão vai para a trilha imutável `disponibilidade_eventos` (antes, depois, decisões). Nada é cancelado ou movido sozinho.
+- **Permissões:**
+  - `escala:ver`: o profissional vê a própria escala; segue a agenda de todos.
+  - `escala:bloquear`: o profissional só bloqueia a própria escala.
+  - `escala:conflitos`: recepção e gestão.
+  - `escala:editar` e `unidade:horario`: gestão; nível sensível.
+- **Tela:** Conta → Escalas, com semana padrão da unidade e de cada profissional, datas especiais, "Usar o horário da unidade", conflitos com "Manter e salvar". A agenda mostra a origem quando não há horário e oferece "agendar mesmo assim" a quem pode encaixar.
+- **Red Team independente (2026-11-15), corrigido antes do merge:**
+  - **ALTO:** `profissionalId` em formato de lista fazia profissional ou recepção fecharem a unidade. Agora formato inválido cai na permissão mais forte e é recusado (422).
+  - **MÉDIO:** zerar o horário da unidade desligava a checagem do servidor. Agora só uma empresa sem nenhuma regra nem exceção mantém o comportamento anterior.
+  - **MÉDIO:** a conversão tirava o horário de profissional em dia em que a empresa não abria. Agora a unidade abre nesse trecho e só quem tinha horário atende.
+  - **MÉDIO:** salvar o assistente de configuração apagava a escala da unidade. Agora sincroniza só quando o horário muda de fato, exige `unidade:horario` e grava a escala antes do jsonb.
+  - **BAIXO:**
+    - o encaixe forçado na remarcação e na mudança de duração passou a ser registrado;
+    - semanas alternadas podem repetir o horário.
+  - **Riscos aceitos:**
+    - corrida entre o cálculo de conflitos e a gravação: um agendamento criado nesse intervalo vira conflito listado depois;
+    - divergências de borda entre a conversão SQL e o espelho JS em formatos antigos raros (`ativo` como texto, `24:00`).
+- **Fora desta onda:** alteração em lote, modelos de escala, importação e exportação CSV, visual semana × profissional no computador, várias unidades (o salão tem uma). Notificação push não existe.
+- **Verificação:**
+  - `gate_013.sql` (6 blocos: conversão, formas, funções, trilha imutável, acesso; ciclo de rollback);
+  - `disponibilidade-gate` D01–D14 (precedência; regressões do Red Team; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
+  - E2E `escalas` (data especial pela tela, efeito nos horários, conflito com "Manter e salvar", origem, recepção e profissional com o que podem).

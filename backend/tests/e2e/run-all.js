@@ -38,7 +38,9 @@ const CASOS = [
   { nome: 'comanda' },
   { nome: 'agora' },
   { nome: 'dashboard' },
-  { nome: 'split' }
+  { nome: 'split' },
+  { nome: 'permissoes' },
+  { nome: 'escalas' }
 ];
 // Linha "ROTULO erros: [...]" / "ERROS: [...]" / "ERRS: [...]" / "VIOLAÇÕES CSP: [...]" com conteúdo.
 const LISTA_NAO_VAZIA = /(erros|ERROS|ERRS|VIOLAÇÕES CSP):\s*\[(?!\])/;

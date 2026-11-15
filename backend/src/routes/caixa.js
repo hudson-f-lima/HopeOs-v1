@@ -38,7 +38,7 @@ function validarFundo(valor) {
   return Number(s);
 }
 
-router.get('/caixa/fechamento', authorize('relatorios:operacional'), async (req, res, next) => {
+router.get('/caixa/fechamento', authorize('caixa:conferir'), async (req, res, next) => {
   try {
     const { resumoDoDia, fechamentoPublico } = require('./financeiroOps');
     const data = validarData(req.query.data);

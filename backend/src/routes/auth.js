@@ -1,6 +1,7 @@
 // Sessão do principal user. O backend repassa ao provedor (Supabase Auth): a PWA
 // não precisa de SDK nem de chave do Supabase. Montado ANTES do requireAuth.
 const express = require('express');
+const { permissoesEfetivas } = require('../auth/permissoes');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { getAuthProvider } = require('../auth/provider');
@@ -107,6 +108,8 @@ router.get('/me', async (req, res, next) => {
       const store = getIdentityStore();
       const empresas = await Promise.all(memberships.map(async m => ({
         empresa_id: m.empresa_id, role: m.role, membership_id: m.id, profissional_id: m.profissional_id || null,
+        // D-032: o que a pessoa pode, já somando papel e permissões individuais. A tela usa isto.
+        permissoes: permissoesEfetivas(m.role, m.permissoes_extras),
         nome: ((await new SupabaseRepository(m.empresa_id).list('empresas', { id: m.empresa_id }))[0] || {}).nome || null,
         unidades: (await store.listUnidades(m.empresa_id)).filter(u => u.ativo !== false).map(u => ({ id: u.id, nome: u.nome }))
       })));

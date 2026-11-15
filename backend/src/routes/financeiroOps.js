@@ -3,7 +3,7 @@
 // (comissão) ou fechar o dia de novo (caixa). Tenant e autor vêm só do req.auth.
 const express = require('express');
 const { createAppError } = require('../errors');
-const { authorize, assertOwn } = require('../auth/rbac');
+const { authorize, assertOwn, assertNaoProprioDinheiro } = require('../auth/rbac');
 const { env } = require('../config/env');
 const clock = require('../config/clock');
 const { agoraNoFuso } = require('../engines/SlotEngine');
@@ -85,7 +85,7 @@ async function profissionalDaEmpresa(repo, id) {
 const publico = p => ({ id: p.id, profissionalId: p.profissional_id, tipo: p.tipo, valorCentavos: p.valor_centavos, data: String(p.data), referenciaMes: p.referencia_mes || null, observacao: p.observacao || null, estornaId: p.estorna_id || null });
 
 // ---------- Comissão ----------
-router.get('/comissoes/pagamentos', authorize('relatorios:proprio'), async (req, res, next) => {
+router.get('/comissoes/pagamentos', authorize('ganhos:ver'), async (req, res, next) => {
   try {
     const profissionalId = req.authz.own ? req.authz.profissionalId : String(req.query.profissionalId || '');
     if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'Informe profissionalId.', 422);
@@ -107,6 +107,7 @@ router.post('/comissoes/pagamentos', authorize('comissoes:pagar'), async (req, r
     const observacao = texto(b.observacao, 'observacao', { max: 500 });
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const prof = await profissionalDaEmpresa(repo, String(b.profissionalId || ''));
+    assertNaoProprioDinheiro(req, [prof.id]);
     const igual = e => e.profissional_id === prof.id && e.tipo === b.tipo && e.valor_centavos === valor;
     const ja = await idempotente(repo, 'comissao_pagamentos', key, igual);
     if (ja) return res.json({ ok: true, data: { ...publico(ja), idempotente: true } });
@@ -129,6 +130,7 @@ router.post('/comissoes/pagamentos/:id/estorno', authorize('comissoes:pagar'), a
     const [original] = await repo.list('comissao_pagamentos', { empresa_id: repo.empresaId, id: req.params.id });
     if (!original) throw createAppError('PAYMENT_NOT_FOUND', 'Lançamento não encontrado.', 404);
     if (original.tipo === 'estorno') throw createAppError('INVALID_REVERSAL', 'Estorno não pode ser estornado.', 422);
+    assertNaoProprioDinheiro(req, [original.profissional_id]);
     const igual = e => e.tipo === 'estorno' && e.estorna_id === original.id;
     const ja = await idempotente(repo, 'comissao_pagamentos', key, igual);
     if (ja) return res.json({ ok: true, data: { ...publico(ja), idempotente: true } });
@@ -149,7 +151,7 @@ async function resumoDoDia(repo, data, { fundoTrocoCentavos = 0, contadoDinheiro
   return aplicarAjustesCaixa(buildFechamentoCaixa({ data, comandos, pagamentos, movimentos, formasPagamento }), { ajustes, fundoTrocoCentavos, contadoDinheiroCentavos });
 }
 
-router.post('/caixa/ajustes', authorize('caixa:operar'), async (req, res, next) => {
+router.post('/caixa/ajustes', authorize('caixa:movimentar'), async (req, res, next) => {
   try {
     const b = corpo(req, ['tipo', 'valorCentavos', 'motivo', 'idempotencyKey']);
     const key = chave(b.idempotencyKey);
@@ -166,7 +168,7 @@ router.post('/caixa/ajustes', authorize('caixa:operar'), async (req, res, next) 
 
 const fechamentoPublico = f => ({ id: f.id, data: String(f.data), fundoTrocoCentavos: f.fundo_troco_centavos, esperadoDinheiroCentavos: f.esperado_dinheiro_centavos, contadoDinheiroCentavos: f.contado_dinheiro_centavos, diferencaCentavos: f.diferenca_centavos, totalBrutoCentavos: f.total_bruto_centavos, quantidadeComandas: f.quantidade_comandas, observacao: f.observacao || null, fechadoEm: f.created_at || null });
 
-router.post('/caixa/fechamentos', authorize('caixa:operar'), async (req, res, next) => {
+router.post('/caixa/fechamentos', authorize('caixa:fechar'), async (req, res, next) => {
   try {
     const b = corpo(req, ['data', 'contadoDinheiroCentavos', 'fundoTrocoCentavos', 'observacao', 'idempotencyKey']);
     const key = chave(b.idempotencyKey);

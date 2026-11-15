@@ -9,7 +9,7 @@
 // era 0 e a carga, o heatmap e os buracos ficavam vazios.
 // Datas sempre em UTC (YYYY-MM-DD → dia da semana), nunca no fuso local do processo.
 
-const { resolveJanela } = require('../SlotEngine');
+const { resolveJanela, periodosDoDia } = require('../SlotEngine');
 const { timeToMinutes } = require('../ScheduleEngine');
 
 // Status que ocupam a cadeira (inclui presença: aguardando/em_atendimento).
@@ -41,6 +41,8 @@ const sobreposicao = (a, b) => Math.max(0, Math.min(a.end, b.end) - Math.max(a.s
 
 // Intervalos de trabalho do profissional no dia (expediente menos almoço).
 function intervalosDeTrabalho(profissional, empresa, data) {
+  // Com a migration 013, a mesma disponibilidade dos horários oferecidos (D-033).
+  if (empresa && empresa.disponibilidade) return periodosDoDia({ profissional, empresa, data }).periodos;
   const j = resolveJanela({ profissional, empresa: empresa || {}, data });
   if (!j) return [];
   const a = almoco(empresa);

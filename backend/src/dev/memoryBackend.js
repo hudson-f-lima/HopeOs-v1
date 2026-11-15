@@ -282,7 +282,84 @@ function installMemoryBackend(seed = {}) {
     return resumoEstorno(evento, false);
   }); // fim da trava do estorno
   };
+
+  // ---------- Disponibilidade (D-033): espelho da migration 013 ----------
+  // Conversão dos horários antigos, como na migration: só para empresas do seed sem regras.
+  converterDisponibilidadeLegada(db);
+  const hhmm = t => String(t).slice(0, 5);
+  const semanalDe = (empresaId, profissionalId) => rows('disponibilidade_semanal')
+    .filter(r => r.empresa_id === empresaId && (r.profissional_id || null) === (profissionalId || null))
+    .sort((x, y) => x.dia_semana - y.dia_semana || hhmm(x.inicio).localeCompare(hhmm(y.inicio)))
+    .map(r => ({ diaSemana: r.dia_semana, inicio: hhmm(r.inicio), fim: hhmm(r.fim), aCadaSemanas: r.a_cada_semanas || 1, semanaAncora: r.semana_ancora || null }));
+  const evento = (empresaId, row) => rows('disponibilidade_eventos').push({ id: randomUUID(), empresa_id: empresaId, created_at: clock.agora().toISOString(), antes: [], depois: [], decisoes: [], ...row });
+  const profDaEmpresa = (empresaId, id) => {
+    if (id && !rows('profissionais').some(p => p.id === id && p.empresa_id === empresaId)) throw new Error('disponibilidade: profissional não encontrado na empresa');
+  };
+  const horaValida = t => /^\d{2}:\d{2}$/.test(String(t || ''));
+
+  P.definirDisponibilidadeSemanal = async function ({ profissionalId = null, periodos, publicar = false, actorId, decisoes = [] }) {
+    if (!actorId) throw new Error('disponibilidade: ator obrigatório');
+    profDaEmpresa(this.empresaId, profissionalId);
+    if (!Array.isArray(periodos) || periodos.length > 100 || periodos.some(x => !(Number.isInteger(x.diaSemana) && x.diaSemana >= 0 && x.diaSemana <= 6 && horaValida(x.inicio) && horaValida(x.fim) && x.fim > x.inicio))) {
+      throw new Error('disponibilidade: períodos inválidos');
+    }
+    const antes = semanalDe(this.empresaId, profissionalId);
+    db.disponibilidade_semanal = rows('disponibilidade_semanal').filter(r => !(r.empresa_id === this.empresaId && (r.profissional_id || null) === (profissionalId || null)));
+    for (const x of periodos) {
+      rows('disponibilidade_semanal').push({ id: randomUUID(), empresa_id: this.empresaId, profissional_id: profissionalId, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim, a_cada_semanas: x.aCadaSemanas || 1, semana_ancora: x.semanaAncora || null, created_by: actorId });
+    }
+    if (publicar && profissionalId) {
+      const p = rows('profissionais').find(r => r.id === profissionalId);
+      p.escala_publicada_em = clock.agora().toISOString();
+      p.escala_publicada_por = actorId;
+    }
+    const depois = semanalDe(this.empresaId, profissionalId);
+    evento(this.empresaId, { actor_id: actorId, acao: 'semanal_definir', profissional_id: profissionalId, antes, depois, decisoes });
+    return { antes, depois };
+  };
+
+  P.criarExcecoesDisponibilidade = async function ({ excecoes, actorId, decisoes = [] }) {
+    if (!actorId) throw new Error('disponibilidade: ator obrigatório');
+    if (!Array.isArray(excecoes) || !excecoes.length || excecoes.length > 50) throw new Error('disponibilidade: exceções inválidas');
+    const criadas = excecoes.map(x => {
+      profDaEmpresa(this.empresaId, x.profissionalId || null);
+      return { id: randomUUID(), empresa_id: this.empresaId, profissional_id: x.profissionalId || null, tipo: x.tipo, data_inicio: x.dataInicio, data_fim: x.dataFim, inicio: x.inicio || null, fim: x.fim || null, motivo: x.motivo || null, created_by: actorId, created_at: clock.agora().toISOString() };
+    });
+    rows('disponibilidade_excecoes').push(...criadas);
+    const semEmpresa = criadas.map(({ empresa_id, ...r }) => r);
+    evento(this.empresaId, { actor_id: actorId, acao: 'excecao_criar', profissional_id: criadas[0].profissional_id, depois: semEmpresa, decisoes });
+    return { ids: criadas.map(c => c.id), depois: semEmpresa };
+  };
+
+  P.removerExcecaoDisponibilidade = async function ({ id, actorId, decisoes = [] }) {
+    if (!actorId) throw new Error('disponibilidade: ator obrigatório');
+    const i = rows('disponibilidade_excecoes').findIndex(r => r.id === id && r.empresa_id === this.empresaId);
+    if (i < 0) throw new Error('disponibilidade: exceção não encontrada na empresa');
+    const [{ empresa_id, ...removida }] = rows('disponibilidade_excecoes').splice(i, 1);
+    evento(this.empresaId, { actor_id: actorId, acao: 'excecao_remover', profissional_id: removida.profissional_id, antes: [removida], decisoes });
+    return { removida };
+  };
   return db;
+}
+
+// Mesma conversão da migration 013 (disponibilidade_converter_legado): o horário que vale hoje
+// vira regra semanal (almoço da empresa vira intervalo) e quem existe fica com escala publicada.
+function converterDisponibilidadeLegada(db) {
+  const { periodosDaUnidade, periodosDoProfissional, periodosExtrasDaUnidade } = require('../engines/disponibilidadeLegado');
+  db.disponibilidade_semanal = db.disponibilidade_semanal || [];
+  db.disponibilidade_excecoes = db.disponibilidade_excecoes || [];
+  db.disponibilidade_eventos = db.disponibilidade_eventos || [];
+  const linha = (empresaId, profissionalId, x) => db.disponibilidade_semanal.push({
+    id: randomUUID(), empresa_id: empresaId, profissional_id: profissionalId, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim, a_cada_semanas: 1, semana_ancora: null
+  });
+  for (const e of db.empresas || []) {
+    if (db.disponibilidade_semanal.some(r => r.empresa_id === e.id)) continue;
+    const unidade = periodosDaUnidade(e);
+    const porProf = (db.profissionais || []).filter(x => x.empresa_id === e.id).map(p => ({ p, periodos: periodosDoProfissional(p, e) }));
+    [...unidade, ...periodosExtrasDaUnidade(unidade, porProf.map(x => x.periodos))].forEach(x => linha(e.id, null, x));
+    porProf.forEach(({ p, periodos }) => periodos.forEach(x => linha(e.id, p.id, x)));
+  }
+  for (const p of db.profissionais || []) if (!p.escala_publicada_em) p.escala_publicada_em = '2026-01-01T00:00:00.000Z';
 }
 
 module.exports = { installMemoryBackend };

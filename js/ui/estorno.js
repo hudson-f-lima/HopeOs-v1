@@ -3,7 +3,7 @@
 // A tela nunca calcula valor: manda itens/quantidades e a forma; o backend devolve
 // o valor revertido e grava a linha negativa no caixa de hoje.
 import { api } from '../api.js';
-import { state, stateBus } from '../state.js';
+import { state, stateBus, sessionPode } from '../state.js';
 import { escapeHtml, centsToBRL, openModal, closeModal } from '../utils.js';
 import { showToast } from './toast.js';
 
@@ -22,7 +22,7 @@ let chave = null;
 
 export function podeEstornar() {
   const s = state.session;
-  return Boolean(s && s.principal === 'user' && ['admin', 'gestor'].includes(s.role));
+  return Boolean(s && s.principal === 'user' && sessionPode('comanda:estornar') && sessionPode('comanda:historico'));
 }
 
 function renderLista(dados) {

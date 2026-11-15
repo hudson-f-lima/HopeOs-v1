@@ -29,7 +29,7 @@ function assertTransicaoStatus(statusAtual, novoStatus) {
 
 function validateCreateAgendamentoPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
-  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito } = body;
+  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade } = body;
 
   if (!servicoId) throw createAppError('SERVICE_ID_REQUIRED', 'servicoId obrigatório.', 422);
   if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'profissionalId obrigatório.', 422);
@@ -46,7 +46,8 @@ function validateCreateAgendamentoPayload(body) {
     data,
     horario,
     duracaoMin: duracaoMin !== undefined ? Number(duracaoMin) : undefined,
-    permitirConflito: permitirConflito === true
+    permitirConflito: permitirConflito === true,
+    foraDaDisponibilidade: foraDaDisponibilidade === true
   };
 }
 
@@ -59,7 +60,7 @@ function validateStatusChangePayload(body) {
 }
 
 function validateReagendamentoPayload(body) {
-  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito } = body || {};
+  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito, foraDaDisponibilidade } = body || {};
   if (!novaData) throw createAppError('DATE_REQUIRED', 'novaData obrigatória para reagendamento.', 422);
   if (!novoHorario) throw createAppError('TIME_REQUIRED', 'novoHorario obrigatório para reagendamento.', 422);
   return {
@@ -67,7 +68,8 @@ function validateReagendamentoPayload(body) {
     novoHorario,
     novoServicoId: novoServicoId || null,
     novoProfissionalId: novoProfissionalId || null,
-    permitirConflito: permitirConflito === true
+    permitirConflito: permitirConflito === true,
+    foraDaDisponibilidade: foraDaDisponibilidade === true
   };
 }
 

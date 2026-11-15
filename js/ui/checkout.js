@@ -1,5 +1,5 @@
 import { api, getInsightsRebooking, getInsightsAttach } from '../api.js';
-import { state, stateBus } from '../state.js';
+import { state, stateBus, sessionPode } from '../state.js';
 import {
   centsToBRL,
   brlToCents,
@@ -336,6 +336,8 @@ async function showRebookingSuggestion(clienteId, servicoId, profissionalId) {
   const card = document.getElementById('rebookingCard');
   if (!card) return;
   card.classList.add('hidden');
+  // Sugestões vêm do painel da operação; quem não tem (profissional) não chama a rota.
+  if (!sessionPode('painel:operacional')) return;
   try {
     const suggestion = await getInsightsRebooking(clienteId, servicoId);
     if (!suggestion || !suggestion.dataSugerida) return;
@@ -587,6 +589,7 @@ export function updateSubmitButtonState() {
 // F4.6: attach é sempre sugestão — nunca adiciona produto sozinho ao carrinho.
 async function ensureAttachLoaded() {
   if (state.insights.attach) return state.insights.attach;
+  if (!sessionPode('painel:operacional')) return null;
   try {
     const attach = await getInsightsAttach();
     state.insights.attach = attach;
