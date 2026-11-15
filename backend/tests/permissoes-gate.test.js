@@ -67,7 +67,7 @@ const banco = installMemoryBackend({
     { id: C1, empresa_id: E, nome: 'Carla Cliente', whatsapp: '11999990001', observacoes: 'alergia', faltas: 0, ativo: true },
     { id: C2, empresa_id: E, nome: 'Davi Cliente', whatsapp: '11999990002', observacoes: null, faltas: 2, ativo: true }
   ],
-  lista_espera: [], comandos: [], comando_itens: []
+  lista_espera: [], comandos: [{ id: 'c1000000-0000-4000-8000-0000000000d1', empresa_id: E, profissional_id: P2, status: 'fechado', data: hoje }], comando_itens: []
 });
 
 let base;
@@ -348,6 +348,33 @@ test('G21 agenda de todos: observações dos horários de colegas não vão para
   const rec = await request('GET', `/api/agenda?data=${hoje}`, { token: 'h.recep.s' });
   assert.ok(rec.data.data.some(a => a.observacoes === 'liga antes'), 'controle negativo: recepção vê');
   await definir('prof', []);
+});
+
+test('G22 ninguém mexe no próprio dinheiro: gerente que atende não paga a si, não estorna a própria comanda, não muda a própria comissão nem meta; o dono libera e retira', async () => {
+  const g = await ident.getMembership(M.gestor);
+  g.profissional_id = P2;
+  try {
+    const mes = hoje.slice(0, 7);
+    const meta = (prof, token = 'h.gestor.s') => request('PUT', '/api/metas', { token, body: { profissionalId: prof, mes, tipo: 'atendimentos', valorAlvo: 10 } });
+    const proprios = async () => [
+      await meta(P2),
+      await request('POST', '/api/comissoes/pagamentos', { token: 'h.gestor.s', body: { profissionalId: P2, tipo: 'vale', valorCentavos: 1000, idempotencyKey: `g22-${Date.now()}` } }),
+      await request('PATCH', `/api/profissionais/${P2}`, { token: 'h.gestor.s', body: { nome: 'Bruno' } }),
+      await request('POST', '/api/comandas/c1000000-0000-4000-8000-0000000000d1/estorno', { token: 'h.gestor.s', body: { tipo: 'total', motivoCodigo: 'outro', motivo: 'teste de regra do próprio dinheiro', idempotencyKey: `g22e-${Date.now()}` } })
+    ];
+    for (const r of await proprios()) assert.deepStrictEqual([r.status, code(r)], [403, 'OWN_MONEY_FORBIDDEN'], JSON.stringify(r.data));
+    assert.ok([200, 201].includes((await meta(P1)).status), 'controle negativo: na meta de outra pessoa o gerente age');
+    assert.ok([200, 201].includes((await meta(P2, 'h.admin.s')).status), 'o proprietário age sobre qualquer um');
+    const auto = await definir('gestor', ['financeiro:proprio'], 'h.gestor.s');
+    assert.deepStrictEqual([auto.status, motivo(auto)], [403, 'NAO_PODE_SI_MESMO']);
+    const outro = await definir('gestor', ['financeiro:proprio'], 'h.recep.s');
+    assert.strictEqual(outro.status, 403, 'só quem tem autoridade concede');
+    assert.deepStrictEqual(motivo(await definir('recep', ['financeiro:proprio'])), 'NAO_CONCEDIVEL_A_ESTE_PAPEL');
+    assert.strictEqual((await definir('gestor', ['financeiro:proprio'])).status, 200, 'o dono libera');
+    assert.ok([200, 201].includes((await meta(P2)).status), 'liberado: o gerente define a própria meta');
+    assert.strictEqual((await definir('gestor', [])).status, 200, 'o dono retira');
+    assert.deepStrictEqual(code(await meta(P2)), 'OWN_MONEY_FORBIDDEN', 'retirado: volta a ser recusado na próxima ação');
+  } finally { g.profissional_id = undefined; }
 });
 
 (async () => {

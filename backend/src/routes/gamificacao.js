@@ -3,7 +3,7 @@
 // `ranking_visivel_equipe`, e sem o valor em reais dos colegas.
 const express = require('express');
 const { createAppError } = require('../errors');
-const { authorize } = require('../auth/rbac');
+const { authorize, assertNaoProprioDinheiro } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { computeDesempenho, computeMetas, computeRanking, computeMetaSalao, sugerirMetas, mesesAnteriores, CRITERIOS } = require('../engines/insights/gamificacao');
 
@@ -85,6 +85,7 @@ router.put('/metas', authorize('metas:definir'), async (req, res, next) => {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const [prof] = b.profissionalId ? await repo.list('profissionais', { empresa_id: repo.empresaId, id: String(b.profissionalId) }) : [];
     if (!prof) throw createAppError('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado.', 404);
+    assertNaoProprioDinheiro(req, [prof.id]);
     const [atual] = await repo.list('metas', { empresa_id: repo.empresaId, profissional_id: prof.id, mes, tipo: b.tipo });
     if (remover) {
       if (atual) await repo.deleteScoped('metas', atual.id);

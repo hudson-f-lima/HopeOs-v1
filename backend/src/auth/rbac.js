@@ -140,6 +140,17 @@ function pode(auth, codigo) {
   try { return !authorizeAuth(auth, codigo).own; } catch { return false; }
 }
 
+// "Ninguém mexe no próprio dinheiro" (D-032, 2026-11-15): quem não é o proprietário e está
+// vinculado a um cadastro de profissional não age sobre o dinheiro desse cadastro, salvo se o
+// proprietário liberou (financeiro:proprio). Token legado e integração não têm profissional.
+function assertNaoProprioDinheiro(req, profissionalIds) {
+  const a = req.auth;
+  if (!a || a.principal_type !== 'user' || a.role === 'admin' || !a.profissional_id) return;
+  if (!(profissionalIds || []).includes(a.profissional_id)) return;
+  if (pode(a, 'financeiro:proprio')) return;
+  throw forbidden('OWN_MONEY_FORBIDDEN', 'Isto mexe no seu próprio dinheiro: só o proprietário faz, ou libera para você.');
+}
+
 // Escopo "Próprio": o recurso precisa pertencer ao profissional do usuário.
 function assertOwn(req, profissionalId) {
   if (req.authz && req.authz.own && profissionalId !== req.authz.profissionalId) {
@@ -147,4 +158,4 @@ function assertOwn(req, profissionalId) {
   }
 }
 
-module.exports = { ACTIONS, authorize, authorizePor, authorizeAuth, exigirTambem, assertOwn, pode };
+module.exports = { ACTIONS, authorize, authorizePor, authorizeAuth, exigirTambem, assertOwn, pode, assertNaoProprioDinheiro };

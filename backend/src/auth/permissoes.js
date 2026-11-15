@@ -31,7 +31,8 @@ const GESTAO_PROPRIO = { admin: T, gestor: T, profissional: P };
 
 const p = (codigo, grupo, rotulo, acao, padrao, nivel = 'operacao', extra = {}) => Object.freeze({
   codigo, grupo, rotulo, acao, padrao: Object.freeze(padrao), nivel,
-  profissional: Boolean(extra.profissional), segue: extra.segue || null, rotuloProfissional: extra.rotuloProfissional || null
+  profissional: Boolean(extra.profissional), segue: extra.segue || null, rotuloProfissional: extra.rotuloProfissional || null,
+  papeis: extra.papeis || null
 });
 const SEGUE_AGENDA = { segue: 'agenda:ver' };
 
@@ -70,7 +71,11 @@ const PERMISSOES = Object.freeze([
   p('ranking:ver', 'Ganhos e metas', 'Ver o ranking', 'ranking:read', GESTAO_PROPRIO, 'sensivel'),
   p('desempenho:ver', 'Ganhos e metas', 'Ver indicadores de desempenho', 'desempenho:read', GESTAO_PROPRIO, 'sensivel'),
   p('empresa:configurar', 'Administração', 'Dados da empresa e assistente de configuração', 'cadastros:write', GESTAO, 'administracao'),
-  p('equipe:permissoes', 'Administração', 'Conceder e revogar permissões individuais', 'admin', GESTAO, 'administracao')
+  p('equipe:permissoes', 'Administração', 'Conceder e revogar permissões individuais', 'admin', GESTAO, 'administracao'),
+  // Regra "ninguém mexe no próprio dinheiro" (decisão do dono, 2026-11-15): o gerente que também
+  // atende não paga a própria comissão, não estorna a própria comanda, não muda a própria
+  // comissão nem a própria meta. O proprietário liga e desliga isso por gerente com esta permissão.
+  p('financeiro:proprio', 'Administração', 'Agir sobre o próprio dinheiro (pagar a própria comissão, estornar a própria comanda, mudar a própria comissão e meta)', 'comissoes:pagar', { admin: T }, 'administracao', { papeis: ['gestor'] })
 ]);
 
 const POR_CODIGO = new Map(PERMISSOES.map(x => [x.codigo, x]));
@@ -86,7 +91,7 @@ function extrasValidos(extras) {
 
 // O papel pode receber esta permissão individualmente? (ação da agenda segue a visão; o
 // profissional só recebe o que não mexe em dinheiro.)
-const receptivel = (role, perm) => !perm.segue && (role !== 'profissional' || perm.profissional);
+const receptivel = (role, perm) => !perm.segue && (role !== 'profissional' || perm.profissional) && (!perm.papeis || perm.papeis.includes(role));
 
 // Alcance de um papel + extras numa permissão: 'total' | 'proprio' | null.
 function alcance(role, extras, codigo) {
@@ -135,6 +140,7 @@ function motivoRecusa({ ator, alvo, codigo }) {
   if (perm.padrao[alvo.role] === T) return 'JA_INCLUIDA_NO_PAPEL';
   if (perm.segue) return 'SEGUE_OUTRA_PERMISSAO';
   if (alvo.role === 'profissional' && !perm.profissional) return 'NAO_CONCEDIVEL_AO_PROFISSIONAL';
+  if (perm.papeis && !perm.papeis.includes(alvo.role)) return 'NAO_CONCEDIVEL_A_ESTE_PAPEL';
   if (perm.nivel !== 'operacao' && ator.role !== 'admin') return 'SO_ADMIN_CONCEDE';
   if (alcance(ator.role, ator.permissoes_extras, codigo) !== T) return 'FORA_DA_PROPRIA_AUTORIDADE';
   return null;

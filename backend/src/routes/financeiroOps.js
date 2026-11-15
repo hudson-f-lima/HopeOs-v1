@@ -3,7 +3,7 @@
 // (comissão) ou fechar o dia de novo (caixa). Tenant e autor vêm só do req.auth.
 const express = require('express');
 const { createAppError } = require('../errors');
-const { authorize, assertOwn } = require('../auth/rbac');
+const { authorize, assertOwn, assertNaoProprioDinheiro } = require('../auth/rbac');
 const { env } = require('../config/env');
 const clock = require('../config/clock');
 const { agoraNoFuso } = require('../engines/SlotEngine');
@@ -107,6 +107,7 @@ router.post('/comissoes/pagamentos', authorize('comissoes:pagar'), async (req, r
     const observacao = texto(b.observacao, 'observacao', { max: 500 });
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const prof = await profissionalDaEmpresa(repo, String(b.profissionalId || ''));
+    assertNaoProprioDinheiro(req, [prof.id]);
     const igual = e => e.profissional_id === prof.id && e.tipo === b.tipo && e.valor_centavos === valor;
     const ja = await idempotente(repo, 'comissao_pagamentos', key, igual);
     if (ja) return res.json({ ok: true, data: { ...publico(ja), idempotente: true } });
@@ -129,6 +130,7 @@ router.post('/comissoes/pagamentos/:id/estorno', authorize('comissoes:pagar'), a
     const [original] = await repo.list('comissao_pagamentos', { empresa_id: repo.empresaId, id: req.params.id });
     if (!original) throw createAppError('PAYMENT_NOT_FOUND', 'Lançamento não encontrado.', 404);
     if (original.tipo === 'estorno') throw createAppError('INVALID_REVERSAL', 'Estorno não pode ser estornado.', 422);
+    assertNaoProprioDinheiro(req, [original.profissional_id]);
     const igual = e => e.tipo === 'estorno' && e.estorna_id === original.id;
     const ja = await idempotente(repo, 'comissao_pagamentos', key, igual);
     if (ja) return res.json({ ok: true, data: { ...publico(ja), idempotente: true } });

@@ -93,6 +93,7 @@
 |---|---|---|---|---|---|---|---|
 | Dados da empresa e assistente de configuração | `empresa:configurar` | Sim | Sim | — | — | Só o proprietário | Não |
 | Conceder e revogar permissões individuais | `equipe:permissoes` | Sim | Sim | — | — | Só o proprietário | Não |
+| Agir sobre o próprio dinheiro (pagar a própria comissão, estornar a própria comanda, mudar a própria comissão e meta) | `financeiro:proprio` | Sim | — | — | — | Só o proprietário | Não |
 
 ## O que o profissional pode receber
 

@@ -33,7 +33,7 @@ const { createAppError } = require('../errors');
 const { InsightsService } = require('../services/InsightsService');
 const { RetentionService } = require('../services/RetentionService');
 
-const { authorize, assertOwn, authorizePor, exigirTambem, pode } = require('../auth/rbac');
+const { authorize, assertOwn, authorizePor, exigirTambem, pode, assertNaoProprioDinheiro } = require('../auth/rbac');
 const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
@@ -214,6 +214,7 @@ router.patch('/profissionais/:id', authorize('catalogo:editar'), async (req, res
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     await requireScopedEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    assertNaoProprioDinheiro(req, [id]);
     const payload = validateUpdateProfissionalPayload(req.body);
     await assertRefsDaEmpresa(repo, payload);
     res.json({ ok: true, data: await repo.updateScoped('profissionais', id, payload) });
@@ -361,6 +362,7 @@ router.put('/profissionais/:id/servicos', authorize('catalogo:editar'), async (r
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const id = validateUUID(req.params.id, 'id');
     const profissional = await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    assertNaoProprioDinheiro(req, [id]);
     const { servicoIds } = validateProfissionalServicosPayload(req.body);
     for (const servicoId of servicoIds) {
       await requireActiveEntity(repo, 'servicos', servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
@@ -376,6 +378,7 @@ router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('catal
     const id = validateUUID(req.params.id, 'id');
     const servicoId = validateUUID(req.params.servicoId, 'servicoId');
     await requireActiveEntity(repo, 'profissionais', id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    assertNaoProprioDinheiro(req, [id]);
     await requireActiveEntity(repo, 'servicos', servicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     const links = await repo.list('profissional_servicos', {
       empresa_id: repo.empresaId,
@@ -829,6 +832,12 @@ router.post('/comandas/:id/estorno', authorize('comanda:estornar'), async (req, 
     if (!autoria.actorId) throw createAppError('USER_PRINCIPAL_REQUIRED', 'Estorno exige login de usuário.', 403);
     const data = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
     const repo = new SupabaseRepository(req.auth.empresa_id);
+    // Comanda com atendimento ou venda do próprio gerente: regra do próprio dinheiro.
+    const [comanda, itens] = await Promise.all([
+      repo.list('comandos', { empresa_id: repo.empresaId, id }),
+      repo.list('comando_itens', { empresa_id: repo.empresaId, comando_id: id })
+    ]);
+    assertNaoProprioDinheiro(req, [...comanda, ...itens].map(x => x.profissional_id).filter(Boolean));
     const resultado = await repo.estornarComanda(id, { ...pedido, data }, autoria.actorId);
     res.status(resultado.idempotent ? 200 : 201).json({ ok: true, data: resultado });
   } catch (err) { next(err); }
