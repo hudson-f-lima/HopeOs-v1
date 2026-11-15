@@ -10,7 +10,9 @@ const el = id => document.getElementById(id);
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const TIPO = { horario: 'Horário excepcional', fechamento: 'Fechado', ausencia: 'Ausência', bloqueio: 'Bloqueio' };
 let dados = null;
-let alvoSemanal = null; // { profissionalId|null, nome }
+let alvoSemanal = null; // { profissionalId|null } ou { modeloId|null, modelo: true }
+let modelos = [];
+let loteOk = null; // corpo da última prévia sem pendências
 let pendente = null; // { enviar(decisoes), erroId }
 
 const dataBR = d => d.split('-').reverse().join('/');
@@ -50,17 +52,31 @@ function render() {
     </div>`;
   }).join('') || '<p class="body-sm text-tertiary">Nenhuma exceção marcada daqui para a frente.</p>';
   const podeExcecao = podeUnidade || podeEditar || podeBloquear;
+  const listaModelos = sessionPode('escala:modelos') ? `
+    <h3 class="esc-sub">Modelos de escala</h3>
+    <button type="button" class="btn btn-secondary esc-btn" id="btnEscNovoModelo">Novo modelo</button>
+    ${modelos.map(m => `<div class="esc-linha"><span class="esc-quem"><b>${escapeHtml(m.nome)}</b><span>${escapeHtml(resumoSemanal(m.periodos))}</span></span>
+      <span class="esc-acoes">
+        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-editar="${escapeHtml(m.id)}">Editar</button>
+        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-duplicar="${escapeHtml(m.id)}">Duplicar</button>
+        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-arquivar="${escapeHtml(m.id)}">Arquivar</button>
+      </span></div>`).join('') || '<p class="body-sm text-tertiary">Nenhum modelo. Crie um para repetir escalas (ex.: Equipe de sábado, Véspera de Natal).</p>'}` : '';
   el('escConteudo').innerHTML = `
+    ${sessionPode('escala:lote') ? '<button type="button" class="btn btn-primary" id="btnEscLote">Alterar vários de uma vez</button>' : ''}
     <h3 class="esc-sub">Semana padrão</h3>${unidade}${profs}
     <h3 class="esc-sub">Datas especiais</h3>
     ${podeExcecao ? '<button type="button" class="btn btn-primary" id="btnEscNovaExcecao">Nova data especial</button>' : ''}
-    <div id="escExcecoes">${excecoes}</div>`;
+    <div id="escExcecoes">${excecoes}</div>
+    ${listaModelos}`;
 }
 
 export async function carregarEscalas() {
   if (!sessionPode('escala:ver')) return;
   try {
-    dados = await api('/disponibilidade');
+    [dados, modelos] = await Promise.all([
+      api('/disponibilidade'),
+      sessionPode('escala:modelos') ? api('/disponibilidade/modelos').catch(() => []) : Promise.resolve([])
+    ]);
     render();
   } catch (err) {
     el('escConteudo').innerHTML = `<p class="body-sm" role="alert" style="color:var(--md-error)">${escapeHtml(err.message)}</p>`;
@@ -104,8 +120,8 @@ function linhaPeriodo(dia, p = { inicio: '', fim: '' }) {
   </div>`;
 }
 
-function preencherSemana(semanal) {
-  el('escSemana').innerHTML = DIAS.map((nome, dia) => `
+function preencherSemana(semanal, caixa = 'escSemana') {
+  el(caixa).innerHTML = DIAS.map((nome, dia) => `
     <fieldset class="esc-dia" data-dia="${dia}">
       <legend>${escapeHtml(nome)}</legend>
       <div class="esc-periodos">${semanal.filter(p => p.diaSemana === dia).map(p => linhaPeriodo(dia, p)).join('')}</div>
@@ -113,9 +129,25 @@ function preencherSemana(semanal) {
     </fieldset>`).join('');
 }
 
+function abrirModelo(modeloId) {
+  pendente = null;
+  clearModalError('escSemanalErro');
+  const m = modeloId ? modelos.find(x => x.id === modeloId) : null;
+  alvoSemanal = { modelo: true, modeloId: modeloId || null };
+  el('escSemanalTitulo').textContent = m ? `Modelo: ${m.nome}` : 'Novo modelo de escala';
+  el('escSemanalAjuda').textContent = 'Um modelo guarda horários por dia da semana para aplicar depois a várias pessoas (em "Alterar vários"). Mudar o modelo não muda o que já foi aplicado.';
+  el('escSemanalNomeBox').classList.remove('hidden');
+  el('escSemanalNome').value = m ? m.nome : '';
+  el('btnEscUsarUnidade').classList.remove('hidden');
+  preencherSemana(m ? m.periodos : []);
+  el('btnEscSemanalSalvar').textContent = 'Salvar modelo';
+  openModal('modalEscSemanal');
+}
+
 function abrirSemanal(profissionalId) {
   pendente = null;
   clearModalError('escSemanalErro');
+  el('escSemanalNomeBox').classList.add('hidden');
   const prof = profissionalId ? dados.profissionais.find(p => p.id === profissionalId) : null;
   alvoSemanal = { profissionalId: profissionalId || null };
   el('escSemanalTitulo').textContent = prof ? `Escala de ${prof.nome}` : 'Horário da unidade';
@@ -128,8 +160,8 @@ function abrirSemanal(profissionalId) {
   openModal('modalEscSemanal');
 }
 
-function lerSemana() {
-  return [...el('escSemana').querySelectorAll('.esc-periodo')]
+function lerSemana(caixa = 'escSemana') {
+  return [...el(caixa).querySelectorAll('.esc-periodo')]
     .map(l => ({ diaSemana: Number(l.dataset.dia), inicio: l.querySelector('.esc-ini').value, fim: l.querySelector('.esc-fim').value }))
     .filter(p => p.inicio || p.fim);
 }
@@ -137,6 +169,16 @@ function lerSemana() {
 async function salvarSemanal() {
   clearModalError('escSemanalErro');
   const periodos = lerSemana();
+  if (alvoSemanal.modelo) {
+    const corpoModelo = { nome: el('escSemanalNome').value.trim(), periodos };
+    try {
+      await (alvoSemanal.modeloId
+        ? api(`/disponibilidade/modelos/${alvoSemanal.modeloId}`, { method: 'PATCH', body: corpoModelo })
+        : api('/disponibilidade/modelos', { method: 'POST', body: corpoModelo }));
+      closeModal('modalEscSemanal'); showBanner('Modelo salvo.', 'ok'); carregarEscalas();
+    } catch (err) { showModalError('escSemanalErro', err.message); }
+    return;
+  }
   const url = alvoSemanal.profissionalId ? `/disponibilidade/profissionais/${alvoSemanal.profissionalId}/semanal` : '/disponibilidade/unidade/semanal';
   const enviar = decisoes => api(url, { method: 'PUT', body: alvoSemanal.profissionalId ? { periodos, publicar: true, decisoes } : { periodos, decisoes } });
   const botao = el('btnEscSemanalSalvar');
@@ -218,6 +260,107 @@ async function removerExcecao(id) {
   }
 }
 
+// ---------- Alterar vários de uma vez (D-035) ----------
+const ACOES_LOTE = [
+  ['ausencia', 'Ausência (dia inteiro): folga, férias, treinamento'],
+  ['bloqueio', 'Bloquear parte do dia'],
+  ['horario', 'Horário excepcional nestas datas'],
+  ['fechamento', 'Fechar a unidade (só para a unidade)'],
+  ['semanal', 'Mesma semana padrão para todos os escolhidos'],
+  ['modelo_semanal', 'Aplicar um modelo como semana padrão'],
+  ['modelo_periodo', 'Aplicar um modelo nestas datas']
+];
+
+// Texto fixo (sem dado de cadastro): fica fora da interpolação.
+const ALVO_UNIDADE = '<label class="perm-item"><input type="checkbox" data-lote-alvo=""/><span>Unidade</span></label>';
+
+function abrirLote() {
+  pendente = null; loteOk = null;
+  clearModalError('escLoteErro');
+  el('escLotePrevia').innerHTML = '';
+  el('btnEscLoteAplicar').disabled = true;
+  el('escLoteAlvos').innerHTML = `
+    <label class="perm-item"><input type="checkbox" data-lote-todos/><span><b>Todos os profissionais</b></span></label>
+    ${sessionPode('unidade:horario') ? ALVO_UNIDADE : ''}
+    ${dados.profissionais.map(p => `<label class="perm-item"><input type="checkbox" data-lote-alvo="${escapeHtml(p.id)}"/><span>${escapeHtml(p.nome)}</span></label>`).join('')}`;
+  el('escLoteAcao').innerHTML = ACOES_LOTE.filter(([v]) => !v.startsWith('modelo') || modelos.length).map(([v, t]) => `<option value="${v}">${escapeHtml(t)}</option>`).join('');
+  el('escLoteModelo').innerHTML = modelos.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.nome)}</option>`).join('');
+  const hoje = todayStr();
+  el('escLoteDe').value = hoje; el('escLoteAte').value = hoje; el('escLoteMotivo').value = '';
+  el('escLotePeriodos').innerHTML = '';
+  preencherSemana([], 'escLoteSemana');
+  atualizarLote();
+  openModal('modalEscLote');
+}
+
+function atualizarLote() {
+  const a = el('escLoteAcao').value;
+  loteOk = null; el('btnEscLoteAplicar').disabled = true; el('escLotePrevia').innerHTML = '';
+  el('escLoteModeloBox').classList.toggle('hidden', !a.startsWith('modelo'));
+  el('escLoteDatasBox').classList.toggle('hidden', a === 'semanal' || a === 'modelo_semanal');
+  el('escLotePeriodosBox').classList.toggle('hidden', !['horario', 'bloqueio', 'fechamento'].includes(a));
+  el('escLoteSemanaBox').classList.toggle('hidden', a !== 'semanal');
+  if (['horario', 'bloqueio'].includes(a) && !el('escLotePeriodos').children.length) el('escLotePeriodos').innerHTML = linhaPeriodo(0);
+}
+
+function corpoLote() {
+  const marcados = [...el('escLoteAlvos').querySelectorAll('input[data-lote-alvo]:checked')].map(i => i.dataset.loteAlvo);
+  const a = el('escLoteAcao').value;
+  const datas = { dataInicio: el('escLoteDe').value, dataFim: el('escLoteAte').value || el('escLoteDe').value };
+  let operacao;
+  if (a === 'modelo_semanal') operacao = { modeloId: el('escLoteModelo').value, modo: 'semanal' };
+  else if (a === 'modelo_periodo') operacao = { modeloId: el('escLoteModelo').value, modo: 'periodo', ...datas };
+  else if (a === 'semanal') operacao = { tipo: 'semanal', periodos: lerSemana('escLoteSemana') };
+  else {
+    const periodos = [...el('escLotePeriodos').querySelectorAll('.esc-periodo')]
+      .map(l => ({ inicio: l.querySelector('.esc-ini').value, fim: l.querySelector('.esc-fim').value })).filter(p => p.inicio || p.fim);
+    operacao = { tipo: a, ...datas, ...(periodos.length && a !== 'ausencia' ? { periodos } : {}) };
+  }
+  const motivo = el('escLoteMotivo').value.trim();
+  if (motivo && !a.endsWith('semanal')) operacao.motivo = motivo;
+  return { incluirUnidade: marcados.includes(''), profissionalIds: marcados.filter(Boolean), operacao };
+}
+
+async function previaLote() {
+  clearModalError('escLoteErro');
+  loteOk = null; el('btnEscLoteAplicar').disabled = true;
+  const corpoAtual = corpoLote();
+  try {
+    const p = await api('/disponibilidade/lote', { method: 'POST', body: { ...corpoAtual, simular: true } });
+    const afet = p.afetados.map(x => `<li>${escapeHtml(dataBR(x.data))} ${escapeHtml(x.horario)} · ${escapeHtml(x.profissional || '')}${x.cliente ? ` · ${escapeHtml(x.cliente)}` : ''}</li>`).join('');
+    const inval = p.invalidos.map(x => `<li>${escapeHtml(x.alvo)}: ${escapeHtml(x.motivo)}</li>`).join('');
+    el('escLotePrevia').innerHTML = `
+      <p class="body-sm"><b>${escapeHtml(p.alteracao)}</b></p>
+      <p class="body-sm">Para: ${escapeHtml(p.alvos.map(x => x.nome).join(', ') || 'ninguém')}</p>
+      ${p.afetados.length ? `<p class="body-sm esc-alerta">${p.afetados.length} agendamento(s) ficariam fora do horário:</p><ul class="esc-conflitos">${afet}</ul>` : '<p class="body-sm">Nenhum agendamento afetado.</p>'}
+      ${p.invalidos.length ? `<p class="body-sm esc-alerta">Corrija antes de aplicar:</p><ul class="esc-conflitos">${inval}</ul>` : ''}`;
+    if (!p.invalidos.length && p.alvos.length) {
+      loteOk = corpoAtual;
+      el('btnEscLoteAplicar').disabled = false;
+      el('btnEscLoteAplicar').textContent = p.afetados.length ? 'Aplicar e manter os agendamentos' : 'Aplicar';
+      pendente = p.afetados.length ? { decisoes: p.afetados.map(x => ({ agendamentoId: x.agendamentoId, decisao: 'manter' })) } : null;
+    }
+  } catch (err) { showModalError('escLoteErro', err.message); }
+}
+
+async function aplicarLote() {
+  if (!loteOk) return;
+  const botao = el('btnEscLoteAplicar');
+  botao.disabled = true;
+  const ok = await enviarComConflitos('escLoteErro', decisoes => api('/disponibilidade/lote', { method: 'POST', body: { ...loteOk, decisoes } }), pendente ? pendente.decisoes : undefined);
+  if (ok) { closeModal('modalEscLote'); showBanner('Alteração aplicada a todos os escolhidos.', 'ok'); carregarEscalas(); }
+  else botao.disabled = false;
+}
+
+async function acaoModelo(tipo, id) {
+  try {
+    if (tipo === 'duplicar') await api(`/disponibilidade/modelos/${id}/duplicar`, { method: 'POST', body: {} });
+    if (tipo === 'arquivar') await api(`/disponibilidade/modelos/${id}`, { method: 'PATCH', body: { arquivado: true } });
+    showBanner(tipo === 'duplicar' ? 'Modelo duplicado.' : 'Modelo arquivado.', 'ok');
+    carregarEscalas();
+  } catch (err) { showBanner(err.message, 'error'); }
+}
+
 export function initEscalas() {
   if (!sessionPode('escala:ver')) return;
   el('subtabBtnEscalas')?.classList.remove('hidden');
@@ -226,10 +369,18 @@ export function initEscalas() {
     if (s) return abrirSemanal(s.dataset.escSemanal || null);
     const r = ev.target.closest('[data-esc-remover]');
     if (r) return removerExcecao(r.dataset.escRemover);
-    if (ev.target.closest('#btnEscNovaExcecao')) abrirExcecao();
+    if (ev.target.closest('#btnEscNovaExcecao')) return abrirExcecao();
+    if (ev.target.closest('#btnEscLote')) return abrirLote();
+    if (ev.target.closest('#btnEscNovoModelo')) return abrirModelo(null);
+    const me = ev.target.closest('[data-esc-modelo-editar]');
+    if (me) return abrirModelo(me.dataset.escModeloEditar);
+    const md = ev.target.closest('[data-esc-modelo-duplicar]');
+    if (md) return acaoModelo('duplicar', md.dataset.escModeloDuplicar);
+    const ma = ev.target.closest('[data-esc-modelo-arquivar]');
+    if (ma) return acaoModelo('arquivar', ma.dataset.escModeloArquivar);
   });
   // Períodos: + e − dentro dos dois modais.
-  for (const box of ['escSemana', 'escExcPeriodos']) {
+  for (const box of ['escSemana', 'escExcPeriodos', 'escLoteSemana', 'escLotePeriodos']) {
     el(box).addEventListener('click', ev => {
       const tirar = ev.target.closest('[data-esc-tirar]');
       if (tirar) tirar.closest('.esc-periodo').remove();
@@ -238,6 +389,17 @@ export function initEscalas() {
     });
   }
   el('btnEscExcMais').addEventListener('click', () => el('escExcPeriodos').insertAdjacentHTML('beforeend', linhaPeriodo(0)));
+  el('btnEscLoteMais').addEventListener('click', () => el('escLotePeriodos').insertAdjacentHTML('beforeend', linhaPeriodo(0)));
+  el('escLoteAcao').addEventListener('change', atualizarLote);
+  el('escLoteAlvos').addEventListener('change', ev => {
+    if (ev.target.matches('[data-lote-todos]')) el('escLoteAlvos').querySelectorAll('input[data-lote-alvo]:not([data-lote-alvo=""])').forEach(i => { i.checked = ev.target.checked; });
+    loteOk = null; el('btnEscLoteAplicar').disabled = true;
+  });
+  // Mudou qualquer campo depois da prévia: precisa ver a prévia de novo antes de aplicar.
+  for (const ev of ['input', 'change']) el('escLoteCampos').addEventListener(ev, () => { loteOk = null; el('btnEscLoteAplicar').disabled = true; });
+  el('btnEscLotePrevia').addEventListener('click', previaLote);
+  el('btnEscLoteAplicar').addEventListener('click', aplicarLote);
+  el('btnEscLoteCancelar').addEventListener('click', () => closeModal('modalEscLote'));
   el('btnEscUsarUnidade').addEventListener('click', () => preencherSemana(dados.unidade.semanal));
   el('btnEscSemanalSalvar').addEventListener('click', salvarSemanal);
   el('btnEscSemanalCancelar').addEventListener('click', () => closeModal('modalEscSemanal'));

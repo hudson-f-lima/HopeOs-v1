@@ -405,3 +405,31 @@
   - `gate_013.sql` (6 blocos: conversão, formas, funções, trilha imutável, acesso; ciclo de rollback);
   - `disponibilidade-gate` D01–D14 (precedência; regressões do Red Team; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
   - E2E `escalas` (data especial pela tela, efeito nos horários, conflito com "Manter e salvar", origem, recepção e profissional com o que podem).
+
+## D-034 — search_path fixo nas funções auxiliares da 013 (migration 014)
+- **Contexto:** depois da aplicação da 013 em produção (2026-11-15), o advisor de segurança do Supabase acusou `function_search_path_mutable` (WARN) em `disponibilidade_janela_legada` e `disponibilidade_hora`. As duas só servem à conversão dos horários antigos e não são executáveis por anon, authenticated nem service_role. O risco prático é baixo, mas o aviso é real.
+- **Decisão (Platform Owner, 2026-11-15):** "1. Autorizado" (migration 014). A proteção contra senha vazada do Auth fica desligada por ora ("2. Ainda não").
+- **Migration 014:** `alter function ... set search_path = pg_catalog, public` nas duas funções. Rollback `014_down.sql`. `gate_014.sql` (3 blocos: search_path fixo com controle negativo, resultado das funções inalterado, nenhuma função nova da 012/013 sem search_path).
+
+## D-035 — Escalas: alteração em lote e modelos (migration 015)
+- **Decisão (Platform Owner, 2026-11-15):**
+  - "Escalar a onda 2". A migration 015 cria `escala_modelos`, já previsto no desenho aprovado da D-033.
+  - Na mesma mensagem: deixar a importação do app Barber como está e fazer o desenho completo do clube de assinatura sem escolher fornecedor.
+  - A troca do app Barber só quando o fluxo de agendamento estiver completo de ponta a ponta, inclusive o app do cliente.
+- **Entregue:**
+  - `POST /api/disponibilidade/lote` (`escala:lote`, gestão, sensível):
+    - alvos: unidade e/ou profissionais;
+    - o quê: ausência, bloqueio, horário excepcional, fechamento (só unidade), mesma semana padrão, modelo como semana padrão ou modelo num período (até 62 dias, horário excepcional só nos dias do modelo);
+    - `simular: true` devolve a prévia (quem, o quê, agendamentos afetados, itens inválidos) sem gravar;
+    - aplicar é tudo ou nada (`disponibilidade_lote`, pelas funções da 013, com a trilha);
+    - inválido → 422;
+    - conflitos → 409 até a decisão de quem tem `escala:conflitos`.
+  - Modelos (`escala:modelos`, gestão, sensível): listar, criar, editar, duplicar, arquivar e reativar. O nome é único entre os ativos. Aplicar copia: mudar o modelo não altera o que já foi aplicado.
+  - Tela Conta → Escalas:
+    - "Alterar vários de uma vez", com "Ver prévia" obrigatória antes de "Aplicar"; qualquer mudança depois da prévia exige nova prévia;
+    - lista de modelos com Editar, Duplicar e Arquivar.
+- **Correção no executor de E2E:** `run-all.js` passou a consumir o corpo das respostas ao esperar os servidores. A resposta não lida derrubava o processo com um assert interno do `fetch` do Node 22 quando o `index.html` cresceu; o problema foi reproduzido isolado.
+- **Verificação:**
+  - `gate_015.sql` (5 blocos: lote com trilha, tudo ou nada, mais de 50 exceções, modelos, acesso);
+  - `disponibilidade-gate` D15–D20 (prévia sem gravar, aplicação em lote, conflito no lote, ciclo de vida do modelo, modelo no período e como semana, permissões);
+  - E2E `escalas` (modelo pela tela; lote com prévia e aplicação).

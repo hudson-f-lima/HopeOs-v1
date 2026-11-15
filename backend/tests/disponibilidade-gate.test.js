@@ -270,6 +270,84 @@ test('D14 Red Team: conversão mantém o dia em que só o profissional tinha hor
   assert.strictEqual(outro.codigo, 'FOLGA', 'quem não tinha domingo continua sem');
 });
 
+// ---------- Onda 2 (D-035): lote e modelos ----------
+const lote = (body, token = 'h.admin.s') => request('POST', '/api/disponibilidade/lote', { token, body });
+const SAB2 = add(D7, 6);
+
+test('D15 lote com prévia: simular não grava; mostra quem, o quê, afetados e inválidos', async () => {
+  const antes = db.disponibilidade_excecoes.length;
+  const r = await lote({ profissionalIds: [P.a, P.b, 'a0000000-0000-4000-8000-0000000000ff'], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2, motivo: 'Treinamento' }, simular: true });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const p = r.data.data;
+  assert.deepStrictEqual([p.simulado, p.alvos.map(x => x.nome).sort(), p.operacoes.excecoes, p.invalidos.length], [true, ['Ana', 'Bruno'], 2, 1]);
+  assert.ok(/Ausência/.test(p.alteracao));
+  assert.strictEqual(db.disponibilidade_excecoes.length, antes, 'prévia não grava');
+  const sem = await lote({ profissionalIds: [P.a, 'a0000000-0000-4000-8000-0000000000ff'], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2 } });
+  assert.deepStrictEqual([sem.status, code(sem)], [422, 'LOTE_INVALIDO'], 'não aplica com item inválido');
+});
+
+test('D16 lote aplica tudo de uma vez: ausência para dois e fechamento da unidade, com trilha', async () => {
+  const ev = db.disponibilidade_eventos.length;
+  const r = await lote({ profissionalIds: [P.a, P.b], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2, motivo: 'Treinamento' } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  for (const p of [P.a, P.b]) assert.strictEqual((await slots(p, SAB2)).disponibilidade.codigo, 'AUSENCIA');
+  assert.ok(horas(await slots(P.edu, SAB2)).length > 0, 'controle negativo: quem não foi escolhido continua');
+  const fecha = await lote({ incluirUnidade: true, operacao: { tipo: 'fechamento', dataInicio: add(SAB2, 1), dataFim: add(SAB2, 1), motivo: 'Feriado' } });
+  assert.strictEqual(fecha.status, 200, JSON.stringify(fecha.data));
+  assert.ok(db.disponibilidade_eventos.length > ev, 'trilha gravada');
+});
+
+test('D17 lote que afeta agendamento: 409 com a lista; com decisão, aplica e mantém', async () => {
+  const sab3 = add(SAB2, 7);
+  const ag = await agendar(P.a, sab3, '10:00');
+  assert.strictEqual(ag.status, 201, JSON.stringify(ag.data));
+  const r = await lote({ profissionalIds: [P.a, P.b], operacao: { tipo: 'ausencia', dataInicio: sab3, dataFim: sab3 } });
+  assert.deepStrictEqual([r.status, code(r)], [409, 'CONFLITOS_PENDENTES']);
+  assert.deepStrictEqual(r.data.error.details.afetados.map(a => a.profissional), ['Ana']);
+  const ok = await lote({ profissionalIds: [P.a, P.b], operacao: { tipo: 'ausencia', dataInicio: sab3, dataFim: sab3 }, decisoes: [{ agendamentoId: ag.data.data.id, decisao: 'manter' }] });
+  assert.strictEqual(ok.status, 200);
+  assert.strictEqual(db.agendamentos.find(a => a.id === ag.data.data.id).status, 'agendado');
+});
+
+test('D18 modelos: criar, nome único, editar, duplicar, arquivar e reativar', async () => {
+  const c = await request('POST', '/api/disponibilidade/modelos', { body: { nome: 'Equipe de sábado', periodos: [{ diaSemana: 6, inicio: '08:00', fim: '14:00' }] } });
+  assert.strictEqual(c.status, 201, JSON.stringify(c.data));
+  const id = c.data.data.id;
+  assert.deepStrictEqual(code(await request('POST', '/api/disponibilidade/modelos', { body: { nome: ' equipe de SÁBADO ' } })), 'MODEL_NAME_EXISTS');
+  assert.strictEqual((await request('PATCH', `/api/disponibilidade/modelos/${id}`, { body: { periodos: [{ diaSemana: 6, inicio: '08:00', fim: '13:00' }] } })).data.data.periodos[0].fim, '13:00');
+  const dup = await request('POST', `/api/disponibilidade/modelos/${id}/duplicar`, { body: {} });
+  assert.deepStrictEqual([dup.status, dup.data.data.nome], [201, 'Equipe de sábado (cópia)']);
+  assert.strictEqual((await request('PATCH', `/api/disponibilidade/modelos/${dup.data.data.id}`, { body: { arquivado: true } })).data.data.arquivado, true);
+  const lista = (await request('GET', '/api/disponibilidade/modelos')).data.data.map(m => m.nome);
+  assert.deepStrictEqual(lista, ['Equipe de sábado'], 'arquivado sai da lista');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/modelos?arquivados=1')).data.data.length, 2);
+  for (const body of [{ nome: '' }, { nome: 'x'.repeat(81) }, { nome: 'Ok', periodos: [{ diaSemana: 9, inicio: '08:00', fim: '09:00' }] }]) {
+    assert.strictEqual((await request('POST', '/api/disponibilidade/modelos', { body })).status, 422, JSON.stringify(body));
+  }
+});
+
+test('D19 aplicar modelo num período cria horário excepcional só nos dias do modelo; mudar o modelo não muda o aplicado', async () => {
+  const [m] = (await request('GET', '/api/disponibilidade/modelos')).data.data;
+  const sab4 = add(SAB2, 14);
+  assert.strictEqual((await lote({ incluirUnidade: true, profissionalIds: [P.c], operacao: { modeloId: m.id, modo: 'periodo', dataInicio: add(sab4, -1), dataFim: add(sab4, 1) } })).status, 200);
+  const carla = await slots(P.c, sab4);
+  assert.deepStrictEqual([horas(carla)[0], horas(carla).sort().pop()], ['08:00', '12:00'], `${horas(carla)}`);
+  assert.ok(!db.disponibilidade_excecoes.some(e => e.profissional_id === P.c && e.data_inicio !== sab4 && e.tipo === 'horario' && e.data_inicio >= add(sab4, -1) && e.data_inicio <= add(sab4, 1)), 'só o sábado do período');
+  await request('PATCH', `/api/disponibilidade/modelos/${m.id}`, { body: { periodos: [{ diaSemana: 6, inicio: '09:00', fim: '10:00' }] } });
+  assert.strictEqual(horas(await slots(P.c, sab4))[0], '08:00', 'aplicado continua igual');
+  const semanal = await lote({ profissionalIds: [P.c], operacao: { modeloId: m.id, modo: 'semanal' } });
+  assert.strictEqual(semanal.status, 200, JSON.stringify(semanal.data));
+  assert.deepStrictEqual(db.disponibilidade_semanal.filter(r => r.profissional_id === P.c).map(r => `${r.dia_semana} ${r.inicio}-${r.fim}`), ['6 09:00-10:00'], 'como semana padrão substitui a escala dela');
+});
+
+test('D20 lote e modelos: só gestão; recepção, profissional e legado recusados', async () => {
+  for (const token of ['h.recep.s', 'h.edu.s', process.env.API_ACCESS_TOKEN]) {
+    assert.strictEqual((await lote({ profissionalIds: [P.a], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2 }, simular: true }, token)).status, 403, `lote ${token}`);
+    assert.strictEqual((await request('GET', '/api/disponibilidade/modelos', { token })).status, 403, `modelos ${token}`);
+  }
+  assert.strictEqual((await lote({ profissionalIds: [P.a], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2 }, simular: true }, 'h.gestor.s')).status, 200, 'controle negativo: gerente pode');
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

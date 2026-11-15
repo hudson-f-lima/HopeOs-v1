@@ -331,6 +331,16 @@ function installMemoryBackend(seed = {}) {
     return { ids: criadas.map(c => c.id), depois: semEmpresa };
   };
 
+  // Espelho da disponibilidade_lote (015): confere tudo antes; aplica pelas mesmas funções.
+  P.aplicarLoteDisponibilidade = async function ({ semanais, excecoes, actorId, decisoes = [] }) {
+    if (!actorId) throw new Error('disponibilidade: ator obrigatório');
+    if (!semanais.length && !excecoes.length) throw new Error('disponibilidade: lote vazio ou grande demais');
+    for (const x of [...semanais, ...excecoes]) profDaEmpresa(this.empresaId, x.profissionalId || null);
+    for (const s of semanais) await this.definirDisponibilidadeSemanal({ profissionalId: s.profissionalId || null, periodos: s.periodos, publicar: !!s.publicar, actorId, decisoes });
+    for (let i = 0; i < excecoes.length; i += 50) await this.criarExcecoesDisponibilidade({ excecoes: excecoes.slice(i, i + 50), actorId, decisoes });
+    return { semanais: semanais.length, excecoes: excecoes.length };
+  };
+
   P.removerExcecaoDisponibilidade = async function ({ id, actorId, decisoes = [] }) {
     if (!actorId) throw new Error('disponibilidade: ator obrigatório');
     const i = rows('disponibilidade_excecoes').findIndex(r => r.id === id && r.empresa_id === this.empresaId);
@@ -349,6 +359,7 @@ function converterDisponibilidadeLegada(db) {
   db.disponibilidade_semanal = db.disponibilidade_semanal || [];
   db.disponibilidade_excecoes = db.disponibilidade_excecoes || [];
   db.disponibilidade_eventos = db.disponibilidade_eventos || [];
+  db.escala_modelos = db.escala_modelos || [];
   const linha = (empresaId, profissionalId, x) => db.disponibilidade_semanal.push({
     id: randomUUID(), empresa_id: empresaId, profissional_id: profissionalId, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim, a_cada_semanas: 1, semana_ancora: null
   });

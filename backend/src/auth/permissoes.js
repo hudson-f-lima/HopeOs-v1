@@ -51,6 +51,9 @@ const PERMISSOES = Object.freeze([
   p('escala:conflitos', 'Escala', 'Decidir sobre agendamentos afetados por mudança de escala', 'agenda:write', OPERACAO),
   p('escala:editar', 'Escala', 'Definir e publicar a escala dos profissionais e horários excepcionais', 'cadastros:write', GESTAO, 'sensivel'),
   p('unidade:horario', 'Escala', 'Horário da unidade, aberturas e fechamentos', 'cadastros:write', GESTAO, 'sensivel'),
+  // D-035 (migration 015): alterar várias pessoas de uma vez e modelos de escala.
+  p('escala:lote', 'Escala', 'Alterar a escala de várias pessoas de uma vez e aplicar modelos', 'cadastros:write', GESTAO, 'sensivel'),
+  p('escala:modelos', 'Escala', 'Criar, editar, duplicar e arquivar modelos de escala', 'cadastros:write', GESTAO, 'sensivel'),
   p('espera:ver', 'Lista de espera', 'Ver a lista de espera', 'lista_espera:read', OPERACAO),
   p('espera:gerir', 'Lista de espera', 'Incluir e atualizar na lista de espera', 'lista_espera:write', OPERACAO),
   p('comanda:fechar', 'Comanda', 'Simular e fechar comanda', 'checkout:write', OPERACAO_PROPRIO, 'operacao',
