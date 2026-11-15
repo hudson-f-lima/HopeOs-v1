@@ -271,6 +271,9 @@ const ACOES_LOTE = [
   ['modelo_periodo', 'Aplicar um modelo nestas datas']
 ];
 
+// Texto fixo (sem dado de cadastro): fica fora da interpolação.
+const ALVO_UNIDADE = '<label class="perm-item"><input type="checkbox" data-lote-alvo=""/><span>Unidade</span></label>';
+
 function abrirLote() {
   pendente = null; loteOk = null;
   clearModalError('escLoteErro');
@@ -278,7 +281,7 @@ function abrirLote() {
   el('btnEscLoteAplicar').disabled = true;
   el('escLoteAlvos').innerHTML = `
     <label class="perm-item"><input type="checkbox" data-lote-todos/><span><b>Todos os profissionais</b></span></label>
-    ${sessionPode('unidade:horario') ? '<label class="perm-item"><input type="checkbox" data-lote-alvo=""/><span>Unidade</span></label>' : ''}
+    ${sessionPode('unidade:horario') ? ALVO_UNIDADE : ''}
     ${dados.profissionais.map(p => `<label class="perm-item"><input type="checkbox" data-lote-alvo="${escapeHtml(p.id)}"/><span>${escapeHtml(p.nome)}</span></label>`).join('')}`;
   el('escLoteAcao').innerHTML = ACOES_LOTE.filter(([v]) => !v.startsWith('modelo') || modelos.length).map(([v, t]) => `<option value="${v}">${escapeHtml(t)}</option>`).join('');
   el('escLoteModelo').innerHTML = modelos.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.nome)}</option>`).join('');
