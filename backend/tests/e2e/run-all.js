@@ -49,7 +49,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function esperar(url, ms = 20000) {
   const fim = Date.now() + ms;
   while (Date.now() < fim) {
-    try { if ((await fetch(url)).ok) return; } catch { /* ainda subindo */ }
+    // Lê o corpo inteiro: resposta não consumida + servidor fechando a conexão derruba o
+    // processo com um assert interno do undici (Node 22) quando o index.html é grande.
+    try { const r = await fetch(url); await r.arrayBuffer(); if (r.ok) return; } catch { /* ainda subindo */ }
     await sleep(200);
   }
   throw new Error(`timeout esperando ${url}`);
@@ -73,7 +75,7 @@ function rodar(cmd, args, opts, prefixo) {
 }
 
 async function portaLivre(porta) {
-  try { await fetch(`http://127.0.0.1:${porta}/`); } catch { return true; }
+  try { const r = await fetch(`http://127.0.0.1:${porta}/`); await r.arrayBuffer(); } catch { return true; }
   return false;
 }
 

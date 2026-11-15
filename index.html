@@ -982,12 +982,42 @@
   <div class="modal-box">
     <h2 id="escSemanalTitulo">Semana padrão</h2>
     <p class="body-sm text-tertiary" id="escSemanalAjuda" style="margin:0 0 10px;"></p>
+    <div class="field hidden" id="escSemanalNomeBox"><label for="escSemanalNome">Nome do modelo</label><input id="escSemanalNome" maxlength="80" placeholder="Ex.: Equipe de sábado"/></div>
     <button type="button" class="btn btn-secondary hidden" id="btnEscUsarUnidade">Usar o horário da unidade</button>
     <div id="escSemana"></div>
     <div class="modal-error hidden" id="escSemanalErro" role="alert"></div>
     <div style="display:flex;gap:8px;margin-top:12px;">
       <button class="btn btn-secondary" type="button" id="btnEscSemanalCancelar" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" type="button" id="btnEscSemanalSalvar" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalEscLote" role="dialog" aria-modal="true" aria-labelledby="escLoteTitulo">
+  <div class="modal-box">
+    <h2 id="escLoteTitulo">Alterar vários de uma vez</h2>
+    <p class="body-sm text-tertiary" style="margin:0 0 10px;">Escolha quem, o que fazer e veja a prévia antes de aplicar. Nada muda até você confirmar.</p>
+    <div id="escLoteCampos">
+      <fieldset class="perm-grupo"><legend>Para quem</legend><div id="escLoteAlvos"></div></fieldset>
+      <div class="field"><label for="escLoteAcao">O que fazer</label><select id="escLoteAcao"></select></div>
+      <div class="field hidden" id="escLoteModeloBox"><label for="escLoteModelo">Modelo</label><select id="escLoteModelo"></select></div>
+      <div class="esc-datas" id="escLoteDatasBox">
+        <div class="field"><label for="escLoteDe">De</label><input id="escLoteDe" type="date"/></div>
+        <div class="field"><label for="escLoteAte">Até</label><input id="escLoteAte" type="date"/></div>
+      </div>
+      <div class="hidden" id="escLotePeriodosBox">
+        <div id="escLotePeriodos"></div>
+        <button type="button" class="btn-link" id="btnEscLoteMais">+ período</button>
+      </div>
+      <div class="hidden" id="escLoteSemanaBox"><div id="escLoteSemana"></div></div>
+      <div class="field"><label for="escLoteMotivo">Motivo (opcional)</label><input id="escLoteMotivo" maxlength="200" placeholder="Ex.: treinamento, feriado, inventário"/></div>
+    </div>
+    <div id="escLotePrevia" class="esc-previa" aria-live="polite"></div>
+    <div class="modal-error hidden" id="escLoteErro" role="alert"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="btn btn-secondary" type="button" id="btnEscLoteCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-secondary" type="button" id="btnEscLotePrevia" style="flex:1;">Ver prévia</button>
+      <button class="btn btn-primary" type="button" id="btnEscLoteAplicar" style="flex:1;" disabled>Aplicar</button>
     </div>
   </div>
 </div>

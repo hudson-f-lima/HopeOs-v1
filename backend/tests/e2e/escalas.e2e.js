@@ -79,13 +79,33 @@ const slots = (p, prof, data) => p.evaluate(async ([prof, data, serv]) => {
   confere('origem da regra explicada na agenda', origem.slots.length === 0 && /ausente/i.test(origem.disponibilidade.origem), origem.disponibilidade.origem);
   const alvos = await a.$$eval('#escConteudo button, .esc-excecao button', ns => ns.filter(n => n.offsetParent).map(n => Math.round(n.getBoundingClientRect().height)));
   confere('alvos de toque ≥ 44px', alvos.every(h => h >= 44), JSON.stringify(alvos));
+  // ---- Onda 2 (D-035): modelo pela tela e alteração em lote com prévia ----
+  await a.click('#btnEscNovoModelo'); await a.waitForSelector('#modalEscSemanal:not(.hidden)');
+  await a.fill('#escSemanalNome', 'Equipe de sábado');
+  await a.click('#escSemana [data-esc-mais="6"]');
+  await a.fill('#escSemana .esc-dia[data-dia="6"] .esc-ini', '08:00'); await a.fill('#escSemana .esc-dia[data-dia="6"] .esc-fim', '12:00');
+  await a.click('#btnEscSemanalSalvar'); await a.waitForSelector('#modalEscSemanal', { state: 'hidden' });
+  await a.waitForSelector('[data-esc-modelo-editar]');
+  confere('modelo criado pela tela', (await db('escala_modelos')).some(m => m.nome === 'Equipe de sábado' && m.conteudo.length === 1));
+  const L = add(D, 9);
+  await a.click('#btnEscLote'); await a.waitForSelector('#modalEscLote:not(.hidden)');
+  await a.check(`#escLoteAlvos input[data-lote-alvo="${PROF_ANA}"]`); await a.check(`#escLoteAlvos input[data-lote-alvo="${PROF_BRUNO}"]`);
+  await a.selectOption('#escLoteAcao', 'ausencia');
+  await a.fill('#escLoteDe', L); await a.fill('#escLoteAte', L); await a.fill('#escLoteMotivo', 'Treinamento');
+  confere('aplicar só depois da prévia', await a.isDisabled('#btnEscLoteAplicar'));
+  await a.click('#btnEscLotePrevia'); await a.waitForSelector('#escLotePrevia p');
+  const previa = await a.textContent('#escLotePrevia');
+  confere('prévia mostra quem e o quê, sem gravar', /Ana/.test(previa) && /Bruno/.test(previa) && /Ausência/.test(previa) && !(await db('disponibilidade_excecoes')).some(e => e.data_inicio === L), previa.replace(/\s+/g, ' ').slice(0, 160));
+  await a.click('#btnEscLoteAplicar'); await a.waitForSelector('#modalEscLote', { state: 'hidden' });
+  const aus = (await db('disponibilidade_excecoes')).filter(e => e.data_inicio === L && e.tipo === 'ausencia').map(e => e.profissional_id).sort();
+  confere('lote aplicado aos dois', JSON.stringify(aus) === JSON.stringify([PROF_ANA, PROF_BRUNO].sort()), JSON.stringify(aus));
   console.log('ADMIN erros:', JSON.stringify(a.erros));
   await a.close();
 
   // ---- Recepção: vê, bloqueia, não muda horário da unidade nem escala ----
   const r = await entrar(b, 'recepcao@dev.local');
   await abrirEscalas(r);
-  confere('recepção sem botões de horário da unidade e de escala', await r.locator('[data-esc-semanal]').count() === 0);
+  confere('recepção sem botões de horário da unidade, escala, lote e modelos', await r.locator('[data-esc-semanal], #btnEscLote, #btnEscNovoModelo').count() === 0);
   await r.click('#btnEscNovaExcecao'); await r.waitForSelector('#modalEscExcecao:not(.hidden)');
   const alvosRecep = await r.$$eval('#escExcAlvo option', os => os.map(o => o.value));
   confere('recepção não fecha a unidade', !alvosRecep.includes(''), JSON.stringify(alvosRecep));

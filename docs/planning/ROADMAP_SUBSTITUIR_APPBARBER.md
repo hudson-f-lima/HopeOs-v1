@@ -25,6 +25,12 @@
 
 **Consequência no roteiro:** cada item da fase 1 nasce com a camada de inteligência dele, não como cópia. Exemplos: assinatura já com margem por plano e alerta de plano deficitário; comanda aberta já com baixa do insumo usado; importação já apontando clientes atrasados no retorno.
 
+## Decisões do dono (2026-11-15, à tarde)
+- **Condição para a troca:** só migrar do app Barber quando o **fluxo de agendamento estiver completo de ponta a ponta, inclusive o app do cliente** (agendamento online, confirmação, remarcação e cancelamento pelo cliente).
+- **Importação de dados:** fica para depois. Se for preciso, faz-se nova leitura de aprendizado no app Barber.
+- **Escalas, Onda 2** (lote e modelos): em construção.
+- **Clube de assinatura:** desenho completo, independente de fornecedor, pronto para escolher o fornecedor de pagamento depois ([`ASSINATURAS_DESENHO.md`](ASSINATURAS_DESENHO.md)).
+
 ## 1. Critério de saída da fase
 - **30 dias corridos** operando o salão **só no HOPE OS**, sem voltar ao app Barber para nenhuma tarefa.
 - O fechamento de caixa e as comissões do mês batem com a conferência manual do dono.

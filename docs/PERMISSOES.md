@@ -37,6 +37,8 @@
 | Decidir sobre agendamentos afetados por mudança de escala | `escala:conflitos` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
 | Definir e publicar a escala dos profissionais e horários excepcionais | `escala:editar` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 | Horário da unidade, aberturas e fechamentos | `unidade:horario` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
+| Alterar a escala de várias pessoas de uma vez e aplicar modelos | `escala:lote` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
+| Criar, editar, duplicar e arquivar modelos de escala | `escala:modelos` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 
 ### Lista de espera
 

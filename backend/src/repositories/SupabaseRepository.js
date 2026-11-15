@@ -281,6 +281,15 @@ class SupabaseRepository {
     return data;
   }
 
+  // Lote (D-035, migration 015): semanais e exceções numa transação só, pelas funções da 013.
+  async aplicarLoteDisponibilidade({ semanais, excecoes, actorId, decisoes = [] }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_lote', {
+      p_empresa_id: this.empresaId, p_semanais: semanais, p_excecoes: excecoes, p_actor_id: actorId, p_decisoes: decisoes
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async removerExcecaoDisponibilidade({ id, actorId, decisoes = [] }) {
     const { data, error } = await this.supabase.rpc('disponibilidade_excecao_remover', {
       p_empresa_id: this.empresaId, p_id: id, p_actor_id: actorId, p_decisoes: decisoes

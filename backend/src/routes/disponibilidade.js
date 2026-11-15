@@ -83,7 +83,8 @@ async function afetados(repo, { antes, depois, profissionalIds, de, ate }) {
       const ini = timeToMinutes(hhmm(a.horario));
       const dur = Number(a.duracao_min) || 30;
       const cabiaAntes = cabe(disponibilidadeDoDia({ data: a.data, ...antes, profissional: p }).periodos, ini, dur);
-      const cabeDepois = cabe(disponibilidadeDoDia({ data: a.data, ...depois, profissional: depois.publicar && p.id === depois.publicar ? { ...p, escala_publicada_em: 'agora' } : p }).periodos, ini, dur);
+      const publicados = [].concat(depois.publicar || []);
+      const cabeDepois = cabe(disponibilidadeDoDia({ data: a.data, semanal: depois.semanal, excecoes: depois.excecoes, profissional: publicados.includes(p.id) ? { ...p, escala_publicada_em: 'agora' } : p }).periodos, ini, dur);
       return cabiaAntes && !cabeDepois;
     })
     .sort((x, y) => `${x.data}${x.horario}`.localeCompare(`${y.data}${y.horario}`))
@@ -252,6 +253,189 @@ router.delete('/disponibilidade/excecoes/:id', authorize('escala:ver'), async (r
     const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois, profissionalIds: exc.profissional_id ? [exc.profissional_id] : null, de: String(exc.data_inicio).slice(0, 10), ate: String(exc.data_fim).slice(0, 10) }), b.decisoes);
     await repo.removerExcecaoDisponibilidade({ id, actorId: req.auth.actor_id, decisoes });
     res.json({ ok: true, data: { removida: id, decisoes } });
+  } catch (err) { next(err); }
+});
+
+// ---------- Modelos de escala (D-035, migration 015) ----------
+// Períodos por dia da semana, reutilizáveis. Aplicar copia; mudar o modelo não muda o aplicado.
+const publicoModelo = m => ({ id: m.id, nome: m.nome, periodos: Array.isArray(m.conteudo) ? m.conteudo : [], arquivado: Boolean(m.arquivado_em) });
+const nomeValido = v => {
+  const n = String(v === undefined || v === null ? '' : v).trim();
+  if (!n || n.length > 80) throw invalido('nome', 'Nome do modelo: de 1 a 80 caracteres.');
+  return n;
+};
+async function nomeLivre(repo, nome, ignorarId = null) {
+  const modelos = await repo.list('escala_modelos', { empresa_id: repo.empresaId });
+  if (modelos.some(m => !m.arquivado_em && m.id !== ignorarId && m.nome.trim().toLowerCase() === nome.toLowerCase())) {
+    throw createAppError('MODEL_NAME_EXISTS', 'Já existe um modelo ativo com esse nome.', 409);
+  }
+}
+async function modeloDaEmpresa(repo, id) {
+  if (!UUID.test(String(id || ''))) throw invalido('id', 'id inválido.');
+  const [m] = await repo.list('escala_modelos', { empresa_id: repo.empresaId, id });
+  if (!m) throw createAppError('NOT_FOUND', 'Modelo não encontrado.', 404);
+  return m;
+}
+const gravarModelo = async (repo, fn) => {
+  try { return await fn(); } catch (err) {
+    if (err && err.code === '23505') throw createAppError('MODEL_NAME_EXISTS', 'Já existe um modelo ativo com esse nome.', 409);
+    if (['42P01', 'PGRST205'].includes(err && err.code)) throw createAppError('NOT_AVAILABLE', 'Modelos ainda não disponíveis neste banco (migration 015).', 503);
+    throw err;
+  }
+};
+
+router.get('/disponibilidade/modelos', authorize('escala:modelos'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const modelos = await gravarModelo(repo, () => repo.list('escala_modelos', { empresa_id: repo.empresaId }));
+    const todos = req.query.arquivados === '1';
+    res.json({ ok: true, data: modelos.filter(m => todos || !m.arquivado_em).map(publicoModelo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')) });
+  } catch (err) { next(err); }
+});
+
+router.post('/disponibilidade/modelos', authorize('escala:modelos'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const b = corpo(req, ['nome', 'periodos']);
+    const nome = nomeValido(b.nome);
+    const periodos = periodosValidos(b.periodos || [], { comDia: true });
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    await nomeLivre(repo, nome);
+    const m = await gravarModelo(repo, () => repo.insertScoped('escala_modelos', { nome, conteudo: periodos, created_by: req.auth.actor_id, updated_by: req.auth.actor_id }));
+    res.status(201).json({ ok: true, data: publicoModelo(m) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/disponibilidade/modelos/:id', authorize('escala:modelos'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const b = corpo(req, ['nome', 'periodos', 'arquivado']);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const atual = await modeloDaEmpresa(repo, req.params.id);
+    const patch = { updated_at: new Date().toISOString(), updated_by: req.auth.actor_id };
+    if (b.nome !== undefined) patch.nome = nomeValido(b.nome);
+    if (b.periodos !== undefined) patch.conteudo = periodosValidos(b.periodos, { comDia: true });
+    if (b.arquivado !== undefined) {
+      if (typeof b.arquivado !== 'boolean') throw invalido('arquivado', 'arquivado deve ser verdadeiro ou falso.');
+      patch.arquivado_em = b.arquivado ? (atual.arquivado_em || new Date().toISOString()) : null;
+    }
+    const ficaAtivo = patch.arquivado_em === undefined ? !atual.arquivado_em : !patch.arquivado_em;
+    if (ficaAtivo) await nomeLivre(repo, patch.nome || atual.nome, atual.id);
+    const m = await gravarModelo(repo, () => repo.updateScoped('escala_modelos', atual.id, patch));
+    res.json({ ok: true, data: publicoModelo(m) });
+  } catch (err) { next(err); }
+});
+
+router.post('/disponibilidade/modelos/:id/duplicar', authorize('escala:modelos'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const b = corpo(req, ['nome']);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const origem = await modeloDaEmpresa(repo, req.params.id);
+    const nome = nomeValido(b.nome || `${origem.nome} (cópia)`.slice(0, 80));
+    await nomeLivre(repo, nome);
+    const m = await gravarModelo(repo, () => repo.insertScoped('escala_modelos', { nome, conteudo: origem.conteudo || [], created_by: req.auth.actor_id, updated_by: req.auth.actor_id }));
+    res.status(201).json({ ok: true, data: publicoModelo(m) });
+  } catch (err) { next(err); }
+});
+
+// ---------- Alteração em lote (D-035) ----------
+// Alvos: a unidade e/ou profissionais. O que fazer: semana padrão igual para todos, data especial
+// (horário, ausência, bloqueio, fechamento) ou um modelo (como semana padrão ou num período).
+// simular: true devolve a prévia (quem, o quê, agendamentos afetados, itens inválidos) sem gravar.
+const LOTE_TIPOS_PROF = ['semanal', 'horario', 'ausencia', 'bloqueio'];
+const LOTE_TIPOS_UNIDADE = ['semanal', 'horario', 'fechamento'];
+const ROTULO_LOTE = { semanal: 'Semana padrão', horario: 'Horário excepcional', ausencia: 'Ausência', bloqueio: 'Bloqueio', fechamento: 'Fechamento' };
+const datasEntre = (de, ate) => { const out = []; for (let d = de; d <= ate && out.length < 400; ) { out.push(d); const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 1); d = x.toISOString().slice(0, 10); } return out; };
+
+router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const b = corpo(req, ['incluirUnidade', 'profissionalIds', 'operacao', 'simular', 'decisoes']);
+    const ids = b.profissionalIds === undefined ? [] : b.profissionalIds;
+    if (!Array.isArray(ids) || ids.length > 100 || ids.some(x => typeof x !== 'string' || !UUID.test(x))) throw invalido('profissionalIds', 'profissionalIds deve ser uma lista de ids (até 100).');
+    const incluirUnidade = b.incluirUnidade === true;
+    if (!incluirUnidade && !ids.length) throw invalido('profissionalIds', 'Escolha a unidade ou ao menos um profissional.');
+    const op = b.operacao && typeof b.operacao === 'object' && !Array.isArray(b.operacao) ? b.operacao : null;
+    if (!op) throw invalido('operacao', 'operacao obrigatória.');
+
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [disp, profissionais] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId })]);
+    const profPorId = new Map(profissionais.map(p => [p.id, p]));
+    const invalidos = [];
+    const alvosProf = [...new Set(ids)].filter(id => {
+      const p = profPorId.get(id);
+      if (!p || p.ativo === false) { invalidos.push({ alvo: id, motivo: 'Profissional não encontrado ou inativo nesta empresa' }); return false; }
+      return true;
+    });
+
+    // O que fazer: tipo explícito ou modelo.
+    let tipo; let periodos = []; let dataInicio = null; let dataFim = null; let porData = null; let descricao;
+    const motivo = op.motivo === undefined || op.motivo === null ? null : String(op.motivo).trim().slice(0, 200) || null;
+    if (op.modeloId !== undefined) {
+      const m = await gravarModelo(repo, () => modeloDaEmpresa(repo, op.modeloId));
+      if (m.arquivado_em) throw invalido('modeloId', 'Modelo arquivado: reative antes de aplicar.');
+      const conteudo = periodosValidos(m.conteudo || [], { comDia: true });
+      if (op.modo === 'semanal') { tipo = 'semanal'; periodos = conteudo; descricao = `Modelo "${m.nome}" como semana padrão`; }
+      else if (op.modo === 'periodo') {
+        tipo = 'horario';
+        dataInicio = dataValida(op.dataInicio, 'dataInicio'); dataFim = dataValida(op.dataFim || op.dataInicio, 'dataFim');
+        if (dataFim < dataInicio || datasEntre(dataInicio, dataFim).length > 62) throw invalido('dataFim', 'Período de 1 a 62 dias.');
+        porData = datasEntre(dataInicio, dataFim).map(d => ({ data: d, periodos: conteudo.filter(x => x.diaSemana === new Date(`${d}T12:00:00Z`).getUTCDay()) })).filter(x => x.periodos.length);
+        if (!porData.length) throw invalido('modeloId', 'O modelo não tem horário em nenhum dia desse período.');
+        descricao = `Modelo "${m.nome}" de ${dataInicio} a ${dataFim}`;
+      } else throw invalido('modo', 'modo deve ser semanal ou periodo.');
+    } else {
+      tipo = op.tipo;
+      if (![...LOTE_TIPOS_PROF, ...LOTE_TIPOS_UNIDADE].includes(tipo)) throw invalido('tipo', 'tipo deve ser semanal, horario, ausencia, bloqueio ou fechamento.');
+      if (tipo === 'semanal') periodos = periodosValidos(op.periodos || [], { comDia: true });
+      else {
+        dataInicio = dataValida(op.dataInicio, 'dataInicio'); dataFim = dataValida(op.dataFim || op.dataInicio, 'dataFim');
+        if (dataFim < dataInicio || datasEntre(dataInicio, dataFim).length > 366) throw invalido('dataFim', 'Período de no máximo 1 ano.');
+        periodos = op.periodos === undefined ? [] : periodosValidos(op.periodos, { comDia: false });
+        if (['horario', 'bloqueio'].includes(tipo) && !periodos.length) throw invalido('periodos', 'Informe ao menos um período.');
+        if (tipo === 'ausencia' && periodos.length) throw invalido('periodos', 'Ausência é o dia inteiro.');
+      }
+      descricao = `${ROTULO_LOTE[tipo]}${dataInicio ? ` de ${dataInicio} a ${dataFim}` : ''}${periodos.length ? ` (${periodos.map(x => `${x.diaSemana !== undefined ? ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][x.diaSemana] + ' ' : ''}${x.inicio}–${x.fim}`).join(', ')})` : ''}`;
+    }
+    if (incluirUnidade && !LOTE_TIPOS_UNIDADE.includes(tipo)) invalidos.push({ alvo: 'Unidade', motivo: `${ROTULO_LOTE[tipo]} não se aplica à unidade` });
+    if (tipo === 'fechamento' && alvosProf.length) invalidos.push({ alvo: 'Profissionais', motivo: 'Fechamento vale só para a unidade; para profissional use ausência' });
+    const unidade = incluirUnidade && LOTE_TIPOS_UNIDADE.includes(tipo);
+    const profsValidos = tipo === 'fechamento' ? [] : alvosProf;
+
+    // Monta as operações e o "depois" para a prévia e os conflitos.
+    const semanais = []; const excecoes = [];
+    const alvos = [...(unidade ? [null] : []), ...profsValidos];
+    for (const alvo of alvos) {
+      if (tipo === 'semanal') semanais.push({ profissionalId: alvo, periodos, publicar: Boolean(alvo) });
+      else if (porData) porData.forEach(d => d.periodos.forEach(x => excecoes.push({ profissionalId: alvo, tipo: 'horario', dataInicio: d.data, dataFim: d.data, inicio: x.inicio, fim: x.fim, motivo })));
+      else if (periodos.length) periodos.forEach(x => excecoes.push({ profissionalId: alvo, tipo, dataInicio, dataFim, inicio: x.inicio, fim: x.fim, motivo }));
+      else excecoes.push({ profissionalId: alvo, tipo, dataInicio, dataFim, motivo });
+    }
+    const trocados = new Set(semanais.map(x => x.profissionalId || 'unidade'));
+    const depois = {
+      semanal: [
+        ...disp.semanal.filter(r => !trocados.has(r.profissional_id || 'unidade')),
+        ...semanais.flatMap(s => s.periodos.map(x => ({ profissional_id: s.profissionalId, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim, a_cada_semanas: x.aCadaSemanas || 1, semana_ancora: x.semanaAncora || null })))
+      ],
+      excecoes: [...disp.excecoes, ...excecoes.map(x => ({ profissional_id: x.profissionalId, tipo: x.tipo, data_inicio: x.dataInicio, data_fim: x.dataFim, inicio: x.inicio || null, fim: x.fim || null }))],
+      publicar: semanais.filter(x => x.publicar).map(x => x.profissionalId)
+    };
+    const lista = await afetados(repo, { antes: disp, depois, profissionalIds: unidade ? null : profsValidos, de: dataInicio || undefined, ate: dataFim || undefined });
+    const previa = {
+      alteracao: descricao,
+      alvos: alvos.map(a => ({ profissionalId: a, nome: a ? profPorId.get(a).nome : 'Unidade' })),
+      operacoes: { semanais: semanais.length, excecoes: excecoes.length },
+      afetados: lista,
+      invalidos
+    };
+    if (b.simular === true) return res.json({ ok: true, data: { simulado: true, ...previa } });
+    if (invalidos.length) throw createAppError('LOTE_INVALIDO', 'Há itens inválidos no lote; revise a seleção.', 422, { invalidos });
+    if (!alvos.length) throw invalido('profissionalIds', 'Nada a aplicar.');
+    const decisoes = decisoesPara(req, lista, b.decisoes);
+    const r = await repo.aplicarLoteDisponibilidade({ semanais, excecoes, actorId: req.auth.actor_id, decisoes });
+    res.json({ ok: true, data: { ...previa, aplicado: r, decisoes } });
   } catch (err) { next(err); }
 });
 
