@@ -69,7 +69,7 @@ Fatos observados. O que o salão **usa de verdade** ainda precisa de confirmaç�
 | # | Item | Camada inteligente | Exige | Ordem |
 |---|---|---|---|---|
 | 1 | **Importar dados do app Barber** (clientes, serviços, profissionais, planos, assinantes, pacotes e saldos) | Prévia com duplicatas pelo celular e clientes atrasados no retorno já apontados | Sem migration (valida dados) | 1 |
-| 2 | **Agenda: recorrência (b) + bloqueio de horário + feriados** | Recorrência respeita bloqueio e feriado e avisa o conflito antes de gravar | Migration 013 | 2 |
+| 2 | **Agenda: disponibilidade e escalas ([desenho](DISPONIBILIDADE_ESCALAS.md)) + recorrência (b) + bloqueio de horário + feriados** | Recorrência respeita bloqueio e feriado e avisa o conflito antes de gravar | Migration 013 | 2 |
 | 3 | **Comanda aberta** + **comissão de auxiliar (c)** | Margem do atendimento à vista antes de fechar, já descontada a parte do auxiliar | Migration | 3 |
 | 4 | **Saldo do cliente: pacotes (d) + vale-presente (f)** | Margem por pacote; alerta de pacote vencendo sem uso | Migration | 4 |
 | 5 | **Clube de assinatura** sobre o saldo do cliente | Margem por plano, assinante que usa acima do que paga, risco de cancelamento | Migration + fornecedor de pagamento | 5, com o **desenho começando já** |
