@@ -29,6 +29,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`planning/DESEMPENHO_MARGEM_ANALISE.md`](planning/DESEMPENHO_MARGEM_ANALISE.md) — análise da proposta de desempenho individual e margem por forma de pagamento (não aprovada)
 - [`planning/REDESIGN_PONTA_A_PONTA.md`](planning/REDESIGN_PONTA_A_PONTA.md) — planejamento do redesign de ponta a ponta: specs, viabilidade, ondas e critérios de aceite
 - [`PERMISSOES.md`](PERMISSOES.md) — matriz de permissões por papel (gerada de `backend/src/auth/permissoes.js`; conferida pelo gate)
+- [`planning/ROADMAP_SUBSTITUIR_APPBARBER.md`](planning/ROADMAP_SUBSTITUIR_APPBARBER.md) — fase 1: substituir o app Barber no salão do dono (planejamento)
 - [`planning/PERMISSOES_POR_PAPEL.md`](planning/PERMISSOES_POR_PAPEL.md) — desenho original das permissões (implementado em D-032)
 - [`redteam/`](redteam/) — correções e achados de Red Team
 - [`legacy/`](legacy/) — referências históricas; não representam a fundação física
