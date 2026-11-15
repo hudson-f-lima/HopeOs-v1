@@ -9,6 +9,9 @@ const { validateCreateServicoPayload, validateCreateFormaPagamentoPayload, valid
 const { listarPresets } = require('../onboarding/presets');
 const { calcularStatus } = require('../onboarding/status');
 const { periodosDaUnidade } = require('../engines/disponibilidadeLegado');
+const { agoraNoFuso } = require('../engines/SlotEngine');
+const { env } = require('../config/env');
+const clock = require('../config/clock');
 const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
 const { timeToMinutes, INACTIVE_STATUSES } = require('../engines/ScheduleEngine');
 
@@ -25,7 +28,7 @@ async function sincronizarHorarioDaUnidade(req, repo, atual, patch) {
   const depois = { semanal: [...disp.semanal.filter(r => r.profissional_id), ...periodos.map(x => ({ profissional_id: null, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim }))], excecoes: disp.excecoes };
   const [agendamentos, profissionais] = await Promise.all([repo.list('agendamentos', { empresa_id: repo.empresaId }), repo.list('profissionais', { empresa_id: repo.empresaId })]);
   const prof = new Map(profissionais.map(p => [p.id, p]));
-  const hojeStr = new Date().toISOString().slice(0, 10);
+  const hojeStr = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
   const fora = agendamentos.filter(a => !INACTIVE_STATUSES.includes(a.status) && a.data >= hojeStr && prof.has(a.profissional_id)).filter(a => {
     const ini = timeToMinutes(String(a.horario).slice(0, 5));
     const dur = Number(a.duracao_min) || 30;

@@ -25,6 +25,7 @@ import { initComissoes } from './ui/comissoes.js';
 import { initGanhos, abrirMetas } from './ui/ganhos.js';
 import { initTema } from './ui/tema.js';
 import { initPermissoes } from './ui/permissoes.js';
+import { initEscalas } from './ui/escalas.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
@@ -182,7 +183,7 @@ async function carregarSessao() {
   let atual = empresas.find(e => e.empresa_id === getSession().empresa_id);
   if (!atual) atual = empresas.length === 1 ? empresas[0] : await escolherEmpresa(empresas);
   selectEmpresa(atual.empresa_id);
-  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas, permissoes: atual.permissoes || null };
+  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas, permissoes: atual.permissoes || null, profissional_id: atual.profissional_id || null };
   hide('loginScreen');
 }
 
@@ -393,6 +394,7 @@ async function init() {
 
     initEquipe();
     initPermissoes();
+  initEscalas();
     initComissoes();
     initGanhos();
     initAgora();

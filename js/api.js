@@ -232,6 +232,7 @@ export async function api(path, options = {}, retried = false) {
     const erro = new Error(msg);
     erro.code = (json.error && json.error.code) || null;
     erro.status = res.status;
+    erro.details = (json.error && json.error.details) || null;
     throw erro;
   }
   return json.data;

@@ -749,12 +749,21 @@
       <button class="subtab-btn" data-subtab="clientes">Clientes</button>
       <button class="subtab-btn" data-subtab="espera">Espera</button>
       <button class="subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe">Equipe</button>
+      <button class="subtab-btn hidden" data-subtab="escalas" id="subtabBtnEscalas">Escalas</button>
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
     </div>
 
 
     <div class="subtab-content hidden" id="subtab-comissoes">
       <div id="comissoesConteudo"></div>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-escalas">
+      <section class="card" aria-labelledby="escTitulo">
+        <h2 class="m-0" id="escTitulo" style="margin-bottom:4px;">Horários e escalas</h2>
+        <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda só oferece horários dentro do horário da unidade e da escala de cada profissional, descontando datas especiais e bloqueios.</p>
+        <div id="escConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
+      </section>
     </div>
 
     <div class="subtab-content hidden" id="subtab-equipe">
@@ -965,6 +974,43 @@
     <div style="display:flex;gap:8px;margin-top:12px;">
       <button class="btn btn-secondary" type="button" id="btnPermCancelar" style="flex:1;">Cancelar</button>
       <button class="btn btn-primary" type="button" id="btnPermSalvar" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalEscSemanal" role="dialog" aria-modal="true" aria-labelledby="escSemanalTitulo">
+  <div class="modal-box">
+    <h2 id="escSemanalTitulo">Semana padrão</h2>
+    <p class="body-sm text-tertiary" id="escSemanalAjuda" style="margin:0 0 10px;"></p>
+    <button type="button" class="btn btn-secondary hidden" id="btnEscUsarUnidade">Usar o horário da unidade</button>
+    <div id="escSemana"></div>
+    <div class="modal-error hidden" id="escSemanalErro" role="alert"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-secondary" type="button" id="btnEscSemanalCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnEscSemanalSalvar" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalEscExcecao" role="dialog" aria-modal="true" aria-labelledby="escExcTitulo">
+  <div class="modal-box">
+    <h2 id="escExcTitulo">Data especial</h2>
+    <div class="field"><label for="escExcAlvo">Para</label><select id="escExcAlvo"></select></div>
+    <div class="field"><label for="escExcTipo">O que acontece</label><select id="escExcTipo"></select></div>
+    <div class="esc-datas">
+      <div class="field"><label for="escExcDe">De</label><input id="escExcDe" type="date"/></div>
+      <div class="field"><label for="escExcAte">Até</label><input id="escExcAte" type="date"/></div>
+    </div>
+    <div id="escExcPeriodosBox">
+      <p class="body-sm text-tertiary hidden" id="escExcDicaFechar">Sem período = o dia inteiro. Com período, fecha só esse trecho.</p>
+      <div id="escExcPeriodos"></div>
+      <button type="button" class="btn-link" id="btnEscExcMais">+ período</button>
+    </div>
+    <div class="field"><label for="escExcMotivo">Motivo (opcional)</label><input id="escExcMotivo" maxlength="200" placeholder="Ex.: feriado, véspera de Natal, médico"/></div>
+    <div class="modal-error hidden" id="escExcErro" role="alert"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-secondary" type="button" id="btnEscExcCancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnEscExcSalvar" style="flex:1;">Salvar</button>
     </div>
   </div>
 </div>

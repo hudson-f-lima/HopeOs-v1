@@ -1103,3 +1103,22 @@ body{font-variant-numeric:tabular-nums;}
 .ag-novo-cliente-acoes .btn{flex:1;}
 #agNovoClienteErro{color:var(--md-error);}
 .perm-tag{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--warning-light);color:var(--warning);}
+
+/* Escalas e disponibilidade (D-033) */
+.esc-sub{font-size:14px;font-weight:700;margin:14px 0 4px;color:var(--text-secondary);}
+.esc-linha,.esc-excecao{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.esc-quem{display:flex;flex-direction:column;min-width:0;}
+.esc-quem span{font-size:13px;color:var(--text-secondary);overflow-wrap:anywhere;}
+.esc-alerta{color:var(--warning);font-weight:600;}
+.esc-excecao span{font-size:13px;color:var(--text-primary);overflow-wrap:anywhere;}
+.esc-btn{width:auto;min-height:44px;padding:0 14px;flex:none;}
+.esc-dia{border:0;margin:0 0 8px;padding:0;}
+.esc-dia legend{font-size:13px;font-weight:700;color:var(--text-secondary);}
+.esc-periodo{display:flex;align-items:center;gap:8px;margin:4px 0;}
+.esc-periodo input{flex:1;min-width:0;min-height:44px;}
+.esc-datas{display:flex;gap:8px;}
+.esc-datas .field{flex:1;}
+.esc-conflitos{margin:6px 0 8px 18px;padding:0;font-size:13px;}
+.esc-manter{width:auto;min-height:44px;margin-top:6px;}
+#btnEscNovaExcecao{margin:4px 0 8px;}
+#btnEscUsarUnidade{margin-bottom:8px;}

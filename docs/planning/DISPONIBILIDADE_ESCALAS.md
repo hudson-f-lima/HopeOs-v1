@@ -1,6 +1,6 @@
 # Disponibilidade e escalas: auditoria e desenho (2026-11-15)
 
-**Estado:** a auditoria (Etapa 1) está concluída e o desenho está proposto. **Nada foi implementado.** A implementação exige a **migration 013**, que depende de autorização do Platform Owner, e o merge prévio do PR #28 (base de permissões, migration 012).
+**Estado:** **Onda 1 implementada** (D-033, 2026-11-15; migration 013 autorizada com "Todas as recomendações aprovadas"). Ondas 2 a 4 (lote, modelos, importação/exportação, visual semana × profissional) pendentes. A migration aplica em produção só no merge.
 
 **Pedido:** "PROMPT MASTER — Controle de disponibilidade e escalas" (Platform Owner, 2026-11-15). O roteiro em [`ROADMAP_SUBSTITUIR_APPBARBER.md`](ROADMAP_SUBSTITUIR_APPBARBER.md) já previa bloqueio de horário e feriados como item 2. Este desenho o substitui e amplia.
 

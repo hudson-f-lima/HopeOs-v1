@@ -358,3 +358,39 @@
   - Limite: a comissão definida pelo cargo (vale para várias pessoas, inclusive o próprio gerente) não entra na regra.
 - **Pendente:** a tela só reflete a mudança de permissão após novo login (o servidor já aplica na hora).
 - **Verificação:** `gate_012.sql` (7 blocos, controles negativos, corrida de lista e de papel, ciclo de rollback); `permissoes-gate` G01–G22; `identity-gate` U10/U15 ajustados (profissional cadastra cliente novo, não edita); Red Team de inventário (C05); E2E `permissoes` (conceder agenda de todos e comanda, usar, lembretes sem WhatsApp, cadastro rápido de cliente, comanda de colega, revogar com sessão aberta → 403, histórico; recepção em 390, 820 e 1280 px).
+
+## D-033 — Disponibilidade da unidade e escalas dos profissionais (migration 013)
+- **Decisão (Platform Owner, 2026-11-15):** "Todas as recomendações aprovadas" sobre [`planning/DISPONIBILIDADE_ESCALAS.md`](planning/DISPONIBILIDADE_ESCALAS.md), o que **autoriza a migration 013**:
+  - o profissional pode bloquear o próprio horário (só bloqueio e ausência);
+  - agendar fora da disponibilidade só com `agenda:encaixar`, marcando "forçar", com registro;
+  - o horário atual de cada profissional vira escala publicada; profissionais novos nascem indisponíveis até publicar.
+- **Auditoria (antes):** não havia disponibilidade padrão do profissional. Ele herdava inteiro o horário da empresa (`empresas.horario_por_dia`, um período por dia), com um almoço global, e `profissionais.horario` não tinha tela. Não havia exceção por data. O agendamento pela equipe não conferia o expediente.
+- **Fonte única:** `disponibilidade_semanal` (unidade e profissional, vários períodos, alternância de semanas) + `disponibilidade_excecoes` (unidade: horário excepcional e fechamento integral ou parcial; profissional: horário excepcional, ausência, bloqueio) + `profissionais.escala_publicada_em`.
+  - Os jsonb antigos foram convertidos na migration e não são mais lidos pelo cálculo, salvo em banco ainda sem a 013.
+  - O assistente de configuração converte o horário simples para a escala da unidade.
+- **Precedência** (`DisponibilidadeEngine`):
+  1. Fechamento integral da unidade.
+  2. Horário excepcional da unidade.
+  3. Semanal da unidade.
+  4. Ausência do profissional.
+  5. Horário excepcional do profissional.
+  6. Semanal publicado do profissional.
+  7. Bloqueios e fechamentos parciais retiram trechos.
+
+  Efetivo = unidade ∩ profissional − bloqueios − atendimentos, com o serviço inteiro cabendo. Abrir a unidade num dia excepcional não libera ninguém. Sem regra, nada é oferecido.
+- **Servidor:**
+  - `GET /agenda/slots`, o agendamento online e a ocupação usam o mesmo cálculo.
+  - `POST /agenda`, remarcação e aumento de duração recusam fora da disponibilidade (409 `FORA_DA_DISPONIBILIDADE`), salvo encaixe forçado, registrado no evento de criação.
+  - Empresa sem nenhuma regra da unidade mantém o comportamento anterior.
+- **Conflitos:** mudança que deixa agendamentos de fora devolve 409 `CONFLITOS_PENDENTES` com a lista. Só grava quando quem tem `escala:conflitos` decide "manter" cada um; a decisão vai para a trilha imutável `disponibilidade_eventos` (antes, depois, decisões). Nada é cancelado ou movido sozinho.
+- **Permissões:**
+  - `escala:ver`: o profissional vê a própria escala; segue a agenda de todos.
+  - `escala:bloquear`: o profissional só bloqueia a própria escala.
+  - `escala:conflitos`: recepção e gestão.
+  - `escala:editar` e `unidade:horario`: gestão; nível sensível.
+- **Tela:** Conta → Escalas, com semana padrão da unidade e de cada profissional, datas especiais, "Usar o horário da unidade", conflitos com "Manter e salvar". A agenda mostra a origem quando não há horário e oferece "agendar mesmo assim" a quem pode encaixar.
+- **Fora desta onda:** alteração em lote, modelos de escala, importação e exportação CSV, visual semana × profissional no computador, várias unidades (o salão tem uma). Notificação push não existe.
+- **Verificação:**
+  - `gate_013.sql` (6 blocos: conversão, formas, funções, trilha imutável, acesso; ciclo de rollback);
+  - `disponibilidade-gate` D01–D11 (precedência; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
+  - E2E `escalas` (data especial pela tela, efeito nos horários, conflito com "Manter e salvar", origem, recepção e profissional com o que podem).

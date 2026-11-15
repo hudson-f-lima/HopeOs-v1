@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-033 (2026-11-15): disponibilidade e escalas (migration 013) — horário da unidade com vários períodos, escala publicada por profissional, datas especiais (abrir, fechar, horário excepcional, ausência, bloqueio), servidor recusa fora da disponibilidade (encaixe forçado registrado), conflitos com agendamentos exigem decisão. REAL no código; aplica em produção só no merge. Lote, modelos e importação: próximas ondas.
 - D-032 (2026-11-14): permissões finas por papel e individuais (migration 012); ao profissional só agenda de todos e comanda de qualquer profissional; sensível e administração só o proprietário; contato de cliente e lembrete por WhatsApp só recepção e gestão; cadastro rápido de cliente; trilha imutável; matriz em `docs/PERMISSOES.md`; layout de tablet e computador. REAL no código; migration aplica em produção só no merge.
 - D-031 (2026-11-14): seletor de tema em Conta (Automático, Claro, Escuro), guardado no aparelho. REAL.
 - D-030 (2026-11-14): navegação — aba "Metas" (gestão: equipe à vista, toque abre a pessoa) e "Meu mês" (profissional); barra renomeada para Agenda/Hoje · Comanda · Painel · Metas · Conta. REAL.
