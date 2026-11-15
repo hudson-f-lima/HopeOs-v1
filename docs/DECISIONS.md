@@ -405,3 +405,8 @@
   - `gate_013.sql` (6 blocos: conversão, formas, funções, trilha imutável, acesso; ciclo de rollback);
   - `disponibilidade-gate` D01–D14 (precedência; regressões do Red Team; cenário obrigatório do domingo com as 9 verificações; servidor; permissões; conflitos; novo e existente);
   - E2E `escalas` (data especial pela tela, efeito nos horários, conflito com "Manter e salvar", origem, recepção e profissional com o que podem).
+
+## D-034 — search_path fixo nas funções auxiliares da 013 (migration 014)
+- **Contexto:** depois da aplicação da 013 em produção (2026-11-15), o advisor de segurança do Supabase acusou `function_search_path_mutable` (WARN) em `disponibilidade_janela_legada` e `disponibilidade_hora`. As duas só servem à conversão dos horários antigos e não são executáveis por anon, authenticated nem service_role. O risco prático é baixo, mas o aviso é real.
+- **Decisão (Platform Owner, 2026-11-15):** "1. Autorizado" (migration 014). A proteção contra senha vazada do Auth fica desligada por ora ("2. Ainda não").
+- **Migration 014:** `alter function ... set search_path = pg_catalog, public` nas duas funções. Rollback `014_down.sql`. `gate_014.sql` (3 blocos: search_path fixo com controle negativo, resultado das funções inalterado, nenhuma função nova da 012/013 sem search_path).
