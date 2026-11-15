@@ -243,6 +243,52 @@ class SupabaseRepository {
     return data;
   }
 
+  // Disponibilidade (D-033, migration 013): regras semanais e exceções da empresa. Banco ainda
+  // sem a 013 (deploy da API antes da migration): null, e o cálculo usa o horário antigo.
+  async carregarDisponibilidade() {
+    try {
+      const [semanal, excecoes] = await Promise.all([
+        this.list('disponibilidade_semanal', { empresa_id: this.empresaId }),
+        this.list('disponibilidade_excecoes', { empresa_id: this.empresaId })
+      ]);
+      return { semanal, excecoes };
+    } catch (err) {
+      if (['42P01', 'PGRST205', 'PGRST202'].includes(err && err.code)) return null;
+      throw err;
+    }
+  }
+
+  // A linha da empresa com a disponibilidade anexada (fonte do SlotEngine e da ocupação).
+  async empresaComDisponibilidade() {
+    const [[empresa], disponibilidade] = await Promise.all([this.list('empresas', { id: this.empresaId }), this.carregarDisponibilidade()]);
+    if (!empresa) return null;
+    return disponibilidade ? { ...empresa, disponibilidade } : empresa;
+  }
+
+  async definirDisponibilidadeSemanal({ profissionalId = null, periodos, publicar = false, actorId, decisoes = [] }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_semanal_definir', {
+      p_empresa_id: this.empresaId, p_profissional_id: profissionalId, p_periodos: periodos, p_publicar: !!publicar, p_actor_id: actorId, p_decisoes: decisoes
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async criarExcecoesDisponibilidade({ excecoes, actorId, decisoes = [] }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_excecoes_criar', {
+      p_empresa_id: this.empresaId, p_excecoes: excecoes, p_actor_id: actorId, p_decisoes: decisoes
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async removerExcecaoDisponibilidade({ id, actorId, decisoes = [] }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_excecao_remover', {
+      p_empresa_id: this.empresaId, p_id: id, p_actor_id: actorId, p_decisoes: decisoes
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async loadSnapshot() {
     const [empresa, clientes, servicos, produtos, profissionais, profissionalServicos, agendamentos, formasPagamento, comandos, comandoItens, comandoPagamentos, comandoGorjetas, caixaMovimentos, estoqueMovimentos, listaEspera, eventos,
       comandaEstornos, comandaEstornoItens, comandaEstornoPagamentos, comandaEstornoGorjetas] = await Promise.all([
@@ -264,9 +310,10 @@ class SupabaseRepository {
       this.list('agendamento_eventos', { empresa_id: this.empresaId }),
       ...this.listEstornoTables()
     ]);
+    const disponibilidade = await this.carregarDisponibilidade();
 
     return {
-      empresa: empresa[0] || null,
+      empresa: empresa[0] ? (disponibilidade ? { ...empresa[0], disponibilidade } : empresa[0]) : null,
       clientes,
       servicos,
       produtos,

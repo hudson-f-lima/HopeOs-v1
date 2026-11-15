@@ -5,6 +5,7 @@
 // assertNoScheduleConflict no POST /agenda; este motor só sugere.
 
 const { timeToMinutes, minutesToTime, INACTIVE_STATUSES } = require('./ScheduleEngine');
+const { disponibilidadeDoDia } = require('./DisponibilidadeEngine');
 
 const DIA_KEYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 
@@ -161,11 +162,36 @@ function agoraNoFuso(timeZone, now = new Date()) {
   return { data: `${parts.year}-${parts.month}-${parts.day}`, minuto: Number(parts.hour) * 60 + Number(parts.minute) };
 }
 
+// Períodos de trabalho do dia. Com a migration 013 (empresa.disponibilidade carregada pelo
+// repositório), a fonte é a disponibilidade (DisponibilidadeEngine); sem ela, o horário antigo
+// em jsonb (só para bancos ainda sem a 013).
+function periodosDoDia({ profissional, empresa, data }) {
+  if (empresa && empresa.disponibilidade) {
+    const d = disponibilidadeDoDia({ data, semanal: empresa.disponibilidade.semanal, excecoes: empresa.disponibilidade.excecoes, profissional });
+    return { periodos: d.periodos, bloqueios: [], codigo: d.codigo, origem: d.origem };
+  }
+  const janela = resolveJanela({ profissional, empresa, data });
+  return {
+    periodos: janela ? [{ start: janela.inicio, end: janela.fim }] : [],
+    bloqueios: bloqueiosEmpresa(empresa),
+    codigo: janela ? 'OK' : 'SEM_HORARIO',
+    origem: janela ? 'Horário da empresa' : 'Sem expediente configurado'
+  };
+}
+
 function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos, agendamentos, duracaoMin, agora }) {
   const duracao = resolveDuracaoMin({ servico, profissional, duracaoMin });
   const passoMin = Number(empresa && empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
-  const janela = resolveJanela({ profissional, empresa, data });
-  const base = { data, duracaoMin: duracao, passoMin, janela: janela && { inicio: minutesToTime(janela.inicio), fim: minutesToTime(janela.fim) } };
+  const dia = periodosDoDia({ profissional, empresa, data });
+  const primeiro = dia.periodos[0];
+  const ultimo = dia.periodos[dia.periodos.length - 1];
+  const janela = primeiro ? { inicio: primeiro.start, fim: ultimo.end } : null;
+  const base = {
+    data, duracaoMin: duracao, passoMin,
+    janela: janela && { inicio: minutesToTime(janela.inicio), fim: minutesToTime(janela.fim) },
+    periodos: dia.periodos.map(p => ({ inicio: minutesToTime(p.start), fim: minutesToTime(p.end) })),
+    disponibilidade: { codigo: dia.codigo, origem: dia.origem }
+  };
 
   if (agora && data < agora.data) return { ...base, slots: [] };
 
@@ -175,15 +201,17 @@ function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos,
   const minUtilMin = duracoes.length ? Math.min(...duracoes) : passoMin;
 
   const bufferMin = Number(empresa && empresa.buffer_min) || 0;
-  const slots = computeSlots({
-    janela,
-    ocupados: [...intervalosOcupados(agendamentos, profissional.id, data, bufferMin), ...bloqueiosEmpresa(empresa)],
+  const ocupados = [...intervalosOcupados(agendamentos, profissional.id, data, bufferMin), ...dia.bloqueios];
+  // Cada período do dia é uma janela; a grade parte do início de cada período.
+  const slots = dia.periodos.flatMap(p => computeSlots({
+    janela: { inicio: p.start, fim: p.end },
+    ocupados,
     bufferMin,
     duracaoMin: duracao,
     passoMin,
     minUtilMin,
     inicioMinimoMin: agora && data === agora.data ? agora.minuto : undefined
-  });
+  }));
   return { ...base, minUtilMin, bufferMin, slots };
 }
 
@@ -195,5 +223,6 @@ module.exports = {
   janelasLivres,
   computeSlots,
   agoraNoFuso,
+  periodosDoDia,
   buildSlotsDoDia
 };

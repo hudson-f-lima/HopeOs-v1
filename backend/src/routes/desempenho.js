@@ -25,7 +25,7 @@ router.get('/desempenho/profissional', authorize('desempenho:ver'), async (req, 
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
     const [profissionais, empresas, agendamentos, comandos, comandoItens, estornos, estornoItens, eventos] = await Promise.all([
-      repo.list('profissionais', filtro), repo.list('empresas', { id: repo.empresaId }), repo.list('agendamentos', filtro), repo.list('comandos', filtro),
+      repo.list('profissionais', filtro), repo.empresaComDisponibilidade().then(e => (e ? [e] : [])), repo.list('agendamentos', filtro), repo.list('comandos', filtro),
       repo.list('comando_itens', filtro), repo.list('comanda_estornos', filtro), repo.list('comanda_estorno_itens', filtro), repo.list('agendamento_eventos', filtro)
     ]);
     const profissional = profissionais.find(p => String(p.id) === String(profissionalId));

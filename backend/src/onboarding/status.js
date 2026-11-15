@@ -11,9 +11,12 @@ const FASES = [
 
 const ativo = r => r && r.ativo !== false;
 
-function calcularStatus({ empresa, formas, servicos, profissionais, vinculos }) {
+function calcularStatus({ empresa, formas, servicos, profissionais, vinculos, disponibilidade }) {
   const e = empresa || {};
-  const diasAbertos = Object.values(e.horario_por_dia || {}).filter(d => d && d.ativo).length;
+  // D-033: com a migration 013, os dias abertos vêm da escala da unidade.
+  const diasAbertos = disponibilidade
+    ? new Set(disponibilidade.semanal.filter(r => !r.profissional_id).map(r => r.dia_semana)).size
+    : Object.values(e.horario_por_dia || {}).filter(d => d && d.ativo).length;
   const servicosAtivos = (servicos || []).filter(ativo);
   const profsAtivos = (profissionais || []).filter(ativo);
   const profsComServico = profsAtivos.filter(p => (vinculos || []).some(v => v.profissional_id === p.id));

@@ -27,6 +27,25 @@ const {
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
 const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
+const { timeToMinutes } = require('../engines/ScheduleEngine');
+
+// Disponibilidade confirmada no servidor ao criar, remarcar ou esticar um atendimento (D-033).
+// Fora dela, só quem tem agenda:encaixar e pede "forçar" (foraDaDisponibilidade), com registro.
+// Empresa sem nenhuma regra da unidade ainda não configurou horários: comportamento anterior.
+async function assertDentroDaDisponibilidade(req, repo, { profissional, data, horario, duracaoMin, forcar }) {
+  const disp = await repo.carregarDisponibilidade();
+  if (!disp) return { forcado: false };
+  const configurada = disp.semanal.some(r => !r.profissional_id) || disp.excecoes.some(e => !e.profissional_id);
+  if (!configurada) return { forcado: false };
+  const d = disponibilidadeDoDia({ data, semanal: disp.semanal, excecoes: disp.excecoes, profissional });
+  if (cabe(d.periodos, timeToMinutes(String(horario).slice(0, 5)), Number(duracaoMin) || 30)) return { forcado: false };
+  if (!forcar) {
+    throw createAppError('FORA_DA_DISPONIBILIDADE', `Fora da disponibilidade: ${d.origem}.`, 409, { codigo: d.codigo, origem: d.origem });
+  }
+  exigirTambem(req, 'agenda:encaixar');
+  return { forcado: true, origem: d.origem };
+}
 const { montarLembretes, normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
@@ -456,15 +475,15 @@ router.get('/agenda/slots', authorize('agenda:ver'), async (req, res, next) => {
       requireActiveEntity(repo, 'profissionais', query.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND'),
       requireActiveEntity(repo, 'servicos', query.servicoId, 'Serviço', 'SERVICE_NOT_FOUND')
     ]);
-    const [empresas, servicos, agendamentos] = await Promise.all([
-      repo.list('empresas', { id: repo.empresaId }),
+    const [empresa, servicos, agendamentos] = await Promise.all([
+      repo.empresaComDisponibilidade(),
       repo.list('servicos', { empresa_id: repo.empresaId }),
       repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data: query.data })
     ]);
     const result = buildSlotsDoDia({
       data: query.data,
       profissional,
-      empresa: empresas[0] || {},
+      empresa: empresa || {},
       servico,
       servicosAtivos: servicos.filter(s => s.ativo !== false),
       agendamentos,
@@ -490,6 +509,7 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
 
     // Mesma regra do GET /agenda/slots: override do profissional > serviço > 30.
     const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
+    const fora = await assertDentroDaDisponibilidade(req, repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin, forcar: payload.foraDaDisponibilidade });
 
     // Conflito checado e gravado atomicamente no banco (agendamento_criar, migration 007).
     const created = await repo.criarAgendamento({
@@ -506,7 +526,8 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
       permitirConflito: payload.permitirConflito,
       createdBy: actorId
     });
-    await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado' });
+    // Encaixe forçado fora da disponibilidade fica registrado no próprio evento de criação.
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado', extra: fora.forcado ? { fora_da_disponibilidade: fora.origem } : {} });
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }
@@ -551,9 +572,10 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
 
     let servico = null;
     if (reagendamento.novoServicoId) servico = await requireActiveEntity(repo, 'servicos', novoServicoId, 'Serviço', 'SERVICE_NOT_FOUND');
-    if (reagendamento.novoProfissionalId) await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const profNovo = await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
     const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
+    await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
 
     // O original ainda está ativo neste momento: é ignorado na checagem de conflito.
     const novo = await repo.criarAgendamento({
@@ -610,6 +632,10 @@ router.patch('/agenda/:id/duracao', authorize('agenda:editar'), async (req, res,
     assertOwn(req, agendamento.profissional_id);
     const { actorId } = autoriaDe(req.auth);
     const duracaoAnterior = agendamento.duracao_min ?? null;
+    if (duracaoMin > Number(duracaoAnterior || 0)) {
+      const prof = await requireScopedEntity(repo, 'profissionais', agendamento.profissional_id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+      await assertDentroDaDisponibilidade(req, repo, { profissional: prof, data: agendamento.data, horario: agendamento.horario, duracaoMin, forcar: req.body && req.body.foraDaDisponibilidade === true });
+    }
     const updated = await repo.updateScoped('agendamentos', id, {
       duracao_min: duracaoMin,
       updated_at: new Date().toISOString(),

@@ -45,6 +45,12 @@ const PERMISSOES = Object.freeze([
   p('agenda:atender', 'Agenda', 'Confirmar, registrar chegada, atender, concluir e marcar falta', 'agenda:write', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
   p('agenda:cancelar', 'Agenda', 'Cancelar agendamento', 'agenda:write', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
   p('agenda:lembretes', 'Agenda', 'Lembretes de confirmação por WhatsApp', 'agenda:read', OPERACAO),
+  // D-033 (migration 013): escala e disponibilidade.
+  p('escala:ver', 'Escala', 'Ver escala e disponibilidade', 'agenda:read', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
+  p('escala:bloquear', 'Escala', 'Bloquear horário e registrar ausência', 'agenda:write', OPERACAO_PROPRIO),
+  p('escala:conflitos', 'Escala', 'Decidir sobre agendamentos afetados por mudança de escala', 'agenda:write', OPERACAO),
+  p('escala:editar', 'Escala', 'Definir e publicar a escala dos profissionais e horários excepcionais', 'cadastros:write', GESTAO, 'sensivel'),
+  p('unidade:horario', 'Escala', 'Horário da unidade, aberturas e fechamentos', 'cadastros:write', GESTAO, 'sensivel'),
   p('espera:ver', 'Lista de espera', 'Ver a lista de espera', 'lista_espera:read', OPERACAO),
   p('espera:gerir', 'Lista de espera', 'Incluir e atualizar na lista de espera', 'lista_espera:write', OPERACAO),
   p('comanda:fechar', 'Comanda', 'Simular e fechar comanda', 'checkout:write', OPERACAO_PROPRIO, 'operacao',

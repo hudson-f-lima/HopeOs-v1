@@ -15,13 +15,13 @@ class InsightsService {
   // GET /insights/occupancy?from=YYYY-MM-DD&to=YYYY-MM-DD. `hoje` (fuso da
   // empresa) só limita os buracos a dias que ainda podem ser vendidos.
   async loadOccupancyInsights(dataFrom, dataTo, hoje = dataFrom) {
-    const [agendamentos, profissionais, empresas] = await Promise.all([
+    const [agendamentos, profissionais, comDisp] = await Promise.all([
       this.repo.list('agendamentos', { empresa_id: this.repo.empresaId }),
       this.repo.list('profissionais', { empresa_id: this.repo.empresaId }),
-      this.repo.list('empresas', { id: this.repo.empresaId })
+      this.repo.empresaComDisponibilidade()
     ]);
 
-    const empresa = empresas[0] || {};
+    const empresa = comDisp || {};
     const slotPadrao = Number(empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
     const ativos = profissionais.filter(p => p.ativo !== false);
     const noPeriodo = a => { const d = String(a.data || '').slice(0, 10); return d >= dataFrom && d <= dataTo; };

@@ -28,6 +28,16 @@
 | Cancelar agendamento | `agenda:cancelar` | Sim | Sim | Sim | Só o próprio | Proprietário ou gerente | Segue `agenda:ver` |
 | Lembretes de confirmação por WhatsApp | `agenda:lembretes` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
 
+### Escala
+
+| Permissão | Código | Proprietário | Gerente | Recepção | Profissional | Quem concede | Concedível ao profissional |
+|---|---|---|---|---|---|---|---|
+| Ver escala e disponibilidade | `escala:ver` | Sim | Sim | Sim | Só o próprio | Proprietário ou gerente | Segue `agenda:ver` |
+| Bloquear horário e registrar ausência | `escala:bloquear` | Sim | Sim | Sim | Só o próprio | Proprietário ou gerente | Não |
+| Decidir sobre agendamentos afetados por mudança de escala | `escala:conflitos` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
+| Definir e publicar a escala dos profissionais e horários excepcionais | `escala:editar` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
+| Horário da unidade, aberturas e fechamentos | `unidade:horario` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
+
 ### Lista de espera
 
 | Permissão | Código | Proprietário | Gerente | Recepção | Profissional | Quem concede | Concedível ao profissional |

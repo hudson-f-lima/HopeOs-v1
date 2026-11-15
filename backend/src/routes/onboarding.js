@@ -8,6 +8,36 @@ const { validateUpdateEmpresaPayload } = require('../validators/empresa.validato
 const { validateCreateServicoPayload, validateCreateFormaPagamentoPayload, validateCargoPayload } = require('../validators/cadastros.validator');
 const { listarPresets } = require('../onboarding/presets');
 const { calcularStatus } = require('../onboarding/status');
+const { periodosDaUnidade } = require('../engines/disponibilidadeLegado');
+const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
+const { timeToMinutes, INACTIVE_STATUSES } = require('../engines/ScheduleEngine');
+
+const CAMPOS_HORARIO = ['horario_por_dia', 'intervalo_almoco', 'almoco_inicio', 'almoco_fim'];
+
+// Desde a D-033 o horário da unidade vive em disponibilidade_semanal. O assistente continua
+// editando o horário simples (um período por dia + almoço), que é convertido para a escala da
+// unidade. Se a mudança deixar agendamentos de fora, nada é gravado: trata-se na tela de escalas.
+async function sincronizarHorarioDaUnidade(req, repo, atual, patch) {
+  if (!CAMPOS_HORARIO.some(c => patch[c] !== undefined)) return null;
+  const disp = await repo.carregarDisponibilidade();
+  if (!disp || !req.auth.actor_id) return null;
+  const periodos = periodosDaUnidade({ ...atual, ...patch });
+  const depois = { semanal: [...disp.semanal.filter(r => r.profissional_id), ...periodos.map(x => ({ profissional_id: null, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim }))], excecoes: disp.excecoes };
+  const [agendamentos, profissionais] = await Promise.all([repo.list('agendamentos', { empresa_id: repo.empresaId }), repo.list('profissionais', { empresa_id: repo.empresaId })]);
+  const prof = new Map(profissionais.map(p => [p.id, p]));
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const fora = agendamentos.filter(a => !INACTIVE_STATUSES.includes(a.status) && a.data >= hojeStr && prof.has(a.profissional_id)).filter(a => {
+    const ini = timeToMinutes(String(a.horario).slice(0, 5));
+    const dur = Number(a.duracao_min) || 30;
+    const p = prof.get(a.profissional_id);
+    return cabe(disponibilidadeDoDia({ data: a.data, ...disp, profissional: p }).periodos, ini, dur)
+      && !cabe(disponibilidadeDoDia({ data: a.data, ...depois, profissional: p }).periodos, ini, dur);
+  });
+  if (fora.length) {
+    throw createAppError('CONFLITOS_PENDENTES', `${fora.length} agendamento(s) ficariam fora do novo horário. Ajuste em Conta → Horários e escalas, que mostra e trata cada um.`, 409, { afetados: fora.map(a => ({ agendamentoId: a.id, data: a.data, horario: String(a.horario).slice(0, 5) })) });
+  }
+  return { periodos };
+}
 
 const router = express.Router();
 const MAX_ITENS = 50;
@@ -48,8 +78,11 @@ router.patch('/empresa', authorize('empresa:configurar'), async (req, res, next)
     const alerta = patch.regua_alerta_faltas ?? atual.regua_alerta_faltas ?? 2;
     const sinal = patch.regua_sinal_faltas ?? atual.regua_sinal_faltas ?? 3;
     if (sinal <= alerta) throw createAppError('INVALID_FIELD', 'A falta que pede sinal deve vir depois da que gera alerta.', 422, { field: 'reguaSinalFaltas' });
+    const sync = await sincronizarHorarioDaUnidade(req, repo, atual, patch);
     try {
-      res.json({ ok: true, data: publica(await repo.updateEmpresa(patch)) });
+      const atualizada = await repo.updateEmpresa(patch);
+      if (sync) await repo.definirDisponibilidadeSemanal({ profissionalId: null, periodos: sync.periodos, actorId: req.auth.actor_id, decisoes: [] });
+      res.json({ ok: true, data: publica(atualizada) });
     } catch (err) {
       if (err && err.code === '23514') throw createAppError('INVALID_FIELD', 'Valor fora do permitido para a empresa.', 422);
       throw err;
@@ -61,14 +94,15 @@ router.get('/onboarding/status', authorize('empresa:configurar'), async (req, re
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
-    const [empresa, formas, servicos, profissionais, vinculos] = await Promise.all([
+    const [empresa, formas, servicos, profissionais, vinculos, disponibilidade] = await Promise.all([
       carregarEmpresa(repo),
       repo.list('formas_pagamento', filtro),
       repo.list('servicos', filtro),
       repo.list('profissionais', filtro),
-      repo.list('profissional_servicos', filtro)
+      repo.list('profissional_servicos', filtro),
+      repo.carregarDisponibilidade()
     ]);
-    res.json({ ok: true, data: calcularStatus({ empresa, formas, servicos, profissionais, vinculos }) });
+    res.json({ ok: true, data: calcularStatus({ empresa, formas, servicos, profissionais, vinculos, disponibilidade }) });
   } catch (err) { next(err); }
 });
 
