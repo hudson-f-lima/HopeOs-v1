@@ -30,6 +30,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`planning/REDESIGN_PONTA_A_PONTA.md`](planning/REDESIGN_PONTA_A_PONTA.md) — planejamento do redesign de ponta a ponta: specs, viabilidade, ondas e critérios de aceite
 - [`PERMISSOES.md`](PERMISSOES.md) — matriz de permissões por papel (gerada de `backend/src/auth/permissoes.js`; conferida pelo gate)
 - [`planning/DISPONIBILIDADE_ESCALAS.md`](planning/DISPONIBILIDADE_ESCALAS.md) — auditoria e desenho de disponibilidade, escalas e exceções (Onda 1 implementada, D-033)
+- [`planning/AGENDAMENTO_PONTA_A_PONTA_AUDITORIA.md`](planning/AGENDAMENTO_PONTA_A_PONTA_AUDITORIA.md) — auditoria do agendamento de ponta a ponta com o app do cliente; plano C1–C5
 - [`planning/ASSINATURAS_DESENHO.md`](planning/ASSINATURAS_DESENHO.md) — clube de assinatura: desenho completo, independente de fornecedor (DRAFT)
 - [`planning/ROADMAP_SUBSTITUIR_APPBARBER.md`](planning/ROADMAP_SUBSTITUIR_APPBARBER.md) — fase 1: substituir o app Barber no salão do dono (planejamento)
 - [`planning/PERMISSOES_POR_PAPEL.md`](planning/PERMISSOES_POR_PAPEL.md) — desenho original das permissões (implementado em D-032)
