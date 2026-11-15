@@ -97,9 +97,9 @@ async function enviarComConflitos(erroId, enviar, decisoes) {
 // ---------- Semana padrão ----------
 function linhaPeriodo(dia, p = { inicio: '', fim: '' }) {
   return `<div class="esc-periodo" data-dia="${dia}">
-    <input type="time" class="esc-ini" aria-label="${DIAS[dia]}: início" value="${escapeHtml(p.inicio)}"/>
+    <input type="time" class="esc-ini" aria-label="${escapeHtml(DIAS[dia])}: início" value="${escapeHtml(p.inicio)}"/>
     <span>às</span>
-    <input type="time" class="esc-fim" aria-label="${DIAS[dia]}: fim" value="${escapeHtml(p.fim)}"/>
+    <input type="time" class="esc-fim" aria-label="${escapeHtml(DIAS[dia])}: fim" value="${escapeHtml(p.fim)}"/>
     <button type="button" class="btn btn-secondary esc-btn" data-esc-tirar aria-label="Tirar período">−</button>
   </div>`;
 }
@@ -107,7 +107,7 @@ function linhaPeriodo(dia, p = { inicio: '', fim: '' }) {
 function preencherSemana(semanal) {
   el('escSemana').innerHTML = DIAS.map((nome, dia) => `
     <fieldset class="esc-dia" data-dia="${dia}">
-      <legend>${nome}</legend>
+      <legend>${escapeHtml(nome)}</legend>
       <div class="esc-periodos">${semanal.filter(p => p.diaSemana === dia).map(p => linhaPeriodo(dia, p)).join('')}</div>
       <button type="button" class="btn-link" data-esc-mais="${dia}">+ período</button>
     </fieldset>`).join('');
