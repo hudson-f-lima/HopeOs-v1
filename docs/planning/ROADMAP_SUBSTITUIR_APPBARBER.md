@@ -4,6 +4,27 @@
 
 **Estado:** planejamento. Nada aqui está autorizado para construção. Cada item que exigir migration (013+), fornecedor ou custo depende de autorização própria.
 
+## 0. Tese do produto (Platform Owner, 2026-11-15)
+"Estado da arte" aqui **não** é ter mais telas que o app Barber. É ser **mais eficiente e dinâmico com baixo esforço cognitivo para qualquer usuário**, e **mais inteligente**, com obsessão por **desempenho, margem e gestão**. Nada de copiar telas.
+
+**Princípios, que valem para todo item deste roteiro:**
+1. **Resposta, não relatório.** O sistema diz o que mudou, por quê e a próxima ação ("terça à tarde está 40% vazia; 12 clientes estão atrasados no retorno"), em vez de 30 relatórios para o dono montar.
+2. **Zero configuração para começar.** Os padrões já vêm certos; parâmetro só existe quando há escolha real do dono (o app Barber tem cerca de 72).
+3. **Uma ação principal por tela**, com o mínimo de toques e campos.
+4. **Margem real em tudo que envolve dinheiro:** preço menos comissão, menos taxa da forma de pagamento, menos insumo usado, por atendimento, profissional, hora de cadeira e plano de assinatura.
+5. **Número só do servidor, com contexto:** comparação com o próprio histórico, aviso de amostra pequena, nunca valor inventado.
+
+**Métricas de produto:**
+- **Esforço:** toques e tempo por tarefa (agendar, fechar comanda, cobrar assinante), medidos pelos roteiros E2E antes e depois de cada entrega.
+- **Gestão:**
+  - margem de contribuição por hora de cadeira;
+  - ocupação;
+  - retorno no ciclo próprio de cada cliente;
+  - margem por plano de assinatura;
+  - custo de taxas.
+
+**Consequência no roteiro:** cada item da fase 1 nasce com a camada de inteligência dele, não como cópia. Exemplos: assinatura já com margem por plano e alerta de plano deficitário; comanda aberta já com baixa do insumo usado; importação já apontando clientes atrasados no retorno.
+
 ## 1. Critério de saída da fase
 - **30 dias corridos** operando o salão **só no HOPE OS**, sem voltar ao app Barber para nenhuma tarefa.
 - O fechamento de caixa e as comissões do mês batem com a conferência manual do dono.
