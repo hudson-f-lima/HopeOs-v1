@@ -75,13 +75,26 @@ function marcar(container, botao) {
   for (const b of container.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === botao));
 }
 
+// Preço e duração seguem o profissional (override): no serviço aparece a faixa entre eles.
+// Preço null = o salão escolheu não mostrar.
+const reais = c => precoFmt.format((c || 0) / 100);
+function faixaPreco(min, max) {
+  if (min === null || min === undefined) return null;
+  return max !== undefined && max !== null && max !== min ? `a partir de ${reais(min)}` : reais(min);
+}
+function faixaDuracao(min, max) {
+  return max && max !== min ? `${min}–${max} min` : `${min} min`;
+}
+const SEM_PREFERENCIA = 'qualquer';
+
 function renderServicos() {
   const lista = $('listaServicos');
   limpar(lista);
   for (const s of estado.catalogo.servicos) {
+    const preco = faixaPreco(s.precoCentavos, s.precoMaxCentavos);
     const botao = el('button', { type: 'button', class: 'opcao', 'aria-pressed': 'false', 'data-servico': s.id },
-      el('span', {}, el('span', { text: s.nome }), el('small', { text: `${s.duracaoMin} min` })),
-      el('span', { class: 'preco', text: precoFmt.format((s.precoCentavos || 0) / 100) }));
+      el('span', {}, el('span', { text: s.nome }), el('small', { text: faixaDuracao(s.duracaoMin, s.duracaoMaxMin) })),
+      preco ? el('span', { class: 'preco', text: preco }) : null);
     botao.addEventListener('click', () => escolherServico(s, botao));
     lista.append(botao);
   }
@@ -103,8 +116,15 @@ function escolherServico(servico, botao) {
   marcar($('listaServicos'), botao);
   const lista = $('listaProfissionais');
   limpar(lista);
-  for (const p of servico.profissionais) {
-    const b = el('button', { type: 'button', class: 'opcao', 'aria-pressed': 'false', 'data-profissional': p.id }, el('span', { text: p.nome }));
+  const opcoes = servico.semPreferencia
+    ? [{ id: SEM_PREFERENCIA, nome: 'Sem preferência', detalhe: 'Primeiro horário livre com qualquer profissional' }, ...servico.profissionais]
+    : servico.profissionais;
+  for (const p of opcoes) {
+    const preco = p.id === SEM_PREFERENCIA ? null : faixaPreco(p.precoCentavos);
+    const detalhe = p.detalhe || (p.duracaoMin ? `${p.duracaoMin} min` : '');
+    const b = el('button', { type: 'button', class: 'opcao', 'aria-pressed': 'false', 'data-profissional': p.id },
+      el('span', {}, el('span', { text: p.nome }), detalhe ? el('small', { text: detalhe }) : null),
+      preco ? el('span', { class: 'preco', text: preco }) : null);
     b.addEventListener('click', () => escolherProfissional(p, b));
     lista.append(b);
   }
@@ -165,7 +185,8 @@ function escolherHorario(horario, botao) {
   estado.horario = horario;
   aviso('');
   marcar($('listaHorarios'), botao);
-  $('resumoEscolha').textContent = `${estado.servico.nome} com ${estado.profissional.nome} — ${diaLongo.format(utc(estado.data))}, às ${horario}`;
+  const quem = estado.profissional.id === SEM_PREFERENCIA ? 'qualquer profissional' : estado.profissional.nome;
+  $('resumoEscolha').textContent = `${estado.servico.nome} com ${quem} — ${diaLongo.format(utc(estado.data))}, às ${horario}`;
   mostrar('secDados');
   $('secDados').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -207,6 +228,12 @@ async function enviar(ev) {
 
 function confirmar(d) {
   $('confirmacaoTexto').textContent = `${d.servico} com ${d.profissional}, ${diaLongo.format(utc(d.data))}, às ${d.horario}.`;
+  const prazo = Number(estado.catalogo.regras && estado.catalogo.regras.cancelamentoPrazoMin);
+  if (Number.isFinite(prazo)) {
+    const quando = prazo === 0 ? 'até o horário' : prazo % 60 === 0 ? `até ${prazo / 60} h antes` : `até ${prazo} min antes`;
+    $('confirmacaoPrazo').textContent = `Precisa cancelar ou remarcar? Avise o salão ${quando}.`;
+    mostrar('confirmacaoPrazo');
+  }
   mostrar('fluxo', false);
   mostrar('secConfirmacao');
   aviso('');
@@ -243,7 +270,11 @@ async function iniciar() {
   if (r.status !== 200) return r.status === 404 ? indisponivel() : (mostrar('carregando', false), aviso(mensagemDe(r)));
   estado.catalogo = r.corpo.data;
   $('nomeSalao').textContent = estado.catalogo.salao.nome || 'Agendar horário';
-  $('avisoSalao').textContent = estado.catalogo.salao.nome || 'salão';
+  // Controlador dos dados: razão social e CNPJ do salão, quando cadastrados (D-037).
+  const ctrl = (estado.catalogo.aviso && estado.catalogo.aviso.controlador) || {};
+  $('avisoSalao').textContent = ctrl.nome || estado.catalogo.salao.nome || 'o salão';
+  $('avisoCnpj').textContent = ctrl.cnpj ? `, CNPJ ${ctrl.cnpj}` : '';
+  if (ctrl.contato) $('avisoContato').textContent = `Fale com o salão: ${ctrl.contato}.`;
   $('avisoVersao').textContent = (estado.catalogo.aviso && estado.catalogo.aviso.versao) || '—';
   document.title = `Agendar — ${estado.catalogo.salao.nome || 'salão'}`;
   renderServicos();

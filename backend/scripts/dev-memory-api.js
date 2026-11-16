@@ -42,7 +42,9 @@ const semana = { dom: dia, seg: dia, ter: dia, qua: dia, qui: dia, sex: dia, sab
 const hoje = agoraNoFuso(env.APP_TIMEZONE).data;
 
 const db = installMemoryBackend({
-  empresas: [{ id: E, nome: 'Salão Dev', whatsapp: '11999990000', slot_padrao: 30, horario_por_dia: semana, intervalo_almoco: false, buffer_min: 0, regua_alerta_faltas: 2, regua_sinal_faltas: 3, salao_parceiro: false }],
+  empresas: [{ id: E, nome: 'Salão Dev', whatsapp: '11999990000', slot_padrao: 30, horario_por_dia: semana, intervalo_almoco: false, buffer_min: 0, regua_alerta_faltas: 2, regua_sinal_faltas: 3, salao_parceiro: false,
+    // Colunas da migration 016 com os padrões do banco (link desligado).
+    online_slug: null, online_ativo: false, online_antecedencia_min: 120, online_janela_dias: 30, online_cancelamento_prazo_min: 120, online_max_futuros: 2, online_mostrar_preco: true, privacidade_contato: null }],
   clientes: [{ id: CLIENTE, empresa_id: E, nome: 'Cliente Teste', ativo: true }],
   servicos: [
     { id: CORTE, empresa_id: E, nome: 'Corte', valor_centavos: 6000, duracao_min: 60, ativo: true },

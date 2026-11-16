@@ -1,9 +1,13 @@
 // Agendamento online pelo cliente — fase SEM migration (docs/planning/AGENDAMENTO_ONLINE_DRAFT.md).
 //
 // Superfície pública, sem autenticação. Regras deste arquivo:
-// - O tenant vem SÓ do mapa slug → empresa configurado no servidor
-//   (env PUBLIC_BOOKING_LINKS, opção B do draft). Nada do cliente escolhe empresa.
-//   Sem o mapa, tudo aqui responde 404: a feature nasce desligada.
+// - O tenant vem SÓ do servidor: do slug que o salão gravou em empresas.online_slug com o
+//   link ligado (migration 016, D-037) ou, na falta dele, do mapa slug → empresa da env
+//   PUBLIC_BOOKING_LINKS (opção B do draft). Nada do cliente escolhe empresa. Slug que não
+//   está em nenhum dos dois, ou está no banco com o link desligado, responde 404: a feature
+//   nasce desligada.
+// - Antecedência, janela, máximo de horários futuros por número e exibição de preço vêm da
+//   linha do salão (016); a env só vale antes da 016 ou para coluna ausente.
 // - O contexto público (req.publicBooking) nunca vira req.auth e nunca passa por
 //   authorize(); este router só expõe os 3 endpoints abaixo.
 // - Respostas mínimas: nada de WhatsApp, comissão, clientes ou ids de agendamento.
@@ -18,6 +22,7 @@ const { normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
 const { criarLimitador, chaveIp } = require('../security/rateLimit');
+const crypto = require('crypto');
 
 const router = express.Router();
 
@@ -27,6 +32,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NOME_RE = /^[\p{L}\p{M}][\p{L}\p{M}' .-]*$/u;
 const CAMPOS_POST = ['servicoId', 'profissionalId', 'data', 'horario', 'nome', 'whatsapp', 'consentimento', 'website'];
+// Valor de profissionalId para "sem preferência": o servidor escolhe quem atende.
+const SEM_PREFERENCIA = 'qualquer';
 // Status que ainda vão acontecer (contam no limite de agendamentos futuros por número).
 const STATUS_FUTUROS = ['agendado', 'confirmado', 'aguardando', 'em_atendimento'];
 
@@ -90,12 +97,57 @@ function dataValida(data) {
 
 // "Agora" no fuso da operação, o primeiro instante agendável (agora + antecedência)
 // e o último dia da janela. Calculado uma vez por requisição.
-function limitesDoMomento() {
+function limitesDoMomento(cfg) {
   const agora = agoraNoFuso(env.APP_TIMEZONE, relogio());
-  const total = agora.minuto + Math.max(0, num(env.PUBLIC_BOOKING_ANTECEDENCIA_MIN, 120));
+  const total = agora.minuto + cfg.antecedenciaMin;
   const minimo = { data: somarDias(agora.data, Math.floor(total / 1440)), minuto: total % 1440 };
-  const janelaDias = Math.max(0, num(env.PUBLIC_BOOKING_JANELA_DIAS, 30));
-  return { agora, minimo, ultimoDia: somarDias(agora.data, janelaDias), janelaDias };
+  return { agora, minimo, ultimoDia: somarDias(agora.data, cfg.janelaDias), janelaDias: cfg.janelaDias };
+}
+
+// Regras do salão (016) com a env como reserva: coluna ausente (antes da 016) ou fora da faixa
+// do banco cai no valor da env, que cai no padrão.
+function inteiroNaFaixa(v, min, max) {
+  const n = Number(v);
+  return v !== null && v !== undefined && v !== '' && Number.isInteger(n) && n >= min && n <= max ? n : undefined;
+}
+function configOnline(empresa) {
+  const e = empresa || {};
+  return {
+    antecedenciaMin: inteiroNaFaixa(e.online_antecedencia_min, 0, 10080) ?? Math.max(0, num(env.PUBLIC_BOOKING_ANTECEDENCIA_MIN, 120)),
+    janelaDias: inteiroNaFaixa(e.online_janela_dias, 1, 180) ?? Math.max(0, num(env.PUBLIC_BOOKING_JANELA_DIAS, 30)),
+    maxFuturos: inteiroNaFaixa(e.online_max_futuros, 1, 10) ?? num(env.PUBLIC_BOOKING_MAX_FUTUROS_POR_NUMERO, 2),
+    cancelamentoPrazoMin: inteiroNaFaixa(e.online_cancelamento_prazo_min, 0, 10080) ?? 120,
+    mostrarPreco: e.online_mostrar_preco !== false
+  };
+}
+
+// Preço e duração de quem atende: override do profissional por serviço > serviço (a mesma
+// regra do checkout, CheckoutInputResolver, e da agenda, SlotEngine).
+function overrideDe(servico, profissional) {
+  let ov = profissional && profissional.overrides;
+  if (typeof ov === 'string') { try { ov = JSON.parse(ov); } catch (_) { ov = {}; } }
+  return (ov && servico && ov[servico.id]) || {};
+}
+function precoDe(servico, profissional) {
+  const ov = overrideDe(servico, profissional);
+  const valido = x => x !== null && x !== undefined && x !== '' && Number.isFinite(Number(x)) && Number(x) >= 0;
+  const v = [ov.valor_centavos, ov.valorCentavos, servico.valor_centavos].find(valido);
+  return v === undefined ? 0 : Math.round(Number(v));
+}
+
+// Aviso de privacidade com o controlador do salão (razão social, CNPJ, contato). O hash curto
+// vai no evento de origem: prova qual texto o cliente viu sem copiar os dados em cada evento.
+function avisoDoSalao(empresa) {
+  const cnpj = /^\d{14}$/.test(String(empresa.cnpj || ''))
+    ? String(empresa.cnpj).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : null;
+  const controlador = {
+    nome: String(empresa.razao_social || '').trim() || String(empresa.nome || '').trim() || null,
+    cnpj,
+    contato: String(empresa.privacidade_contato || '').trim() || null
+  };
+  const versao = env.PUBLIC_BOOKING_AVISO_VERSAO;
+  const hash = crypto.createHash('sha256').update(JSON.stringify([versao, controlador])).digest('hex').slice(0, 16);
+  return { versao, controlador, hash };
 }
 
 function primeiroNome(nome) {
@@ -170,12 +222,49 @@ async function comTrava(chave, fn) {
 }
 
 // ---------------------------------------------------------------------------
-// Tenant: só do mapa do servidor. Slug desconhecido = 404 igual ao de desligado.
-function resolverSalao(req) {
+// Tenant: só do servidor (banco 016 > mapa da env). Slug desconhecido ou desligado = 404
+// igual. O resultado do banco fica 30 s em memória (inclusive "não existe", com teto de
+// entradas) para um robô com slugs aleatórios não virar uma consulta por requisição; salvar a
+// configuração em Conta limpa o cache desta instância.
+const CACHE_SLUG_MS = 30e3;
+const CACHE_SLUG_MAX = 500;
+const cacheSlug = new Map();
+function limparCacheSlug() { cacheSlug.clear(); }
+async function slugNoBanco(slug) {
+  const agora = Date.now();
+  const hit = cacheSlug.get(slug);
+  if (hit && hit.ate > agora) return hit.valor;
+  let valor;
+  try {
+    const linha = await new SupabaseRepository(null).empresaOnlinePorSlug(slug);
+    valor = linha ? { empresaId: String(linha.id).toLowerCase(), ativo: linha.online_ativo === true } : null;
+  } catch (err) {
+    // Antes da 016 a coluna não existe: segue só com o mapa da env, sem guardar no cache.
+    console.warn('[agendar] slug no banco indisponível:', erroParaLog(err));
+    return undefined;
+  }
+  if (cacheSlug.size >= CACHE_SLUG_MAX) cacheSlug.delete(cacheSlug.keys().next().value);
+  cacheSlug.set(slug, { valor, ate: agora + CACHE_SLUG_MS });
+  return valor;
+}
+
+async function resolverSalao(req) {
   const slug = String(req.params.slug || '').toLowerCase();
-  const empresaId = SLUG_RE.test(slug) ? linksPublicos().get(slug) : undefined;
-  if (!empresaId) throw naoEncontrado();
-  req.publicBooking = { empresa_id: empresaId, slug, fonte: 'link_publico' };
+  if (!SLUG_RE.test(slug)) throw naoEncontrado();
+  const doBanco = await slugNoBanco(slug);
+  let empresaId;
+  let fonte;
+  if (doBanco) {
+    // O slug é do salão no banco: vale o liga/desliga dele, mesmo que a env também o tenha.
+    if (!doBanco.ativo) throw naoEncontrado();
+    empresaId = doBanco.empresaId;
+    fonte = 'banco';
+  } else {
+    empresaId = linksPublicos().get(slug);
+    fonte = 'env';
+  }
+  if (!empresaId || !UUID_RE.test(empresaId)) throw naoEncontrado();
+  req.publicBooking = { empresa_id: empresaId, slug, fonte };
   return new SupabaseRepository(empresaId);
 }
 
@@ -197,25 +286,42 @@ async function carregarCatalogo(repo) {
     const ids = [...new Set(vinculos.filter(v => v.servico_id === servico.id).map(v => v.profissional_id))];
     return { servico, profissionais: ids.filter(id => profAtivos.has(id)).map(id => profAtivos.get(id)).sort(porNome) };
   }).filter(o => o.profissionais.length).sort((a, b) => porNome(a.servico, b.servico));
-  return { empresa, servicosAtivos, ofertas };
+  return { empresa, servicosAtivos, ofertas, cfg: configOnline(empresa), aviso: avisoDoSalao(empresa) };
 }
 
 // Horários livres para o público: mesmo motor do GET /agenda/slots, com "agora"
 // deslocado pela antecedência mínima e a janela máxima de dias. Só horários.
-async function slotsPublicos(repo, cat, { servicoId, profissionalId, data }, lim) {
-  const oferta = cat.ofertas.find(o => o.servico.id === servicoId);
-  const profissional = oferta && oferta.profissionais.find(p => p.id === profissionalId);
-  if (!profissional) throw indisponivel();
-  const servico = oferta.servico;
+async function slotsDoProfissional(repo, cat, servico, profissional, data, lim) {
   const duracaoMin = resolveDuracaoMin({ servico, profissional });
-  if (data < lim.minimo.data || data > lim.ultimoDia) return { servico, profissional, duracaoMin, slots: [] };
+  if (data < lim.minimo.data || data > lim.ultimoDia) return { profissional, duracaoMin, slots: [], ocupacao: 0 };
   const agendamentos = await repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data });
   const r = buildSlotsDoDia({
     data, profissional, empresa: cat.empresa, servico, servicosAtivos: cat.servicosAtivos, agendamentos, agora: lim.minimo
   });
   const piso = data === lim.minimo.data ? lim.minimo.minuto : -1;
   const slots = [...new Set(r.slots.map(s => s.horario))].filter(h => timeToMinutes(h) >= piso);
-  return { servico, profissional, duracaoMin: r.duracaoMin, slots };
+  const ocupacao = agendamentos.filter(a => STATUS_FUTUROS.includes(a.status)).length;
+  return { profissional, duracaoMin: r.duracaoMin, slots, ocupacao };
+}
+
+// profissionalId = SEM_PREFERENCIA: horários de qualquer profissional do serviço. Para gravar,
+// `escolhido(horario)` devolve quem atende: o de agenda mais leve no dia, depois o nome.
+async function slotsPublicos(repo, cat, { servicoId, profissionalId, data }, lim) {
+  const oferta = cat.ofertas.find(o => o.servico.id === servicoId);
+  if (!oferta) throw indisponivel();
+  const servico = oferta.servico;
+  if (profissionalId !== SEM_PREFERENCIA) {
+    const profissional = oferta.profissionais.find(p => p.id === profissionalId);
+    if (!profissional) throw indisponivel();
+    const r = await slotsDoProfissional(repo, cat, servico, profissional, data, lim);
+    return { servico, ...r, candidatos: oferta.profissionais, escolhido: h => (r.slots.includes(h) ? r : null) };
+  }
+  const porProf = await Promise.all(oferta.profissionais.map(p => slotsDoProfissional(repo, cat, servico, p, data, lim)));
+  const slots = [...new Set(porProf.flatMap(r => r.slots))].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+  const escolhido = h => porProf.filter(r => r.slots.includes(h))
+    .sort((a, b) => a.ocupacao - b.ocupacao || String(a.profissional.nome || '').localeCompare(String(b.profissional.nome || ''), 'pt-BR'))[0] || null;
+  const duracoes = porProf.map(r => r.duracaoMin);
+  return { servico, profissional: null, candidatos: oferta.profissionais, duracaoMin: Math.min(...duracoes), slots, escolhido };
 }
 
 function validarEntrada(body) {
@@ -225,7 +331,7 @@ function validarEntrada(body) {
   if (Object.keys(body).some(k => !CAMPOS_POST.includes(k))) throw dadosInvalidos();
   const { servicoId, profissionalId, data, horario, nome, whatsapp, consentimento, website } = body;
   if (typeof servicoId !== 'string' || !UUID_RE.test(servicoId)) throw dadosInvalidos();
-  if (typeof profissionalId !== 'string' || !UUID_RE.test(profissionalId)) throw dadosInvalidos();
+  if (typeof profissionalId !== 'string' || !(UUID_RE.test(profissionalId) || profissionalId === SEM_PREFERENCIA)) throw dadosInvalidos();
   if (!dataValida(data) || typeof horario !== 'string' || !HORA_RE.test(horario)) throw dadosInvalidos();
   if (website !== undefined && typeof website !== 'string') throw dadosInvalidos();
   const nomeLimpo = typeof nome === 'string' ? nome.normalize('NFC').replace(/\s+/g, ' ').trim() : '';
@@ -268,7 +374,7 @@ async function gravar(repo, cat, ctx) {
     const historico = (await Promise.all(ativos.map(c => repo.list('agendamentos', { empresa_id: repo.empresaId, cliente_id: c.id })))).flat();
     const futuros = historico.filter(a => STATUS_FUTUROS.includes(a.status) &&
       (String(a.data) > lim.agora.data || (String(a.data) === lim.agora.data && timeToMinutes(a.horario) >= lim.agora.minuto)));
-    if (futuros.length >= num(env.PUBLIC_BOOKING_MAX_FUTUROS_POR_NUMERO, 2)) throw agendamentoOnlineRecusado();
+    if (futuros.length >= cat.cfg.maxFuturos) throw agendamentoOnlineRecusado();
     regua = computeReguaFaltas(historico, {
       alerta: cat.empresa.regua_alerta_faltas ?? 2, sinal: cat.empresa.regua_sinal_faltas ?? 3
     }, lim.agora.data).nivel;
@@ -291,7 +397,7 @@ async function gravar(repo, cat, ctx) {
         data: entrada.data,
         horario: entrada.horario,
         duracao_min: duracaoMin,
-        valor_centavos: servico.valor_centavos || 0,
+        valor_centavos: precoDe(servico, profissional),
         status: 'agendado'
       },
       permitirConflito: false,
@@ -310,7 +416,10 @@ async function gravar(repo, cat, ctx) {
       payload: {
         origem: 'link_publico',
         slug: req.publicBooking.slug,
-        versao_aviso_privacidade: env.PUBLIC_BOOKING_AVISO_VERSAO,
+        versao_aviso_privacidade: cat.aviso.versao,
+        aviso_hash: cat.aviso.hash,
+        fonte_link: req.publicBooking.fonte,
+        profissional_escolhido_por: ctx.semPreferencia ? 'sistema' : 'cliente',
         consentimento_em: agoraIso,
         ip_truncado: ipTruncado(req.ip),
         dedup,
@@ -325,38 +434,54 @@ async function gravar(repo, cat, ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// Feature desligada (sem mapa): 404 em tudo, antes de ler corpo ou contar tentativa.
+// Nada daqui vai para cache. Desligado (slug fora do banco e da env) é 404 na resolução do
+// salão, depois do limite por IP e antes de ler qualquer dado do salão.
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
-  if (!linksPublicos().size) return next(naoEncontrado());
   next();
 });
-router.use(express.json({ limit: '10kb' }));
+// O corpo só é lido depois que o slug resolve um salão ligado: slug desconhecido nem chega
+// ao parser (a sonda do smoke usa isso para saber se um salão está ligado).
+const lerCorpo = express.json({ limit: '10kb' });
+const resolverAntes = (req, res, next) => resolverSalao(req).then(repo => { req.repoPublico = repo; next(); }, next);
 
 router.get('/agendar/:slug', limitarPorIp('get'), async (req, res, next) => {
   try {
-    const repo = resolverSalao(req);
+    const repo = await resolverSalao(req);
     const cat = await carregarCatalogo(repo);
-    const lim = limitesDoMomento();
+    const lim = limitesDoMomento(cat.cfg);
+    const preco = v => (cat.cfg.mostrarPreco ? v : null);
     res.json({
       ok: true,
       data: {
         salao: { nome: cat.empresa.nome || '' },
-        servicos: cat.ofertas.map(({ servico, profissionais }) => ({
-          id: servico.id,
-          nome: servico.nome,
-          duracaoMin: resolveDuracaoMin({ servico }),
-          precoCentavos: Number(servico.valor_centavos) || 0,
-          profissionais: profissionais.map(p => ({ id: p.id, nome: primeiroNome(p.nome) }))
-        })),
+        servicos: cat.ofertas.map(({ servico, profissionais }) => {
+          // Preço e duração de cada profissional (override); no serviço, a faixa entre eles.
+          const profs = profissionais.map(p => ({
+            id: p.id, nome: primeiroNome(p.nome), duracaoMin: resolveDuracaoMin({ servico, profissional: p }), precoCentavos: precoDe(servico, p)
+          }));
+          const precos = profs.map(p => p.precoCentavos);
+          const duracoes = profs.map(p => p.duracaoMin);
+          return {
+            id: servico.id,
+            nome: servico.nome,
+            duracaoMin: Math.min(...duracoes),
+            duracaoMaxMin: Math.max(...duracoes),
+            precoCentavos: preco(Math.min(...precos)),
+            precoMaxCentavos: preco(Math.max(...precos)),
+            semPreferencia: profs.length > 1,
+            profissionais: profs.map(p => ({ ...p, precoCentavos: preco(p.precoCentavos) }))
+          };
+        }),
         regras: {
           hoje: lim.agora.data,
           primeiroDia: lim.minimo.data,
           ultimoDia: lim.ultimoDia,
-          antecedenciaMin: Math.max(0, num(env.PUBLIC_BOOKING_ANTECEDENCIA_MIN, 120)),
-          janelaDias: lim.janelaDias
+          antecedenciaMin: cat.cfg.antecedenciaMin,
+          janelaDias: lim.janelaDias,
+          cancelamentoPrazoMin: cat.cfg.cancelamentoPrazoMin
         },
-        aviso: { versao: env.PUBLIC_BOOKING_AVISO_VERSAO }
+        aviso: { versao: cat.aviso.versao, controlador: cat.aviso.controlador }
       }
     });
   } catch (err) { next(err); }
@@ -364,33 +489,40 @@ router.get('/agendar/:slug', limitarPorIp('get'), async (req, res, next) => {
 
 router.get('/agendar/:slug/slots', limitarPorIp('get'), async (req, res, next) => {
   try {
-    const repo = resolverSalao(req);
+    const repo = await resolverSalao(req);
     const { servicoId, profissionalId, data } = req.query;
     if (typeof servicoId !== 'string' || !UUID_RE.test(servicoId) || typeof profissionalId !== 'string' ||
-      !UUID_RE.test(profissionalId) || !dataValida(data)) throw dadosInvalidos();
-    const lim = limitesDoMomento();
+      !(UUID_RE.test(profissionalId) || profissionalId === SEM_PREFERENCIA) || !dataValida(data)) throw dadosInvalidos();
     const cat = await carregarCatalogo(repo);
+    const lim = limitesDoMomento(cat.cfg);
     const r = await slotsPublicos(repo, cat, { servicoId: servicoId.toLowerCase(), profissionalId: profissionalId.toLowerCase(), data }, lim);
     res.json({ ok: true, data: { data, duracaoMin: r.duracaoMin, slots: r.slots } });
   } catch (err) { next(err); }
 });
 
-router.post('/agendar/:slug', limitarPorIp('post'), async (req, res, next) => {
+router.post('/agendar/:slug', limitarPorIp('post'), resolverAntes, lerCorpo, async (req, res, next) => {
   try {
-    const repo = resolverSalao(req);
+    const repo = req.repoPublico;
     const entrada = validarEntrada(req.body);
     if (excedeu(`numero|${repo.empresaId}|${entrada.whatsapp}`, num(env.PUBLIC_BOOKING_RATE_POST_NUMERO_MAX, 5), 3600e3)) {
       throw muitasTentativas();
     }
-    const lim = limitesDoMomento();
     const cat = await carregarCatalogo(repo);
-    const { servico, profissional, duracaoMin, slots } = await slotsPublicos(repo, cat, entrada, lim);
-    const resposta = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(profissional.nome) };
+    const lim = limitesDoMomento(cat.cfg);
+    const { servico, slots, escolhido, profissional: pedido, candidatos } = await slotsPublicos(repo, cat, entrada, lim);
     // Honeypot preenchido (robô): finge sucesso e não grava nada.
-    if (entrada.website) return res.status(201).json({ ok: true, data: resposta });
+    if (entrada.website) {
+      const quem = pedido || (escolhido(entrada.horario) || {}).profissional || candidatos[0];
+      return res.status(201).json({ ok: true, data: { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(quem.nome) } });
+    }
     // Revalidação no servidor: expediente, antecedência, janela, ocupação e vínculo.
     if (!slots.includes(entrada.horario)) throw horarioIndisponivel(); // [protecao:slot]
-    await comTrava(`${repo.empresaId}|${entrada.whatsapp}`, () => gravar(repo, cat, { entrada, servico, profissional, duracaoMin, lim, req }));
+    // Com profissional pedido, é ele; sem preferência, quem tem o horário livre.
+    const { profissional, duracaoMin } = escolhido(entrada.horario) || { profissional: pedido, duracaoMin: resolveDuracaoMin({ servico, profissional: pedido }) };
+    if (!profissional) throw horarioIndisponivel();
+    const semPreferencia = entrada.profissionalId === SEM_PREFERENCIA;
+    const resposta = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(profissional.nome) };
+    await comTrava(`${repo.empresaId}|${entrada.whatsapp}`, () => gravar(repo, cat, { entrada, servico, profissional, duracaoMin, lim, req, semPreferencia }));
     res.status(201).json({ ok: true, data: resposta });
   } catch (err) { next(err); }
 });
@@ -408,4 +540,4 @@ router.use((err, req, res, next) => {
   res.status(500).json({ ok: false, error: { code: 'INDISPONIVEL_AGORA', message: 'Não foi possível concluir agora. Tente de novo em instantes.' } });
 });
 
-module.exports = { publicBookingRouter: router, resetRateLimitPublico, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };
+module.exports = { publicBookingRouter: router, resetRateLimitPublico, limparCacheSlug, linksDaEnv: linksPublicos, configOnline, SLUG_RE, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };

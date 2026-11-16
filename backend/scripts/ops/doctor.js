@@ -108,14 +108,14 @@ function checkEnv(env, report) {
 
   // PUBLIC_BOOKING_LINKS
   const links = env.PUBLIC_BOOKING_LINKS;
-  if (!links) report.ok('env.PUBLIC_BOOKING_LINKS', 'ausente → agendamento online DESLIGADO');
+  if (!links) report.ok('env.PUBLIC_BOOKING_LINKS', 'ausente → nenhum link pela env (links por salão vêm do banco, Conta → Link online, D-037)');
   else {
     const parsed = parseJson(links);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) report.fail('env.PUBLIC_BOOKING_LINKS', 'não é um objeto JSON {"slug":"<uuid>"}');
     else {
       const invalid = Object.entries(parsed).filter(([s, id]) => !SLUG_RE.test(String(s)) || !UUID_RE.test(String(id)));
       if (invalid.length) report.fail('env.PUBLIC_BOOKING_LINKS', `entradas inválidas (slug ou uuid): ${invalid.map(([s]) => String(s).slice(0, 40)).join(', ')}`);
-      else if (!Object.keys(parsed).length) report.ok('env.PUBLIC_BOOKING_LINKS', 'objeto vazio → DESLIGADO');
+      else if (!Object.keys(parsed).length) report.ok('env.PUBLIC_BOOKING_LINKS', 'objeto vazio → nenhum link pela env (links por salão vêm do banco, D-037)');
       else report.warn('env.PUBLIC_BOOKING_LINKS', `LIGADO (${Object.keys(parsed).join(', ')}): exige aviso de privacidade aprovado + Red Team (D-014)`);
     }
   }

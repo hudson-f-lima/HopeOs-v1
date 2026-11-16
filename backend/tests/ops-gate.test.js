@@ -140,7 +140,7 @@ test('02 doctor offline: ambiente de produção coerente = 0', async () => {
   const j = JSON.parse(r.stdout);
   assert.strictEqual(r.code, 0, r.stdout);
   assert.strictEqual(j.summary.fail, 0);
-  assert.ok(j.checks.some(c => c.id === 'env.PUBLIC_BOOKING_LINKS' && /DESLIGADO/.test(c.message)));
+  assert.ok(j.checks.some(c => c.id === 'env.PUBLIC_BOOKING_LINKS' && /nenhum link pela env/.test(c.message)));
 });
 
 test('03 doctor recusa o kortex-os-v2-staging (URL ou chave) com código 3 e não conecta', async () => {
@@ -345,10 +345,10 @@ test('14 smoke reprova (controles negativos): sem CSP, CORS aberto, agendamento 
     env.CORS_ORIGIN = corsAntes;
 
     env.PUBLIC_BOOKING_LINKS = JSON.stringify({ 'salao-x': EMPRESA });
-    const r4 = await smoke.main(['--json', '--api', apiBase]);
+    const r4 = await smoke.main(['--json', '--api', apiBase, '--public-slug', 'salao-x']);
     assert.strictEqual(r4.code, 1);
-    assert.ok(falha(r4, 'api.public'));
-    const r5 = await smoke.main(['--json', '--api', apiBase, '--public-booking', 'on']);
+    assert.ok(falha(r4, 'api.public'), 'salão ligado e esperado desligado falha');
+    const r5 = await smoke.main(['--json', '--api', apiBase, '--public-booking', 'on', '--public-slug', 'salao-x']);
     assert.ok(!falha(r5, 'api.public'), 'ligado e esperado ligado passa');
     env.PUBLIC_BOOKING_LINKS = linksAntes;
 

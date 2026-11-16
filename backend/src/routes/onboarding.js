@@ -14,6 +14,7 @@ const { env } = require('../config/env');
 const clock = require('../config/clock');
 const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
 const { timeToMinutes, INACTIVE_STATUSES } = require('../engines/ScheduleEngine');
+const { limparCacheSlug, linksDaEnv } = require('./publicBooking');
 
 const CAMPOS_HORARIO = ['horario_por_dia', 'intervalo_almoco', 'almoco_inicio', 'almoco_fim'];
 
@@ -100,6 +101,113 @@ router.patch('/empresa', authorize('empresa:configurar'), async (req, res, next)
       if (err && err.code === '23514') throw createAppError('INVALID_FIELD', 'Valor fora do permitido para a empresa.', 422);
       throw err;
     }
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// Agendamento online do salão (migration 016, D-037). O slug e o liga/desliga ficam na linha
+// da empresa; ligar exige razão social e contato de privacidade (o aviso identifica quem trata
+// os dados). O banco repete essas regras (constraints da 016); aqui só ganham mensagem clara.
+const ONLINE_CAMPOS = {
+  slug: 'online_slug', ativo: 'online_ativo', antecedenciaMin: 'online_antecedencia_min', janelaDias: 'online_janela_dias',
+  cancelamentoPrazoMin: 'online_cancelamento_prazo_min', maxFuturos: 'online_max_futuros', mostrarPreco: 'online_mostrar_preco',
+  privacidadeContato: 'privacidade_contato'
+};
+const ONLINE_FAIXAS = { antecedenciaMin: [0, 10080], janelaDias: [1, 180], cancelamentoPrazoMin: [0, 10080], maxFuturos: [1, 10] };
+const SLUG_ONLINE_RE = /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/;
+const invalidoOnline = (field, message) => createAppError('INVALID_FIELD', message, 422, { field });
+
+function pendenciasOnline(e) {
+  const p = [];
+  if (!e.online_slug) p.push('slug');
+  if (!String(e.razao_social || '').trim()) p.push('razaoSocial');
+  if (!String(e.privacidade_contato || '').trim()) p.push('privacidadeContato');
+  return p;
+}
+function configOnlinePublica(e) {
+  const migrada = Object.prototype.hasOwnProperty.call(e, 'online_ativo');
+  return {
+    disponivel: migrada,
+    slug: e.online_slug ?? null,
+    ativo: e.online_ativo === true,
+    antecedenciaMin: e.online_antecedencia_min ?? 120,
+    janelaDias: e.online_janela_dias ?? 30,
+    cancelamentoPrazoMin: e.online_cancelamento_prazo_min ?? 120,
+    maxFuturos: e.online_max_futuros ?? 2,
+    mostrarPreco: e.online_mostrar_preco !== false,
+    privacidadeContato: e.privacidade_contato ?? null,
+    razaoSocial: e.razao_social ?? null,
+    cnpj: e.cnpj ?? null,
+    pendencias: pendenciasOnline(e)
+  };
+}
+function validarConfigOnline(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw createAppError('INVALID_PAYLOAD', 'Envie um objeto.', 422);
+  const extra = Object.keys(body).find(k => !Object.prototype.hasOwnProperty.call(ONLINE_CAMPOS, k));
+  if (extra) throw createAppError('FORBIDDEN_FIELD', `Campo proibido no payload: ${extra}`, 422, { field: extra });
+  const out = {};
+  if (body.slug !== undefined) {
+    const v = body.slug === null ? '' : String(body.slug).trim().toLowerCase();
+    if (v && !SLUG_ONLINE_RE.test(v)) throw invalidoOnline('slug', 'Endereço do link: 3 a 60 letras minúsculas, números ou hífen, sem hífen nas pontas.');
+    out.online_slug = v || null;
+  }
+  for (const campo of ['ativo', 'mostrarPreco']) {
+    if (body[campo] === undefined) continue;
+    if (typeof body[campo] !== 'boolean') throw invalidoOnline(campo, `${campo} deve ser verdadeiro ou falso.`);
+    out[ONLINE_CAMPOS[campo]] = body[campo];
+  }
+  for (const [campo, [min, max]] of Object.entries(ONLINE_FAIXAS)) {
+    if (body[campo] === undefined) continue;
+    const n = Number(body[campo]);
+    if (!Number.isInteger(n) || n < min || n > max) throw invalidoOnline(campo, `${campo} deve ser um inteiro entre ${min} e ${max}.`);
+    out[ONLINE_CAMPOS[campo]] = n;
+  }
+  if (body.privacidadeContato !== undefined) {
+    const v = body.privacidadeContato === null ? '' : String(body.privacidadeContato).trim();
+    if (v && (v.length < 3 || v.length > 200)) throw invalidoOnline('privacidadeContato', 'Contato de privacidade: 3 a 200 caracteres (e-mail ou WhatsApp).');
+    out.privacidade_contato = v || null;
+  }
+  if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo válido para atualizar.', 422);
+  return out;
+}
+
+router.get('/empresa/agendamento-online', authorize('empresa:configurar'), async (req, res, next) => {
+  try {
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    res.json({ ok: true, data: configOnlinePublica(await carregarEmpresa(repo)) });
+  } catch (err) { next(err); }
+});
+
+router.patch('/empresa/agendamento-online', authorize('empresa:configurar'), async (req, res, next) => {
+  try {
+    const patch = validarConfigOnline(req.body);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const atual = await carregarEmpresa(repo);
+    if (!Object.prototype.hasOwnProperty.call(atual, 'online_ativo')) {
+      throw createAppError('MIGRATION_PENDENTE', 'O agendamento online por salão ainda não está disponível neste banco (migration 016).', 503);
+    }
+    const depois = { ...atual, ...patch };
+    if (depois.online_ativo === true) {
+      const faltam = pendenciasOnline(depois);
+      if (faltam.length) {
+        throw createAppError('REQUISITOS_PENDENTES', 'Para ligar o link, preencha o endereço do link, a razão social e o contato de privacidade.', 422, { faltam });
+      }
+    }
+    // Um slug do mapa da env de outra empresa continuaria abrindo o outro salão: recusa.
+    if (patch.online_slug) {
+      const daEnv = linksDaEnv().get(patch.online_slug);
+      if (daEnv && daEnv !== String(repo.empresaId).toLowerCase()) throw createAppError('SLUG_EM_USO', 'Esse endereço de link já está em uso. Escolha outro.', 409, { field: 'slug' });
+    }
+    let atualizada;
+    try {
+      atualizada = await repo.updateEmpresa({ ...patch, updated_at: new Date().toISOString() });
+    } catch (err) {
+      if (err && err.code === '23505') throw createAppError('SLUG_EM_USO', 'Esse endereço de link já está em uso. Escolha outro.', 409, { field: 'slug' });
+      if (err && err.code === '23514') throw createAppError('INVALID_FIELD', 'Valor fora do permitido para o agendamento online.', 422);
+      throw err;
+    }
+    limparCacheSlug();
+    res.json({ ok: true, data: configOnlinePublica(atualizada) });
   } catch (err) { next(err); }
 });
 

@@ -258,6 +258,16 @@ class SupabaseRepository {
     }
   }
 
+  // Link público (016, D-037): a empresa dona do slug, sem contexto de tenant. Só id e
+  // liga/desliga; o slug chega já validado pelo formato. Nunca devolve mais de uma linha
+  // (índice único), e um slug vazio nunca vira "sem filtro".
+  async empresaOnlinePorSlug(slug) {
+    if (typeof slug !== 'string' || !slug) return null;
+    const { data, error } = await this.supabase.from('empresas').select('id, online_ativo').eq('online_slug', slug).limit(1);
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
   // A linha da empresa com a disponibilidade anexada (fonte do SlotEngine e da ocupação).
   async empresaComDisponibilidade() {
     const [[empresa], disponibilidade] = await Promise.all([this.list('empresas', { id: this.empresaId }), this.carregarDisponibilidade()]);
