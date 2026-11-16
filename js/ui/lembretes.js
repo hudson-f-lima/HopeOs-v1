@@ -21,7 +21,7 @@ function render(r) {
         <div class="eq-ctrl">
           ${!porWhatsapp ? ''
             : i.link
-              ? `<a class="btn btn-secondary lembrete-zap" href="${escapeHtml(i.link)}" target="_blank" rel="noopener">WhatsApp</a>`
+              ? `<a class="btn btn-secondary lembrete-zap" href="${escapeHtml(i.link)}" target="_blank" rel="noopener" data-zap="${escapeHtml(i.agendamentoId)}">WhatsApp</a>`
               : `<span class="body-sm text-tertiary">${escapeHtml(MOTIVO[i.motivo] || 'Sem contato')}</span>`}
           <button class="btn" type="button" data-confirmar="${i.agendamentoId}">Confirmou</button>
         </div>
@@ -57,6 +57,27 @@ async function confirmar(id, botao) {
   }
 }
 
+// Link pessoal do cliente (C2, D-038): ao abrir o WhatsApp, a recepção gera um link para o
+// cliente confirmar, cancelar ou remarcar, e ele vai no fim da mensagem. A janela abre no toque
+// (antes da chamada à API) para o navegador do celular não bloquear o pop-up. Sem o link (falha
+// ou banco sem a 017), a mensagem sai como antes.
+async function abrirWhatsappComLink(ev, a) {
+  ev.preventDefault();
+  const janela = window.open('about:blank', '_blank');
+  let destino = a.href;
+  try {
+    const { token } = await api(`/agenda/${a.dataset.zap}/link-cliente`, { method: 'POST', body: {} });
+    const pessoal = new URL('meu-horario.html', location.href);
+    pessoal.hash = `t=${token}`;
+    const u = new URL(a.href);
+    u.searchParams.set('text', `${u.searchParams.get('text') || ''}\n\nPara confirmar, cancelar ou remarcar: ${pessoal}`);
+    destino = u.toString();
+  } catch (err) {
+    showBanner(`Link pessoal não gerado: ${err.message}. A mensagem segue sem ele.`, 'error');
+  }
+  if (janela) { janela.opener = null; janela.location.href = destino; } else location.href = destino;
+}
+
 export function abrirLembretes(data = addDays(todayStr(), 1)) {
   el('lembretesDialog').showModal();
   carregar(data);
@@ -67,6 +88,8 @@ export function initLembretes() {
   el('btnFecharLembretes')?.addEventListener('click', () => el('lembretesDialog').close());
   el('lembretesData')?.addEventListener('change', ev => { if (ev.target.value) carregar(ev.target.value); });
   el('lembretesConteudo')?.addEventListener('click', ev => {
+    const zap = ev.target.closest('[data-zap]');
+    if (zap) return abrirWhatsappComLink(ev, zap);
     const b = ev.target.closest('[data-confirmar]');
     if (b) confirmar(b.dataset.confirmar, b);
   });

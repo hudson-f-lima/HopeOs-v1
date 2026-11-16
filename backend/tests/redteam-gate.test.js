@@ -212,6 +212,22 @@ test('RT-01 rate limit por IP não se contorna girando o IPv6 dentro do mesmo /6
   } finally { publico.resetRateLimitPublico(); limitesAltos(); }
 });
 
+test('RT-31 rate limit público não se contorna trocando de IPv4 dentro do mesmo /24 (RTP-01, produção 2026-11-16)', async () => {
+  publico.resetRateLimitPublico(); limitesAltos();
+  env.PUBLIC_BOOKING_RATE_GET_MAX = 5;
+  try {
+    // Em produção a sonda saiu por 6 IPv4 diferentes do mesmo /24 e nenhuma das 66 requisições levou 429.
+    const st = [];
+    for (let i = 1; i <= 6; i++) st.push((await request('GET', `/api/public/agendar/salao-rt-${i}`, { headers: { 'x-forwarded-for': `198.51.100.${i}` } })).status);
+    assert.deepStrictEqual(st, [404, 404, 404, 404, 404, 429], `6ª requisição do mesmo /24 deveria ser 429: ${st}`);
+    // Outro /24 é outro cliente.
+    assert.strictEqual((await request('GET', '/api/public/agendar/salao-rt-x', { headers: { 'x-forwarded-for': '198.51.101.1' } })).status, 404);
+    // O login continua por endereço (não é afetado pela chave do agendamento público).
+    const { chaveIp } = require('../src/security/rateLimit');
+    assert.notStrictEqual(chaveIp('198.51.100.1'), chaveIp('198.51.100.2'));
+  } finally { publico.resetRateLimitPublico(); limitesAltos(); }
+});
+
 test('RT-02 WhatsApp no formato antigo (sem o 9) é o MESMO número: limite por número e de futuros valem', async () => {
   publico.resetRateLimitPublico(); limitesAltos();
   const antes = contar();
@@ -596,7 +612,10 @@ test('RT-19 prazo na virada do fuso: 30º dia às 23:59 de Brasília (02:59 UTC 
 const ROTAS_SEM_RBAC = new Set([
   'GET /', 'GET /api/health',
   'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
-  'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug'
+  'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug',
+  // Link pessoal do agendamento (017, D-038): a credencial é o código do link, no corpo.
+  'POST /api/public/meu-agendamento', 'POST /api/public/meu-agendamento/confirmar', 'POST /api/public/meu-agendamento/cancelar',
+  'POST /api/public/meu-agendamento/horarios', 'POST /api/public/meu-agendamento/remarcar'
 ]);
 function inventarioDeRotas() {
   const { authRouter } = require('../src/routes/auth');
@@ -675,6 +694,13 @@ test('NR-01 controle negativo: sem a normalização /64, girar o IPv6 do RT-01 p
   assert.notStrictEqual(rl.chaveIp('2001:db8:1:2::a'), rl.chaveIp('2001:db8:1:2::b'), 'mutante deveria separar os IPs');
   const { chaveIp } = require('../src/security/rateLimit');
   assert.strictEqual(chaveIp('2001:db8:1:2::a'), chaveIp('2001:db8:1:2::b'));
+});
+
+test('NR-31 controle negativo: com a chave por endereço no limitador público, girar o IPv4 do RT-31 passa do limite', async () => {
+  const rl = moduloMutante('../src/security/rateLimit.js', [['if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.0/24`;', 'if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.${v4[4]}`;']]);
+  assert.notStrictEqual(rl.chaveIpPublico('198.51.100.1'), rl.chaveIpPublico('198.51.100.2'), 'mutante deveria separar os IPs');
+  const { chaveIpPublico } = require('../src/security/rateLimit');
+  assert.strictEqual(chaveIpPublico('198.51.100.1'), chaveIpPublico('::ffff:198.51.100.200'));
 });
 
 test('NR-02 controle negativo: com o teto de memória voltando a "limpar tudo", o spray do RT-21 zera a chave-alvo', async () => {

@@ -45,6 +45,8 @@ const PERMISSOES = Object.freeze([
   p('agenda:atender', 'Agenda', 'Confirmar, registrar chegada, atender, concluir e marcar falta', 'agenda:write', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
   p('agenda:cancelar', 'Agenda', 'Cancelar agendamento', 'agenda:write', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
   p('agenda:lembretes', 'Agenda', 'Lembretes de confirmação por WhatsApp', 'agenda:read', OPERACAO),
+  // D-039 (migration 018): série recorrente só pela equipe; o cliente nunca cria série pelo link.
+  p('agenda:recorrencia', 'Agenda', 'Criar agendamento recorrente (semanal, quinzenal, mensal)', 'agenda:write', OPERACAO),
   // D-033 (migration 013): escala e disponibilidade.
   p('escala:ver', 'Escala', 'Ver escala e disponibilidade', 'agenda:read', OPERACAO_PROPRIO, 'operacao', SEGUE_AGENDA),
   p('escala:bloquear', 'Escala', 'Bloquear horário e registrar ausência', 'agenda:write', OPERACAO_PROPRIO),

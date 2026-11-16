@@ -42,6 +42,7 @@ const env = {
   PUBLIC_BOOKING_RATE_GET_MAX: Number(process.env.PUBLIC_BOOKING_RATE_GET_MAX || 60), // por IP, por minuto
   PUBLIC_BOOKING_RATE_POST_IP_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_IP_MAX || 10), // por IP, por hora
   PUBLIC_BOOKING_RATE_POST_NUMERO_MAX: Number(process.env.PUBLIC_BOOKING_RATE_POST_NUMERO_MAX || 5), // por WhatsApp+salão, por hora
+  PUBLIC_BOOKING_RATE_LINK_MAX: Number(process.env.PUBLIC_BOOKING_RATE_LINK_MAX || 30), // link pessoal do agendamento: por IP (/24), por minuto
   // Versão do aviso de privacidade aceito pela equipe ao criar a conta e entrar (D-018).
   // Trocar a versão faz todo usuário aceitar de novo no próximo acesso.
   PRIVACY_NOTICE_VERSION: process.env.PRIVACY_NOTICE_VERSION || '2026-11-10',

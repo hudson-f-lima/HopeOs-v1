@@ -3,6 +3,7 @@
 // limites, cliente) é do backend; aqui só se mostra e se envia. Nada de innerHTML
 // com dado da API: tudo entra por textContent.
 import { apiBaseDaUrl } from './api-base.js';
+import { baixarIcs, googleAgendaUrl, urlDoLinkPessoal } from './calendario-cliente.js';
 
 const estado = {
   api: null, slug: null, catalogo: null,
@@ -231,8 +232,19 @@ function confirmar(d) {
   const prazo = Number(estado.catalogo.regras && estado.catalogo.regras.cancelamentoPrazoMin);
   if (Number.isFinite(prazo)) {
     const quando = prazo === 0 ? 'até o horário' : prazo % 60 === 0 ? `até ${prazo / 60} h antes` : `até ${prazo} min antes`;
-    $('confirmacaoPrazo').textContent = `Precisa cancelar ou remarcar? Avise o salão ${quando}.`;
+    $('confirmacaoPrazo').textContent = d.link
+      ? `Cancelar ou remarcar pelo link: ${quando}. Depois disso, fale com o salão.`
+      : `Precisa cancelar ou remarcar? Avise o salão ${quando}.`;
     mostrar('confirmacaoPrazo');
+  }
+  // Link pessoal (C2) e lembrete na agenda do celular.
+  mostrar('confirmacaoLink', !!(d.link && d.calendario));
+  if (d.link && d.calendario) {
+    const url = urlDoLinkPessoal(d.link);
+    estado.linkPessoal = url;
+    estado.calendario = d.calendario;
+    $('linkPessoal').href = url;
+    $('linkGoogle').href = googleAgendaUrl(d.calendario, url);
   }
   mostrar('fluxo', false);
   mostrar('secConfirmacao');
@@ -259,6 +271,11 @@ function indisponivel() {
 async function iniciar() {
   $('formDados').addEventListener('submit', enviar);
   $('btnNovo').addEventListener('click', recomecar);
+  $('btnIcs').addEventListener('click', () => { if (estado.calendario) baixarIcs(estado.calendario, estado.linkPessoal); });
+  $('btnCopiarLink').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(estado.linkPessoal); $('btnCopiarLink').textContent = 'Link copiado'; }
+    catch { aviso('Não deu para copiar. Toque em "Abrir meu horário" e salve a página nos favoritos.'); }
+  });
   estado.slug = (new URLSearchParams(location.search).get('s') || '').trim().toLowerCase();
   if (!/^[a-z0-9-]{3,60}$/.test(estado.slug)) return indisponivel();
   let r;

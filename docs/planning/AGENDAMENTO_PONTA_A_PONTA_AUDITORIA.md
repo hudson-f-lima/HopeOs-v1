@@ -67,7 +67,7 @@ O salão vê tudo na agenda, com origem e histórico, e é avisado de agendament
 | **C4. Recorrência** | Série semanal, quinzenal e mensal; cancelar ou alterar "só este", "este e os próximos" ou "todos" pelo card; a série respeita escalas e conflitos | **Sim** (série) | Não | Criar série de 8 semanas com conflitos avisados; mudar "este e os próximos" sem tocar os anteriores |
 | **C5. Automático** | Comprovante e lembrete por WhatsApp com o link pessoal; "meus agendamentos" com código | Talvez | **Sim** (WhatsApp ou SMS) | Lembrete sai sozinho no horário configurado; opt-out respeitado |
 
-**Ordem recomendada:** C1 → C2 → C3 → C4 → C5.
+**Ordem recomendada:** C1 → C2 → C3 → C4 → C5. **Estado (2026-11-16):** C1 em produção (link desligado); C2 (migration 017, D-038), C3 (sem migration) e C4 (migration 018, D-039) implementadas, aguardam merge; C3–C5 e Onda A da assinatura autorizadas (D-038).
 - C1 a C3 não dependem de fornecedor nem de migration e já cumprem o critério da §3, menos a recorrência e o automático.
 - C4 é a única que exige migration.
 - C5 depende de contratar um fornecedor de WhatsApp.

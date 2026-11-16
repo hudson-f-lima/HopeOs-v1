@@ -268,6 +268,26 @@ class SupabaseRepository {
     return (data && data[0]) || null;
   }
 
+  // Aviso de agendamento online novo (C3, D-038): eventos de um tipo criados a partir de um
+  // instante, do mais novo ao mais antigo, com teto (a recepção só precisa dos recentes).
+  async eventosAgendaDesde(tipo, desdeIso, limite = 100) {
+    if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
+    const { data, error } = await this.supabase.from('agendamento_eventos').select('*')
+      .eq('empresa_id', this.empresaId).eq('tipo', tipo).gte('created_at', desdeIso)
+      .order('created_at', { ascending: false }).limit(limite);
+    if (error) throw error;
+    return data || [];
+  }
+
+  // Link pessoal do agendamento (017, D-038): o acesso pelo hash do código, sem contexto de
+  // tenant (é ele que diz a empresa). Hash fora do formato nunca vira consulta.
+  async acessoPorTokenHash(hash) {
+    if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) return null;
+    const { data, error } = await this.supabase.from('agendamento_acessos').select('*').eq('token_hash', hash).limit(1);
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
   // A linha da empresa com a disponibilidade anexada (fonte do SlotEngine e da ocupação).
   async empresaComDisponibilidade() {
     const [[empresa], disponibilidade] = await Promise.all([this.list('empresas', { id: this.empresaId }), this.carregarDisponibilidade()]);
@@ -434,6 +454,20 @@ class SupabaseRepository {
 
   // Checagem de conflito + insert numa transação sob lock (migration 007):
   // dois pedidos simultâneos para o mesmo horário não gravam os dois.
+  // Atendimento com várias etapas (019, D-040): todas ou nenhuma, numa transação no banco.
+  async criarAtendimento({ etapas, createdBy = null }) {
+    const { data, error } = await this.supabase.rpc('atendimento_criar', { p_empresa_id: this.empresaId, p_etapas: etapas, p_created_by: createdBy });
+    if (error) {
+      if (error.code === 'HS409') {
+        let conflitos = [];
+        try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
+        throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda em uma das etapas.', 409, { conflitos });
+      }
+      throw error;
+    }
+    return data;
+  }
+
   async criarAgendamento({ agendamento, permitirConflito = false, ignorarId = null, createdBy = null }) {
     const { data, error } = await this.supabase.rpc('agendamento_criar', {
       p_empresa_id: this.empresaId,

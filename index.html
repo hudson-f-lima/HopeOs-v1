@@ -157,6 +157,7 @@
       </div>
       <button class="agenda-today-pill" id="btnAgendaToday" type="button">Hoje</button>
       <button class="agenda-today-pill agenda-lembretes-pill" id="btnAgendaLembretes" type="button">Lembretes</button>
+      <button class="agenda-today-pill agenda-online-pill hidden" id="btnOnlineNovos" type="button" aria-live="polite"></button>
     </section>
 
     <section id="tab-checkout" class="tab-content hidden">
@@ -569,6 +570,23 @@
       <input id="agHorario" type="time"/>
       <div id="agSlots" class="ag-slots" aria-live="polite"></div>
     </div>
+    <div class="field">
+      <div id="agExtras" class="ag-extras"></div>
+      <button type="button" class="btn-link" id="btnAgAddServico">+ Adicionar serviço</button>
+    </div>
+    <div class="field hidden" id="agRepetirBox">
+      <label for="agRepetir">Repetir</label>
+      <select id="agRepetir">
+        <option value="">Não repete</option>
+        <option value="semanal">Toda semana</option>
+        <option value="quinzenal">A cada 15 dias</option>
+        <option value="mensal">Todo mês</option>
+      </select>
+      <div class="hidden" id="agOcorrenciasBox" style="margin-top:6px;">
+        <label for="agOcorrencias">Quantas vezes</label>
+        <input id="agOcorrencias" type="number" min="2" max="52" value="8" inputmode="numeric"/>
+      </div>
+    </div>
     <p id="agDuracaoPreview" class="body-sm text-tertiary mb-md"></p>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarNovoAgendamento" style="flex:1;">Cancelar</button>
@@ -772,6 +790,13 @@
         <h2 class="m-0" id="escTitulo" style="margin-bottom:4px;">Horários e escalas</h2>
         <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda só oferece horários dentro do horário da unidade e da escala de cada profissional, descontando datas especiais e bloqueios.</p>
         <div id="escConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
+        <div class="field hidden" id="esperaBox" style="margin-top:12px;">
+          <label for="esperaMax">Espera máxima entre etapas (atendimento com vários serviços)</label>
+          <select id="esperaMax">
+            <option value="0">Sem espera</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option>
+            <option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option><option value="90">1 h 30</option><option value="120">2 h</option>
+          </select>
+        </div>
       </section>
     </div>
 
@@ -1089,6 +1114,57 @@
   <label class="body-sm">Dia <input type="date" id="lembretesData"/></label>
   <p class="body-sm text-tertiary">Abra o WhatsApp de cada cliente, envie a mensagem pronta e marque "Confirmou" quando a resposta chegar.</p>
   <div id="lembretesConteudo"></div>
+</dialog>
+
+<dialog id="atendimentoDialog" class="lembretes-dialog" aria-labelledby="atendimentoTitulo">
+  <div class="lembretes-head">
+    <h2 id="atendimentoTitulo" class="m-0">Escolha a combinação</h2>
+    <button class="btn" type="button" id="btnAtendimentoFechar" aria-label="Fechar">✕</button>
+  </div>
+  <p class="body-sm text-tertiary" id="atendimentoResumo"></p>
+  <p class="body-sm" id="atendimentoMsg" role="alert"></p>
+  <div id="atendimentoOpcoes" class="at-opcoes"></div>
+</dialog>
+
+<dialog id="etapasDialog" class="lembretes-dialog" aria-labelledby="etapasTitulo">
+  <div class="lembretes-head">
+    <h2 id="etapasTitulo" class="m-0">Etapas do atendimento</h2>
+    <button class="btn" type="button" id="btnEtapasFechar" aria-label="Fechar">✕</button>
+  </div>
+  <div id="etapasConteudo"></div>
+  <p class="body-sm" id="etapasMsg" role="alert"></p>
+  <button class="btn danger hidden" type="button" id="btnEtapaCancelarEsta">Cancelar só esta etapa</button>
+  <button class="btn danger hidden" type="button" id="btnEtapaCancelarTodas">Cancelar todas as etapas</button>
+</dialog>
+
+<dialog id="serieDialog" class="lembretes-dialog" aria-labelledby="serieTitulo">
+  <div class="lembretes-head">
+    <h2 id="serieTitulo" class="m-0">Série</h2>
+    <button class="btn" type="button" id="btnSerieFechar" aria-label="Fechar">✕</button>
+  </div>
+  <fieldset class="serie-escopo">
+    <legend class="body-sm">Quais horários</legend>
+    <label><input type="radio" name="serieEscopo" value="este" checked/> Só este</label>
+    <label><input type="radio" name="serieEscopo" value="proximos"/> Este e os próximos</label>
+    <label><input type="radio" name="serieEscopo" value="todos"/> Todos os que ainda vão acontecer</label>
+  </fieldset>
+  <div id="serieAlterarCampos" class="hidden">
+    <div class="field"><label for="serieHorario">Novo horário</label><input id="serieHorario" type="time"/></div>
+    <div class="field"><label for="serieProfissional">Profissional</label><select id="serieProfissional"></select></div>
+    <p class="body-sm text-tertiary">Cada data mantém o dia; a que não couber fica como está.</p>
+  </div>
+  <p class="body-sm" id="serieMsg" role="alert"></p>
+  <button class="btn btn-primary" type="button" id="btnSerieConfirmar">Confirmar</button>
+</dialog>
+
+<dialog id="onlineNovosDialog" class="lembretes-dialog" aria-labelledby="onlineNovosTitulo">
+  <div class="lembretes-head">
+    <h2 id="onlineNovosTitulo" class="m-0">Novos pelo link online</h2>
+    <button class="btn" type="button" id="btnFecharOnlineNovos" aria-label="Fechar">✕</button>
+  </div>
+  <p class="body-sm text-tertiary">Agendamentos que clientes marcaram sozinhos desde a última vez que alguém viu neste aparelho.</p>
+  <div id="onlineNovosConteudo"></div>
+  <button class="btn btn-primary" type="button" id="btnOnlineVistos">Marcar como vistos</button>
 </dialog>
 
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>

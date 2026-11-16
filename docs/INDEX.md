@@ -37,3 +37,4 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`redteam/`](redteam/) — correções e achados de Red Team
 - [`legacy/`](legacy/) — referências históricas; não representam a fundação física
 - [`archive/`](archive/) — arquivos arquivados
+- [`planning/AGENDAMENTO_INTELIGENTE_ANALISE.md`](planning/AGENDAMENTO_INTELIGENTE_ANALISE.md): análise da proposta de múltiplos serviços, encaixes e combinação de profissionais (2026-11-16).

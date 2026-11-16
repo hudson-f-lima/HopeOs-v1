@@ -185,7 +185,10 @@ test('P05 POST cria cliente novo + agendamento "agendado" sem autoria + evento d
   const antes = contar();
   const r = await post(pedido());
   assert.strictEqual(r.status, 201, r.raw);
-  assert.deepStrictEqual(r.data.data, { data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
+  const { link, calendario, ...resposta } = r.data.data;
+  assert.deepStrictEqual(resposta, { data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
+  assert.match(link, /^[A-Za-z0-9_-]{43}$/, 'link pessoal (017) devolvido');
+  assert.strictEqual(calendario.inicioIso, '2026-11-11T14:00:00.000Z');
   assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
   const ag = db.agendamentos[db.agendamentos.length - 1];
   const cli = db.clientes[db.clientes.length - 1];

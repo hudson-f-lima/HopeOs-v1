@@ -466,3 +466,89 @@
   - Smoke: liga/desliga agora é por salão (`--public-slug`); slug inexistente continua 404 no GET e no POST.
 - **Verificação:** `gate_016.sql` (5 blocos); `agendamento-online-config-gate` 13/13 (3 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-online` (admin liga, cliente agenda sem preferência, admin desliga).
 - **Fora do escopo (próximas etapas):** C2 link pessoal do cliente (confirmar, cancelar, remarcar, .ics/Google Agenda), C3 aviso à recepção, C4 série recorrente só pela equipe, C5 push e WhatsApp pré-configurado. Ícone de instalação da página do cliente fica para a C2.
+
+## D-038 — Plano autorizado (C2–C5, assinatura Onda A) e C2: link pessoal do agendamento (migration 017)
+- **Decisão (Platform Owner, 2026-11-16):** "Autorizado plano de assinatura, C2, migrações, C3 C4 C5".
+  - Autoriza a implementação de C2, C3, C4, C5 (auditoria do agendamento) e da Onda A do clube de assinatura (D-036), **com as migrations que cada uma precisar**.
+  - Continua valendo: cada migration tem linha no `migrations.lock`, gate SQL, rollback e decisão registrada; o merge que aplica SQL em produção exige "ok merge" explícito.
+  - Ordem de execução: C2 → C3 → C4 → C5 → Onda A (o critério do dono para sair do AppBarber é o agendamento de ponta a ponta).
+  - Na mesma rodada (2026-11-16): aprovados o limite IPv4 por /24 no agendamento público (RTP-01), a fase "link ligado" do Red Team em produção (até 6 agendamentos de teste) e a limpeza depois.
+- **C2 entregue:**
+  - Migration 017: tabela `agendamento_acessos`:
+    - só o SHA-256 do código (o banco recusa texto que não seja hash);
+    - validade, revogação, contador de remarcações (0–20) e origem (`link_publico` ou `recepcao`);
+    - trigger que impede acesso de uma empresa apontar para agendamento de outra;
+    - RLS ligada, sem acesso de `anon`/`authenticated`, `service_role` sem `delete`;
+    - rollback em `supabase/rollback/017_down.sql`.
+  - O link: código aleatório de 32 bytes no fragmento da URL (`meu-horario.html#t=…`), que não vai ao servidor nem no Referer. A página manda o código no **corpo** de POSTs (a URL é registrada no log de acesso). Vale até 24 h depois do início do horário. No máximo 5 links ativos por agendamento (o mais antigo é revogado).
+  - `POST /api/public/meu-agendamento` (ver), `/confirmar`, `/cancelar`, `/horarios`, `/remarcar`:
+    - código ausente, malformado, desconhecido, revogado ou vencido → o mesmo 404;
+    - cancelar e remarcar só até o prazo do salão (`online_cancelamento_prazo_min`), conferido no servidor;
+    - remarcar: mesmo serviço e profissional, regras do link público do salão (antecedência, janela, disponibilidade), mesma duração e preço, no máximo 3 vezes por link, só com o link do salão ligado; o antigo vira `reagendado`, o link passa a mostrar o novo; se o original mudar no meio, o novo é desfeito (409);
+    - confirmar e cancelar são atualizações condicionais;
+    - trilha em `agendamento_eventos` com `origem: link_cliente` e `actor_type: cliente_link`;
+    - limite de 30 pedidos por minuto por /24 (`PUBLIC_BOOKING_RATE_LINK_MAX`).
+  - Confirmação do agendamento online: "Guarde seu link", copiar, e lembrete na agenda do celular (.ics com alarmes de 1 dia e 2 h, gerado no aparelho; link do Google Agenda).
+  - Recepção: ao tocar em WhatsApp nos lembretes, `POST /api/agenda/:id/link-cliente` (`agenda:lembretes`) gera um link e ele vai no fim da mensagem. Remarcação pela recepção leva o link do cliente para o novo horário.
+- **Riscos aceitos:** quem tiver o link (encaminhado, no histórico ou na agenda sincronizada na nuvem) pode confirmar, cancelar ou remarcar dentro das regras; a trilha registra que foi pelo link. O ícone de instalação da página do cliente fica para a C5 (push no iPhone exige o app instalado).
+- **Verificação:** `gate_017.sql` (5 blocos); `meu-agendamento-gate` 11/11 (2 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-pessoal`.
+- **C3 entregue (sem migration):** aviso de agendamento online novo.
+  - `GET /api/agenda/online-novos?desde=` (`agenda:ver`): devolve os agendamentos criados pelo link público desde o instante dado, no máximo 7 dias para trás e 50 itens, com o mesmo escopo da agenda.
+  - Na agenda, o botão "N novos online" consulta o servidor a cada minuto, com o app aberto e visível, e abre a lista com "Marcar como vistos".
+  - "Visto" fica guardado **no aparelho** (`localStorage`), não no banco. Cada aparelho da recepção tem o seu, e limpar o navegador traz de volta as últimas 24 h. Para valer entre aparelhos, precisaria de migration (não pedido agora).
+  - Sem som: o aviso é visual.
+  - Verificação: `meu-agendamento-gate` C301 e E2E `link-pessoal` (aviso aparece, lista, some depois de visto).
+
+## D-039 — Recorrência só pela equipe (C4, migration 018)
+- **Decisão (Platform Owner):** autorizada em D-038. Regras herdadas da auditoria (D-037): o cliente não cria série pelo link (risco de fraude); série semanal, quinzenal ou mensal; cancelar ou alterar "só este", "este e os próximos" ou "todos" pelo card; a série respeita escalas e conflitos.
+- **Entregue:**
+  - Migration 018:
+    - tabela `agendamento_series` (frequência, horário, duração 5–600, início, 2–52 ocorrências, `ativa`/`encerrada`);
+    - colunas `agendamentos.serie_id` e `serie_seq` (1–52, os dois juntos ou nenhum);
+    - triggers que impedem série ou ocorrência de cruzar empresa;
+    - RLS ligada, sem `delete`;
+    - rollback em `supabase/rollback/018_down.sql`.
+  - Permissão nova `agenda:recorrencia` (recepção, gerente e proprietário; o profissional não recebe por padrão).
+  - Datas (`RecorrenciaEngine`): semanal +7 dias, quinzenal +14, mensal no mesmo dia do mês. Em mês sem esse dia, cai no último dia do mês, sem deslocar os seguintes.
+  - Rotas:
+    - `POST /api/agenda/series/previa`: diz, sem gravar, quais datas estão livres, em conflito, fora da escala ou no passado.
+    - `POST /api/agenda/series`: grava a série e cada ocorrência livre pelo `agendamento_criar` de sempre. O que ficar indisponível até a gravação é pulado e informado; a série nunca encaixa à força.
+    - `GET /api/agenda/series/:id`.
+    - `POST /api/agenda/series/:id/cancelar` (`agenda:cancelar`).
+    - `POST /api/agenda/series/:id/alterar` (`agenda:editar`): novo horário e/ou profissional, cada data no mesmo dia. A que não couber fica como estava. "Este e os próximos" e "todos" atualizam a regra da série. O link pessoal do cliente (C2) acompanha.
+  - A remarcação avulsa de uma ocorrência mantém a marcação da série. Cancelar todas as futuras encerra a série.
+  - Tela:
+    - "Repetir" (toda semana, a cada 15 dias, todo mês; quantas vezes) no novo agendamento, com prévia e confirmação;
+    - no card, "Cancelar na série…" e "Alterar na série…", com o escopo.
+- **Fora do escopo:** alterar a data (dia da semana) da série; editar a série inteira de uma vez fora do card; séries sem fim.
+- **Verificação:**
+  - `gate_018.sql` (5 blocos). Pegou um furo real: `serie_seq` nulo passava o CHECK, corrigido antes do lock.
+  - `series-gate` 9/9, com controle negativo.
+  - E2E `series`: prévia, criação, alterar "este e os próximos", cancelar "todos", profissional sem "Repetir".
+
+## D-040 — Agendamento inteligente: atendimento com vários serviços (migration 019)
+- **Decisão (Platform Owner, 2026-11-16)** sobre [`planning/AGENDAMENTO_INTELIGENTE_ANALISE.md`](planning/AGENDAMENTO_INTELIGENTE_ANALISE.md):
+  - migration 019 autorizada;
+  - grade nova (passo igual à duração total, mais o início que termina no fim do espaço livre) nas combinações; "ver todos" do agendamento de um serviço continua com a grade de 30 min;
+  - limite de espera padrão de 30 minutos, ajustável por unidade;
+  - combo continua sendo um serviço único;
+  - esta proposta vem antes da C5.
+- **Onda 1 (sem migration):**
+  - `AtendimentoEngine` (puro): duração e preço por profissional (override > serviço); grade de inícios; combinações em três tipos (tudo com um profissional; em sequência com profissionais diferentes, sem espera; fracionado, com espera até o limite); validação de uma escolha.
+  - O profissional fixado pelo usuário nunca é trocado. O motor só lista opções; quem agenda escolhe.
+  - Ordenação: sem espera primeiro (um profissional, depois sequência, por início); as demais pelo tempo total do cliente.
+  - `POST /api/agenda/combinacoes` (`agenda:ver`, somente leitura): opções, totais por profissional e, se vier `escolha`, se ela ainda é válida.
+- **Onda 2 (migration 019):**
+  - `empresas.atendimento_espera_max_min` (0–240, padrão 30).
+  - `atendimento_criar`: reserva todas as etapas ou nenhuma. Trava a agenda de cada profissional em ordem fixa, confere conflito com higienização contra outros atendimentos e só sobreposição entre etapas do mesmo atendimento. Etapas ligadas por `grupo_id`/`grupo_seq` (colunas da 001). Nunca encaixa à força.
+  - `POST /api/agenda/atendimentos` (`agenda:criar`): o servidor recalcula duração e preço, confere habilitação, disponibilidade, ordem e limite de espera, e grava. Etapa que não cabe → 409 `ATENDIMENTO_INVALIDO` com os problemas; conflito na gravação → 409 `ATENDIMENTO_CONFLITO`, nada reservado.
+  - `GET /api/agenda/atendimentos/:grupoId` e `POST …/cancelar` (`etapa` ou `todas`; `simular: true` devolve etapas afetadas e mantidas sem gravar).
+  - Tela: "+ Adicionar serviço" no novo agendamento; lista de combinações com etapas, preço, espera e total; no card, "Ver etapas do atendimento" com cancelar só a etapa ou todas, mostrando o impacto antes. Limite de espera em Conta → Escalas.
+- **Limitações (ficam para a Onda 3 ou decisão futura):**
+  - remarcar o atendimento inteiro de uma vez (hoje: remarcar cada etapa, ou cancelar e agendar de novo);
+  - remarcar uma etapa encostada em outra do mesmo profissional pode esbarrar no tempo de higienização;
+  - vários serviços no link do cliente e na série recorrente;
+  - combo que conhece os componentes; recursos (cadeira, sala);
+  - checkout: cada etapa vai para a comanda como hoje (uma por vez).
+- **Verificação:** `gate_019.sql` (5 blocos); `concurrency_atendimento.sh` (duas reservas simultâneas → uma inteira, a outra sem nenhuma etapa); `atendimento-gate` 16/16 (cenários de aceite 1 a 10); E2E `atendimento`.
+

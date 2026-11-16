@@ -27,6 +27,7 @@
 | Confirmar, registrar chegada, atender, concluir e marcar falta | `agenda:atender` | Sim | Sim | Sim | Só o próprio | Proprietário ou gerente | Segue `agenda:ver` |
 | Cancelar agendamento | `agenda:cancelar` | Sim | Sim | Sim | Só o próprio | Proprietário ou gerente | Segue `agenda:ver` |
 | Lembretes de confirmação por WhatsApp | `agenda:lembretes` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
+| Criar agendamento recorrente (semanal, quinzenal, mensal) | `agenda:recorrencia` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
 
 ### Escala
 

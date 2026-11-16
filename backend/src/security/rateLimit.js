@@ -56,4 +56,14 @@ function chaveIp(ip) {
   return `${grupos.slice(0, 4).join(':')}::/64`;
 }
 
-module.exports = { criarLimitador, chaveIp, expandirIpv6, MAX_CHAVES_PADRAO };
+// Superfície pública (agendamento online): IPv4 conta por /24, como o IPv6 conta por /64.
+// Red Team em produção (RTP-01, 2026-11-16): um cliente que troca de endereço dentro do mesmo
+// bloco passava 66 requisições sem nenhum 429. O login continua por endereço (chaveIp).
+function chaveIpPublico(ip) {
+  const s = String(ip || '').trim().toLowerCase();
+  const v4 = s.match(/^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.0/24`;
+  return chaveIp(s);
+}
+
+module.exports = { criarLimitador, chaveIp, chaveIpPublico, expandirIpv6, MAX_CHAVES_PADRAO };

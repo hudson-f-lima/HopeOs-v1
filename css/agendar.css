@@ -95,3 +95,14 @@ body {
 .btn-secundario { border: 1px solid var(--primaria); background: #fff; color: var(--primaria-escura); }
 .confirmacao { background: var(--ok-fundo); border-color: #b7ebc6; }
 .confirmacao h2 { font-size: 20px; }
+
+/* Link pessoal (C2) e página "meu horário" */
+.link-pessoal { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.link-pessoal a, .acoes a { text-decoration: none; display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; }
+.aviso[data-tipo="ok"] { background: #e3f7ea; color: #176b36; border-color: #b7e4c7; }
+.acoes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.status { display: inline-block; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: #ece9fe; color: #4b3cc4; }
+.status[data-status="cancelado"], .status[data-status="falta"] { background: #fde8e8; color: #9b1c1c; }
+.status[data-status="confirmado"] { background: #e3f7ea; color: #176b36; }
+.detalhes { margin: 8px 0; padding: 0; list-style: none; }
+.detalhes li { padding: 4px 0; }
