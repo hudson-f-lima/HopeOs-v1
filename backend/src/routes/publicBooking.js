@@ -21,7 +21,7 @@ const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/
 const { normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
-const { criarLimitador, chaveIp } = require('../security/rateLimit');
+const { criarLimitador, chaveIpPublico } = require('../security/rateLimit');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -169,8 +169,8 @@ function ipTruncado(ip) {
 
 // ---------------------------------------------------------------------------
 // Rate limit em memória (mesmo módulo do login, security/rateLimit.js). PARCIAL: zera
-// no restart e não é compartilhado entre instâncias. IP por /64 no IPv6 e teto de
-// memória sem "zerar tudo" (Red Team 2026-11, RT-01).
+// no restart e não é compartilhado entre instâncias. IPv4 por /24 e IPv6 por /64, e teto
+// de memória sem "zerar tudo" (Red Team 2026-11, RT-01; produção 2026-11-16, RTP-01).
 const tentativas = criarLimitador();
 const excedeu = (chave, max, janelaMs) => tentativas.excedeu(chave, max, janelaMs);
 function resetRateLimitPublico() { tentativas.limpar(); }
@@ -199,7 +199,7 @@ function limitarPorIp(tipo) {
     const [max, janelaMs] = tipo === 'post'
       ? [num(env.PUBLIC_BOOKING_RATE_POST_IP_MAX, 10), 3600e3]
       : [num(env.PUBLIC_BOOKING_RATE_GET_MAX, 60), 60e3];
-    if (excedeu(`${tipo}|${chaveIp(req.ip)}`, max, janelaMs)) return next(muitasTentativas());
+    if (excedeu(`${tipo}|${chaveIpPublico(req.ip)}`, max, janelaMs)) return next(muitasTentativas());
     next();
   };
 }

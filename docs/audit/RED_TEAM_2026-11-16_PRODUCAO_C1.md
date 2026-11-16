@@ -24,7 +24,7 @@ O link **está desligado em produção**: nenhuma empresa com `online_slug`, `on
 ## 2. Achados
 | ID | Superfície | Achado (como explorar, impacto) | Classe | Prova | Estado |
 |---|---|---|---|---|---|
-| RTP-01 | Público | **O limite por IP não segura um cliente que troca de IPv4.** 66 GETs em cerca de 40 s, com slugs inventados, deram 0 respostas 429 (localmente, o mesmo código dá 429 a partir da 61ª). O IP de saída desta sonda trocava a cada requisição dentro de 160.79.106.0/24 (6 consultas, 6 IPs), e o limitador conta IPv4 por endereço. Impacto: cada slug inventado custa uma consulta indexada ao banco (1 para 1, sem amplificação), e um atacante com um bloco de IPs passa dos 60/min. Não vaza dado. A gravação tem barreiras que não dependem do IP: 5 POSTs por número por hora, teto diário do salão, máximo de futuros por número e revalidação do horário | PARCIAL (custo/DoS, sem dado) | sonda P8 + log do PostgREST + `api.ipify.org` × 6 | Aberto: decisão abaixo |
+| RTP-01 | Público | **O limite por IP não segura um cliente que troca de IPv4.** 66 GETs em cerca de 40 s, com slugs inventados, deram 0 respostas 429 (localmente, o mesmo código dá 429 a partir da 61ª). O IP de saída desta sonda trocava a cada requisição dentro de 160.79.106.0/24 (6 consultas, 6 IPs), e o limitador conta IPv4 por endereço. Impacto: cada slug inventado custa uma consulta indexada ao banco (1 para 1, sem amplificação), e um atacante com um bloco de IPs passa dos 60/min. Não vaza dado. A gravação tem barreiras que não dependem do IP: 5 POSTs por número por hora, teto diário do salão, máximo de futuros por número e revalidação do horário | PARCIAL (custo/DoS, sem dado) | sonda P8 + log do PostgREST + `api.ipify.org` × 6; `RT-31` falhava na base (`404,404,404,404,404,404`) | Corrigido no código (opção 1, aprovada pelo dono): o limitador público conta IPv4 por /24 (`chaveIpPublico`); o login segue por endereço. `RT-31` e controle negativo `NR-31`. Vale em produção depois do merge e do deploy |
 | RTP-02 | Público | `X-Forwarded-For` forjado não muda a chave do limite: 66 GETs com `X-Forwarded-For: 203.0.113.7` fixo deram 0 respostas 429 (o app não usa o IP informado pelo cliente) | Proteção REAL | sonda | OK |
 | RTP-03 | Público | Slug inexistente e variantes, em GET, em `slots` com `profissionalId=qualquer` e em outro caminho público: 404 idêntico com `Cache-Control: no-store`. Variantes testadas: maiúsculas, `..%2F`, `constructor`, uuid, 2 letras, 70 letras, `qualquer`. `__proto__` (403) e `%00` (400) são barrados pelo Cloudflare do Render antes do app, com qualquer slug: não revelam se um salão existe | Proteção REAL | sondas P2–P4 + comparação com o app local (404 nos dois) | OK |
 | RTP-04 | Público | O corpo não é lido antes de resolver um salão ligado: JSON malformado e corpo de 20 kB em slug inexistente → 404 (nem 400 nem 413) | Proteção REAL | sondas P1, P9 | OK |
@@ -34,7 +34,7 @@ O link **está desligado em produção**: nenhuma empresa com `online_slug`, `on
 
 Nenhum achado CRÍTICO ou ALTO na fase "link desligado".
 
-## 3. Decisão pendente (RTP-01)
+## 3. Decisão do RTP-01 (aprovada pelo dono em 2026-11-16: opção 1)
 Opções, da mais simples para a mais completa:
 1. **Contar IPv4 por /24 só no limitador público** (o IPv6 já conta por /64). É simples e barato. Risco: clientes da mesma operadora no mesmo /24 dividem os 60 GETs/min e os 10 POSTs/h. Para um salão, é improvável chegar perto disso.
 2. **Orçamento global de consultas de slug desconhecido por instância.** Limita o custo no banco seja qual for o número de IPs. Risco: durante um ataque, um salão real fora do cache também pode receber 404.
@@ -53,11 +53,11 @@ Só dá para testar com um salão ligado e gravações reais. Itens:
 - corrida de dois POSTs no mesmo horário;
 - aviso de privacidade com a razão social, o CNPJ e o contato reais.
 
-Pré-requisitos, todos do dono:
+Pré-requisitos (aprovados pelo dono em 2026-11-16; falta ligar o link):
 1. Ligar o link em Conta → Link online (endereço, razão social, contato de privacidade). Sugestão: antecedência 0 e janela 30 dias só durante o teste.
 2. Autorizar até 6 agendamentos de teste numa data futura combinada, com nome "Teste Red Team" e um número de WhatsApp de teste do próprio dono.
 3. Limpar depois pela agenda (cancelar) e inativar o cliente de teste, ou autorizar a limpeza por SQL.
 
 ## 5. Veredito
-- **C1 em produção com o link desligado: aprovada.** Nenhum crítico ou alto. O RTP-01 está aberto como PARCIAL, com decisão pendente.
+- **C1 em produção com o link desligado: aprovada.** Nenhum crítico ou alto. O RTP-01 foi corrigido no código e vale depois do merge e do deploy.
 - **C1 com o link ligado: ainda não aprovada.** A fase da seção 4 falta.
