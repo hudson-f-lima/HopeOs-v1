@@ -462,6 +462,19 @@ test('D25 corrente da trilha: íntegra; adulterar um evento é detectado; o CSV 
   assert.strictEqual((await request('GET', '/api/disponibilidade/cadeia', { token: process.env.API_ACCESS_TOKEN })).status, 403);
 });
 
+test('D26 grade do dia: horário de trabalho de cada um sem tirar bloqueios; folga e unidade fechada com o código; profissional só a sua', async () => {
+  const g = await request('GET', `/api/disponibilidade/grade?data=${SEG}`);
+  assert.strictEqual(g.status, 200, JSON.stringify(g.data));
+  const edu = g.data.data.profissionais.find(p => p.profissionalId === P.edu);
+  assert.deepStrictEqual([edu.codigo, edu.periodos], ['OK', [{ inicio: '10:00', fim: '19:00' }]], 'escala da segunda (D24) inteira, sem recortar os bloqueios');
+  assert.ok(db.disponibilidade_excecoes.some(e => e.profissional_id === P.edu && e.tipo === 'bloqueio' && e.data_inicio === SEG), 'há bloqueio no dia (não sai da grade)');
+  const dom = await request('GET', `/api/disponibilidade/grade?data=${D7}`);
+  assert.ok(dom.data.data.profissionais.every(p => p.periodos.length === 0 && p.codigo !== 'OK'), JSON.stringify(dom.data.data));
+  const proprio = await request('GET', `/api/disponibilidade/grade?data=${SEG}`, { token: 'h.edu.s' });
+  assert.deepStrictEqual(proprio.data.data.profissionais.map(p => p.profissionalId), [P.edu], 'profissional vê só a sua coluna');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/grade?data=x')).status, 422);
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

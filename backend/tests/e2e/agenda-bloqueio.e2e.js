@@ -73,6 +73,19 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
   confere('bloqueio gravado 09:00–11:00, motivo Médico', exc && String(exc.inicio).slice(0, 5) === '09:00' && String(exc.fim).slice(0, 5) === '11:00' && exc.motivo === 'Médico', JSON.stringify(exc));
   confere('grade mostra "Bloqueado · Médico" e não oferece 09:00–10:40', limpo(await a.locator(`.agenda-grid-col[data-prof-id="${ANA}"] .ag-bloqueio`).first().innerText()) === 'Bloqueado · Médico'
     && await slot(a, ANA, '09:00').count() === 0 && await slot(a, ANA, '10:40').count() === 0);
+  // Fora da escala (D-047): pontilhado onde a Ana não trabalha; slot dali não oferece Bloquear.
+  await a.waitForSelector(`.agenda-grid-col[data-prof-id="${ANA}"] .ag-fora`, { timeout: 8000 }).catch(() => {});
+  const grade = await (await fetch(`${API}/api/disponibilidade/grade?data=${amanha}`, { headers: adm })).json();
+  const fimAna = grade.data.profissionais.find(x => x.profissionalId === ANA).periodos.slice(-1)[0].fim;
+  confere('fora da escala pontilhado depois do expediente da Ana (' + fimAna + ')', await a.locator(`.agenda-grid-col[data-prof-id="${ANA}"] .ag-fora`).count() >= 1
+    && await a.locator(`.slot-vazio.fora[data-prof="${ANA}"]`).count() >= 1 && await a.locator(`.slot-vazio.fora[data-prof="${ANA}"][data-time="09:00"]`).count() === 0);
+  const ultimoFora = a.locator(`.slot-vazio.fora[data-prof="${ANA}"]`).last();
+  await ultimoFora.click();
+  await a.waitForTimeout(400);
+  confere('horário fora da escala não oferece Bloquear', !(await a.isVisible('#btnSlotBloquear')));
+  await a.keyboard.press('Escape').catch(() => {});
+  if (await a.isVisible('#modalNovoAgendamento:not(.hidden)')) await a.evaluate(() => document.getElementById('modalNovoAgendamento').classList.add('hidden'));
+  confere('legenda: livre, fora da escala, bloqueado', limpo(await a.textContent('#agLegenda')) === 'Livre Fora da escala Bloqueado' || /Livre.*Fora da escala.*Bloqueado/.test(limpo(await a.textContent('#agLegenda'))));
   await a.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-agenda-bloqueio.png') });
 
   // ---- Ana encurta pela grade ----
@@ -109,11 +122,11 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
   confere('recepção: bloqueio da Ana sem encurtar nem remover', !(await r.isVisible('#btnSlotEncurtar')) && !(await r.isVisible('#btnSlotRemover'))
     && /Só o próprio profissional/.test(await r.textContent('#slotSoLeitura')) && /marcado pelo profissional/.test(await r.textContent('#slotInfo')));
   await r.click('#btnSlotFechar');
-  await slot(r, BRUNO, '14:00').first().click();
+  await slot(r, BRUNO, '09:00').first().click();
   await r.waitForSelector('#modalSlot:not(.hidden)');
   await r.click('#btnSlotAgendar');
   await r.waitForSelector('#modalNovoAgendamento:not(.hidden)');
-  confere('Agendar abre o novo agendamento com o horário tocado', await r.inputValue('#agHorario') === '14:00' && await r.inputValue('#agData') === amanha);
+  confere('Agendar abre o novo agendamento com o horário tocado', await r.inputValue('#agHorario') === '09:00' && await r.inputValue('#agData') === amanha);
   console.log('RECEPÇÃO erros:', JSON.stringify(r.erros)); falhas.push(...r.erros);
 
   // ---- Gestão vê o aceite ----

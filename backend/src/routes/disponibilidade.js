@@ -168,6 +168,29 @@ router.get('/disponibilidade/dia', authorize('escala:ver'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
+// Grade da agenda (D-047): para o dia, o horário de trabalho de cada profissional visível, SEM
+// tirar os bloqueios (eles são desenhados à parte). O resto do dia a tela pinta como "fora da escala".
+const HHMM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+router.get('/disponibilidade/grade', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    const data = dataValida(req.query.data, 'data');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [disp, profissionais] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId })]);
+    const excecoes = disp.excecoes.filter(e => e.tipo !== 'bloqueio');
+    const visiveis = profissionais.filter(p => p.ativo !== false && (!req.authz.own || p.id === req.authz.profissionalId));
+    res.json({
+      ok: true,
+      data: {
+        data,
+        profissionais: visiveis.map(p => {
+          const d = disponibilidadeDoDia({ data, semanal: disp.semanal, excecoes, profissional: p });
+          return { profissionalId: p.id, codigo: d.codigo, origem: d.origem, periodos: d.periodos.map(x => ({ inicio: HHMM(x.start), fim: HHMM(x.end) })) };
+        })
+      }
+    });
+  } catch (err) { next(err); }
+});
+
 // ---------- Escala semanal ----------
 router.put('/disponibilidade/unidade/semanal', authorize('unidade:horario'), async (req, res, next) => {
   try {

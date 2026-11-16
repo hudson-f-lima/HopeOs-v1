@@ -124,6 +124,7 @@ export async function loadWeekAgenda() {
     : Promise.resolve([]);
   const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhas += 1; return []; })));
   state.weekExcecoes = await excecoes;
+  state.gradeDia = {}; // horário de trabalho do dia: recarrega junto com a agenda
   state.weekAgenda = {};
   state.agendaFalhas = falhas; // a tela avisa: dia vazio por falha não é dia sem horários
   dates.forEach((d, i) => { state.weekAgenda[d] = results[i]; });

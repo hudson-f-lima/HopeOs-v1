@@ -1,5 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
-import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio } from './agendaBloqueio.js';
+import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
@@ -146,10 +146,13 @@ function renderProfColInner(p) {
   const color = profColor(p.id);
   const emptyHtml = emptySlotsForProf(p.id).map(m => {
     const timeStr = minutesSinceStartToHHMM(m);
-    return `<div class="slot-vazio" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
+    const ini = HORA_INICIO * 60 + m;
+    const fora = foraDaEscala(p.id, state.selectedDay, ini, ini + GRID_MIN) ? ' fora' : '';
+    return `<div class="slot-vazio${fora}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
+  const foraHtml = htmlFora(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN });
   const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item, color)).join('');
-  return emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
+  return foraHtml + emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
 }
 
 export function applyProfFilter() {
@@ -250,6 +253,9 @@ export function renderTimeline() {
 
   if (state.activeProfFilter) applyProfFilter();
   positionRedline();
+  // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez.
+  const dia = state.selectedDay;
+  if (!gradeDoDia(dia)) carregarGradeDia(dia).then(ok => { if (ok && state.selectedDay === dia) renderTimeline(); });
 }
 
 export function positionRedline() {

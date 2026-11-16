@@ -35,6 +35,44 @@ export function htmlBloqueios(profId, data, { horaInicio, horaFim, pxPorMin }) {
   }).join('');
 }
 
+// ---------- Fora da escala (D-047): pontilhado cinza claro ----------
+// O horário de trabalho do dia vem do servidor (/disponibilidade/grade, sem tirar bloqueios); o
+// resto da faixa da grade é "fora da escala". Dia inteiro sem horário ganha rótulo.
+const ROTULO_DIA = { FOLGA: 'Folga', UNIDADE_FECHADA: 'Fechado', UNIDADE_SEM_HORARIO: 'Fechado', ESCALA_NAO_PUBLICADA: 'Escala não publicada', SEM_HORARIO: 'Fora da escala', AUSENCIA: '' };
+const carregando = new Set();
+export function gradeDoDia(data) { return (state.gradeDia || {})[data] || null; }
+export async function carregarGradeDia(data) {
+  if (!sessionPode('escala:ver') || gradeDoDia(data) || carregando.has(data)) return false;
+  carregando.add(data);
+  try {
+    const g = await api('/disponibilidade/grade?data=' + encodeURIComponent(data));
+    state.gradeDia = state.gradeDia || {};
+    state.gradeDia[data] = Object.fromEntries((g.profissionais || []).map(p => [p.profissionalId, p]));
+    return true;
+  } catch (_) { return false; } finally { carregando.delete(data); }
+}
+function periodosMin(profId, data) {
+  const g = gradeDoDia(data); const p = g && g[profId];
+  return p ? p.periodos.map(x => [min(x.inicio), min(x.fim)]) : null;
+}
+export function foraDaEscala(profId, data, ini, fim) {
+  const ps = periodosMin(profId, data);
+  if (!ps) return false; // sem a grade, não marca nada
+  return !ps.some(([a, b]) => ini >= a && fim <= b);
+}
+export function htmlFora(profId, data, { horaInicio, horaFim, pxPorMin }) {
+  const g = gradeDoDia(data); const p = g && g[profId];
+  if (!p) return '';
+  const ini = horaInicio * 60; const fim = horaFim * 60;
+  const livres = p.periodos.map(x => [Math.max(min(x.inicio), ini), Math.min(min(x.fim), fim)]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  const faixas = []; let cursor = ini;
+  for (const [a, b] of livres) { if (a > cursor) faixas.push([cursor, a]); cursor = Math.max(cursor, b); }
+  if (cursor < fim) faixas.push([cursor, fim]);
+  const rotulo = !p.periodos.length ? (ROTULO_DIA[p.codigo] !== undefined ? ROTULO_DIA[p.codigo] : 'Fora da escala') : '';
+  return faixas.map(([a, b], i) => '<div class="ag-fora" data-fora="' + escapeHtml(p.codigo) + '" style="top:' + ((a - ini) * pxPorMin) + 'px;height:' + ((b - a) * pxPorMin) + 'px;">'
+    + (i === 0 && rotulo ? '<span class="ag-fora-rotulo">' + escapeHtml(rotulo) + '</span>' : '') + '</div>').join('');
+}
+
 // ---------- Permissões (a tela só esconde; o servidor recusa) ----------
 const podeBloquearPara = profId => sessionPode('escala:bloquear') && (sessionPode('escala:bloquear', true) || profId === proprioId());
 const podeMexer = exc => {
@@ -45,7 +83,9 @@ const podeMexer = exc => {
 // ---------- Horário livre: escolher ----------
 export function abrirHorarioLivre(data, horario, profissionalId, abrirAgendar) {
   const podeAgendar = sessionPode('agenda:criar');
-  const podeBloquear = podeBloquearPara(profissionalId);
+  // Fora da escala não há o que bloquear: só agendar (o servidor pede confirmação para encaixar).
+  const fora = foraDaEscala(profissionalId, data, min(horario), min(horario) + 1);
+  const podeBloquear = !fora && podeBloquearPara(profissionalId);
   if (!podeBloquear) return abrirAgendar(data, horario, profissionalId);
   alvo = { data, horario, profissionalId, abrirAgendar };
   el('slotTitulo').textContent = dataBR(data) + ' · ' + horario + ' · ' + (findProfissionalNome(profissionalId) || 'Profissional');
