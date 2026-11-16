@@ -98,10 +98,15 @@
 </div>
 
 <div id="appRoot" class="hidden">
+  <div id="bannerAtualizacao" class="hidden" role="status" style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--md-primary);color:var(--md-on-primary,#fff);font-size:13px;">
+    <span>Há uma versão nova do app.</span>
+    <button id="btnAtualizarApp" type="button" class="session-sair">Atualizar agora</button>
+  </div>
   <header class="topbar">
     <h1>HOPE OS</h1>
     <div id="sessionChip" class="session-chip hidden">
       <span id="sessionLabel"></span>
+      <span id="appVersao" class="body-sm text-tertiary" title="Versão do app neste aparelho"></span>
       <button id="btnLogout" type="button" class="session-sair">Sair</button>
     </div>
   </header>
