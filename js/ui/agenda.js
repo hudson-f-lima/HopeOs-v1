@@ -1,6 +1,6 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
-import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie } from './series.js';
+import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
 import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
 import {
@@ -683,6 +683,7 @@ async function onActionSheetClick(ev) {
   }
   if (action === 'reagendar') { closeActionSheet(); openReagendarModal(item); return; }
   if (action === 'atendimento-etapas') { closeActionSheet(); abrirEtapas(item); return; }
+  if (action === 'serie-ver') { closeActionSheet(); verSerie(item); return; }
   if (action === 'serie-cancelar' || action === 'serie-alterar') { closeActionSheet(); abrirSerie(item, action === 'serie-cancelar' ? 'cancelar' : 'alterar'); return; }
   if (action === 'checkout') { 
     closeActionSheet(); 
@@ -1267,6 +1268,7 @@ export function initAgenda() {
 
   // Unified State Listeners
   stateBus.addEventListener('agenda:updated', () => {
+    if (state.agendaFalhas) showBanner('Não consegui carregar ' + state.agendaFalhas + ' dia(s) da agenda. Dia vazio aqui pode ser falha, não folga: puxe para atualizar.', 'error');
     renderDayPills();
     renderWeekStats();
     renderTimeline();

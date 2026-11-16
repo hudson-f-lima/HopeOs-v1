@@ -109,6 +109,80 @@ const resumo = ocorrencias => ({
   indisponiveis: ocorrencias.filter(o => o.situacao !== 'livre').length
 });
 
+// Motivo legível de cada data que ficou de fora (a tela mostra; a trilha guarda).
+const MOTIVO = {
+  conflito: 'Horário já ocupado por outro atendimento',
+  fora_da_disponibilidade: 'Fora da escala (folga, fechamento ou fora do expediente)',
+  passado: 'Data que já passou',
+  erro: 'Falha ao gravar'
+};
+const motivoDe = codigo => MOTIVO[codigo] || 'Motivo não registrado';
+
+// Trava na instância: dois pedidos iguais ao mesmo tempo (duplo toque, retry da rede) entram um por
+// vez, e o segundo já encontra a série do primeiro. Entre instâncias quem protege é o conflito de
+// horário no banco (agendamento_criar): o mesmo horário nunca é gravado duas vezes.
+const travas = new Map();
+async function comTrava(chave, fn) {
+  const anterior = travas.get(chave) || Promise.resolve();
+  let liberar;
+  const atual = new Promise(r => { liberar = r; });
+  const cadeia = anterior.then(() => atual);
+  travas.set(chave, cadeia);
+  await anterior;
+  try { return await fn(); } finally {
+    liberar();
+    if (travas.get(chave) === cadeia) travas.delete(chave);
+  }
+}
+
+// O horário foi criado e o vínculo com a série é gravado depois (duas chamadas). Tenta 3 vezes e
+// confere o que voltou; se não vincular, quem chama desfaz tudo (nunca fica horário sem série).
+async function vincularASerie(repo, agendamentoId, serieId, seq) {
+  let ultimo = null;
+  for (let t = 0; t < 3; t++) {
+    try {
+      const r = await repo.updateScoped('agendamentos', agendamentoId, { serie_id: serieId, serie_seq: seq });
+      if (r && r.serie_id === serieId && r.serie_seq === seq) return r;
+      ultimo = new Error('vínculo não confirmado');
+    } catch (err) { ultimo = err; }
+  }
+  throw ultimo || new Error('vínculo não gravado');
+}
+
+// Desfaz o que a criação já gravou: cancela os horários (não existe apagar: o histórico fica, com o
+// motivo na trilha) e encerra a série. Nunca deixa a série "ativa" com parte dos horários.
+async function desfazerCriacao(req, repo, serie, agendamentoIds, motivo) {
+  const { actorId } = autoriaDe(req.auth);
+  const agoraIso = clock.agora().toISOString();
+  let desfeitos = 0;
+  for (const id of agendamentoIds) {
+    try {
+      const r = await repo.atualizarStatusAgendamentoSe(id, ATIVOS, { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+      if (r) {
+        desfeitos += 1;
+        await registrarEventoAgenda(repo, req.auth, { agendamentoId: id, tipo: 'status', de: 'agendado', para: 'cancelado', extra: { serie_id: serie.id, motivo } });
+      }
+    } catch (err) { console.error('[series] não consegui desfazer um horário:', (err && err.code) || 'erro'); }
+  }
+  try { await repo.updateScoped('agendamento_series', serie.id, { status: 'encerrada', updated_at: agoraIso, updated_by: actorId || null }); }
+  catch (err) { console.error('[series] não consegui encerrar a série:', (err && err.code) || 'erro'); }
+  return desfeitos;
+}
+
+// Já existe uma série ativa igual (mesmo cliente, serviço, profissional, frequência, horário, início
+// e quantidade) com algum horário ainda por vir? Então o pedido é uma repetição.
+async function serieIgualAtiva(repo, s) {
+  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const candidatas = (await repo.list('agendamento_series', { empresa_id: repo.empresaId })).filter(x => x.status === 'ativa' &&
+    x.cliente_id === s.clienteId && x.servico_id === s.servicoId && x.profissional_id === s.profissionalId && x.frequencia === s.frequencia &&
+    hhmm(x.horario) === s.horario && String(x.data_inicio) === s.dataInicio && Number(x.ocorrencias) === s.ocorrencias);
+  for (const c of candidatas) {
+    const vivos = (await repo.list('agendamentos', { empresa_id: repo.empresaId, serie_id: c.id })).filter(a => ATIVOS.includes(a.status) && String(a.data) >= hoje);
+    if (vivos.length) return c;
+  }
+  return null;
+}
+
 router.post('/agenda/series/previa', authorize('agenda:recorrencia'), async (req, res, next) => {
   try {
     const { ocorrencias, duracaoMin } = await prepararSerie(req);
@@ -118,18 +192,36 @@ router.post('/agenda/series/previa', authorize('agenda:recorrencia'), async (req
 
 router.post('/agenda/series', authorize('agenda:recorrencia'), async (req, res, next) => {
   try {
-    const { s, repo, servico, profissional, duracaoMin, ocorrencias } = await prepararSerie(req);
-    const livres = ocorrencias.filter(o => o.situacao === 'livre');
-    if (!livres.length) throw createAppError('SERIE_SEM_HORARIOS', 'Nenhuma data da série está livre. Escolha outro horário ou outro profissional.', 409, { ocorrencias });
-    const { actorId } = autoriaDe(req.auth);
-    const agoraIso = clock.agora().toISOString();
-    const serie = await repo.insert('agendamento_series', {
-      cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, frequencia: s.frequencia,
-      horario: s.horario, duracao_min: duracaoMin, data_inicio: s.dataInicio, ocorrencias: s.ocorrencias, status: 'ativa',
-      created_at: agoraIso, created_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null
-    });
-    const criados = [];
-    const pulados = ocorrencias.filter(o => o.situacao !== 'livre');
+    const pedido = validarSerie(req.body); // 422 antes de qualquer trava ou leitura
+    const chave = [req.auth.empresa_id, pedido.clienteId, pedido.profissionalId, pedido.dataInicio, pedido.horario].join('|');
+    const saida = await comTrava(chave, () => criarSerie(req, pedido));
+    res.status(201).json({ ok: true, data: saida });
+  } catch (err) { next(err); }
+});
+
+async function criarSerie(req, pedido) {
+  const { s, repo, servico, profissional, duracaoMin, ocorrencias } = await prepararSerie(req);
+  void pedido;
+  const igual = await serieIgualAtiva(repo, s);
+  if (igual) {
+    throw createAppError('SERIE_DUPLICADA', 'Esta série já foi criada (mesmo cliente, serviço, profissional, dia e horário). Veja as datas dela pelo card do horário.', 409, { serieId: igual.id });
+  }
+  const livres = ocorrencias.filter(o => o.situacao === 'livre');
+  if (!livres.length) throw createAppError('SERIE_SEM_HORARIOS', 'Nenhuma data da série está livre. Escolha outro horário ou outro profissional.', 409, { ocorrencias });
+  const { actorId } = autoriaDe(req.auth);
+  const agoraIso = clock.agora().toISOString();
+  const serie = await repo.insert('agendamento_series', {
+    cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, frequencia: s.frequencia,
+    horario: s.horario, duracao_min: duracaoMin, data_inicio: s.dataInicio, ocorrencias: s.ocorrencias, status: 'ativa',
+    created_at: agoraIso, created_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null
+  });
+  const criadosIds = [];
+  const criados = [];
+  const pulados = ocorrencias.filter(o => o.situacao !== 'livre').map(o => ({ ...o, motivo: motivoDe(o.situacao) }));
+  // Datas que ficam de fora por conflito ou escala vão na trilha da 1ª ocorrência: é de lá que a
+  // tela, depois, explica por que a série tem menos horários que o previsto.
+  let primeiroId = null;
+  try {
     for (const o of livres) {
       let ag;
       try {
@@ -141,17 +233,40 @@ router.post('/agenda/series', authorize('agenda:recorrencia'), async (req, res, 
           permitirConflito: false, createdBy: actorId || null
         });
       } catch (err) {
-        if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { pulados.push({ ...o, situacao: 'conflito' }); continue; }
+        if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { pulados.push({ ...o, situacao: 'conflito', motivo: motivoDe('conflito') }); continue; }
         throw err;
       }
-      const marcado = await repo.updateScoped('agendamentos', ag.id, { serie_id: serie.id, serie_seq: o.seq });
-      await registrarEventoAgenda(repo, req.auth, { agendamentoId: ag.id, tipo: 'criado', de: null, para: 'agendado', extra: { serie_id: serie.id, serie_seq: o.seq } });
-      criados.push({ seq: o.seq, data: o.data, horario: s.horario, agendamentoId: (marcado && marcado.id) || ag.id });
+      criadosIds.push(ag.id);
+      await vincularASerie(repo, ag.id, serie.id, o.seq);
+      if (!primeiroId) primeiroId = ag.id;
+      criados.push({ seq: o.seq, data: o.data, horario: s.horario, agendamentoId: ag.id });
     }
-    pulados.sort((a, b) => a.seq - b.seq);
-    res.status(201).json({ ok: true, data: { serie: { id: serie.id, frequencia: serie.frequencia, ocorrencias: serie.ocorrencias, status: serie.status }, criados, pulados } });
-  } catch (err) { next(err); }
-});
+  } catch (err) {
+    // Erro que não é conflito (banco, vínculo): tudo ou nada. Nada fica pela metade.
+    const desfeitos = await desfazerCriacao(req, repo, serie, criadosIds, 'criacao_da_serie_falhou');
+    console.error('[series] criação desfeita:', (err && err.code) || (err && err.message) || 'erro');
+    throw createAppError('SERIE_FALHOU', `Não foi possível criar a série; nada ficou marcado (${desfeitos} horário(s) desfeito(s)). Tente de novo.`, 500, { desfeitos, serieId: serie.id });
+  }
+  if (!criados.length) {
+    // Todas as datas ocuparam entre a prévia e a gravação (corrida): a série não fica ativa e vazia.
+    await desfazerCriacao(req, repo, serie, [], 'sem_horarios');
+    throw createAppError('SERIE_SEM_HORARIOS', 'Os horários da série foram ocupados enquanto você confirmava. Escolha outro horário.', 409, { ocorrencias: pulados });
+  }
+  pulados.sort((a, b) => a.seq - b.seq);
+  await registrarEventoAgenda(repo, req.auth, {
+    agendamentoId: primeiroId, tipo: 'criado', de: null, para: 'agendado',
+    extra: { serie_id: serie.id, serie_seq: criados[0].seq, serie_resumo: true, puladas: pulados.map(p => ({ seq: p.seq, data: p.data, situacao: p.situacao })) }
+  });
+  for (const c of criados.slice(1)) {
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: c.agendamentoId, tipo: 'criado', de: null, para: 'agendado', extra: { serie_id: serie.id, serie_seq: c.seq } });
+  }
+  const datas = [...criados.map(c => ({ seq: c.seq, data: c.data, horario: c.horario, situacao: 'criada', agendamentoId: c.agendamentoId })),
+    ...pulados.map(p => ({ seq: p.seq, data: p.data, horario: s.horario, situacao: p.situacao, motivo: p.motivo }))].sort((a, b) => a.seq - b.seq);
+  return {
+    serie: { id: serie.id, frequencia: serie.frequencia, ocorrencias: serie.ocorrencias, status: serie.status },
+    datas, resumo: { total: s.ocorrencias, criadas: criados.length, puladas: pulados.length }, criados, pulados
+  };
+}
 
 async function carregarSerie(req, id) {
   const repo = new SupabaseRepository(req.auth.empresa_id);
@@ -164,12 +279,33 @@ async function carregarSerie(req, id) {
 
 router.get('/agenda/series/:id', authorize('agenda:ver'), async (req, res, next) => {
   try {
-    const { serie, ocorrencias } = await carregarSerie(req, req.params.id);
+    const { repo, serie, ocorrencias } = await carregarSerie(req, req.params.id);
     assertOwn(req, serie.profissional_id);
+    // Por que uma data não virou horário? Vem da trilha da 1ª ocorrência, gravada na criação.
+    let puladas = [];
+    const primeira = ocorrencias.filter(a => a.status !== 'reagendado').sort((a, b) => (a.serie_seq || 0) - (b.serie_seq || 0))[0] || ocorrencias[0];
+    if (primeira) {
+      const evs = (await repo.list('agendamento_eventos', { empresa_id: repo.empresaId, agendamento_id: primeira.id, tipo: 'criado' }))
+        .filter(e => e.payload && e.payload.serie_resumo);
+      if (evs[0] && Array.isArray(evs[0].payload.puladas)) puladas = evs[0].payload.puladas;
+    }
+    const previstas = datasDaSerie(String(serie.data_inicio), serie.frequencia, serie.ocorrencias);
+    const rotulo = { agendado: 'agendada', confirmado: 'agendada', aguardando: 'agendada', em_atendimento: 'agendada', concluido: 'concluida', fechado: 'concluida', cancelado: 'cancelada', no_show: 'faltou', reagendado: 'remarcada' };
+    const datas = previstas.map((dataPrevista, i) => {
+      const seq = i + 1;
+      const doSeq = ocorrencias.filter(a => a.serie_seq === seq);
+      // Vale a ocorrência viva; se só sobrou a remarcada, mostra ela.
+      const a = doSeq.find(x => x.status !== 'reagendado') || doSeq[0];
+      if (a) return { seq, data: String(a.data), dataPrevista, horario: hhmm(a.horario), situacao: rotulo[a.status] || a.status, agendamentoId: a.id, atual: false };
+      const p = puladas.find(x => x.seq === seq);
+      return { seq, data: dataPrevista, dataPrevista, horario: hhmm(serie.horario), situacao: 'nao_criada', motivoCodigo: p ? p.situacao : null, motivo: p ? motivoDe(p.situacao) : 'Não foi criada (motivo não registrado)' };
+    });
+    const existentes = datas.filter(d => d.situacao !== 'nao_criada').length;
     res.json({
       ok: true,
       data: {
         serie: { id: serie.id, frequencia: serie.frequencia, horario: hhmm(serie.horario), ocorrencias: serie.ocorrencias, status: serie.status, dataInicio: String(serie.data_inicio) },
+        datas, resumo: { previstas: previstas.length, existentes, faltando: previstas.length - existentes },
         ocorrencias: ocorrencias.map(a => ({ agendamentoId: a.id, seq: a.serie_seq, data: String(a.data), horario: hhmm(a.horario), status: a.status, profissionalId: a.profissional_id }))
       }
     });

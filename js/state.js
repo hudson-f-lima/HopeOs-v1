@@ -117,8 +117,10 @@ export async function loadCatalog() {
 
 export async function loadWeekAgenda() {
   const dates = weekDates(state.currentWeekStart);
-  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => [])));
+  let falhas = 0;
+  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhas += 1; return []; })));
   state.weekAgenda = {};
+  state.agendaFalhas = falhas; // a tela avisa: dia vazio por falha não é dia sem horários
   dates.forEach((d, i) => { state.weekAgenda[d] = results[i]; });
   stateBus.dispatchEvent(new CustomEvent('agenda:updated', { detail: state.weekAgenda }));
 }

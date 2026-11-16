@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-37-0-push-cliente';
+const CACHE_NAME = 'hope-os-shell-v1-38-0-recorrencia-cache';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
@@ -48,9 +48,15 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
+    caches.keys().then((keys) => {
+      // Havia um cache de outra versão: é uma atualização (e não a primeira instalação).
+      const eraAtualizacao = keys.some((k) => k !== CACHE_NAME);
+      return Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+        .then(() => self.clients.claim())
+        // Avisa as páginas já abertas: elas seguem com o código antigo na memória até recarregar.
+        .then(() => (eraAtualizacao ? self.clients.matchAll({ type: 'window' }) : []))
+        .then((paginas) => paginas.forEach((p) => p.postMessage({ tipo: 'nova-versao', versao: CACHE_NAME })));
+    })
   );
 });
 
@@ -67,12 +73,14 @@ self.addEventListener('fetch', (event) => {
   // O mesmo vale para o link pessoal do cliente (meu-horario.html, C2).
   if (/\/(agendar\.html|js\/agendar\.js|css\/agendar\.css|meu-horario\.html|js\/meu-horario\.js|js\/calendario-cliente\.js|js\/push-cliente\.js|sw-cliente\.js|manifest-cliente\.json)$/.test(url.pathname)) return;
 
-  // Navegação/HTML: rede primeiro, cache só como fallback offline. Servir o shell
-  // (documento) via stale-while-revalidate escondia atualizações reais atrás de
-  // reloads repetidos — quem tivesse a versão antiga em cache continuava vendo
-  // ela até um segundo reload, mascarando mudanças de código durante testes.
-  const isDocument = req.mode === 'navigate' || req.destination === 'document' || url.pathname.endsWith('.html');
-  if (isDocument) {
+  // Navegação/HTML e módulos JS/CSS do app: rede primeiro, cache só como fallback offline.
+  // Servir o shell via cache primeiro escondia atualizações reais: depois de um deploy, a
+  // primeira abertura do app mostrava o HTML novo com o JavaScript velho (auditoria da recorrência,
+  // 2026-11-16: o "Repetir" do novo agendamento não aparecia). A cópia do cache continua valendo
+  // sem internet. Só ícone e manifesto (que não carregam regra) ficam com cache primeiro.
+  const redePrimeiro = req.mode === 'navigate' || req.destination === 'document' || req.destination === 'script' || req.destination === 'style' ||
+    /\.(html|js|css)$/.test(url.pathname);
+  if (redePrimeiro) {
     event.respondWith(
       fetch(req)
         .then((res) => {

@@ -4,7 +4,8 @@ import {
   centsToBRL, 
   openModal, 
   closeModal,
-  escapeHtml
+  escapeHtml,
+  showBanner
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
 import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots, avisarReguaCliente } from './ui/agenda.js';
@@ -453,6 +454,10 @@ async function init() {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
+    // Versão nova instalada: a página aberta ainda roda o código antigo até recarregar.
+    navigator.serviceWorker.addEventListener('message', ev => {
+      if (ev.data && ev.data.tipo === 'nova-versao') showBanner('O app foi atualizado. Feche e abra de novo (ou recarregue) para usar a versão nova.', 'warning');
+    });
   }
 }
 
