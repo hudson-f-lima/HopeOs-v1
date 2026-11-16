@@ -96,7 +96,10 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
   await a.waitForSelector('#assResumoTotais', { timeout: 8000 });
   const totais = (await a.textContent('#assResumoTotais')).trim();
   console.log('RESUMO DO MÊS (gestão):', totais);
-  if (!/receita R\$\s*345,00/.test(totais)) errs.push('resumo do mês com receita errada');
+  const aberto = (await a.locator('#assResumoAberto').count()) ? (await a.textContent('#assResumoAberto')).trim() : '';
+  console.log('EM ABERTO (gestão):', aberto);
+  // D-045: pagos hoje, os ciclos ainda não venceram → a comissão fica prevista, não liberada.
+  if (!/^Liberado no mês: bruto R\$/.test(totais) || !/comissão prevista/.test(aberto)) errs.push('resumo do mês sem liberado/previsto');
   await cardDe(a, c1.nome).locator('[data-ass-acao="pausar"]').click(); await a.waitForTimeout(700);
   const pausada = (await cardDe(a, c1.nome).innerText()).replace(/\s+/g, ' ');
   await cardDe(a, c1.nome).locator('[data-ass-acao="retomar"]').click(); await a.waitForTimeout(700);

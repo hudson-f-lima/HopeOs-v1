@@ -623,3 +623,15 @@
 - **Conferência com o AppBarber:** o exemplo lido (3 e 19 atendimentos) reparte 104,95 em 14,31 e 90,64 no gate. A conferência com dados reais fica para o primeiro mês com assinantes no HOPE OS: comparar o relatório com as "Comissões geradas" do AppBarber no mesmo período; se divergir de um jeito que aponte o tempo dos serviços, evoluir para rateio por minutos (o uso já guarda o necessário).
 - **Limites:** é calculado na hora, então mudar a regra do plano ou pagar uma cobrança atrasada muda o mês em aberto (como o resto dos ganhos). Comissão já paga não é refeita: o saldo mostra a diferença.
 - **Verificação:** `assinatura-comissao-gate` 9/9 (com NC1); E2E `assinantes` (resumo do mês da gestão; recepção sem o resumo), `ganhos`, `finops`, `metas` e `assinatura-comanda` verdes.
+
+## D-045 — Comissão de assinatura liberada só depois do fim do ciclo pago (corrige o D-044)
+- **Achado (2026-11-16, pergunta do dono):** o desenho e o plano previam o rateio "no fechamento do ciclo", mas o D-044 calculou por mês do calendário e na hora, com a comissão entrando no saldo a pagar antes de o ciclo terminar. Risco real: pagar no meio do mês e depois a parte do profissional cair (saldo negativo). O desvio não estava declarado no D-044. Classificação: PARCIAL → corrigido aqui.
+- **Decisão (Platform Owner, 2026-11-16):** "1. A, 2. Sim conforme recomendação" — opção A (por assinante e por ciclo) e rateio sobre o valor líquido.
+- **Regra implementada (sem migration):**
+  - Unidade: cada **ciclo pago de cada assinante**. Valor líquido = mensalidade paga − taxa da forma de pagamento (`taxa_pct` e `taxa_fixa_centavos` da forma).
+  - Rateio: % do plano × valor líquido, dividido entre os profissionais que atenderam **aquele assinante naquele ciclo**, pela quantidade de atendimentos cobertos. Tabela e fixo por uso: por atendimento do ciclo.
+  - **Liberação:** no dia seguinte ao fim do ciclo **e** depois do prazo de recebimento da forma (`dias_recebimento`, contado do pagamento), o que vier por último. Antes: **prevista** (aparece em Ganhos e no resumo, fora do saldo). Ciclo não pago: atendimentos **aguardando pagamento**.
+  - Ganhos e saldo a pagar contam **só a liberada**; o relatório do mês mostra os ciclos liberados no mês (bruto, taxa, líquido, comissão, margem) e o que está em aberto.
+  - A forma da cobrança passa a ser uma forma **cadastrada e ativa**; a venda valida a forma **antes** de gravar (corrige um bug: com forma inválida, a assinatura ficava gravada sem o pagamento).
+- **Diferença em relação ao AppBarber (aceita pelo dono):** o AppBarber junta o clube inteiro num período; aqui cada assinante fecha no seu ciclo. Os números não batem um a um com as "Comissões geradas" do AppBarber.
+- **Verificação:** `assinatura-comissao-gate` 10/10 (Pix libera no dia seguinte ao fim do ciclo; crédito 3% D+30 libera depois do prazo, sobre o líquido; ciclo não pago aguarda; NC1 sem a regra de liberação reprova); `assinantes-gate` 16/16 (forma desconhecida, desativada ou ausente recusada, sem gravação parcial); E2E `assinantes`, `ganhos`, `finops`, `comanda`, `assinatura-comanda` verdes.

@@ -142,19 +142,20 @@ router.get('/assinaturas/relatorio', authorize('painel:financeiro'), async (req,
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw invalido('mes', 'mes deve ser AAAA-MM.');
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const { dadosDeAssinatura } = require('../services/AssinaturaDados');
-    const { comissoesDeAssinatura, acimaDoPreco } = require('../engines/AssinaturaComissaoEngine');
+    const { relatorioPorPlano, acimaDoPreco } = require('../engines/AssinaturaComissaoEngine');
     const dados = await dadosDeAssinatura(repo);
     const [comandoItens, profissionais, clientes] = await Promise.all([
       repo.list('comando_itens', { empresa_id: repo.empresaId }), repo.list('profissionais', { empresa_id: repo.empresaId }), repo.list('clientes', { empresa_id: repo.empresaId })
     ]);
-    const { porPlano } = comissoesDeAssinatura({ ...dados, comandoItens, mes });
+    const { planos: porPlano, emAberto } = relatorioPorPlano({ ...dados, comandoItens, mes });
     const nomeProf = new Map(profissionais.map(p => [p.id, p.nome]));
     const nomeCli = new Map(clientes.map(c => [c.id, c.nome]));
     const planos = porPlano.map(p => ({ ...p, profissionais: p.profissionais.map(x => ({ ...x, nome: nomeProf.get(x.profissionalId) || 'Profissional removido' })) }));
     const soma = k => planos.reduce((s, p) => s + (p[k] || 0), 0);
     res.json({ ok: true, data: {
       mes, planos,
-      totais: { receitaCentavos: soma('receitaCentavos'), comissaoCentavos: soma('comissaoCentavos'), margemCentavos: soma('margemCentavos'), naoDistribuidoCentavos: soma('naoDistribuidoCentavos'), atendimentos: soma('atendimentos') },
+      totais: { brutoCentavos: soma('brutoCentavos'), taxaCentavos: soma('taxaCentavos'), liquidoCentavos: soma('liquidoCentavos'), comissaoCentavos: soma('comissaoCentavos'), margemCentavos: soma('margemCentavos'), naoDistribuidoCentavos: soma('naoDistribuidoCentavos'), atendimentos: soma('atendimentos') },
+      emAberto: emAberto.map(x => ({ ...x, clienteNome: nomeCli.get(x.clienteId) || null })),
       acimaDoPreco: acimaDoPreco({ ...dados, mes }).map(x => ({ ...x, clienteNome: nomeCli.get(x.clienteId) || null, planoNome: (dados.planos.find(p => p.id === x.planoId) || {}).nome || null }))
     } });
   } catch (err) { next(err); }
@@ -184,7 +185,8 @@ router.post('/assinaturas', authorize('assinatura:vender'), async (req, res, nex
     if (!cliente) throw invalido('clienteId', 'Cliente não encontrado.');
     const vivas = (await repo.list('assinaturas', { empresa_id: repo.empresaId, cliente_id: b.clienteId, plano_id: b.planoId })).filter(x => x.status !== 'cancelada');
     if (vivas.length) throw createAppError('ASSINATURA_DUPLICADA', 'Este cliente já tem este plano.', 409, { assinaturaId: vivas[0].id });
-    const forma = textoCurto(b.pagamento && b.pagamento.forma, 'pagamento.forma', 40);
+    // Forma validada ANTES de gravar: nada fica pela metade se ela for inválida.
+    const forma = b.pagamento ? await formaValida(repo, textoCurto(b.pagamento.forma, 'pagamento.forma', 40), 'pagamento.forma') : null;
     const { actorId } = autoriaDe(req.auth);
     const agora = clock.agora().toISOString();
     let a;
@@ -203,6 +205,15 @@ router.post('/assinaturas', authorize('assinatura:vender'), async (req, res, nex
     res.status(201).json({ ok: true, data: montar(ctx, a, dia) });
   } catch (err) { next(err); }
 });
+
+// A forma precisa ser uma das cadastradas (ativa): a taxa e o prazo de recebimento dela entram no
+// valor líquido e na data de liberação da comissão do ciclo (D-045).
+async function formaValida(repo, forma, campo) {
+  if (!forma) throw invalido(campo, 'Informe a forma de pagamento.');
+  const f = (await repo.list('formas_pagamento', { empresa_id: repo.empresaId })).find(x => x.code === forma && x.ativo !== false);
+  if (!f) throw invalido(campo, 'Forma de pagamento não cadastrada.');
+  return f.code;
+}
 
 async function registrarPagamento(repo, a, plano, cicloInicio, { forma, observacao, actorId }) {
   const dia = hoje();
@@ -236,7 +247,8 @@ router.post('/assinaturas/:id/pagar', authorize('assinatura:vender'), async (req
     const alvo = sit.ciclos.find(c => c.inicio === cicloInicio);
     if (alvo && alvo.estado === 'nao_devida') throw createAppError('COBRANCA_NAO_DEVIDA', 'Este ciclo não é devido (assinatura pausada ou cancelada).', 409);
     const { actorId } = autoriaDe(req.auth);
-    await registrarPagamento(repo, a, plano, cicloInicio, { forma: textoCurto(b.forma, 'forma', 40), observacao: textoCurto(b.observacao, 'observacao', 300), actorId });
+    const forma = await formaValida(repo, textoCurto(b.forma, 'forma', 40), 'forma');
+    await registrarPagamento(repo, a, plano, cicloInicio, { forma, observacao: textoCurto(b.observacao, 'observacao', 300), actorId });
     const ctx = await carregarContexto(repo, { id: a.id });
     res.json({ ok: true, data: montar(ctx, a, hoje()) });
   } catch (err) { next(err); }

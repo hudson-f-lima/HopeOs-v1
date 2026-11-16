@@ -72,7 +72,7 @@ const db = installMemoryBackend({
     { id: ANA, empresa_id: A, nome: 'Ana', ativo: true, overrides: {} },
     { id: BRUNO, empresa_id: A, nome: 'Bruno', ativo: true, overrides: {} }
   ],
-  formas_pagamento: [{ code: 'pix', empresa_id: A, nome: 'Pix', ativo: true, taxa_pct: 0, taxa_fixa_centavos: 0 }],
+  formas_pagamento: [{ code: 'pix', empresa_id: A, label: 'Pix', ativo: true, taxa_pct: 0, taxa_fixa_centavos: 0, dias_recebimento: 0 }, { code: 'dinheiro', empresa_id: A, label: 'Dinheiro', ativo: true, taxa_pct: 0, taxa_fixa_centavos: 0, dias_recebimento: 0 }, { code: 'antiga', empresa_id: A, label: 'Antiga', ativo: false }],
   clientes: [CLI1, CLI2, CLI3, CLI4, CLI5].map((id, i) => ({ id, empresa_id: A, nome: 'Cliente ' + (i + 1), ativo: true })).concat([{ id: CLI_B, empresa_id: B, nome: 'Cliente B', ativo: true }]),
   assinatura_planos: [
     { id: SMART, nome: 'Smart Corte 3ª a 5ª', preco_centavos: 9490, ...plano() },
@@ -130,12 +130,18 @@ test('A03 sem pagar desde 01/10: dois ciclos em aberto, suspensa pela tolerânci
   assert.deepStrictEqual([a.situacao.estado, a.situacao.podeUsar, a.situacao.emAberto, a.situacao.maiorAtrasoDias, a.situacao.valorEmAbertoCentavos], ['suspensa', false, 2, 46, 18980]);
   const p1 = await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-10-01', forma: 'dinheiro' } });
   assert.deepStrictEqual([p1.status, p1.data.data.situacao.estado, p1.data.data.situacao.maiorAtrasoDias], [200, 'suspensa', 15], p1.raw);
-  const p2 = await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-01' } });
+  const p2 = await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-01', forma: 'pix' } });
   assert.deepStrictEqual([p2.data.data.situacao.estado, p2.data.data.situacao.podeUsar], ['em_dia', true]);
-  assert.strictEqual(code(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-01' } })), 'COBRANCA_JA_PAGA');
-  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-02' } })), 'cicloInicio', 'não é início de ciclo');
-  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-12-01' } })), 'cicloInicio', 'ciclo futuro');
+  assert.strictEqual(code(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-01', forma: 'pix' } })), 'COBRANCA_JA_PAGA');
+  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-11-02', forma: 'pix' } })), 'cicloInicio', 'não é início de ciclo');
+  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-12-01', forma: 'pix' } })), 'cicloInicio', 'ciclo futuro');
   assert.strictEqual(db.assinatura_cobrancas.filter(c => c.assinatura_id === a.id).length, 2);
+  // Forma precisa ser uma das cadastradas e ativas (taxa e prazo entram na comissão, D-045).
+  const nova = (await request('POST', '/api/assinaturas', { token: 'h.recep.a', body: { clienteId: CLI4, planoId: SMART, pagamento: { forma: 'cheque' } } }));
+  assert.deepStrictEqual([nova.status, campo(nova)], [422, 'pagamento.forma'], 'forma desconhecida na venda');
+  assert.ok(!db.assinaturas.some(x => x.cliente_id === CLI4), 'venda recusada não deixa assinatura gravada');
+  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-10-01', forma: 'antiga' } })), 'forma', 'forma desativada');
+  assert.strictEqual(campo(await request('POST', `/api/assinaturas/${a.id}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-10-01' } })), 'forma', 'sem forma');
 });
 
 test('A04 dentro da tolerância: 4 dias de atraso = atrasada, ainda usa, com aviso', async () => {
@@ -165,7 +171,7 @@ test('A06 pausar e retomar: pausada não usa; ciclos que começaram na pausa fic
     const est = Object.fromEntries(r.data.data.ciclos.map(c => [c.inicio, c.estado]));
     assert.deepStrictEqual(est, { '2026-11-16': 'paga', '2026-12-16': 'dispensada', '2027-01-16': 'em_aberto' });
     assert.deepStrictEqual([r.data.data.situacao.estado, r.data.data.situacao.maiorAtrasoDias], ['atrasada', 4]);
-    assert.strictEqual(code(await request('POST', `/api/assinaturas/${ids.cli1}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-12-16' } })), 'COBRANCA_DISPENSADA');
+    assert.strictEqual(code(await request('POST', `/api/assinaturas/${ids.cli1}/pagar`, { token: 'h.recep.a', body: { cicloInicio: '2026-12-16', forma: 'pix' } })), 'COBRANCA_DISPENSADA');
     assert.strictEqual(code(await request('POST', `/api/assinaturas/${ids.cli1}/retomar`, { token: 'h.admin.a' })), 'ASSINATURA_NAO_PAUSADA');
   } finally { em(HOJE.toISOString()); }
 });
