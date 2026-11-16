@@ -156,6 +156,7 @@
           </div>
         </div>
         <button class="btn btn-secondary" id="btnAbrirListaEspera" style="margin:0 12px 10px;width:calc(100% - 24px);">+ Lista de espera</button>
+        <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span></div>
         <div class="agenda-scroll-container" id="timelineContainer">
           <div class="agenda-grid" id="agendaGrid"></div>
         </div>
@@ -1077,6 +1078,38 @@
       <button class="btn btn-secondary" type="button" id="btnEscLotePrevia" style="flex:1;">Ver prévia</button>
       <button class="btn btn-primary" type="button" id="btnEscLoteAplicar" style="flex:1;" disabled>Aplicar</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="modalSlot" role="dialog" aria-modal="true" aria-labelledby="slotTitulo">
+  <div class="modal-box">
+    <h2 id="slotTitulo">Horário livre</h2>
+    <div id="slotEscolha" class="slot-escolha">
+      <button class="btn btn-primary" type="button" id="btnSlotAgendar">Agendar cliente</button>
+      <button class="btn btn-secondary" type="button" id="btnSlotBloquear">Bloquear horário</button>
+    </div>
+    <div id="slotBloquear" class="hidden">
+      <p class="body-sm text-tertiary" style="margin:0 0 8px;">Bloquear até:</p>
+      <div id="slotFimOpcoes" class="slot-chips"></div>
+      <div class="field"><label for="slotFim">Ou escolha o fim</label><input id="slotFim" type="time" step="300"/></div>
+      <p class="body-sm text-tertiary" style="margin:8px 0 4px;">Motivo (opcional)</p>
+      <div id="slotMotivos" class="slot-chips"></div>
+      <div class="field"><input id="slotMotivo" maxlength="200" placeholder="Ex.: almoço, médico" aria-label="Motivo do bloqueio"/></div>
+      <p class="body-sm text-tertiary" id="slotAviso"></p>
+      <button class="btn btn-primary" type="button" id="btnSlotSalvar" style="width:100%;">Bloquear</button>
+    </div>
+    <div id="slotExistente" class="hidden">
+      <p class="body-sm" id="slotInfo"></p>
+      <div id="slotEncurtarBox" class="hidden">
+        <div class="field" id="slotNovoFimBox"><label for="slotNovoFim">Liberar a partir de</label><input id="slotNovoFim" type="time" step="300"/></div>
+        <div class="field hidden" id="slotNovaDataBox"><label for="slotNovaData">Vai até o dia</label><input id="slotNovaData" type="date"/></div>
+        <button class="btn btn-primary" type="button" id="btnSlotEncurtar" style="width:100%;">Encurtar</button>
+      </div>
+      <p class="body-sm text-tertiary hidden" id="slotSoLeitura"></p>
+      <button class="btn btn-secondary" type="button" id="btnSlotRemover" style="width:100%;margin-top:8px;">Remover bloqueio</button>
+    </div>
+    <div class="modal-error hidden" id="slotErro" role="alert"></div>
+    <button class="btn btn-secondary" type="button" id="btnSlotFechar" style="width:100%;margin-top:12px;">Fechar</button>
   </div>
 </div>
 

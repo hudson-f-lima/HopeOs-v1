@@ -1,4 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
+import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
@@ -86,6 +87,8 @@ function emptySlotsForProf(profId) {
     const start = itemStartMinutes(i);
     return [start, start + (i.duracao_min || 30)];
   });
+  // Bloqueio e ausência (D-046): o trecho não é oferecido como livre.
+  for (const b of bloqueiosDoDia(profId, state.selectedDay)) occupied.push([b.ini - HORA_INICIO * 60, b.fim - HORA_INICIO * 60]);
   const totalMin = (HORA_FIM - HORA_INICIO) * 60;
   const slots = [];
   for (let m = 0; m < totalMin; m += GRID_MIN) {
@@ -143,10 +146,13 @@ function renderProfColInner(p) {
   const color = profColor(p.id);
   const emptyHtml = emptySlotsForProf(p.id).map(m => {
     const timeStr = minutesSinceStartToHHMM(m);
-    return `<div class="slot-vazio" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
+    const ini = HORA_INICIO * 60 + m;
+    const fora = foraDaEscala(p.id, state.selectedDay, ini, ini + GRID_MIN) ? ' fora' : '';
+    return `<div class="slot-vazio${fora}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
+  const foraHtml = htmlFora(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN });
   const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item, color)).join('');
-  return emptyHtml + blocksHtml;
+  return foraHtml + emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
 }
 
 export function applyProfFilter() {
@@ -247,6 +253,9 @@ export function renderTimeline() {
 
   if (state.activeProfFilter) applyProfFilter();
   positionRedline();
+  // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez.
+  const dia = state.selectedDay;
+  if (!gradeDoDia(dia)) carregarGradeDia(dia).then(ok => { if (ok && state.selectedDay === dia) renderTimeline(); });
 }
 
 export function positionRedline() {
@@ -1117,13 +1126,17 @@ function onTimelineClick(ev) {
     if (item) openActionSheet(item);
     return;
   }
+  const bloq = ev.target.closest('[data-action="open-bloqueio"]');
+  if (bloq) return abrirBloqueio(bloq.dataset.excId);
   const emptySlot = ev.target.closest('[data-action="add-slot"]');
   if (emptySlot) {
-    openNovoAgendamentoModal(state.selectedDay, emptySlot.dataset.time, emptySlot.dataset.prof);
+    // D-046: tocar no horário livre oferece Agendar ou Bloquear (quem não bloqueia vai direto agendar).
+    abrirHorarioLivre(state.selectedDay, emptySlot.dataset.time, emptySlot.dataset.prof, openNovoAgendamentoModal);
   }
 }
 
 export function initAgenda() {
+  initAgendaBloqueio();
   initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));

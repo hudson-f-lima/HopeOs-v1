@@ -382,7 +382,19 @@ function installMemoryBackend(seed = {}) {
     .filter(r => r.empresa_id === empresaId && (r.profissional_id || null) === (profissionalId || null))
     .sort((x, y) => x.dia_semana - y.dia_semana || hhmm(x.inicio).localeCompare(hhmm(y.inicio)))
     .map(r => ({ diaSemana: r.dia_semana, inicio: hhmm(r.inicio), fim: hhmm(r.fim), aCadaSemanas: r.a_cada_semanas || 1, semanaAncora: r.semana_ancora || null }));
-  const evento = (empresaId, row) => rows('disponibilidade_eventos').push({ id: randomUUID(), empresa_id: empresaId, created_at: clock.agora().toISOString(), antes: [], depois: [], decisoes: [], ...row });
+  // Espelho da corrente da 023: seq e hash (SHA-256 do evento + elo anterior). A origem
+  // (profissional/equipe) o backend calcula pelos vínculos quando o evento não a traz.
+  const textoEvento = e => JSON.stringify([e.id, e.empresa_id, e.actor_id, e.acao, e.profissional_id || '', e.antes, e.depois, e.decisoes, e.created_at, e.seq, e.hash_anterior]);
+  const sha = t => require('crypto').createHash('sha256').update(t, 'utf8').digest('hex');
+  const evento = (empresaId, row) => {
+    const da = rows('disponibilidade_eventos').filter(e => e.empresa_id === empresaId && e.seq);
+    const ult = da[da.length - 1];
+    const e = { id: randomUUID(), empresa_id: empresaId, created_at: clock.agora().toISOString(), antes: [], depois: [], decisoes: [], ...row,
+      seq: ult ? ult.seq + 1 : 1, hash_anterior: ult ? ult.hash : sha(`base|${empresaId}`) };
+    e.hash = sha(textoEvento(e));
+    rows('disponibilidade_eventos').push(e);
+    return e;
+  };
   const profDaEmpresa = (empresaId, id) => {
     if (id && !rows('profissionais').some(p => p.id === id && p.empresa_id === empresaId)) throw new Error('disponibilidade: profissional não encontrado na empresa');
   };
@@ -439,6 +451,47 @@ function installMemoryBackend(seed = {}) {
     const [{ empresa_id, ...removida }] = rows('disponibilidade_excecoes').splice(i, 1);
     evento(this.empresaId, { actor_id: actorId, acao: 'excecao_remover', profissional_id: removida.profissional_id, antes: [removida], decisoes });
     return { removida };
+  };
+  P.encurtarExcecaoDisponibilidade = async function ({ id, dataInicio, dataFim, inicio = null, fim = null, actorId }) {
+    if (!actorId) throw new Error('disponibilidade: ator obrigatório');
+    const x = rows('disponibilidade_excecoes').find(r => r.id === id && r.empresa_id === this.empresaId);
+    if (!x) throw new Error('disponibilidade: exceção não encontrada na empresa');
+    const erro = m => Object.assign(new Error(m), { code: 'P0001' });
+    if (!x.profissional_id || !['bloqueio', 'ausencia'].includes(x.tipo)) throw erro('Só bloqueio ou ausência de profissional pode ser encurtado.');
+    if (!dataInicio || !dataFim || dataFim < dataInicio || dataInicio < x.data_inicio || dataFim > x.data_fim) throw erro('Encurtar: as datas precisam ficar dentro das do bloqueio original.');
+    if (x.tipo === 'bloqueio' && (!inicio || !fim || fim <= inicio || inicio < hhmm(x.inicio) || fim > hhmm(x.fim))) throw erro('Encurtar: o horário precisa ficar dentro do bloqueio original.');
+    if (x.tipo === 'ausencia' && (inicio || fim)) throw erro('Ausência é o dia inteiro: encurte pelas datas.');
+    if (dataInicio === x.data_inicio && dataFim === x.data_fim && (inicio || null) === (x.inicio ? hhmm(x.inicio) : null) && (fim || null) === (x.fim ? hhmm(x.fim) : null)) throw erro('Encurtar: nada mudou.');
+    const { empresa_id, ...antes } = { ...x };
+    Object.assign(x, { data_inicio: dataInicio, data_fim: dataFim, inicio: inicio || null, fim: fim || null });
+    const { empresa_id: _e, ...depois } = { ...x };
+    evento(this.empresaId, { actor_id: actorId, acao: 'excecao_encurtar', profissional_id: x.profissional_id, antes: [antes], depois: [depois] });
+    return { antes, depois };
+  };
+
+  P.aceitarEscalaDisponibilidade = async function ({ profissionalId, eventoId, actorId }) {
+    const erro = m => Object.assign(new Error(m), { code: 'P0001' });
+    const eventos = rows('disponibilidade_eventos').filter(e => e.empresa_id === this.empresaId && e.profissional_id === profissionalId);
+    const ult = eventos.filter(e => e.acao === 'semanal_definir').pop();
+    if (!ult) throw erro('Ainda não há escala definida para aceitar.');
+    if (ult.id !== eventoId) throw erro('A escala mudou depois que você abriu a tela. Confira a nova e aceite de novo.');
+    const ja = eventos.find(e => e.acao === 'semanal_aceitar' && e.depois[0] && e.depois[0].eventoId === eventoId);
+    if (ja) return { eventoAceite: ja.id, jaAceita: true };
+    const e = evento(this.empresaId, { actor_id: actorId, acao: 'semanal_aceitar', profissional_id: profissionalId, depois: [{ eventoId: ult.id, hashEscala: ult.hash, periodos: ult.depois }] });
+    return { eventoAceite: e.id, jaAceita: false };
+  };
+
+  P.conferirCadeiaDisponibilidade = async function () {
+    const cadeia = rows('disponibilidade_eventos').filter(e => e.empresa_id === this.empresaId && e.seq);
+    let prev = sha(`base|${this.empresaId}`);
+    for (let i = 0; i < cadeia.length; i++) {
+      const e = cadeia[i];
+      if (e.seq !== i + 1) return { ok: false, total: i, legado: 0, quebraEm: i + 1, eventoId: e.id, motivo: 'falta um evento na sequência' };
+      if (e.hash_anterior !== prev) return { ok: false, total: i, legado: 0, quebraEm: e.seq, eventoId: e.id, motivo: 'o elo com o evento anterior não confere' };
+      if (e.hash !== sha(textoEvento(e))) return { ok: false, total: i, legado: 0, quebraEm: e.seq, eventoId: e.id, motivo: 'o conteúdo do evento foi alterado' };
+      prev = e.hash;
+    }
+    return { ok: true, total: cadeia.length, legado: 0, ultimoSeq: cadeia.length, ultimoHash: cadeia.length ? prev : null };
   };
   return db;
 }

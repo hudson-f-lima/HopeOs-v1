@@ -137,7 +137,7 @@ const slots = (p, prof, data) => p.evaluate(async ([prof, data, serv]) => {
   const [download] = await Promise.all([p.waitForEvent('download'), p.click('#btnEscHistBaixar')]);
   const arquivo = require('fs').readFileSync(await download.path(), 'utf8');
   const sha = require('crypto').createHash('sha256').update(arquivo, 'utf8').digest('hex');
-  confere('CSV baixado confere com o código SHA-256 da tela', hist.includes(sha) && arquivo.startsWith('evento,quando,acao,'), sha);
+  confere('CSV baixado confere com o código SHA-256 da tela', hist.includes(sha) && arquivo.startsWith('evento,seq,hash,quando,acao,'), sha);
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
   await p.close();
 
