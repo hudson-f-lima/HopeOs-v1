@@ -130,8 +130,28 @@ const slots = (p, prof, data) => p.evaluate(async ([prof, data, serv]) => {
   await p.click('#btnEscExcSalvar'); await p.waitForSelector('#modalEscExcecao', { state: 'hidden' });
   const bloq = (await slots(p, PROF_ANA, amanha2)).slots.map(s => s.horario);
   confere('bloqueio do próprio horário vale nos horários oferecidos', !bloq.includes('09:00') && bloq.includes('10:00'), bloq.join(','));
+  // D-046: histórico com cópia conferível.
+  await p.click('#btnEscHistorico'); await p.waitForSelector('#escHistorico [data-historico], #escHistorico [role="alert"]');
+  const hist = (await p.textContent('#escHistorico')).replace(/\s+/g, ' ');
+  confere('histórico mostra o bloqueio marcado pelo próprio profissional', /Ana marcou bloqueio em .* 09:00–10:00 · Médico · pelo próprio profissional/.test(hist), hist.slice(0, 200));
+  const [download] = await Promise.all([p.waitForEvent('download'), p.click('#btnEscHistBaixar')]);
+  const arquivo = require('fs').readFileSync(await download.path(), 'utf8');
+  const sha = require('crypto').createHash('sha256').update(arquivo, 'utf8').digest('hex');
+  confere('CSV baixado confere com o código SHA-256 da tela', hist.includes(sha) && arquivo.startsWith('evento,quando,acao,'), sha);
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));
   await p.close();
+
+  // ---- Recepção e admin: veem o bloqueio da Ana, mas não removem (D-046) ----
+  for (const email of ['recepcao@dev.local', 'admin@dev.local']) {
+    const q = await entrar(b, email);
+    await abrirEscalas(q);
+    const linha = q.locator('.esc-excecao', { hasText: 'Médico' });
+    const texto = (await linha.innerText()).replace(/\s+/g, ' ');
+    confere(`${email}: bloqueio da Ana marcado pelo profissional e sem "Remover"`, /marcado pelo profissional/.test(texto) && await linha.locator('[data-esc-remover]').count() === 0, texto);
+    console.log(email, 'erros:', JSON.stringify(q.erros));
+    if (q.erros.length) falhas.push(`${email} com erros`);
+    await q.close();
+  }
 
   await b.close();
   console.log('ERROS:', JSON.stringify(falhas));

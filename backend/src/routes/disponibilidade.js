@@ -11,6 +11,8 @@ const { timeToMinutes, INACTIVE_STATUSES } = require('../engines/ScheduleEngine'
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { env } = require('../config/env');
 const clock = require('../config/clock');
+const { createHash } = require('crypto');
+const { getIdentityStore } = require('../auth/identityStore');
 
 const router = express.Router();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -107,7 +109,18 @@ function decisoesPara(req, lista, decisoes) {
 }
 
 const publicoSemanal = r => ({ diaSemana: r.dia_semana, inicio: hhmm(r.inicio), fim: hhmm(r.fim), aCadaSemanas: r.a_cada_semanas || 1, semanaAncora: r.semana_ancora || null });
-const publicoExcecao = e => ({ id: e.id, profissionalId: e.profissional_id || null, tipo: e.tipo, dataInicio: String(e.data_inicio).slice(0, 10), dataFim: String(e.data_fim).slice(0, 10), inicio: e.inicio ? hhmm(e.inicio) : null, fim: e.fim ? hhmm(e.fim) : null, motivo: e.motivo || null });
+// D-046: bloqueio ou ausência que o próprio profissional marcou é dele. Só ele remove; gestão e
+// recepção veem, mas não mexem (prova de autonomia sobre o próprio tempo, Lei 13.352/2016). O
+// autor é o created_by gravado pelo banco (nunca vem da tela), comparado ao profissional do login.
+const TIPOS_DO_PROFISSIONAL = ['bloqueio', 'ausencia'];
+async function autoresProfissionais(empresaId) {
+  const ms = await getIdentityStore().listMembershipsByEmpresa(empresaId);
+  return new Map((ms || []).filter(m => m.profissional_id).map(m => [m.user_id, m.profissional_id]));
+}
+const marcadoPeloProfissional = (e, autores) => Boolean(e.profissional_id && TIPOS_DO_PROFISSIONAL.includes(e.tipo)
+  && e.created_by && autores.get(e.created_by) === e.profissional_id);
+
+const publicoExcecao = (e, autores = new Map()) => ({ id: e.id, profissionalId: e.profissional_id || null, tipo: e.tipo, dataInicio: String(e.data_inicio).slice(0, 10), dataFim: String(e.data_fim).slice(0, 10), inicio: e.inicio ? hhmm(e.inicio) : null, fim: e.fim ? hhmm(e.fim) : null, motivo: e.motivo || null, marcadoPeloProfissional: marcadoPeloProfissional(e, autores) });
 
 async function carregar(repo) {
   const disp = await repo.carregarDisponibilidade();
@@ -120,14 +133,14 @@ router.get('/disponibilidade', authorize('escala:ver'), async (req, res, next) =
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const de = req.query.de ? dataValida(req.query.de, 'de') : hoje();
-    const [disp, profissionais] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId })]);
+    const [disp, profissionais, autores] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId }), autoresProfissionais(repo.empresaId)]);
     const visiveis = profissionais.filter(p => p.ativo !== false && (!req.authz.own || p.id === req.authz.profissionalId));
     const ids = new Set(visiveis.map(p => p.id));
     res.json({
       ok: true,
       data: {
         unidade: { semanal: disp.semanal.filter(r => !r.profissional_id).map(publicoSemanal) },
-        excecoes: disp.excecoes.filter(e => String(e.data_fim).slice(0, 10) >= de && (!e.profissional_id || ids.has(e.profissional_id))).map(publicoExcecao)
+        excecoes: disp.excecoes.filter(e => String(e.data_fim).slice(0, 10) >= de && (!e.profissional_id || ids.has(e.profissional_id))).map(e => publicoExcecao(e, autores))
           .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio)),
         profissionais: visiveis.map(p => ({
           id: p.id, nome: p.nome, escalaPublicada: Boolean(p.escala_publicada_em),
@@ -249,10 +262,65 @@ router.delete('/disponibilidade/excecoes/:id', authorize('escala:ver'), async (r
     const { authorizeAuth } = require('../auth/rbac');
     req.authz = authorizeAuth(req.auth, permissaoDaExcecao({ profissionalId: exc.profissional_id, tipo: exc.tipo }));
     if (exc.profissional_id) assertOwn(req, exc.profissional_id);
+    if (marcadoPeloProfissional(exc, await autoresProfissionais(repo.empresaId)) && req.auth.profissional_id !== exc.profissional_id) {
+      throw createAppError('BLOQUEIO_DO_PROFISSIONAL', 'Este bloqueio foi marcado pelo próprio profissional: só ele pode remover.', 403);
+    }
     const depois = { semanal: disp.semanal, excecoes: disp.excecoes.filter(e => e.id !== id) };
     const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois, profissionalIds: exc.profissional_id ? [exc.profissional_id] : null, de: String(exc.data_inicio).slice(0, 10), ate: String(exc.data_fim).slice(0, 10) }), b.decisoes);
     await repo.removerExcecaoDisponibilidade({ id, actorId: req.auth.actor_id, decisoes });
     res.json({ ok: true, data: { removida: id, decisoes } });
+  } catch (err) { next(err); }
+});
+
+// ---------- Histórico de bloqueios (D-046) ----------
+// Lido da trilha imutável (disponibilidade_eventos): cada bloqueio ou ausência marcado e removido,
+// quando (hora do servidor), por quem e se foi o próprio profissional. O profissional vê só o seu.
+// Vem também em CSV com o SHA-256 do arquivo, para guardar uma cópia conferível.
+const CSV_COLUNAS = ['evento', 'quando', 'acao', 'profissional', 'tipo', 'data_inicio', 'data_fim', 'inicio', 'fim', 'motivo', 'feito_por', 'origem'];
+const celulaCsv = v => {
+  let t = v === null || v === undefined ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`; // fórmula em planilha
+  return /[",\n\r;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
+router.get('/disponibilidade/bloqueios/historico', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    let alvo = req.query.profissionalId ? String(req.query.profissionalId) : null;
+    if (alvo && !UUID.test(alvo)) throw invalido('profissionalId', 'profissionalId inválido.');
+    if (req.authz.own) alvo = req.authz.profissionalId;
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [eventos, profissionais, autores] = await Promise.all([
+      repo.list('disponibilidade_eventos', { empresa_id: repo.empresaId }),
+      repo.list('profissionais', { empresa_id: repo.empresaId }),
+      autoresProfissionais(repo.empresaId)
+    ]);
+    const nomeProf = id => (profissionais.find(p => p.id === id) || {}).nome || 'Profissional';
+    const store = getIdentityStore();
+    const nomes = new Map();
+    const nomeUsuario = async id => {
+      if (!nomes.has(id)) { const u = await store.getAppUser(id).catch(() => null); nomes.set(id, (u && (u.nome || u.email)) || 'Usuário'); }
+      return nomes.get(id);
+    };
+    const itens = [];
+    for (const ev of eventos) {
+      if (!['excecao_criar', 'excecao_remover'].includes(ev.acao)) continue;
+      const linhas = ev.acao === 'excecao_criar' ? ev.depois : ev.antes;
+      for (const r of Array.isArray(linhas) ? linhas : []) {
+        if (!r || !r.profissional_id || !TIPOS_DO_PROFISSIONAL.includes(r.tipo)) continue;
+        if (alvo && r.profissional_id !== alvo) continue;
+        itens.push({
+          eventoId: ev.id, quando: new Date(ev.created_at).toISOString(), acao: ev.acao === 'excecao_criar' ? 'marcou' : 'removeu',
+          profissionalId: r.profissional_id, profissional: nomeProf(r.profissional_id), tipo: r.tipo,
+          dataInicio: String(r.data_inicio).slice(0, 10), dataFim: String(r.data_fim).slice(0, 10),
+          inicio: r.inicio ? hhmm(r.inicio) : null, fim: r.fim ? hhmm(r.fim) : null, motivo: r.motivo || null,
+          feitoPor: await nomeUsuario(ev.actor_id), origem: autores.get(ev.actor_id) === r.profissional_id ? 'profissional' : 'equipe'
+        });
+      }
+    }
+    itens.sort((a, b) => b.quando.localeCompare(a.quando) || a.eventoId.localeCompare(b.eventoId));
+    const csv = [CSV_COLUNAS.join(','), ...itens.map(i => [i.eventoId, i.quando, i.acao, i.profissional, i.tipo, i.dataInicio, i.dataFim, i.inicio, i.fim, i.motivo, i.feitoPor, i.origem].map(celulaCsv).join(','))].join('\r\n') + '\r\n';
+    const sha256 = createHash('sha256').update(csv, 'utf8').digest('hex');
+    res.json({ ok: true, data: { itens, csv, sha256, geradoEm: clock.agora().toISOString() } });
   } catch (err) { next(err); }
 });
 
