@@ -26,7 +26,9 @@ Conclusão: **o que o card mostrava estava correto para o dado gravado.** Não h
 4. **Sem proteção contra repetição** (duplo toque / retry): duas séries iguais.
 5. **Resposta e GET não diziam a situação de cada data**; o card de horário da série não tinha aviso clicável nem lista das datas.
 
-**Hipótese (NÃO provada):** o aparelho do dono rodava JavaScript antigo logo após o deploy das 08:44Z (defeito 1) e por isso não viu "Repetir". Alternativa igualmente compatível com as evidências: "Repetir" estava visível e não foi selecionado. Produção não registra o que a tela mostrou. **Pergunta ao dono:** o modal de novo agendamento tinha o campo "Repetir"? A resposta fecha a dúvida.
+**Relato do dono (2026-11-16):** o campo "Repetir" estava visível, foi usado com 4 ocorrências e só o horário do dia foi criado. Isso descarta a alternativa "Repetir não selecionado".
+
+**Causa mais provável (inferência forte, não verificável no aparelho):** versão mista no cache do navegador. `index.html` carrega `js/app.js?v=<carimbo>` (URL nova a cada deploy → vem da rede) e `app.js` importa `./ui/agenda.js` e `./ui/series.js` **sem** carimbo. O service worker antigo servia `.js` do cache primeiro: `series.js` (arquivo novo, nunca visto) veio da rede e **mostrou** o campo "Repetir"; `agenda.js` (já em cache) era a versão anterior, que não lê o campo e cria um horário avulso. Isso bate com as evidências: campo visível, um único horário, evento `origem: agenda`, zero linhas em `agendamento_series`. O que falta para ser prova: inspecionar o cache do aparelho (não temos acesso). A correção do service worker elimina essa classe de defeito.
 
 ## 3. Situação de cada data (produção)
 
