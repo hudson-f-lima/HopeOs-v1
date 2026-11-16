@@ -586,3 +586,25 @@
   - PWA: Gestão → Planos, com simulador. Cache `v1-40-0-planos-assinatura`.
 - **Fora desta fase:** assinantes, ciclos, usos na agenda e na comanda, estorno de uso (fase 2); cálculo da comissão e rateio, margem (fase 3); aviso ao cliente no link (fase 4); cobrança pelo fornecedor (Onda B); pacotes.
 - **Verificação:** `gate_021.sql` (6 blocos, controle negativo conferido à mão: sem a checagem de empresa o gate reprova); `assinatura-planos-gate` 15/15 (com NC1); E2E `planos` (criar, simular sábado e quarta, editar, arquivar, nome repetido, recepção e profissional).
+
+## D-043 — Assinatura, Onda A, fase 2: assinantes, cobranças manuais e uso na comanda (migration 022)
+- **Decisão (Platform Owner, 2026-11-16):** "Após merge iniciar a fase 2, migração autorizada". Uma só migration para toda a fase 2; o código entra em PRs seguintes sem novas migrations.
+- **Desenho:**
+  - `assinaturas`: cliente + plano + estado base (ativa, pausada, cancelada) + início. O **ciclo** e a **situação de pagamento** (em dia, atrasada, suspensa pela tolerância de 7 dias) são **calculados** pelo backend do início, da periodicidade e das cobranças; nada disso é gravado como estado, então não há estado velho para corrigir. O mesmo cliente não assina o mesmo plano duas vezes ao mesmo tempo.
+  - `assinatura_cobrancas`: uma por ciclo, vencimento, valor, estado (pendente, paga, cancelada). **Cobrança manual** na Onda A: a equipe marca "paga". Sem fornecedor.
+  - `assinatura_usos` (livro-caixa, imutável por trigger como a 009): cada atendimento coberto ou fora da regra, preso ao **item da comanda**, com valor de tabela, valor cobrado, ação aplicada, motivos e quem aprovou.
+  - `assinatura_usos_estornos` (imutável): o uso volta ao limite do ciclo quando o **item** é estornado. Um gatilho novo em `comanda_estorno_itens` faz isso; **a 009 não foi tocada**. Decisão do dono: o estorno reverte tudo.
+  - `checkout_close_assinatura`: chama o `checkout_close_autoria` de sempre e grava os usos **na mesma transação**; se o uso não achar o item, a comanda inteira é desfeita. Fechamento repetido (idempotente) devolve o já gravado e não duplica uso. O item é achado por (serviço, profissional, preço cobrado); itens iguais são intercambiáveis.
+  - O backend calcula o preço cobrado de cada item coberto (o cliente nunca informa valor). A comissão do item coberto a R$ 0 é zero no fechamento; o rateio do ciclo é a fase 3. Fora da regra: comissão normal do serviço sobre o valor cobrado, fora do rateio (decisão do dono).
+- **Verificação:** `gate_022.sql` (8 blocos: duplicidade de plano, estado, tenant, cobrança, fechamento com uso, tudo ou nada, imutabilidade, estorno devolve o uso, grants); três controles negativos conferidos (sem o retorno idempotente, sem o casamento por preço, sem o gatilho de estorno o gate reprova); ciclo de rollback e reaplicação.
+- **Aplicação (mesmo PR, sem nova migration):**
+  - Motor `AssinaturaCicloEngine`: ciclo a partir do início (31/01 → 28/02 → 31/03; bissexto), vencimento (na contratação ou dia fixo), cobranças devidas **calculadas** (só pagas e dispensadas viram linha), situação em dia / atrasada (até a tolerância, ainda usa) / suspensa / pausada / cancelada / cancelamento agendado.
+  - Rotas `/api/assinaturas`: listar, detalhe, vender (com ou sem o 1º ciclo pago; valor sempre o do plano), pagar ciclo (uma vez só), pausar, retomar (ciclos da pausa dispensados; o atual é devido), cancelar no fim do ciclo (padrão) ou agora, e `GET /assinaturas/cobertura` (nada gravado). Permissões novas: `assinatura:vender` (operação) e `assinatura:gerir` (gestão, sensível).
+  - Comanda: o item de serviço pode trazer `assinaturaId`; o servidor aplica a mesma regra da cobertura, conta os usos da própria comanda, ajusta o preço (R$ 0 ou X%), exige a liberação da gestão quando o plano pede, e fecha com `checkout_close_assinatura`. Comanda toda coberta fecha sem pagamento; se sobrar valor, o pagamento continua obrigatório. A tela nunca informa preço.
+  - PWA: Gestão → Assinantes; selo "★ Assinante · Plano X: coberto (2 de 4)" no card da agenda; na comanda, o plano aparece no item com "Não usar o plano", e o resumo mostra o que o plano cobriu. Cache `v1-41-0-assinantes`.
+- **Limites conhecidos:**
+  - Duas comandas do mesmo assinante fechadas **ao mesmo tempo** podem passar do limite do ciclo por um uso (a contagem é feita pela aplicação, sem trava no banco). Raro no balcão; registrado como risco.
+  - Comissão do item coberto a R$ 0 é zero até a fase 3 (rateio do ciclo).
+  - O profissional que fecha a própria comanda não aplica plano (não tem `assinatura:ver`); a recepção aplica.
+  - Cancelar pela tela usa duas confirmações do navegador (fim do ciclo / agora); melhorar com diálogo próprio.
+- **Verificação adicional:** `assinantes-gate` 16/16 (com NC1); E2E `assinantes` (vender, suspensa → pagar → em dia, pausar, retomar, cancelar, papéis) e `assinatura-comanda` (selo na agenda, comanda a R$ 0 sem pagamento, uso preso ao item, "Não usar o plano").

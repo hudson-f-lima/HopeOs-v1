@@ -35,7 +35,7 @@ function installMemoryBackend(seed = {}) {
     const { empresa_id, empresaId, ...rest } = p;
     const row = { id: p.id || randomUUID(), ...rest, empresa_id: this.empresaId };
     // Chaves únicas do banco que os gates precisam sentir (020: lembrete e endpoint de push).
-    const UNICAS = { agendamento_lembretes: ['agendamento_id', 'tipo', 'canal'], agendamento_push: ['endpoint_hash'] };
+    const UNICAS = { agendamento_lembretes: ['agendamento_id', 'tipo', 'canal'], agendamento_push: ['endpoint_hash'], assinatura_cobrancas: ['assinatura_id', 'ciclo_inicio'] };
     if (UNICAS[t] && rows(t).some(r => UNICAS[t].every(c => r[c] === row[c]))) {
       const err = new Error(`duplicate key value violates unique constraint on ${t}`); err.code = '23505'; throw err;
     }
@@ -187,6 +187,30 @@ function installMemoryBackend(seed = {}) {
   // Como no RPC: idempotencyKey (ou id) já usada devolve a comanda existente sem
   // gravar nada; estoque é conferido ANTES de gravar (o RPC é uma transação: falha
   // de estoque não deixa comanda pela metade); o retorno tem o mesmo formato.
+  // Espelho do checkout_close_assinatura (022): confere antes de gravar que cada uso tem um item
+  // (tudo ou nada), fecha como sempre e grava os usos presos aos itens.
+  P.saveCheckoutCloseAssinatura = async function ({ payload = {}, resolved = {}, preview, autoria = {}, usos = [] }) {
+    const livres = ((preview && preview.itens) || []).filter(it => (it.tipo || 'servico') === 'servico').map(it => ({ ...it }));
+    for (const u of usos) {
+      const k = livres.findIndex(it => it.servicoId === u.servicoId && it.profissionalId === u.profissionalId && Number(it.precoUnitarioCentavos) === Number(u.precoUnitarioCentavos));
+      if (k < 0) throw createAppError('ASSINATURA_USO_SEM_ITEM', 'Não foi possível ligar o uso do plano ao item da comanda; nada foi gravado.', 409);
+      livres.splice(k, 1);
+    }
+    const r = await this.saveCheckoutClose({ payload, resolved, preview, autoria });
+    if (r.idempotent) return r;
+    const comando = rows('comandos').find(c => c.id === r.comandoId);
+    const usados = new Set();
+    for (const u of usos) {
+      const item = rows('comando_itens').find(i => i.comando_id === r.comandoId && i.tipo === 'servico' && !usados.has(i.id) &&
+        i.servico_id === u.servicoId && i.profissional_id === u.profissionalId && Number(i.preco_unitario_centavos) === Number(u.precoUnitarioCentavos));
+      usados.add(item.id);
+      await this.insert('assinatura_usos', { assinatura_id: u.assinaturaId, ciclo_inicio: u.cicloInicio, comando_id: r.comandoId, comando_item_id: item.id,
+        servico_id: u.servicoId, profissional_id: u.profissionalId, data: comando.data, tipo: u.tipo, consome_uso: u.consomeUso,
+        valor_tabela_centavos: u.valorTabelaCentavos, valor_cobrado_centavos: u.valorCobradoCentavos, acao: u.acao, motivos: u.motivos || [],
+        aprovado_por: u.aprovadoPor || null, created_by: autoria.actorId || null });
+    }
+    return r;
+  };
   P.saveCheckoutClose = async function ({ payload = {}, resolved = {}, preview, autoria = {} }) {
     const t = (preview && preview.totals) || {};
     const data = payload.data || resolved.data || new Date().toISOString().slice(0, 10);
@@ -334,6 +358,10 @@ function installMemoryBackend(seed = {}) {
         await this.insert('produto_estoque_movimentos', { produto_id: prod.id, comando_id: comandoId, comando_item_id: l.item.id, tipo: 'devolucao', quantidade: l.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, motivo: 'Devolução por estorno de comanda', actor_id: actorId, created_at: now });
       }
       await this.insert('comanda_estorno_itens', { estorno_id: evento.id, comando_id: comandoId, comando_item_id: l.item.id, quantidade: l.quantidade, valor_liquido_centavos: l.valor, comissao_centavos: l.comissao, receita_empresa_centavos: l.receita, custo_centavos: l.custo, devolve_estoque: l.devolveEstoque, created_at: now });
+      // Espelho do gatilho da 022: o uso do plano preso a este item volta ao limite do ciclo.
+      for (const u of rows('assinatura_usos').filter(x => x.comando_item_id === l.item.id && x.empresa_id === this.empresaId)) {
+        if (!rows('assinatura_usos_estornos').some(e => e.uso_id === u.id)) await this.insert('assinatura_usos_estornos', { uso_id: u.id, estorno_id: evento.id });
+      }
     }
     for (const g of calc.gorjetas) {
       await this.insert('comanda_estorno_gorjetas', { estorno_id: evento.id, comando_id: comandoId, comando_gorjeta_id: g.gorjeta.id || null, profissional_id: g.gorjeta.profissional_id || null, valor_bruto_centavos: g.bruto, valor_liquido_centavos: g.liquido, created_at: now });

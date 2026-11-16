@@ -59,6 +59,8 @@ const PERMISSOES = Object.freeze([
   // D-042 (migration 021): planos de assinatura (Onda A, fase 1). Ver e simular é da operação
   // (a recepção vende); criar e editar mexe em preço e comissão: gestão, sensível.
   p('assinatura:ver', 'Assinaturas', 'Ver planos de assinatura e simular a cobertura', 'cadastros:read', OPERACAO),
+  p('assinatura:vender', 'Assinaturas', 'Vender plano ao cliente e registrar o pagamento do ciclo', 'checkout:write', OPERACAO),
+  p('assinatura:gerir', 'Assinaturas', 'Pausar, retomar e cancelar assinaturas', 'cadastros:write', GESTAO, 'sensivel'),
   p('planos:editar', 'Assinaturas', 'Criar, editar e arquivar planos de assinatura (preço, comissão e regras de uso)', 'cadastros:write', GESTAO, 'sensivel'),
   p('espera:ver', 'Lista de espera', 'Ver a lista de espera', 'lista_espera:read', OPERACAO),
   p('espera:gerir', 'Lista de espera', 'Incluir e atualizar na lista de espera', 'lista_espera:write', OPERACAO),
