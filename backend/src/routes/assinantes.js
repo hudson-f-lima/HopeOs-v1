@@ -134,6 +134,32 @@ async function avaliarCobertura(repo, { clienteId, servicoId, profissionalId, da
   return { precoTabelaCentavos: tabela, assinante: opcoes.length > 0, melhor: ordem[0] || null, opcoes };
 }
 
+// Resumo do mês por plano (D-044): receita das cobranças pagas, comissão (rateio, tabela ou fixo),
+// margem, valor de tabela usado e assinantes que usaram mais do que pagam. Somente leitura.
+router.get('/assinaturas/relatorio', authorize('painel:financeiro'), async (req, res, next) => {
+  try {
+    const mes = String(req.query.mes || '');
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw invalido('mes', 'mes deve ser AAAA-MM.');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const { dadosDeAssinatura } = require('../services/AssinaturaDados');
+    const { comissoesDeAssinatura, acimaDoPreco } = require('../engines/AssinaturaComissaoEngine');
+    const dados = await dadosDeAssinatura(repo);
+    const [comandoItens, profissionais, clientes] = await Promise.all([
+      repo.list('comando_itens', { empresa_id: repo.empresaId }), repo.list('profissionais', { empresa_id: repo.empresaId }), repo.list('clientes', { empresa_id: repo.empresaId })
+    ]);
+    const { porPlano } = comissoesDeAssinatura({ ...dados, comandoItens, mes });
+    const nomeProf = new Map(profissionais.map(p => [p.id, p.nome]));
+    const nomeCli = new Map(clientes.map(c => [c.id, c.nome]));
+    const planos = porPlano.map(p => ({ ...p, profissionais: p.profissionais.map(x => ({ ...x, nome: nomeProf.get(x.profissionalId) || 'Profissional removido' })) }));
+    const soma = k => planos.reduce((s, p) => s + (p[k] || 0), 0);
+    res.json({ ok: true, data: {
+      mes, planos,
+      totais: { receitaCentavos: soma('receitaCentavos'), comissaoCentavos: soma('comissaoCentavos'), margemCentavos: soma('margemCentavos'), naoDistribuidoCentavos: soma('naoDistribuidoCentavos'), atendimentos: soma('atendimentos') },
+      acimaDoPreco: acimaDoPreco({ ...dados, mes }).map(x => ({ ...x, clienteNome: nomeCli.get(x.clienteId) || null, planoNome: (dados.planos.find(p => p.id === x.planoId) || {}).nome || null }))
+    } });
+  } catch (err) { next(err); }
+});
+
 router.get('/assinaturas/:id', authorize('assinatura:ver'), async (req, res, next) => {
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);

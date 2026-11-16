@@ -608,3 +608,18 @@
   - O profissional que fecha a própria comanda não aplica plano (não tem `assinatura:ver`); a recepção aplica.
   - Cancelar pela tela usa duas confirmações do navegador (fim do ciclo / agora); melhorar com diálogo próprio.
 - **Verificação adicional:** `assinantes-gate` 16/16 (com NC1); E2E `assinantes` (vender, suspensa → pagar → em dia, pausar, retomar, cancelar, papéis) e `assinatura-comanda` (selo na agenda, comanda a R$ 0 sem pagamento, uso preso ao item, "Não usar o plano").
+
+## D-044 — Assinatura, Onda A, fase 3: comissão dos atendimentos de plano e margem por plano (sem migration)
+- **Decisão (Platform Owner, 2026-11-16):** "Aprovado o rateio por quantidade. Conforme recomendação" (D-042); "Após Merge ok, iniciar fase 3". Percentual da comissão configurável por plano.
+- **Entregue (calculado, nada gravado: usa os usos e as cobranças da 022):**
+  - `AssinaturaComissaoEngine`, por plano e por mês:
+    - **rateio:** % do plano × cobranças **pagas no mês** (pela data do pagamento), dividido entre os profissionais pela **quantidade de atendimentos cobertos** do plano no mês (pela data da comanda), sem sobra de centavo. Mês sem atendimento: o valor não é distribuído (fica com o salão) e aparece no relatório.
+    - **tabela:** % de comissão do serviço (gravada no item) × valor de tabela, por atendimento.
+    - **fixo por uso:** o valor fixo do plano, por atendimento.
+    - Ficam de fora: uso estornado e uso **fora da regra** (já teve comissão normal sobre o valor cobrado na comanda).
+  - A comissão de assinatura entra em **"Meus ganhos"** (linha própria) e no **saldo a pagar** (pagamento de comissão da 010), sem mudar o que já existia para quem não tem plano.
+  - `GET /api/assinaturas/relatorio?mes=AAAA-MM` (`painel:financeiro`): por plano, receita, comissão, margem, valor de tabela usado, atendimentos por profissional, valor não distribuído e assinantes que usaram mais do que pagam (sinal para rever o plano, nunca ação automática).
+  - PWA: "Resumo do mês" em Gestão → Assinantes (só a gestão); linha "Comissão de assinaturas" em Ganhos.
+- **Conferência com o AppBarber:** o exemplo lido (3 e 19 atendimentos) reparte 104,95 em 14,31 e 90,64 no gate. A conferência com dados reais fica para o primeiro mês com assinantes no HOPE OS: comparar o relatório com as "Comissões geradas" do AppBarber no mesmo período; se divergir de um jeito que aponte o tempo dos serviços, evoluir para rateio por minutos (o uso já guarda o necessário).
+- **Limites:** é calculado na hora, então mudar a regra do plano ou pagar uma cobrança atrasada muda o mês em aberto (como o resto dos ganhos). Comissão já paga não é refeita: o saldo mostra a diferença.
+- **Verificação:** `assinatura-comissao-gate` 9/9 (com NC1); E2E `assinantes` (resumo do mês da gestão; recepção sem o resumo), `ganhos`, `finops`, `metas` e `assinatura-comanda` verdes.

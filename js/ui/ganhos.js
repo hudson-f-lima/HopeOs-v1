@@ -19,6 +19,7 @@ function render(g) {
   el('ganhosResultado').innerHTML = `
     <div class="row"><span>Atendimentos</span><b id="ganhosAtendimentos">${g.atendimentos}</b></div>
     ${linha('Comissão', g.comissaoCentavos)}
+    ${g.assinaturaCentavos ? linha('Comissão de assinaturas (rateio do mês)', g.assinaturaCentavos) : ''}
     ${linha('Gorjetas (líquido)', g.gorjetaLiquidaCentavos)}
     ${temEstorno ? linha(`Estornos (${g.estornos.quantidade})`, -(g.estornos.comissaoCentavos + g.estornos.gorjetaCentavos)) : ''}
     <div class="row total"><span>Total do mês</span><b id="ganhosTotal" data-total="${g.totalCentavos}">${centsToBRL(g.totalCentavos)}</b></div>

@@ -31,7 +31,8 @@ router.get('/relatorios/meus-ganhos', authorize('ganhos:ver'), async (req, res, 
     ]);
     // Profissional de outra empresa (ou inexistente) = 404: não confirma que o id existe.
     if (!profissionais[0]) throw createAppError('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado.', 404);
-    res.json({ ok: true, data: { ...computeGanhos({ comandos, comandoItens, gorjetas, estornos, estornoItens, estornoGorjetas, profissionalId, mes }), nome: profissionais[0].nome } });
+    const assinatura = await require('../services/AssinaturaDados').dadosDeAssinatura(repo);
+    res.json({ ok: true, data: { ...computeGanhos({ comandos, comandoItens, gorjetas, estornos, estornoItens, estornoGorjetas, profissionalId, mes, assinatura }), nome: profissionais[0].nome } });
   } catch (err) { next(err); }
 });
 

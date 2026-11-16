@@ -75,7 +75,9 @@ async function dadosDoSaldo(repo) {
     repo.list('comanda_estornos', filtro), repo.list('comanda_estorno_itens', filtro), repo.list('comanda_estorno_gorjetas', filtro),
     repo.list('comissao_pagamentos', filtro)
   ]);
-  return { comandos, comandoItens, gorjetas, estornos, estornoItens, estornoGorjetas, pagamentos };
+  // Comissão dos atendimentos de assinatura (D-044) entra no saldo a pagar.
+  const assinatura = await require('../services/AssinaturaDados').dadosDeAssinatura(repo);
+  return { comandos, comandoItens, gorjetas, estornos, estornoItens, estornoGorjetas, pagamentos, assinatura };
 }
 async function profissionalDaEmpresa(repo, id) {
   const [p] = id ? await repo.list('profissionais', { empresa_id: repo.empresaId, id }) : [];

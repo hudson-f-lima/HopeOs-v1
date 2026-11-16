@@ -79,6 +79,9 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
   console.log('DEPOIS DE PAGAR:', t3.slice(0, 120), '| cobranças pagas no banco:', pagas.length, '| valores:', JSON.stringify([...new Set(pagas.map(p => p.valor_centavos))]));
   if (!/Em dia/.test(t3)) errs.push('pagar não deixou em dia');
   if (pagas.some(p => p.valor_centavos !== 11500)) errs.push('valor da cobrança diferente do plano');
+  const resumoRecep = await r.locator('#assResumoMes').count();
+  console.log('RECEPÇÃO vê o resumo do mês:', resumoRecep);
+  if (resumoRecep) errs.push('recepção vê o resumo financeiro do mês');
   const botoesRecep = await r.locator('[data-ass-acao]').count();
   console.log('RECEPÇÃO vê pausar/cancelar:', botoesRecep);
   if (botoesRecep) errs.push('recepção vê pausar/cancelar');
@@ -90,6 +93,10 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
   a.on('dialog', d => d.accept());
   await login(a, 'admin@dev.local');
   await abrir(a);
+  await a.waitForSelector('#assResumoTotais', { timeout: 8000 });
+  const totais = (await a.textContent('#assResumoTotais')).trim();
+  console.log('RESUMO DO MÊS (gestão):', totais);
+  if (!/receita R\$\s*345,00/.test(totais)) errs.push('resumo do mês com receita errada');
   await cardDe(a, c1.nome).locator('[data-ass-acao="pausar"]').click(); await a.waitForTimeout(700);
   const pausada = (await cardDe(a, c1.nome).innerText()).replace(/\s+/g, ' ');
   await cardDe(a, c1.nome).locator('[data-ass-acao="retomar"]').click(); await a.waitForTimeout(700);

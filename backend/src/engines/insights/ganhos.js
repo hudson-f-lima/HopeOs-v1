@@ -5,7 +5,9 @@
 // Estorno entra no mês DO ESTORNO, igual à cota-parte: o mês já fechado não muda.
 const n = v => Number(v || 0);
 
-function computeGanhos({ comandos = [], comandoItens = [], gorjetas = [], estornos = [], estornoItens = [], estornoGorjetas = [], profissionalId, mes }) {
+// assinatura (opcional, D-044): { planos, assinaturas, cobrancas, usos, usosEstornos } — a comissão dos
+// atendimentos cobertos por plano (rateio, tabela ou fixo) entra no ganho do mês.
+function computeGanhos({ comandos = [], comandoItens = [], gorjetas = [], estornos = [], estornoItens = [], estornoGorjetas = [], profissionalId, mes, assinatura = null }) {
   const dataDaComanda = new Map(comandos.filter(c => String(c.data).startsWith(mes)).map(c => [c.id, String(c.data)]));
   const dias = new Map();
   const dia = data => {
@@ -47,7 +49,12 @@ function computeGanhos({ comandos = [], comandoItens = [], gorjetas = [], estorn
     dia(data).gorjetaCentavos -= n(eg.valor_liquido_centavos);
   }
   r.estornos.quantidade = estornosDoProf.size;
-  r.totalCentavos = r.comissaoCentavos + r.gorjetaLiquidaCentavos - r.estornos.comissaoCentavos - r.estornos.gorjetaCentavos;
+  r.assinaturaCentavos = 0;
+  if (assinatura) {
+    const { comissoesDeAssinatura } = require('../AssinaturaComissaoEngine');
+    r.assinaturaCentavos = comissoesDeAssinatura({ ...assinatura, comandoItens, mes }).porProfissional.get(profissionalId) || 0;
+  }
+  r.totalCentavos = r.comissaoCentavos + r.assinaturaCentavos + r.gorjetaLiquidaCentavos - r.estornos.comissaoCentavos - r.estornos.gorjetaCentavos;
   r.porDia = [...dias.values()].sort((a, b) => a.data.localeCompare(b.data));
   return r;
 }
