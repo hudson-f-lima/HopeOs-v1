@@ -214,7 +214,9 @@ async function atualizarCobertura() {
       if (m.consomeUso) usadosNaComanda.set(chave, ja + 1);
       item.planoTexto = 'Plano ' + m.planoNome + ': ' + (m.situacaoUso === 'coberto'
         ? 'coberto' + (limite ? ' (' + (m.usoDoCiclo.usados + ja + 1) + ' de ' + limite + ')' : '')
-        : 'fora da regra, ' + centsToBRL(m.cobrarCentavos) + (m.consomeUso ? ', gasta 1 uso' : ''));
+        : 'fora da regra, ' + centsToBRL(m.cobrarCentavos) + (m.consomeUso ? ', gasta 1 uso' : '') +
+          // O porquê (dia, horário, profissional ou intervalo) vem do servidor; sem ele a tela parecia erro.
+          (m.motivos && m.motivos[0] ? ' — ' + m.motivos[0].texto : ''));
     } else {
       const motivo = esgotou ? 'limite do ciclo atingido' : ((m.motivos && m.motivos[0] && m.motivos[0].texto) || 'não cobre');
       item.planoTexto = 'Plano ' + m.planoNome + ': ' + motivo;
@@ -286,7 +288,8 @@ function renderPlanoAviso(preview) {
   const lista = Array.isArray(preview.assinaturas) ? preview.assinaturas : [];
   aviso.classList.toggle('hidden', !lista.length);
   aviso.textContent = lista.map(a => 'Plano ' + a.planoNome + ': ' + (a.aplicada
-    ? (a.situacao === 'coberto' ? 'coberto' : 'fora da regra') + ', cobra ' + centsToBRL(a.cobrarCentavos) + ' de ' + centsToBRL(a.precoTabelaCentavos) + (a.consomeUso ? ', gasta 1 uso' : '')
+    ? (a.situacao === 'coberto' ? 'coberto' : 'fora da regra') + ', cobra ' + centsToBRL(a.cobrarCentavos) + ' de ' + centsToBRL(a.precoTabelaCentavos) + (a.consomeUso ? ', gasta 1 uso' : '') +
+      (a.situacao !== 'coberto' && a.motivos && a.motivos[0] ? ' (' + a.motivos[0].texto + ')' : '')
     : 'não aplicado (' + ((a.motivos[0] && a.motivos[0].texto) || a.situacao) + '), cobra o valor cheio') + (a.aviso ? ' — ' + a.aviso : '')).join(' · ');
 }
 
