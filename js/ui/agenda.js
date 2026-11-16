@@ -1,4 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
+import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
 import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
@@ -551,7 +552,7 @@ function openActionSheet(item) {
     <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
     <div class="row"><span>Status</span><span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span></div>
     <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
-    <div class="sheet-actions">${actionsHtml}${acoesDaSerie(item)}</div>
+    <div class="sheet-actions">${actionsHtml}${acoesDaSerie(item)}${acoesDoAtendimento(item)}</div>
     <details class="sheet-historico" id="historicoDetails">
       <summary>Histórico</summary>
       <div id="historicoBody" class="sheet-historico-body">Carregando…</div>
@@ -681,6 +682,7 @@ async function onActionSheetClick(ev) {
     return;
   }
   if (action === 'reagendar') { closeActionSheet(); openReagendarModal(item); return; }
+  if (action === 'atendimento-etapas') { closeActionSheet(); abrirEtapas(item); return; }
   if (action === 'serie-cancelar' || action === 'serie-alterar') { closeActionSheet(); abrirSerie(item, action === 'serie-cancelar' ? 'cancelar' : 'alterar'); return; }
   if (action === 'checkout') { 
     closeActionSheet(); 
@@ -1187,6 +1189,16 @@ export function initAgenda() {
       return;
     }
     clearBanner();
+
+    // Vários serviços (D-040): o servidor devolve as combinações e quem agenda escolhe uma.
+    const extras = extrasEscolhidos();
+    if (extras.length) {
+      if (repeticaoEscolhida()) { showBanner('Série recorrente aceita um serviço por vez.', 'error'); return; }
+      const itens = [{ servicoId, profissionalId }, ...extras.map(e => ({ servicoId: e.servicoId, profissionalId: e.profissionalId || null }))];
+      if (new Set(itens.map(i => i.servicoId)).size !== itens.length) { showBanner('O mesmo serviço aparece duas vezes.', 'error'); return; }
+      await abrirOpcoes({ clienteId, data, itens, horario }, () => { resetExtras(); closeNovoAgendamentoModal(); });
+      return;
+    }
 
     // Série recorrente (C4): prévia no servidor e confirmação antes de gravar.
     const repeticao = repeticaoEscolhida();

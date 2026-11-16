@@ -1135,3 +1135,18 @@ body{font-variant-numeric:tabular-nums;}
 .serie-escopo label{display:flex;gap:8px;align-items:center;font-size:14px;}
 .serie-escopo label{justify-content:flex-start;text-align:left;}
 .serie-escopo input[type="radio"]{width:20px;height:20px;min-height:0;margin:0;padding:0;flex:none;}
+
+/* Atendimento com vários serviços (D-040) */
+.ag-extras{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}
+.ag-extra{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;}
+.ag-extra select{min-width:0;}
+.at-opcoes{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto;}
+.at-opcao{text-align:left;border:1px solid var(--md-surface-variant);border-radius:12px;padding:10px 12px;background:var(--md-surface);color:inherit;cursor:pointer;display:block;width:100%;}
+.at-opcao:hover,.at-opcao:focus-visible{border-color:var(--md-primary,#6750a4);}
+.at-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;}
+.at-tipo{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--success-light,#e3f7ea);color:var(--success,#176b36);}
+.at-tipo[data-tipo="fracionado"]{background:var(--warning-light,#fff4d6);color:var(--warning,#8a5a00);}
+.at-etapas{margin:6px 0;padding-left:18px;font-size:13px;}
+.at-etapas li.at-atual{font-weight:700;}
+.at-espera{color:var(--warning,#8a5a00);}
+.at-total{font-size:12px;font-weight:700;}

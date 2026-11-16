@@ -570,6 +570,10 @@
       <input id="agHorario" type="time"/>
       <div id="agSlots" class="ag-slots" aria-live="polite"></div>
     </div>
+    <div class="field">
+      <div id="agExtras" class="ag-extras"></div>
+      <button type="button" class="btn-link" id="btnAgAddServico">+ Adicionar serviço</button>
+    </div>
     <div class="field hidden" id="agRepetirBox">
       <label for="agRepetir">Repetir</label>
       <select id="agRepetir">
@@ -786,6 +790,13 @@
         <h2 class="m-0" id="escTitulo" style="margin-bottom:4px;">Horários e escalas</h2>
         <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda só oferece horários dentro do horário da unidade e da escala de cada profissional, descontando datas especiais e bloqueios.</p>
         <div id="escConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
+        <div class="field hidden" id="esperaBox" style="margin-top:12px;">
+          <label for="esperaMax">Espera máxima entre etapas (atendimento com vários serviços)</label>
+          <select id="esperaMax">
+            <option value="0">Sem espera</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option>
+            <option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option><option value="90">1 h 30</option><option value="120">2 h</option>
+          </select>
+        </div>
       </section>
     </div>
 
@@ -1103,6 +1114,27 @@
   <label class="body-sm">Dia <input type="date" id="lembretesData"/></label>
   <p class="body-sm text-tertiary">Abra o WhatsApp de cada cliente, envie a mensagem pronta e marque "Confirmou" quando a resposta chegar.</p>
   <div id="lembretesConteudo"></div>
+</dialog>
+
+<dialog id="atendimentoDialog" class="lembretes-dialog" aria-labelledby="atendimentoTitulo">
+  <div class="lembretes-head">
+    <h2 id="atendimentoTitulo" class="m-0">Escolha a combinação</h2>
+    <button class="btn" type="button" id="btnAtendimentoFechar" aria-label="Fechar">✕</button>
+  </div>
+  <p class="body-sm text-tertiary" id="atendimentoResumo"></p>
+  <p class="body-sm" id="atendimentoMsg" role="alert"></p>
+  <div id="atendimentoOpcoes" class="at-opcoes"></div>
+</dialog>
+
+<dialog id="etapasDialog" class="lembretes-dialog" aria-labelledby="etapasTitulo">
+  <div class="lembretes-head">
+    <h2 id="etapasTitulo" class="m-0">Etapas do atendimento</h2>
+    <button class="btn" type="button" id="btnEtapasFechar" aria-label="Fechar">✕</button>
+  </div>
+  <div id="etapasConteudo"></div>
+  <p class="body-sm" id="etapasMsg" role="alert"></p>
+  <button class="btn danger hidden" type="button" id="btnEtapaCancelarEsta">Cancelar só esta etapa</button>
+  <button class="btn danger hidden" type="button" id="btnEtapaCancelarTodas">Cancelar todas as etapas</button>
 </dialog>
 
 <dialog id="serieDialog" class="lembretes-dialog" aria-labelledby="serieTitulo">

@@ -43,7 +43,8 @@ const CASOS = [
   { nome: 'escalas' },
   { nome: 'link-online' },
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
-  { nome: 'series' }
+  { nome: 'series' },
+  { nome: 'atendimento' }
 ];
 // Linha "ROTULO erros: [...]" / "ERROS: [...]" / "ERRS: [...]" / "VIOLAÇÕES CSP: [...]" com conteúdo.
 const LISTA_NAO_VAZIA = /(erros|ERROS|ERRS|VIOLAÇÕES CSP):\s*\[(?!\])/;

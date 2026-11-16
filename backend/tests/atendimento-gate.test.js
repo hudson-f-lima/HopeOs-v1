@@ -202,6 +202,95 @@ test('A11 rota: validação e permissão — sem login 401; itens inválidos 422
   assert.strictEqual((await consulta({ data: DIA, itens: [{ servicoId: CORTE.id, profissionalId: B.id }] }, 'h.prof.s')).status, 422);
 });
 
+// --- Onda 2: gravar, consultar e cancelar (cenários 9 e 10) -------------------
+const { SupabaseRepository } = require('../src/repositories/SupabaseRepository');
+const gravar = (body, token = 'h.recep.s') => request('POST', '/api/agenda/atendimentos', { token, body });
+const code = r => r.data && r.data.error && r.data.error.code;
+let grupoId;
+
+test('A12 gravar: corte com A 10:00 + barba e sobrancelha com C em sequência; o servidor calcula duração e preço; etapas ligadas', async () => {
+  const r = await gravar({ data: DIA, etapas: [
+    { servicoId: CORTE.id, profissionalId: A.id, horario: '10:00' },
+    { servicoId: BARBA.id, profissionalId: C.id, horario: '10:45' },
+    { servicoId: SOBR.id, profissionalId: C.id, horario: '11:15' }] });
+  assert.strictEqual(r.status, 201, r.raw);
+  grupoId = r.data.data.grupoId;
+  assert.deepStrictEqual([r.data.data.inicio, r.data.data.fim, r.data.data.precoCentavos], ['10:00', '11:30', 11000]);
+  const ags = db.agendamentos.filter(a => a.grupo_id === grupoId).sort((x, y) => x.grupo_seq - y.grupo_seq);
+  assert.deepStrictEqual(ags.map(a => [a.grupo_seq, a.profissional_id, String(a.horario).slice(0, 5), a.duracao_min, a.valor_centavos]),
+    [[1, A.id, '10:00', 45, 6000], [2, C.id, '10:45', 30, 3000], [3, C.id, '11:15', 15, 2000]]);
+  assert.strictEqual(db.agendamento_eventos.filter(e => e.payload && e.payload.grupo_id === grupoId).length, 3);
+});
+
+test('A13 revalidação no servidor: fora da escala, ocupado, espera acima do limite, não habilitado e preço/duração do cliente são recusados; nada gravado', async () => {
+  const antes = db.agendamentos.length;
+  const casos = [
+    [[{ servicoId: CORTE.id, profissionalId: A.id, horario: '11:40' }], 'ATENDIMENTO_INVALIDO'], // passa das 12:00
+    [[{ servicoId: CORTE.id, profissionalId: A.id, horario: '10:15' }], 'ATENDIMENTO_INVALIDO'], // ocupado pelo A12
+    [[{ servicoId: CORTE.id, profissionalId: B.id, horario: '10:45' }, { servicoId: SOBR.id, profissionalId: B.id, horario: '11:55' }], 'ATENDIMENTO_INVALIDO'], // espera 35 > 30
+    [[{ servicoId: CORTE.id, profissionalId: B.id, horario: '10:45' }, { servicoId: SOBR.id, profissionalId: B.id, horario: '10:50' }], 'ATENDIMENTO_INVALIDO'] // sobrepostas
+  ];
+  for (const [etapas, esperado] of casos) {
+    const r = await gravar({ data: DIA, etapas });
+    assert.strictEqual(r.status, 409, r.raw); assert.strictEqual(code(r), esperado);
+    assert.ok(r.data.error.details.problemas.length >= 1);
+  }
+  db.profissional_servicos = db.profissional_servicos.filter(v => !(v.profissional_id === B.id && v.servico_id === BARBA.id));
+  assert.strictEqual(code(await gravar({ data: DIA, etapas: [{ servicoId: BARBA.id, profissionalId: B.id, horario: '11:00' }] })), 'SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL');
+  assert.strictEqual((await gravar({ data: DIA, etapas: [{ servicoId: CORTE.id, profissionalId: B.id, horario: '10:45', duracaoMin: 5, precoCentavos: 1 }] })).status, 201, 'campos extras são ignorados');
+  const criado = db.agendamentos[db.agendamentos.length - 1];
+  assert.deepStrictEqual([criado.duracao_min, criado.valor_centavos], [35, 5000], 'duração e preço do servidor');
+  assert.strictEqual(db.agendamentos.length, antes + 1);
+});
+
+test('A14 cenário 9: conflito na hora de gravar (corrida depois da validação) → nenhuma etapa reservada', async () => {
+  const antes = db.agendamentos.length;
+  const P = SupabaseRepository.prototype;
+  const original = P.criarAtendimento;
+  P.criarAtendimento = async function (args) {
+    // Outra pessoa ocupa o horário da 2ª etapa entre a validação e a gravação.
+    db.agendamentos.push({ id: '90000000-0000-4000-8000-0000000000f1', empresa_id: EMP, profissional_id: C.id, servico_id: SOBR.id, data: '2026-11-12', horario: '09:45:00', duracao_min: 15, status: 'agendado' });
+    return original.call(this, args);
+  };
+  try {
+    const r = await gravar({ data: '2026-11-12', etapas: [{ servicoId: CORTE.id, profissionalId: A.id, horario: '09:00' }, { servicoId: SOBR.id, profissionalId: C.id, horario: '09:45' }] });
+    assert.strictEqual(r.status, 409, r.raw); assert.strictEqual(code(r), 'ATENDIMENTO_CONFLITO');
+  } finally { P.criarAtendimento = original; }
+  assert.strictEqual(db.agendamentos.length, antes + 1, 'só o horário do "outro" entrou; nenhuma etapa do atendimento');
+  assert.ok(!db.agendamentos.some(a => a.data === '2026-11-12' && a.profissional_id === A.id), 'a 1ª etapa (livre) não ficou gravada');
+});
+
+test('A15 cenário 10: o card vê todas as etapas; cancelar informa o impacto (simular), cancela só a etapa ou todas', async () => {
+  const g = await request('GET', `/api/agenda/atendimentos/${grupoId}`, { token: 'h.recep.s' });
+  assert.strictEqual(g.status, 200, g.raw);
+  assert.deepStrictEqual(g.data.data.etapas.map(e => [e.seq, e.servicoNome, e.profissionalNome, e.horario, e.status]),
+    [[1, 'Corte', 'A', '10:00', 'agendado'], [2, 'Barba', 'C', '10:45', 'agendado'], [3, 'Sobrancelha', 'C', '11:15', 'agendado']]);
+  const etapa2 = g.data.data.etapas[1].agendamentoId;
+  const sim = await request('POST', `/api/agenda/atendimentos/${grupoId}/cancelar`, { token: 'h.recep.s', body: { escopo: 'etapa', agendamentoId: etapa2, simular: true } });
+  assert.deepStrictEqual([sim.data.data.simulado, sim.data.data.afetadas.map(e => e.seq), sim.data.data.mantidas.map(e => e.seq)], [true, [2], [1, 3]]);
+  assert.strictEqual(db.agendamentos.find(a => a.id === etapa2).status, 'agendado', 'simular não grava');
+  const c1 = await request('POST', `/api/agenda/atendimentos/${grupoId}/cancelar`, { token: 'h.recep.s', body: { escopo: 'etapa', agendamentoId: etapa2 } });
+  assert.deepStrictEqual([c1.data.data.afetadas.map(e => e.seq), c1.data.data.mantidas.map(e => e.seq)], [[2], [1, 3]]);
+  const c2 = await request('POST', `/api/agenda/atendimentos/${grupoId}/cancelar`, { token: 'h.recep.s', body: { escopo: 'todas' } });
+  assert.deepStrictEqual(c2.data.data.afetadas.map(e => e.seq), [1, 3]);
+  assert.ok(db.agendamentos.filter(a => a.grupo_id === grupoId).every(a => a.status === 'cancelado'));
+  assert.strictEqual((await request('POST', `/api/agenda/atendimentos/${grupoId}/cancelar`, { token: 'h.recep.s', body: { escopo: 'tudo' } })).status, 422);
+  assert.strictEqual((await request('GET', '/api/agenda/atendimentos/90000000-0000-4000-8000-00000000ffff', { token: 'h.recep.s' })).status, 404);
+});
+
+test('A16 permissão e limite da unidade: profissional só grava etapas próprias; o limite de espera vem da empresa', async () => {
+  const r = await gravar({ data: '2026-11-13', etapas: [{ servicoId: CORTE.id, profissionalId: A.id, horario: '09:00' }, { servicoId: SOBR.id, profissionalId: C.id, horario: '09:45' }] }, 'h.prof.s');
+  assert.strictEqual(r.status, 403, r.raw);
+  assert.strictEqual((await gravar({ data: '2026-11-13', etapas: [{ servicoId: CORTE.id, profissionalId: A.id, horario: '09:00' }] }, 'h.prof.s')).status, 201);
+  assert.strictEqual((await gravar({ data: '2026-11-13', etapas: [{ servicoId: CORTE.id, profissionalId: A.id, horario: '10:00' }] })).status, 201);
+  // Com limite 0 na unidade, etapa com 15 min de espera é recusada; com 30, passa.
+  db.empresas[0].atendimento_espera_max_min = 0;
+  const etapas = [{ servicoId: CORTE.id, profissionalId: C.id, horario: '09:00' }, { servicoId: SOBR.id, profissionalId: C.id, horario: '09:55' }];
+  assert.strictEqual(code(await gravar({ data: '2026-11-13', etapas })), 'ATENDIMENTO_INVALIDO');
+  db.empresas[0].atendimento_espera_max_min = 30;
+  assert.strictEqual((await gravar({ data: '2026-11-13', etapas })).status, 201);
+});
+
 (async () => {
   const origErr = console.error; const origWarn = console.warn;
   console.error = () => {}; console.warn = () => {};

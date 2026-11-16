@@ -526,3 +526,29 @@
   - `series-gate` 9/9, com controle negativo.
   - E2E `series`: prévia, criação, alterar "este e os próximos", cancelar "todos", profissional sem "Repetir".
 
+## D-040 — Agendamento inteligente: atendimento com vários serviços (migration 019)
+- **Decisão (Platform Owner, 2026-11-16)** sobre [`planning/AGENDAMENTO_INTELIGENTE_ANALISE.md`](planning/AGENDAMENTO_INTELIGENTE_ANALISE.md):
+  - migration 019 autorizada;
+  - grade nova (passo igual à duração total, mais o início que termina no fim do espaço livre) nas combinações; "ver todos" do agendamento de um serviço continua com a grade de 30 min;
+  - limite de espera padrão de 30 minutos, ajustável por unidade;
+  - combo continua sendo um serviço único;
+  - esta proposta vem antes da C5.
+- **Onda 1 (sem migration):**
+  - `AtendimentoEngine` (puro): duração e preço por profissional (override > serviço); grade de inícios; combinações em três tipos (tudo com um profissional; em sequência com profissionais diferentes, sem espera; fracionado, com espera até o limite); validação de uma escolha.
+  - O profissional fixado pelo usuário nunca é trocado. O motor só lista opções; quem agenda escolhe.
+  - Ordenação: sem espera primeiro (um profissional, depois sequência, por início); as demais pelo tempo total do cliente.
+  - `POST /api/agenda/combinacoes` (`agenda:ver`, somente leitura): opções, totais por profissional e, se vier `escolha`, se ela ainda é válida.
+- **Onda 2 (migration 019):**
+  - `empresas.atendimento_espera_max_min` (0–240, padrão 30).
+  - `atendimento_criar`: reserva todas as etapas ou nenhuma. Trava a agenda de cada profissional em ordem fixa, confere conflito com higienização contra outros atendimentos e só sobreposição entre etapas do mesmo atendimento. Etapas ligadas por `grupo_id`/`grupo_seq` (colunas da 001). Nunca encaixa à força.
+  - `POST /api/agenda/atendimentos` (`agenda:criar`): o servidor recalcula duração e preço, confere habilitação, disponibilidade, ordem e limite de espera, e grava. Etapa que não cabe → 409 `ATENDIMENTO_INVALIDO` com os problemas; conflito na gravação → 409 `ATENDIMENTO_CONFLITO`, nada reservado.
+  - `GET /api/agenda/atendimentos/:grupoId` e `POST …/cancelar` (`etapa` ou `todas`; `simular: true` devolve etapas afetadas e mantidas sem gravar).
+  - Tela: "+ Adicionar serviço" no novo agendamento; lista de combinações com etapas, preço, espera e total; no card, "Ver etapas do atendimento" com cancelar só a etapa ou todas, mostrando o impacto antes. Limite de espera em Conta → Escalas.
+- **Limitações (ficam para a Onda 3 ou decisão futura):**
+  - remarcar o atendimento inteiro de uma vez (hoje: remarcar cada etapa, ou cancelar e agendar de novo);
+  - remarcar uma etapa encostada em outra do mesmo profissional pode esbarrar no tempo de higienização;
+  - vários serviços no link do cliente e na série recorrente;
+  - combo que conhece os componentes; recursos (cadeira, sala);
+  - checkout: cada etapa vai para a comanda como hoje (uma por vez).
+- **Verificação:** `gate_019.sql` (5 blocos); `concurrency_atendimento.sh` (duas reservas simultâneas → uma inteira, a outra sem nenhuma etapa); `atendimento-gate` 16/16 (cenários de aceite 1 a 10); E2E `atendimento`.
+

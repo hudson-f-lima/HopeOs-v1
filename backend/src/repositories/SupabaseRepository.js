@@ -454,6 +454,20 @@ class SupabaseRepository {
 
   // Checagem de conflito + insert numa transação sob lock (migration 007):
   // dois pedidos simultâneos para o mesmo horário não gravam os dois.
+  // Atendimento com várias etapas (019, D-040): todas ou nenhuma, numa transação no banco.
+  async criarAtendimento({ etapas, createdBy = null }) {
+    const { data, error } = await this.supabase.rpc('atendimento_criar', { p_empresa_id: this.empresaId, p_etapas: etapas, p_created_by: createdBy });
+    if (error) {
+      if (error.code === 'HS409') {
+        let conflitos = [];
+        try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
+        throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda em uma das etapas.', 409, { conflitos });
+      }
+      throw error;
+    }
+    return data;
+  }
+
   async criarAgendamento({ agendamento, permitirConflito = false, ignorarId = null, createdBy = null }) {
     const { data, error } = await this.supabase.rpc('agendamento_criar', {
       p_empresa_id: this.empresaId,

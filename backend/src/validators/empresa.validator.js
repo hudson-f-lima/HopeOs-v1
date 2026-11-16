@@ -6,7 +6,7 @@ const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const TEXTOS = ['nome', 'telefone', 'whatsapp', 'endereco', 'cidade'];
 const PERMITIDOS = [...TEXTOS, 'horarioPorDia', 'slotPadrao', 'intervaloAlmoco', 'almocoInicio', 'almocoFim',
-  'cnpj', 'razaoSocial', 'salaoParceiro', 'bufferMin', 'reguaAlertaFaltas', 'reguaSinalFaltas', 'rankingVisivelEquipe'];
+  'cnpj', 'razaoSocial', 'salaoParceiro', 'bufferMin', 'reguaAlertaFaltas', 'reguaSinalFaltas', 'rankingVisivelEquipe', 'atendimentoEsperaMaxMin'];
 
 const invalido = (field, message) => createAppError('INVALID_FIELD', message, 422, { field });
 const minutos = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
@@ -99,6 +99,8 @@ function validateUpdateEmpresaPayload(payload = {}) {
   if (out.intervalo_almoco && out.almoco_inicio && out.almoco_fim && minutos(out.almoco_fim) <= minutos(out.almoco_inicio)) {
     throw invalido('almocoFim', 'Fim do almoço deve ser depois do início.');
   }
+  // Espera máxima entre etapas de um atendimento fracionado (019, D-040).
+  if (payload.atendimentoEsperaMaxMin !== undefined) out.atendimento_espera_max_min = inteiro(payload.atendimentoEsperaMaxMin, 'atendimentoEsperaMaxMin', 0, 240);
   if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo válido para atualizar.', 422);
   out.updated_at = new Date().toISOString();
   return out;

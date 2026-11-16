@@ -103,6 +103,25 @@ function installMemoryBackend(seed = {}) {
     prof.overrides = overrides;
     return { profissionalId, servicoId, overrides };
   };
+  // Espelho do atendimento_criar (019): confere todas as etapas antes de gravar qualquer uma.
+  P.criarAtendimento = async function ({ etapas, createdBy }) {
+    const empresa = rows('empresas').find(e => e.id === this.empresaId) || {};
+    const bufferMin = Number(empresa.buffer_min) || 0;
+    const min = h => { const [a, b] = String(h).slice(0, 5).split(':').map(Number); return a * 60 + b; };
+    const ativos = rows('agendamentos').filter(a => a.empresa_id === this.empresaId && !['cancelado', 'no_show', 'reagendado'].includes(a.status));
+    const novas = [];
+    etapas.forEach((e, i) => {
+      const ini = min(e.horario); const fim = ini + Number(e.duracao_min);
+      const fora = ativos.some(a => a.profissional_id === e.profissional_id && String(a.data) === e.data && min(a.horario) < fim + bufferMin && ini < min(a.horario) + Number(a.duracao_min || 30) + bufferMin);
+      const dentro = novas.some(n => n.profissional_id === e.profissional_id && n.ini < fim && ini < n.fim);
+      if (fora || dentro) throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda em uma das etapas.', 409, { conflitos: [{ etapa: i + 1 }] });
+      novas.push({ ...e, ini, fim });
+    });
+    const grupoId = randomUUID();
+    const agendamentos = [];
+    for (const [i, e] of etapas.entries()) agendamentos.push(await this.insert('agendamentos', { ...e, status: 'agendado', grupo_id: grupoId, grupo_seq: i + 1, created_by: createdBy }));
+    return { grupo_id: grupoId, agendamentos };
+  };
   P.criarAgendamento = async function ({ agendamento, permitirConflito, ignorarId, createdBy }) {
     if (!permitirConflito) {
       const empresa = rows('empresas').find(e => e.id === this.empresaId) || {};

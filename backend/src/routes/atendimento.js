@@ -7,7 +7,9 @@
 // espera até o limite), os totais por profissional e, se veio `escolha`, se ela ainda é válida.
 // O servidor recalcula preço e duração: nada disso vem do cliente.
 const express = require('express');
-const { authorize } = require('../auth/rbac');
+const { authorize, assertOwn } = require('../auth/rbac');
+const { autoriaDe } = require('../middleware/auth');
+const { registrarEventoAgenda } = require('../services/AgendaEventosService');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { createAppError } = require('../errors');
 const { env } = require('../config/env');
@@ -119,6 +121,143 @@ router.post('/agenda/combinacoes', authorize('agenda:ver'), async (req, res, nex
         escolha
       }
     });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// Onda 2 (migration 019): gravar, consultar e cancelar o atendimento.
+//
+// POST /api/agenda/atendimentos { data, clienteId?, etapas: [{ servicoId, profissionalId, horario }] }
+// O servidor recalcula duração e preço de cada etapa, confere habilitação, disponibilidade,
+// ordem e limite de espera (validarEtapas) e grava todas as etapas numa transação
+// (atendimento_criar). Se uma etapa conflitar na hora de gravar, nenhuma fica. Nunca encaixa à
+// força.
+const ATIVOS = ['agendado', 'confirmado'];
+const hhmm = h => String(h || '').slice(0, 5);
+
+router.post('/agenda/atendimentos', authorize('agenda:criar'), async (req, res, next) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 422);
+    const { data, clienteId, etapas } = body;
+    if (typeof data !== 'string' || !DATA_RE.test(data) || Number.isNaN(Date.parse(`${data}T00:00:00Z`))) throw invalido('data', 'data deve ser AAAA-MM-DD.');
+    if (!Array.isArray(etapas) || !etapas.length || etapas.length > MAX_SERVICOS) throw invalido('etapas', `Informe de 1 a ${MAX_SERVICOS} etapas.`);
+    if (clienteId !== undefined && clienteId !== null) validateUUID(clienteId, 'clienteId');
+    for (const e of etapas) {
+      validateUUID(e && e.servicoId, 'servicoId'); validateUUID(e.profissionalId, 'profissionalId');
+      if (typeof e.horario !== 'string' || !HORA_RE.test(e.horario)) throw invalido('horario', 'horario deve ser HH:MM.');
+      assertOwn(req, e.profissionalId);
+    }
+    if (new Set(etapas.map(e => e.servicoId)).size !== etapas.length) throw invalido('etapas', 'O mesmo serviço aparece duas vezes.');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    if (clienteId) {
+      const cli = (await repo.list('clientes', { id: clienteId, empresa_id: repo.empresaId }))[0];
+      if (!cli || cli.ativo === false) throw createAppError('CLIENT_NOT_FOUND', 'Cliente não encontrado ou inativo.', 422);
+    }
+    const ctx = await contextoDoDia(repo, data);
+    if (ctx.passado) throw createAppError('ATENDIMENTO_INVALIDO', 'Essa data já passou.', 422, { problemas: [{ etapa: 0, motivo: 'passado' }] });
+    const habilitado = (profId, servicoId) => {
+      const doProf = ctx.vinculos.filter(v => v.profissional_id === profId);
+      return !doProf.length ? !ctx.vinculos.length : doProf.some(v => v.servico_id === servicoId);
+    };
+    const calculadas = etapas.map(e => {
+      const servico = ctx.servicos.find(s => s.id === e.servicoId);
+      const prof = ctx.profissionais.find(p => p.id === e.profissionalId);
+      if (!servico) throw createAppError('SERVICE_NOT_FOUND', 'Serviço não encontrado ou inativo.', 422, { id: e.servicoId });
+      if (!prof) throw createAppError('PROFESSIONAL_NOT_FOUND', 'Profissional não encontrado ou inativo.', 422, { id: e.profissionalId });
+      if (!habilitado(prof.id, servico.id)) throw createAppError('SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL', `${prof.nome} não faz ${servico.nome}.`, 422, { servicoId: servico.id, profissionalId: prof.id });
+      return { servico, prof, profissionalId: prof.id, horario: e.horario, inicioMin: timeToMinutes(e.horario), duracaoMin: duracaoDe(servico, prof), precoCentavos: precoDe(servico, prof) };
+    });
+    const problemas = validarEtapas({ etapas: calculadas, livresPor: ctx.livresPor, esperaMaxMin: ctx.esperaMaxMin, inicioMinimoMin: ctx.inicioMinimoMin });
+    if (problemas.length) {
+      throw createAppError('ATENDIMENTO_INVALIDO', 'Uma ou mais etapas não cabem mais na agenda. Veja as opções de novo.', 409, {
+        problemas: problemas.map(p => ({ ...p, servicoNome: calculadas[p.etapa].servico.nome, profissionalNome: calculadas[p.etapa].prof.nome, horario: calculadas[p.etapa].horario }))
+      });
+    }
+    const { actorId } = autoriaDe(req.auth);
+    let r;
+    try {
+      r = await repo.criarAtendimento({
+        etapas: calculadas.map(e => ({
+          cliente_id: clienteId || null, servico_id: e.servico.id, profissional_id: e.prof.id, data, horario: e.horario,
+          duracao_min: e.duracaoMin, valor_centavos: e.precoCentavos
+        })),
+        createdBy: actorId || null
+      });
+    } catch (err) {
+      if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) {
+        throw createAppError('ATENDIMENTO_CONFLITO', 'Um dos horários acabou de ser ocupado. Nenhuma etapa foi reservada; veja as opções de novo.', 409, { conflitos: (err.details && err.details.conflitos) || [] });
+      }
+      throw err;
+    }
+    for (const a of r.agendamentos) {
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'criado', de: null, para: 'agendado', extra: { grupo_id: r.grupo_id, grupo_seq: a.grupo_seq, etapas: r.agendamentos.length } });
+    }
+    res.status(201).json({
+      ok: true,
+      data: {
+        grupoId: r.grupo_id,
+        precoCentavos: calculadas.reduce((s, e) => s + e.precoCentavos, 0),
+        inicio: calculadas[0].horario, fim: minutesToTime(calculadas[calculadas.length - 1].inicioMin + calculadas[calculadas.length - 1].duracaoMin),
+        etapas: r.agendamentos.map((a, i) => ({ agendamentoId: a.id, seq: a.grupo_seq, servicoNome: calculadas[i].servico.nome, profissionalNome: calculadas[i].prof.nome, horario: hhmm(a.horario), duracaoMin: a.duracao_min, precoCentavos: a.valor_centavos }))
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+async function carregarAtendimento(req, grupoId) {
+  const repo = new SupabaseRepository(req.auth.empresa_id);
+  const etapas = (await repo.list('agendamentos', { empresa_id: repo.empresaId, grupo_id: validateUUID(grupoId, 'grupoId') }))
+    .sort((a, b) => (a.grupo_seq || 0) - (b.grupo_seq || 0));
+  if (!etapas.length) throw createAppError('ATENDIMENTO_NOT_FOUND', 'Atendimento não encontrado.', 404);
+  const filtro = { empresa_id: repo.empresaId };
+  const [servicos, profissionais] = await Promise.all([repo.list('servicos', filtro), repo.list('profissionais', filtro)]);
+  const nome = (lista, id) => ((lista.find(x => x.id === id) || {}).nome) || null;
+  return {
+    repo, etapas,
+    publicas: etapas.map(a => ({
+      agendamentoId: a.id, seq: a.grupo_seq, data: String(a.data), horario: hhmm(a.horario), duracaoMin: a.duracao_min, status: a.status,
+      servicoNome: nome(servicos, a.servico_id), profissionalId: a.profissional_id, profissionalNome: nome(profissionais, a.profissional_id), precoCentavos: a.valor_centavos
+    }))
+  };
+}
+
+// Etapas do atendimento: o card mostra todas antes de qualquer mudança (cenário 10).
+router.get('/agenda/atendimentos/:grupoId', authorize('agenda:ver'), async (req, res, next) => {
+  try {
+    const { etapas, publicas } = await carregarAtendimento(req, req.params.grupoId);
+    if (req.authz && req.authz.own && !etapas.some(a => a.profissional_id === (req.authz.profissionalId || req.auth.profissional_id))) {
+      throw createAppError('ATENDIMENTO_NOT_FOUND', 'Atendimento não encontrado.', 404);
+    }
+    res.json({ ok: true, data: { grupoId: req.params.grupoId, precoCentavos: publicas.filter(e => ATIVOS.includes(e.status)).reduce((s, e) => s + (Number(e.precoCentavos) || 0), 0), etapas: publicas } });
+  } catch (err) { next(err); }
+});
+
+// Cancelar: "etapa" (só a escolhida) ou "todas" (as que ainda estão ativas). A resposta diz
+// quais foram canceladas e quais continuam. `simular: true` só informa o impacto, sem gravar.
+router.post('/agenda/atendimentos/:grupoId/cancelar', authorize('agenda:cancelar'), async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    if (!['etapa', 'todas'].includes(body.escopo)) throw invalido('escopo', 'escopo deve ser etapa ou todas.');
+    if (body.escopo === 'etapa') validateUUID(body.agendamentoId, 'agendamentoId');
+    const { repo, etapas, publicas } = await carregarAtendimento(req, req.params.grupoId);
+    const alvos = etapas.filter(a => ATIVOS.includes(a.status) && (body.escopo === 'todas' || a.id === body.agendamentoId));
+    if (body.escopo === 'etapa' && !etapas.some(a => a.id === body.agendamentoId)) throw createAppError('AGENDAMENTO_NOT_FOUND', 'Essa etapa não é deste atendimento.', 404);
+    for (const a of alvos) assertOwn(req, a.profissional_id);
+    const idsAlvo = new Set(alvos.map(a => a.id));
+    const afetadas = publicas.filter(e => idsAlvo.has(e.agendamentoId));
+    const mantidas = publicas.filter(e => !idsAlvo.has(e.agendamentoId) && ATIVOS.includes(e.status));
+    if (body.simular === true) return res.json({ ok: true, data: { simulado: true, afetadas, mantidas } });
+    const { actorId } = autoriaDe(req.auth);
+    const agoraIso = clock.agora().toISOString();
+    const canceladas = [];
+    for (const a of alvos) {
+      const r = await repo.atualizarStatusAgendamentoSe(a.id, ATIVOS, { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+      if (!r) continue;
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'status', de: a.status, para: 'cancelado', extra: { grupo_id: req.params.grupoId, escopo: body.escopo } });
+      canceladas.push(afetadas.find(e => e.agendamentoId === a.id));
+    }
+    res.json({ ok: true, data: { simulado: false, afetadas: canceladas, mantidas } });
   } catch (err) { next(err); }
 });
 
