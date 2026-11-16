@@ -15,6 +15,7 @@ const { gamificacaoRouter } = require('./routes/gamificacao');
 const { desempenhoRouter } = require('./routes/desempenho');
 const { permissoesRouter } = require('./routes/permissoes');
 const { disponibilidadeRouter } = require('./routes/disponibilidade');
+const { seriesRouter } = require('./routes/series');
 const { randomUUID } = require('crypto');
 const { publicBookingRouter } = require('./routes/publicBooking');
 const { requireAuth } = require('./middleware/auth');
@@ -87,6 +88,7 @@ app.use('/api', gamificacaoRouter);
 app.use('/api', desempenhoRouter);
 app.use('/api', permissoesRouter);
 app.use('/api', disponibilidadeRouter);
+app.use('/api', seriesRouter);
 app.use('/api', routes);
 
 app.use((err, req, res, next) => {

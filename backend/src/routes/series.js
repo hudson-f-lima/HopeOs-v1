@@ -1,0 +1,293 @@
+// Recorrência de agendamentos, só pela equipe (C4, D-039, migration 018).
+//
+// - Prévia: o servidor calcula as datas e diz, para cada uma, se está livre, em conflito, fora da
+//   escala ou no passado. Nada é gravado.
+// - Criar: grava a série e cada ocorrência livre pela mesma função de sempre (agendamento_criar,
+//   conflito checado sob trava no banco). Ocorrência que ficou indisponível entre a prévia e a
+//   gravação é pulada e informada. A série nunca encaixa à força.
+// - Cancelar ou alterar: "só este", "este e os próximos" ou "todos" (os que ainda vão acontecer).
+//   Alterar = remarcar cada ocorrência (o antigo vira `reagendado`), mantendo a marcação de série
+//   e levando o link pessoal do cliente (C2) junto.
+// O cliente nunca cria série pelo link público (decisão do dono, risco de fraude): estas rotas
+// exigem login e a permissão agenda:recorrencia.
+const express = require('express');
+const { authorize, assertOwn, exigirTambem } = require('../auth/rbac');
+const { SupabaseRepository } = require('../repositories/SupabaseRepository');
+const { createAppError } = require('../errors');
+const { autoriaDe } = require('../middleware/auth');
+const { env } = require('../config/env');
+const clock = require('../config/clock');
+const { validateUUID } = require('../validators/cadastros.validator');
+const { datasDaSerie, FREQUENCIAS, MIN_OCORRENCIAS, MAX_OCORRENCIAS } = require('../engines/RecorrenciaEngine');
+const { resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { findScheduleConflicts, timeToMinutes } = require('../engines/ScheduleEngine');
+const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
+const { registrarEventoAgenda } = require('../services/AgendaEventosService');
+const { moverAcessos } = require('../services/AcessoAgendamento');
+
+const router = express.Router();
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ESCOPOS = ['este', 'proximos', 'todos'];
+const ATIVOS = ['agendado', 'confirmado'];
+
+const invalido = (field, message) => createAppError('INVALID_FIELD', message, 422, { field });
+const hhmm = h => String(h || '').slice(0, 5);
+
+function validarSerie(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 422);
+  const { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias, duracaoMin } = body;
+  for (const [campo, v] of [['clienteId', clienteId], ['servicoId', servicoId], ['profissionalId', profissionalId]]) validateUUID(v, campo);
+  if (typeof dataInicio !== 'string' || !DATA_RE.test(dataInicio) || Number.isNaN(Date.parse(`${dataInicio}T00:00:00Z`))) throw invalido('dataInicio', 'dataInicio deve ser AAAA-MM-DD.');
+  if (typeof horario !== 'string' || !HORA_RE.test(horario)) throw invalido('horario', 'horario deve ser HH:MM.');
+  if (!FREQUENCIAS.includes(frequencia)) throw invalido('frequencia', `frequencia deve ser ${FREQUENCIAS.join(', ')}.`);
+  const n = Number(ocorrencias);
+  if (!Number.isInteger(n) || n < MIN_OCORRENCIAS || n > MAX_OCORRENCIAS) throw invalido('ocorrencias', `ocorrencias deve ser de ${MIN_OCORRENCIAS} a ${MAX_OCORRENCIAS}.`);
+  if (duracaoMin !== undefined && (!Number.isInteger(Number(duracaoMin)) || Number(duracaoMin) < 5 || Number(duracaoMin) > 600)) throw invalido('duracaoMin', 'duracaoMin deve ser de 5 a 600.');
+  return { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias: n, duracaoMin: duracaoMin === undefined ? undefined : Number(duracaoMin) };
+}
+
+async function ativo(repo, table, id, label, code) {
+  const row = (await repo.list(table, { id, empresa_id: repo.empresaId }))[0];
+  if (!row) throw createAppError(code, `${label} não encontrado.`, 422, { id });
+  if (row.ativo === false) throw createAppError(code.replace('_NOT_FOUND', '_INACTIVE'), `${label} inativo.`, 422, { id });
+  return row;
+}
+
+function precoDe(servico, profissional) {
+  let ov = profissional && profissional.overrides;
+  if (typeof ov === 'string') { try { ov = JSON.parse(ov); } catch (_) { ov = {}; } }
+  const o = (ov && ov[servico.id]) || {};
+  const v = [o.valor_centavos, o.valorCentavos, servico.valor_centavos].find(x => x !== null && x !== undefined && x !== '' && Number.isFinite(Number(x)) && Number(x) >= 0);
+  return v === undefined ? 0 : Math.round(Number(v));
+}
+
+// Situação de cada data: livre, conflito, fora da escala ou passado. Uma leitura da agenda do
+// profissional no intervalo e uma da disponibilidade, para a série inteira.
+async function avaliarDatas(repo, { profissional, datas, horario, duracaoMin, ignorarIds = [] }) {
+  const agora = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
+  const [empresa, disp, agendamentos] = await Promise.all([
+    repo.list('empresas', { id: repo.empresaId }).then(r => r[0] || {}),
+    repo.carregarDisponibilidade(),
+    repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id })
+  ]);
+  const comRegras = disp && (disp.semanal.length || disp.excecoes.length);
+  const ignorar = new Set(ignorarIds);
+  const existentes = agendamentos.filter(a => !ignorar.has(a.id)).map(a => ({ ...a, data: String(a.data) }));
+  const minuto = timeToMinutes(horario);
+  return datas.map((data, i) => {
+    const base = { seq: i + 1, data, horario };
+    if (data < agora.data || (data === agora.data && minuto <= agora.minuto)) return { ...base, situacao: 'passado' };
+    if (comRegras) {
+      const d = disponibilidadeDoDia({ data, semanal: disp.semanal, excecoes: disp.excecoes, profissional });
+      if (!cabe(d.periodos, minuto, duracaoMin)) return { ...base, situacao: 'fora_da_disponibilidade', motivo: d.origem || null };
+    }
+    const conflitos = findScheduleConflicts({ agendamento: { profissionalId: profissional.id, data, horario, duracaoMin }, existing: existentes, bufferMin: Number(empresa.buffer_min) || 0 });
+    if (conflitos.length) return { ...base, situacao: 'conflito' };
+    return { ...base, situacao: 'livre' };
+  });
+}
+
+async function prepararSerie(req) {
+  const s = validarSerie(req.body);
+  const repo = new SupabaseRepository(req.auth.empresa_id);
+  const [cliente, servico, profissional] = await Promise.all([
+    ativo(repo, 'clientes', s.clienteId, 'Cliente', 'CLIENT_NOT_FOUND'),
+    ativo(repo, 'servicos', s.servicoId, 'Serviço', 'SERVICE_NOT_FOUND'),
+    ativo(repo, 'profissionais', s.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND')
+  ]);
+  assertOwn(req, profissional.id);
+  const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: s.duracaoMin });
+  const datas = datasDaSerie(s.dataInicio, s.frequencia, s.ocorrencias);
+  const ocorrencias = await avaliarDatas(repo, { profissional, datas, horario: s.horario, duracaoMin });
+  return { s, repo, cliente, servico, profissional, duracaoMin, ocorrencias };
+}
+
+const resumo = ocorrencias => ({
+  total: ocorrencias.length,
+  livres: ocorrencias.filter(o => o.situacao === 'livre').length,
+  indisponiveis: ocorrencias.filter(o => o.situacao !== 'livre').length
+});
+
+router.post('/agenda/series/previa', authorize('agenda:recorrencia'), async (req, res, next) => {
+  try {
+    const { ocorrencias, duracaoMin } = await prepararSerie(req);
+    res.json({ ok: true, data: { duracaoMin, ...resumo(ocorrencias), ocorrencias } });
+  } catch (err) { next(err); }
+});
+
+router.post('/agenda/series', authorize('agenda:recorrencia'), async (req, res, next) => {
+  try {
+    const { s, repo, servico, profissional, duracaoMin, ocorrencias } = await prepararSerie(req);
+    const livres = ocorrencias.filter(o => o.situacao === 'livre');
+    if (!livres.length) throw createAppError('SERIE_SEM_HORARIOS', 'Nenhuma data da série está livre. Escolha outro horário ou outro profissional.', 409, { ocorrencias });
+    const { actorId } = autoriaDe(req.auth);
+    const agoraIso = clock.agora().toISOString();
+    const serie = await repo.insert('agendamento_series', {
+      cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, frequencia: s.frequencia,
+      horario: s.horario, duracao_min: duracaoMin, data_inicio: s.dataInicio, ocorrencias: s.ocorrencias, status: 'ativa',
+      created_at: agoraIso, created_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null
+    });
+    const criados = [];
+    const pulados = ocorrencias.filter(o => o.situacao !== 'livre');
+    for (const o of livres) {
+      let ag;
+      try {
+        ag = await repo.criarAgendamento({
+          agendamento: {
+            cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, data: o.data, horario: s.horario,
+            duracao_min: duracaoMin, valor_centavos: precoDe(servico, profissional), status: 'agendado'
+          },
+          permitirConflito: false, createdBy: actorId || null
+        });
+      } catch (err) {
+        if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { pulados.push({ ...o, situacao: 'conflito' }); continue; }
+        throw err;
+      }
+      const marcado = await repo.updateScoped('agendamentos', ag.id, { serie_id: serie.id, serie_seq: o.seq });
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: ag.id, tipo: 'criado', de: null, para: 'agendado', extra: { serie_id: serie.id, serie_seq: o.seq } });
+      criados.push({ seq: o.seq, data: o.data, horario: s.horario, agendamentoId: (marcado && marcado.id) || ag.id });
+    }
+    pulados.sort((a, b) => a.seq - b.seq);
+    res.status(201).json({ ok: true, data: { serie: { id: serie.id, frequencia: serie.frequencia, ocorrencias: serie.ocorrencias, status: serie.status }, criados, pulados } });
+  } catch (err) { next(err); }
+});
+
+async function carregarSerie(req, id) {
+  const repo = new SupabaseRepository(req.auth.empresa_id);
+  const serie = await repo.getByIdScoped('agendamento_series', validateUUID(id, 'id'));
+  if (!serie) throw createAppError('SERIE_NOT_FOUND', 'Série não encontrada.', 404);
+  const ocorrencias = (await repo.list('agendamentos', { empresa_id: repo.empresaId, serie_id: serie.id }))
+    .sort((a, b) => (a.serie_seq || 0) - (b.serie_seq || 0) || String(a.data).localeCompare(String(b.data)));
+  return { repo, serie, ocorrencias };
+}
+
+router.get('/agenda/series/:id', authorize('agenda:ver'), async (req, res, next) => {
+  try {
+    const { serie, ocorrencias } = await carregarSerie(req, req.params.id);
+    assertOwn(req, serie.profissional_id);
+    res.json({
+      ok: true,
+      data: {
+        serie: { id: serie.id, frequencia: serie.frequencia, horario: hhmm(serie.horario), ocorrencias: serie.ocorrencias, status: serie.status, dataInicio: String(serie.data_inicio) },
+        ocorrencias: ocorrencias.map(a => ({ agendamentoId: a.id, seq: a.serie_seq, data: String(a.data), horario: hhmm(a.horario), status: a.status, profissionalId: a.profissional_id }))
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// Quais ocorrências o escopo pega, a partir da escolhida no card. Só as que ainda vão acontecer e
+// estão ativas; "todos" inclui as anteriores à escolhida que ainda não passaram.
+function alvosDoEscopo(ocorrencias, escolhida, escopo) {
+  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const futuras = ocorrencias.filter(a => ATIVOS.includes(a.status) && String(a.data) >= hoje);
+  if (escopo === 'este') return futuras.filter(a => a.id === escolhida.id);
+  if (escopo === 'proximos') return futuras.filter(a => String(a.data) > String(escolhida.data) || a.id === escolhida.id || (String(a.data) === String(escolhida.data) && (a.serie_seq || 0) >= (escolhida.serie_seq || 0)));
+  return futuras;
+}
+
+function validarEscopo(body) {
+  if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 422);
+  if (!ESCOPOS.includes(body.escopo)) throw invalido('escopo', 'escopo deve ser este, proximos ou todos.');
+  validateUUID(body.agendamentoId, 'agendamentoId');
+  return body;
+}
+
+async function encerrarSeSemFuturas(repo, serie, actorId) {
+  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const restantes = (await repo.list('agendamentos', { empresa_id: repo.empresaId, serie_id: serie.id }))
+    .filter(a => ATIVOS.includes(a.status) && String(a.data) >= hoje);
+  if (!restantes.length && serie.status !== 'encerrada') {
+    await repo.updateScoped('agendamento_series', serie.id, { status: 'encerrada', updated_at: clock.agora().toISOString(), updated_by: actorId || null });
+    return true;
+  }
+  return false;
+}
+
+router.post('/agenda/series/:id/cancelar', authorize('agenda:cancelar'), async (req, res, next) => {
+  try {
+    const body = validarEscopo(req.body);
+    const { repo, serie, ocorrencias } = await carregarSerie(req, req.params.id);
+    const escolhida = ocorrencias.find(a => a.id === body.agendamentoId);
+    if (!escolhida) throw createAppError('AGENDAMENTO_NOT_FOUND', 'Esse horário não é desta série.', 404);
+    const alvos = alvosDoEscopo(ocorrencias, escolhida, body.escopo);
+    for (const a of alvos) assertOwn(req, a.profissional_id);
+    const { actorId } = autoriaDe(req.auth);
+    const agoraIso = clock.agora().toISOString();
+    const cancelados = [];
+    for (const a of alvos) {
+      const r = await repo.atualizarStatusAgendamentoSe(a.id, ATIVOS, { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+      if (!r) continue; // mudou no meio (atendido, cancelado por outro): fica como está
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'status', de: a.status, para: 'cancelado', extra: { serie_id: serie.id, escopo: body.escopo } });
+      cancelados.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq });
+    }
+    const encerrada = await encerrarSeSemFuturas(repo, serie, actorId);
+    res.json({ ok: true, data: { cancelados, serieEncerrada: encerrada } });
+  } catch (err) { next(err); }
+});
+
+// Alterar horário e/ou profissional das ocorrências do escopo (mesmo dia de cada uma). Cada uma é
+// remarcada pela checagem normal (conflito e escala); a que não couber fica como estava e volta
+// na lista `mantidos`. Nada é encaixado à força.
+router.post('/agenda/series/:id/alterar', authorize('agenda:editar'), async (req, res, next) => {
+  try {
+    const body = validarEscopo(req.body);
+    const novoHorario = body.novoHorario;
+    const novoProfissionalId = body.novoProfissionalId;
+    if (novoHorario === undefined && novoProfissionalId === undefined) throw createAppError('EMPTY_UPDATE', 'Informe novoHorario e/ou novoProfissionalId.', 422);
+    if (novoHorario !== undefined && (typeof novoHorario !== 'string' || !HORA_RE.test(novoHorario))) throw invalido('novoHorario', 'novoHorario deve ser HH:MM.');
+    const { repo, serie, ocorrencias } = await carregarSerie(req, req.params.id);
+    const escolhida = ocorrencias.find(a => a.id === body.agendamentoId);
+    if (!escolhida) throw createAppError('AGENDAMENTO_NOT_FOUND', 'Esse horário não é desta série.', 404);
+    const profissional = novoProfissionalId !== undefined
+      ? await ativo(repo, 'profissionais', validateUUID(novoProfissionalId, 'novoProfissionalId'), 'Profissional', 'PROFESSIONAL_NOT_FOUND')
+      : await ativo(repo, 'profissionais', serie.profissional_id, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    if (novoProfissionalId !== undefined) {
+      const vinculos = await repo.list('profissional_servicos', { empresa_id: repo.empresaId, profissional_id: profissional.id });
+      if (vinculos.length && !vinculos.some(v => v.servico_id === serie.servico_id)) throw createAppError('SERVICE_NOT_ALLOWED_FOR_PROFESSIONAL', 'Esse profissional não faz o serviço da série.', 422);
+    }
+    const alvos = alvosDoEscopo(ocorrencias, escolhida, body.escopo);
+    for (const a of alvos) { assertOwn(req, a.profissional_id); assertOwn(req, profissional.id); }
+    const horario = novoHorario || hhmm(serie.horario);
+    const { actorId } = autoriaDe(req.auth);
+    const agoraIso = clock.agora().toISOString();
+    const alterados = [];
+    const mantidos = [];
+    for (const a of alvos) {
+      const h = novoHorario || hhmm(a.horario);
+      const [sit] = await avaliarDatas(repo, { profissional, datas: [String(a.data)], horario: h, duracaoMin: Number(a.duracao_min) || 30, ignorarIds: [a.id] });
+      if (sit.situacao !== 'livre') { mantidos.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq, situacao: sit.situacao }); continue; }
+      let novo;
+      try {
+        novo = await repo.criarAgendamento({
+          agendamento: {
+            cliente_id: a.cliente_id, servico_id: a.servico_id, profissional_id: profissional.id, data: String(a.data), horario: h,
+            duracao_min: Number(a.duracao_min) || 30, valor_centavos: Number(a.valor_centavos) || 0, status: 'agendado'
+          },
+          permitirConflito: false, ignorarId: a.id, createdBy: actorId || null
+        });
+      } catch (err) {
+        if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { mantidos.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq, situacao: 'conflito' }); continue; }
+        throw err;
+      }
+      const antigo = await repo.atualizarStatusAgendamentoSe(a.id, ATIVOS, { status: 'reagendado', updated_at: agoraIso, updated_by: actorId || null });
+      if (!antigo) {
+        await repo.atualizarStatusAgendamentoSe(novo.id, ['agendado'], { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+        mantidos.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq, situacao: 'mudou' });
+        continue;
+      }
+      await repo.updateScoped('agendamentos', novo.id, { serie_id: serie.id, serie_seq: a.serie_seq });
+      try { await moverAcessos(repo, a.id, novo, { timeZone: env.APP_TIMEZONE }); } catch (_) { /* sem a 017: o cliente só perde o link */ }
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'reagendado', de: a.status, para: 'reagendado', extra: { reagendado_para: novo.id, serie_id: serie.id, escopo: body.escopo } });
+      await registrarEventoAgenda(repo, req.auth, { agendamentoId: novo.id, tipo: 'reagendado', de: null, para: 'agendado', origem: 'reagendamento', extra: { reagendado_de: a.id, serie_id: serie.id, escopo: body.escopo } });
+      alterados.push({ agendamentoId: novo.id, data: String(a.data), horario: h, seq: a.serie_seq });
+    }
+    // "Todos" e "este e os próximos" mudam a regra da série para o que vier depois.
+    if (body.escopo !== 'este' && alterados.length) {
+      await repo.updateScoped('agendamento_series', serie.id, { horario, profissional_id: profissional.id, updated_at: agoraIso, updated_by: actorId || null });
+    }
+    res.json({ ok: true, data: { alterados, mantidos } });
+  } catch (err) { next(err); }
+});
+
+module.exports = { seriesRouter: router, alvosDoEscopo, ESCOPOS };

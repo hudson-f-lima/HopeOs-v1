@@ -499,3 +499,30 @@
   - Sem som: o aviso é visual.
   - Verificação: `meu-agendamento-gate` C301 e E2E `link-pessoal` (aviso aparece, lista, some depois de visto).
 
+## D-039 — Recorrência só pela equipe (C4, migration 018)
+- **Decisão (Platform Owner):** autorizada em D-038. Regras herdadas da auditoria (D-037): o cliente não cria série pelo link (risco de fraude); série semanal, quinzenal ou mensal; cancelar ou alterar "só este", "este e os próximos" ou "todos" pelo card; a série respeita escalas e conflitos.
+- **Entregue:**
+  - Migration 018:
+    - tabela `agendamento_series` (frequência, horário, duração 5–600, início, 2–52 ocorrências, `ativa`/`encerrada`);
+    - colunas `agendamentos.serie_id` e `serie_seq` (1–52, os dois juntos ou nenhum);
+    - triggers que impedem série ou ocorrência de cruzar empresa;
+    - RLS ligada, sem `delete`;
+    - rollback em `supabase/rollback/018_down.sql`.
+  - Permissão nova `agenda:recorrencia` (recepção, gerente e proprietário; o profissional não recebe por padrão).
+  - Datas (`RecorrenciaEngine`): semanal +7 dias, quinzenal +14, mensal no mesmo dia do mês. Em mês sem esse dia, cai no último dia do mês, sem deslocar os seguintes.
+  - Rotas:
+    - `POST /api/agenda/series/previa`: diz, sem gravar, quais datas estão livres, em conflito, fora da escala ou no passado.
+    - `POST /api/agenda/series`: grava a série e cada ocorrência livre pelo `agendamento_criar` de sempre. O que ficar indisponível até a gravação é pulado e informado; a série nunca encaixa à força.
+    - `GET /api/agenda/series/:id`.
+    - `POST /api/agenda/series/:id/cancelar` (`agenda:cancelar`).
+    - `POST /api/agenda/series/:id/alterar` (`agenda:editar`): novo horário e/ou profissional, cada data no mesmo dia. A que não couber fica como estava. "Este e os próximos" e "todos" atualizam a regra da série. O link pessoal do cliente (C2) acompanha.
+  - A remarcação avulsa de uma ocorrência mantém a marcação da série. Cancelar todas as futuras encerra a série.
+  - Tela:
+    - "Repetir" (toda semana, a cada 15 dias, todo mês; quantas vezes) no novo agendamento, com prévia e confirmação;
+    - no card, "Cancelar na série…" e "Alterar na série…", com o escopo.
+- **Fora do escopo:** alterar a data (dia da semana) da série; editar a série inteira de uma vez fora do card; séries sem fim.
+- **Verificação:**
+  - `gate_018.sql` (5 blocos). Pegou um furo real: `serie_seq` nulo passava o CHECK, corrigido antes do lock.
+  - `series-gate` 9/9, com controle negativo.
+  - E2E `series`: prévia, criação, alterar "este e os próximos", cancelar "todos", profissional sem "Repetir".
+

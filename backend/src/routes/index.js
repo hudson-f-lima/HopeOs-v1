@@ -607,6 +607,11 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     });
     // O link pessoal do cliente (017) passa a mostrar o novo horário. Best-effort: sem a 017 ou
     // em falha, o cliente só perde o link (a recepção pode gerar outro).
+    // Ocorrência de série (018) remarcada sozinha continua na série, no mesmo lugar da sequência.
+    if (novo && original.serie_id) {
+      try { await repo.updateScoped('agendamentos', novo.id, { serie_id: original.serie_id, serie_seq: original.serie_seq }); }
+      catch (err) { console.error('[agenda] marcação de série não acompanhou a remarcação:', (err && err.code) || 'erro'); }
+    }
     if (novo) {
       try { await moverAcessos(repo, original.id, novo, { timeZone: env.APP_TIMEZONE }); }
       catch (err) { console.error('[agenda] link pessoal não acompanhou a remarcação:', (err && err.code) || 'erro'); }

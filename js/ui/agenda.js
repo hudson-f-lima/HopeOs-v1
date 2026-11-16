@@ -1,4 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
+import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
 import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
 import {
@@ -550,7 +551,7 @@ function openActionSheet(item) {
     <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
     <div class="row"><span>Status</span><span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span></div>
     <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
-    <div class="sheet-actions">${actionsHtml}</div>
+    <div class="sheet-actions">${actionsHtml}${acoesDaSerie(item)}</div>
     <details class="sheet-historico" id="historicoDetails">
       <summary>Histórico</summary>
       <div id="historicoBody" class="sheet-historico-body">Carregando…</div>
@@ -680,6 +681,7 @@ async function onActionSheetClick(ev) {
     return;
   }
   if (action === 'reagendar') { closeActionSheet(); openReagendarModal(item); return; }
+  if (action === 'serie-cancelar' || action === 'serie-alterar') { closeActionSheet(); abrirSerie(item, action === 'serie-cancelar' ? 'cancelar' : 'alterar'); return; }
   if (action === 'checkout') { 
     closeActionSheet(); 
     stateBus.dispatchEvent(new CustomEvent('checkout:prefill', { detail: item }));
@@ -1185,6 +1187,13 @@ export function initAgenda() {
       return;
     }
     clearBanner();
+
+    // Série recorrente (C4): prévia no servidor e confirmação antes de gravar.
+    const repeticao = repeticaoEscolhida();
+    if (repeticao) {
+      if (await criarSerieComPrevia({ clienteId, servicoId, profissionalId, data, horario }, repeticao)) { resetRepeticao(); closeNovoAgendamentoModal(); }
+      return;
+    }
 
     const duracaoMin = duracaoNovoAgendamento(servicoId, profissionalId);
     const [h, m] = horario.split(':').map(Number);
