@@ -70,6 +70,17 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   const acoes = (await p.locator('#actionSheetContent [data-sheet-action]').allTextContents()).map(t => t.trim());
   console.log('CARD:', JSON.stringify(acoes));
   if (!acoes.includes('Alterar na série…') || !acoes.includes('Cancelar na série…')) errs.push('ações da série ausentes no card');
+  if (!acoes.some(t => /Série recorrente \(1ª\)/.test(t))) errs.push('card não mostra o aviso da série (1ª)');
+  // "Ver datas": lista as 4 datas previstas com a situação de cada uma.
+  await p.click('[data-sheet-action="serie-ver"]');
+  await p.waitForSelector('#serieVerDialog[open]');
+  await p.waitForFunction(() => document.querySelectorAll('#serieVerConteudo li').length === 4, null, { timeout: 8000 });
+  const datasVistas = await p.locator('#serieVerConteudo li').allTextContents();
+  console.log('VER SÉRIE:', JSON.stringify(datasVistas.map(t => t.replace(/\s+/g, ' ').trim())));
+  if (!datasVistas.some(t => /← este/.test(t))) errs.push('"Ver datas" não marca o horário aberto');
+  if (datasVistas.filter(t => /agendada/.test(t)).length !== 4) errs.push('"Ver datas" não mostra as 4 agendadas');
+  await p.click('#btnSerieVerFechar');
+  await abrirCard(primeiro.id);
   await p.click('[data-sheet-action="serie-alterar"]');
   await p.waitForSelector('#serieDialog[open]');
   await p.check('input[name="serieEscopo"][value="proximos"]');

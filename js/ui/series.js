@@ -7,6 +7,7 @@ import { state, sessionPode, loadWeekAgenda } from '../state.js';
 import { escapeHtml, showBanner, formatDDMM } from '../utils.js';
 
 const el = id => document.getElementById(id);
+const ROTULO_DATA = { criada: 'criada', agendada: 'agendada', concluida: 'concluída', cancelada: 'cancelada', faltou: 'faltou', remarcada: 'remarcada', nao_criada: 'não criada', conflito: 'horário ocupado', fora_da_disponibilidade: 'fora da escala', passado: 'já passou' };
 const SITUACAO = { conflito: 'horário ocupado', fora_da_disponibilidade: 'fora da escala', passado: 'já passou', mudou: 'mudou no meio', livre: 'livre' };
 const FREQ = { semanal: 'toda semana', quinzenal: 'a cada 15 dias', mensal: 'todo mês' };
 let alvo = null; // { item, acao: 'cancelar' | 'alterar' }
@@ -38,20 +39,44 @@ export async function criarSerieComPrevia({ clienteId, servicoId, profissionalId
   if (!window.confirm(texto)) return false;
   try {
     const r = await api('/agenda/series', { method: 'POST', body: corpo });
-    const pulados = r.pulados.length ? ` ${r.pulados.length} ficaram de fora: ${lista(r.pulados)}.` : '';
-    showBanner(`Série criada: ${r.criados.length} horários.${pulados}`, r.pulados.length ? 'warning' : 'ok');
+    const fora = r.datas.filter(d => d.situacao !== 'criada');
+    const detalhe = fora.length ? ' Ficaram de fora: ' + fora.map(d => formatDDMM(d.data) + ' (' + (d.motivo || ROTULO_DATA[d.situacao] || d.situacao) + ')').join(', ') + '.' : '';
+    showBanner('Série criada: ' + r.resumo.criadas + ' de ' + r.resumo.total + ' horários (' + r.datas.filter(d => d.situacao === 'criada').map(d => formatDDMM(d.data)).join(', ') + ').' + detalhe, fora.length ? 'warning' : 'ok');
     await loadWeekAgenda();
     return true;
-  } catch (err) { showBanner(err.message, 'error'); return false; }
+  } catch (err) {
+    // Duplicada: a série já existe; falha parcial: o servidor desfez tudo. Em ambos o texto explica.
+    showBanner(err.message, 'error');
+    await loadWeekAgenda();
+    return false;
+  }
 }
 
-// Botões do card de um horário da série (o card chama isto ao montar as ações).
+// Aviso no card de qualquer horário que pertence a uma série (ativo ou não) + os botões de
+// cancelar/alterar na série (só em horário ainda ativo e conforme a permissão).
 export function acoesDaSerie(item) {
-  if (!item || !item.serie_id || !['agendado', 'confirmado'].includes(item.status)) return '';
-  const botoes = [];
-  if (sessionPode('agenda:cancelar')) botoes.push('<button class="btn danger" data-sheet-action="serie-cancelar">Cancelar na série…</button>');
-  if (sessionPode('agenda:editar')) botoes.push('<button class="btn" data-sheet-action="serie-alterar">Alterar na série…</button>');
-  return botoes.length ? `<p class="body-sm text-tertiary" style="margin:8px 0 4px;">Horário de uma série recorrente (${escapeHtml(String(item.serie_seq || ''))}ª)</p>${botoes.join('')}` : '';
+  if (!item || !item.serie_id) return '';
+  const botoes = ['<button class="btn" data-sheet-action="serie-ver" aria-label="Ver as datas desta série">🔁 Série recorrente (' + escapeHtml(String(item.serie_seq || '')) + 'ª) — ver datas</button>'];
+  if (['agendado', 'confirmado'].includes(item.status)) {
+    if (sessionPode('agenda:cancelar')) botoes.push('<button class="btn danger" data-sheet-action="serie-cancelar">Cancelar na série…</button>');
+    if (sessionPode('agenda:editar')) botoes.push('<button class="btn" data-sheet-action="serie-alterar">Alterar na série…</button>');
+  }
+  return '<p class="body-sm text-tertiary" style="margin:8px 0 4px;">Este horário faz parte de uma série.</p>' + botoes.join('');
+}
+
+// Datas da série (GET /agenda/series/:id): cada data prevista com a situação; as que não viraram
+// horário dizem o motivo.
+export async function verSerie(item) {
+  const corpo = el('serieVerConteudo');
+  corpo.textContent = 'Carregando…';
+  el('serieVerDialog').showModal();
+  try {
+    const r = await api('/agenda/series/' + encodeURIComponent(item.serie_id));
+    const linhas = r.datas.map(d => '<li' + (d.agendamentoId === item.id ? ' style="font-weight:700"' : '') + '>' + escapeHtml(formatDDMM(d.data)) + ' às ' + escapeHtml(d.horario) + ' — ' +
+      escapeHtml(ROTULO_DATA[d.situacao] || d.situacao) + (d.situacao === 'nao_criada' ? ' (' + escapeHtml(d.motivo || '') + ')' : '') + (d.agendamentoId === item.id ? ' ← este' : '') + '</li>').join('');
+    const aviso = r.resumo.faltando ? '<p class="body-sm">' + escapeHtml(String(r.resumo.faltando)) + ' de ' + escapeHtml(String(r.resumo.previstas)) + ' datas não viraram horário.</p>' : '';
+    corpo.innerHTML = '<p class="body-sm text-tertiary">' + escapeHtml(FREQ[r.serie.frequencia] || r.serie.frequencia) + ' · ' + escapeHtml(r.serie.status) + '</p>' + aviso + '<ol>' + linhas + '</ol>';
+  } catch (err) { corpo.textContent = err.message; }
 }
 
 export function abrirSerie(item, acao) {
@@ -101,4 +126,5 @@ export function initSeries() {
   el('agRepetir')?.addEventListener('change', ev => el('agOcorrenciasBox').classList.toggle('hidden', !ev.target.value));
   el('btnSerieConfirmar')?.addEventListener('click', confirmar);
   el('btnSerieFechar')?.addEventListener('click', () => el('serieDialog').close());
+  el('btnSerieVerFechar')?.addEventListener('click', () => el('serieVerDialog').close());
 }

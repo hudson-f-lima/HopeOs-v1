@@ -203,6 +203,109 @@ test('S08 remarcação avulsa pela recepção mantém a ocorrência na série', 
   assert.ok(nova && String(nova.horario).startsWith('15:00'), 'a nova continua como 1ª da série');
 });
 
+// --- Auditoria da recorrência (2026-11-16): resultado completo, sem criação parcial silenciosa ---
+const corpoNovo = extra => ({ ...SERIE, profissionalId: BETO, dataInicio: '2027-05-05', ocorrencias: 4, ...extra });
+const datasDe = r => r.data.data.datas.map(d => [d.seq, d.data, d.situacao]);
+const ativasSemVinculo = () => db.agendamentos.filter(a => a.empresa_id === A && ['agendado', 'confirmado'].includes(a.status) && String(a.data) >= '2027-05-01' && !a.serie_id && a.id !== '90000000-0000-4000-8000-0000000009a1');
+
+test('S09 resposta completa: cada data da série vem com a situação (criada, conflito, fora da escala); nada some em silêncio', async () => {
+  // 12/05 já ocupada pelo Beto às 10:00; 26/05 com a unidade fechada.
+  db.agendamentos.push({ id: '90000000-0000-4000-8000-0000000009a1', empresa_id: A, cliente_id: null, servico_id: CORTE, profissional_id: BETO, data: '2027-05-12', horario: '10:00:00', duracao_min: 30, status: 'agendado' });
+  db.disponibilidade_excecoes.push({ id: '80000000-0000-4000-8000-0000000009a1', empresa_id: A, profissional_id: null, tipo: 'fechamento', data_inicio: '2027-05-26', data_fim: '2027-05-26', inicio: null, fim: null });
+  const r = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpoNovo() });
+  assert.strictEqual(r.status, 201, r.raw);
+  assert.deepStrictEqual(datasDe(r), [[1, '2027-05-05', 'criada'], [2, '2027-05-12', 'conflito'], [3, '2027-05-19', 'criada'], [4, '2027-05-26', 'fora_da_disponibilidade']]);
+  assert.deepStrictEqual(r.data.data.resumo, { total: 4, criadas: 2, puladas: 2 });
+  assert.ok(r.data.data.datas.filter(d => d.situacao !== 'criada').every(d => typeof d.motivo === 'string' && d.motivo.length > 3), 'toda data pulada diz o motivo');
+  assert.ok(r.data.data.datas.filter(d => d.situacao === 'criada').every(d => d.agendamentoId));
+  assert.strictEqual(ativasSemVinculo().length, 0);
+  globalThis.__serie09 = r.data.data.serie.id;
+});
+
+test('S10 GET da série: as 4 datas previstas com a situação de cada uma e quantas faltam (o motivo vem da criação)', async () => {
+  const r = await request('GET', `/api/agenda/series/${globalThis.__serie09}`, { token: 'h.recep.s' });
+  assert.strictEqual(r.status, 200, r.raw);
+  assert.deepStrictEqual(r.data.data.datas.map(d => [d.seq, d.data, d.situacao]), [[1, '2027-05-05', 'agendada'], [2, '2027-05-12', 'nao_criada'], [3, '2027-05-19', 'agendada'], [4, '2027-05-26', 'nao_criada']]);
+  assert.deepStrictEqual(r.data.data.datas.filter(d => d.situacao === 'nao_criada').map(d => d.motivoCodigo), ['conflito', 'fora_da_disponibilidade']);
+  assert.deepStrictEqual([r.data.data.resumo.previstas, r.data.data.resumo.existentes, r.data.data.resumo.faltando], [4, 2, 2]);
+});
+
+test('S11 falha ao vincular a ocorrência: tudo é desfeito, a série é encerrada e a resposta diz quantos horários foram desfeitos', async () => {
+  const P = SupabaseRepository.prototype;
+  const original = P.updateScoped;
+  let vinculos = 0;
+  P.updateScoped = async function (t, id, patch) {
+    if (t === 'agendamentos' && patch && patch.serie_id) { vinculos += 1; if (vinculos >= 3) throw new Error('falha de gravação do vínculo'); }
+    return original.call(this, t, id, patch);
+  };
+  let r;
+  try { r = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpoNovo({ dataInicio: '2027-06-02' }) }); } finally { P.updateScoped = original; }
+  assert.strictEqual(r.status, 500, r.raw);
+  assert.strictEqual(r.data.error.code, 'SERIE_FALHOU');
+  assert.ok(r.data.error.details.desfeitos >= 2, JSON.stringify(r.data.error.details));
+  const doDia = db.agendamentos.filter(a => String(a.data) >= '2027-06-01' && String(a.data) <= '2027-06-30' && a.profissional_id === BETO);
+  assert.ok(doDia.length >= 3 && doDia.every(a => a.status === 'cancelado'), 'nenhum horário ativo ficou para trás: ' + doDia.map(a => `${a.data}:${a.status}:${a.serie_id ? 'v' : 'sem-vinculo'}`).join(','));
+  const serie = db.agendamento_series.filter(x => x.data_inicio === '2027-06-02');
+  assert.ok(serie.length === 1 && serie[0].status === 'encerrada', 'série encerrada, não "ativa" pela metade');
+  assert.ok(db.agendamento_eventos.some(e => e.payload && e.payload.motivo === 'criacao_da_serie_falhou'), 'a trilha registra por que foram desfeitos');
+});
+
+test('S12 erro inesperado na 3ª ocorrência: as duas primeiras são desfeitas (tudo ou nada), sem horário ativo órfão', async () => {
+  const P = SupabaseRepository.prototype;
+  const original = P.criarAgendamento;
+  let chamadas = 0;
+  P.criarAgendamento = async function (args) { chamadas += 1; if (chamadas === 3) throw new Error('banco indisponível'); return original.call(this, args); };
+  let r;
+  try { r = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpoNovo({ dataInicio: '2027-07-07' }) }); } finally { P.criarAgendamento = original; }
+  assert.strictEqual(r.status, 500, r.raw);
+  assert.deepStrictEqual([r.data.error.code, r.data.error.details.desfeitos], ['SERIE_FALHOU', 2]);
+  const julho = db.agendamentos.filter(a => a.profissional_id === BETO && String(a.data) >= '2027-07-01' && String(a.data) <= '2027-07-31');
+  assert.strictEqual(julho.length, 2); assert.ok(julho.every(a => a.status === 'cancelado'));
+  assert.strictEqual(db.agendamento_series.find(x => x.data_inicio === '2027-07-07').status, 'encerrada');
+});
+
+test('S13 tentativa repetida (duplo toque, retry de rede): a 2ª é recusada com o aviso de qual série já existe; nada duplica', async () => {
+  const corpo = corpoNovo({ dataInicio: '2027-08-04' });
+  const a = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpo });
+  assert.strictEqual(a.status, 201, a.raw);
+  const antesAg = db.agendamentos.length; const antesSe = db.agendamento_series.length;
+  const b = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpo });
+  assert.strictEqual(b.status, 409, b.raw);
+  assert.deepStrictEqual([b.data.error.code, b.data.error.details.serieId], ['SERIE_DUPLICADA', a.data.data.serie.id]);
+  assert.deepStrictEqual([db.agendamentos.length, db.agendamento_series.length], [antesAg, antesSe]);
+});
+
+test('S14 concorrência: dois pedidos iguais ao mesmo tempo → uma série, 4 horários, sem série ativa vazia', async () => {
+  const corpo = corpoNovo({ dataInicio: '2027-09-01' });
+  const [x, y] = await Promise.all([1, 2].map(() => request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpo })));
+  assert.deepStrictEqual([x.status, y.status].sort(), [201, 409], `${x.raw} | ${y.raw}`);
+  const series = db.agendamento_series.filter(s => s.data_inicio === '2027-09-01');
+  assert.strictEqual(series.filter(s => s.status === 'ativa').length, 1);
+  const ativos = db.agendamentos.filter(a => a.profissional_id === BETO && String(a.data) >= '2027-09-01' && String(a.data) <= '2027-09-30' && a.status === 'agendado');
+  assert.strictEqual(ativos.length, 4); assert.ok(ativos.every(a => a.serie_id));
+});
+
+test('S15 corrida real (outra instância ocupa tudo entre a prévia e a gravação): nenhuma criada → 409 e a série não fica "ativa" vazia', async () => {
+  const P = SupabaseRepository.prototype;
+  const original = P.criarAgendamento;
+  P.criarAgendamento = async function () { const e = new Error('conflito'); e.code = 'SCHEDULE_CONFLICT'; e.statusCode = 409; throw e; };
+  let r;
+  try { r = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpoNovo({ dataInicio: '2027-10-06' }) }); } finally { P.criarAgendamento = original; }
+  assert.strictEqual(r.status, 409, r.raw); assert.strictEqual(r.data.error.code, 'SERIE_SEM_HORARIOS');
+  assert.ok(db.agendamento_series.filter(x => x.data_inicio === '2027-10-06').every(x => x.status === 'encerrada'), 'sem série ativa vazia');
+});
+
+test('S16 permissões: o profissional só vê a série dos próprios horários; recepção vê todas; cancelar exige agenda:cancelar', async () => {
+  const deAna = await request('POST', '/api/agenda/series', { token: 'h.admin.s', body: corpoNovo({ profissionalId: ANA, dataInicio: '2027-11-03' }) });
+  assert.strictEqual(deAna.status, 201, deAna.raw);
+  const idAna = deAna.data.data.serie.id; const idBeto = globalThis.__serie09;
+  assert.strictEqual((await request('GET', `/api/agenda/series/${idAna}`, { token: 'h.prof.s' })).status, 200, 'o profissional vê a própria');
+  assert.strictEqual((await request('GET', `/api/agenda/series/${idBeto}`, { token: 'h.prof.s' })).status, 403, 'mas não a de colega');
+  assert.strictEqual((await request('GET', `/api/agenda/series/${idBeto}`, { token: 'h.recep.s' })).status, 200);
+  const unico = db.agendamentos.find(a => a.serie_id === idBeto && a.status === 'agendado');
+  assert.strictEqual((await request('POST', `/api/agenda/series/${idBeto}/cancelar`, { token: 'h.prof.s', body: { escopo: 'este', agendamentoId: unico.id } })).status, 403, 'profissional não cancela série de colega');
+});
+
 // --- Controle negativo -------------------------------------------------------
 test('NC1 controle negativo: com "este e os próximos" pegando a série inteira, o S04 alteraria as anteriores', () => {
   const arquivo = path.join(__dirname, '../src/routes/series.js');
