@@ -46,6 +46,8 @@
 | Permissão | Código | Proprietário | Gerente | Recepção | Profissional | Quem concede | Concedível ao profissional |
 |---|---|---|---|---|---|---|---|
 | Ver planos de assinatura e simular a cobertura | `assinatura:ver` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
+| Vender plano ao cliente e registrar o pagamento do ciclo | `assinatura:vender` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
+| Pausar, retomar e cancelar assinaturas | `assinatura:gerir` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 | Criar, editar e arquivar planos de assinatura (preço, comissão e regras de uso) | `planos:editar` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 
 ### Lista de espera

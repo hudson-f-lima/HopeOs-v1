@@ -434,6 +434,28 @@ class SupabaseRepository {
     return data;
   }
 
+  // Fechamento com uso de plano de assinatura (022): mesmo payload do fechamento de sempre + usos.
+  async saveCheckoutCloseAssinatura({ payload, resolved, preview, autoria = {}, usos }) {
+    const rpcPayload = {
+      id: payload.id || null,
+      idempotencyKey: payload.idempotencyKey || payload.idempotency_key || null,
+      clienteId: payload.clienteId || payload.cliente_id || null,
+      data: payload.data || resolved.data || null,
+      hora: payload.hora || resolved.hora || null,
+      raw: { clienteId: payload.clienteId || payload.cliente_id || null, itens: payload.itens, payments: payload.payments,
+        descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0, gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0 }
+    };
+    const { data, error } = await this.supabase.rpc('checkout_close_assinatura', {
+      p_empresa_id: this.empresaId, p_payload: rpcPayload, p_preview: preview, p_usos: usos,
+      p_actor_id: autoria.actorId || null, p_integration_id: autoria.integrationId || null
+    });
+    if (error) {
+      if (error.code === 'P0002') throw createAppError('ASSINATURA_USO_SEM_ITEM', 'Não foi possível ligar o uso do plano ao item da comanda; nada foi gravado.', 409);
+      throw error;
+    }
+    return data;
+  }
+
   // Trilha da agenda (tabela agendamento_eventos da 001). empresa_id sempre de
   // this.empresaId via insert(); quem chama garante que o agendamento é do tenant.
   async registrarEventoAgenda({ agendamentoId, tipo, payload }) {

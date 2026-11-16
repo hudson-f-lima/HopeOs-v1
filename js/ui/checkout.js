@@ -63,6 +63,8 @@ const MAX_ITENS = 50;
 state.comandaItens = state.comandaItens || [];
 
 function precoDoItem(item) {
+  // Plano de assinatura: valor estimado pela consulta de cobertura; o servidor confirma no resumo.
+  if (item.assinaturaId && Number.isFinite(item.precoPlanoCentavos)) return item.precoPlanoCentavos;
   if (item.tipo === 'servico') return (state.catalog.servicos.find(s => s.id === item.servicoId) || {}).valor_centavos || 0;
   return ((state.catalog.produtos || []).find(p => p.id === item.produtoId) || {}).preco_venda_centavos * item.quantidade || 0;
 }
@@ -70,7 +72,7 @@ function rotuloDoItem(item) {
   // Texto puro: quem monta o HTML passa por escapeHtml (renderComandaItens).
   const nomeDe = (lista, id) => ((lista || []).find(x => x.id === id) || {}).nome;
   const prof = nomeDe(state.catalog.profissionais, item.profissionalId);
-  if (item.tipo === 'servico') return [nomeDe(state.catalog.servicos, item.servicoId) || 'Serviço', prof || 'sem profissional'].join(' · ');
+  if (item.tipo === 'servico') return [nomeDe(state.catalog.servicos, item.servicoId) || 'Serviço', prof || 'sem profissional'].concat(item.planoTexto ? [item.planoTexto] : []).join(' · ');
   return [String(item.quantidade) + '× ' + (nomeDe(state.catalog.produtos, item.produtoId) || 'Produto'), prof || 'sem vendedor'].join(' · ');
 }
 
@@ -107,7 +109,7 @@ export function renderComandaItens() {
   bloco.classList.toggle('hidden', !itens.length);
   document.getElementById('coItensLista').innerHTML = itens.map((item, i) => `
     <div class="row" data-item="${i}" data-tipo="${item.tipo}">
-      <span>${escapeHtml(rotuloDoItem(item))}</span>
+      <span>${escapeHtml(rotuloDoItem(item))}${item.assinaturaId ? ' <button type="button" class="btn" data-sem-plano="' + i + '">Não usar o plano</button>' : ''}</span>
       <b>${centsToBRL(precoDoItem(item))}<button type="button" class="co-item-remover" data-remover-item="${i}" aria-label="Remover ${escapeHtml(rotuloDoItem(item))}">×</button></b>
     </div>`).join('');
   const subtotal = itens.reduce((t, item) => t + precoDoItem(item), 0);
@@ -183,6 +185,43 @@ function removerItem(indice) {
   invalidatePayload();
 }
 
+// Cobertura do plano de assinatura (D-043): para cada serviço da comanda com cliente escolhido,
+// consulta o servidor e marca o plano quando ele cobre (ou cobra só uma parte). Conta os usos da
+// própria comanda para o limite do ciclo. É só estimativa para a tela: o servidor recalcula tudo
+// no resumo e no fechamento.
+async function atualizarCobertura() {
+  const clienteId = state.fuzzyCliente.getValue();
+  const usadosNaComanda = new Map();
+  for (const item of state.comandaItens) {
+    if (item.tipo !== 'servico') continue;
+    delete item.assinaturaId; delete item.precoPlanoCentavos; delete item.planoTexto;
+    if (!clienteId || item.semPlano || !sessionPode('assinatura:ver')) continue;
+    const agora = new Date();
+    const q = new URLSearchParams({ clienteId, servicoId: item.servicoId, profissionalId: item.profissionalId,
+      data: agora.toLocaleDateString('en-CA'), horario: agora.toTimeString().slice(0, 5) });
+    let cob;
+    try { cob = await api('/assinaturas/cobertura?' + q.toString()); } catch (_) { continue; }
+    const m = cob && cob.melhor;
+    if (!m) continue;
+    const chave = m.assinaturaId + ':' + item.servicoId;
+    const ja = usadosNaComanda.get(chave) || 0;
+    const limite = m.usoDoCiclo && m.usoDoCiclo.limite;
+    const esgotou = limite !== null && limite !== undefined && m.consomeUso && (m.usoDoCiclo.usados + ja) >= limite;
+    const aplica = !esgotou && (m.situacaoUso === 'coberto' || (m.situacaoUso === 'fora_da_regra' && m.cobrarCentavos < m.precoTabelaCentavos) || (m.situacaoUso === 'fora_da_regra' && m.coberto));
+    if (aplica) {
+      item.assinaturaId = m.assinaturaId;
+      item.precoPlanoCentavos = m.cobrarCentavos;
+      if (m.consomeUso) usadosNaComanda.set(chave, ja + 1);
+      item.planoTexto = 'Plano ' + m.planoNome + ': ' + (m.situacaoUso === 'coberto'
+        ? 'coberto' + (limite ? ' (' + (m.usoDoCiclo.usados + ja + 1) + ' de ' + limite + ')' : '')
+        : 'fora da regra, ' + centsToBRL(m.cobrarCentavos) + (m.consomeUso ? ', gasta 1 uso' : ''));
+    } else {
+      const motivo = esgotou ? 'limite do ciclo atingido' : ((m.motivos && m.motivos[0] && m.motivos[0].texto) || 'não cobre');
+      item.planoTexto = 'Plano ' + m.planoNome + ': ' + motivo;
+    }
+  }
+}
+
 function buildPayload() {
   const formaCode = state.fuzzyForma.getValue();
   const clienteId = state.fuzzyCliente.getValue();
@@ -192,17 +231,19 @@ function buildPayload() {
   const itens = [...state.comandaItens, ...itensDosCampos(false)];
   if (!itens.length) throw new Error('Adicione ao menos um serviço ou produto à comanda.');
   if (itens.length > MAX_ITENS) throw new Error(`Uma comanda aceita até ${MAX_ITENS} itens.`);
-  if (!state.splitEnabled && !formaCode) throw new Error('Selecione uma forma de pagamento.');
-
   const totalCentavos = itens.reduce((t, item) => t + precoDoItem(item), 0) + gorjetaCentavos;
-  const payments = state.splitEnabled
+  // Tudo coberto pelo plano (total R$ 0): fecha sem forma de pagamento.
+  const semPagar = totalCentavos === 0 && itens.some(i => i.assinaturaId);
+  if (!state.splitEnabled && !formaCode && !semPagar) throw new Error('Selecione uma forma de pagamento.');
+  const payments = semPagar ? [] : state.splitEnabled
     ? buildSplitPayments()
     : [{ formaCode, valorCentavos: totalCentavos }];
 
   return {
     clienteId: clienteId || null,
     idempotencyKey: genIdempotencyKey(),
-    itens: itens.map(i => ({ ...i })),
+    // Só o que o servidor aceita: os campos de exibição do plano ficam na tela.
+    itens: itens.map(({ precoPlanoCentavos, planoTexto, semPlano, planoNome, ...resto }) => ({ ...resto })),
     payments,
     gorjetaCentavos,
     agendamentoId: state.agendamentoIdParaCheckout || undefined
@@ -239,6 +280,16 @@ function renderTaxaAviso(preview, payload) {
   if (escolhida.taxaCentavos > 0) aviso.scrollIntoView({ block: 'nearest' });
 }
 
+function renderPlanoAviso(preview) {
+  const aviso = document.getElementById('coPlanoAviso');
+  if (!aviso) return;
+  const lista = Array.isArray(preview.assinaturas) ? preview.assinaturas : [];
+  aviso.classList.toggle('hidden', !lista.length);
+  aviso.textContent = lista.map(a => 'Plano ' + a.planoNome + ': ' + (a.aplicada
+    ? (a.situacao === 'coberto' ? 'coberto' : 'fora da regra') + ', cobra ' + centsToBRL(a.cobrarCentavos) + ' de ' + centsToBRL(a.precoTabelaCentavos) + (a.consomeUso ? ', gasta 1 uso' : '')
+    : 'não aplicado (' + ((a.motivos[0] && a.motivos[0].texto) || a.situacao) + '), cobra o valor cheio') + (a.aviso ? ' — ' + a.aviso : '')).join(' · ');
+}
+
 export async function simular() {
   clearBanner();
   document.getElementById('cardPreview').classList.add('hidden');
@@ -247,8 +298,24 @@ export async function simular() {
   hideAttachSuggestion();
   document.getElementById('btnFechar').disabled = true;
   try {
+    await atualizarCobertura();
+    renderComandaItens();
     const payload = buildPayload();
-    const preview = await api('/checkout/preview', { method: 'POST', body: payload });
+    let preview;
+    try {
+      preview = await api('/checkout/preview', { method: 'POST', body: payload });
+    } catch (err) {
+      // A estimativa do plano na tela pode diferir do servidor (ex.: limite esgotando dentro da
+      // comanda). Forma única: ajusta o pagamento ao total do servidor e simula de novo, uma vez.
+      const esperado = err && err.code === 'PAYMENT_TOTAL_MISMATCH' && err.details && err.details.expectedTotal;
+      if (!state.splitEnabled && payload.itens.some(i => i.assinaturaId) && Number.isFinite(esperado)) {
+        const forma = state.fuzzyForma.getValue();
+        if (esperado > 0 && !forma) throw new Error('Selecione uma forma de pagamento.');
+        payload.payments = esperado > 0 ? [{ formaCode: forma, valorCentavos: esperado }] : [];
+        preview = await api('/checkout/preview', { method: 'POST', body: payload });
+      } else throw err;
+    }
+    renderPlanoAviso(preview);
     state.currentPayload = payload;
     state.currentPreview = preview;
     const t = preview.totals;
@@ -654,6 +721,12 @@ export function initCheckout() {
     simular();
   });
   document.getElementById('coItensLista').addEventListener('click', ev => {
+    const semPlano = ev.target.closest('[data-sem-plano]');
+    if (semPlano) {
+      const item = state.comandaItens[Number(semPlano.dataset.semPlano)];
+      if (item) { item.semPlano = true; delete item.assinaturaId; delete item.precoPlanoCentavos; item.planoTexto = 'sem o plano'; renderComandaItens(); invalidatePayload(); }
+      return;
+    }
     const btn = ev.target.closest('[data-remover-item]');
     if (btn) removerItem(Number(btn.dataset.removerItem));
   });

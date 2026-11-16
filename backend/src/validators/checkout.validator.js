@@ -39,7 +39,10 @@ function assertNoForbiddenFinancialInputs(body) {
 function validateCheckoutPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
   if (!Array.isArray(body.itens) || body.itens.length === 0) throw createAppError('CHECKOUT_EMPTY_ITEMS', 'Informe itens da comanda.', 422);
-  if (!Array.isArray(body.payments) || body.payments.length === 0) throw createAppError('PAYMENT_REQUIRED', 'Informe payments[].', 422);
+  // Comanda com serviço coberto por plano pode fechar sem pagamento (total R$ 0). O total é
+  // calculado no servidor; se sobrar valor a pagar, o PaymentEngine recusa (PAYMENT_REQUIRED).
+  const usaPlano = body.itens.some(i => i && i.assinaturaId);
+  if (!Array.isArray(body.payments) || (body.payments.length === 0 && !usaPlano)) throw createAppError('PAYMENT_REQUIRED', 'Informe payments[].', 422);
 
   assertNoForbiddenFinancialInputs(body);
 

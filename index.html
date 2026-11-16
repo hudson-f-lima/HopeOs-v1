@@ -217,6 +217,7 @@
             <input id="coForma" type="text" placeholder="Digite forma..." class="input-light"/>
           </div>
           <div id="coTaxaAviso" class="taxa-aviso hidden" role="status" aria-live="polite"></div>
+          <div id="coPlanoAviso" class="taxa-aviso hidden" role="status" aria-live="polite"></div>
           <div class="field">
             <label>Gorjeta (R$)</label>
             <div class="tip-stepper">
@@ -776,6 +777,15 @@
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
       <button class="subtab-btn hidden" data-subtab="online" id="subtabBtnOnline">Link online</button>
       <button class="subtab-btn hidden" data-subtab="planos" id="subtabBtnPlanos">Planos</button>
+      <button class="subtab-btn hidden" data-subtab="assinantes" id="subtabBtnAssinantes">Assinantes</button>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-assinantes">
+      <section class="card" aria-labelledby="assinantesTitulo">
+        <h2 class="m-0" id="assinantesTitulo" style="margin-bottom:4px;">Assinantes</h2>
+        <p class="body-sm text-tertiary" style="margin-bottom:8px;">Quem assina cada plano, a situação do pagamento e os usos do ciclo. A cobrança é registrada à mão nesta etapa.</p>
+        <div id="assinantesConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
+      </section>
     </div>
 
     <div class="subtab-content hidden" id="subtab-planos">

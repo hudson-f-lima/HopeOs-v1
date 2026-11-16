@@ -268,7 +268,7 @@ test('NC1 controle negativo: sem a checagem de teto, o P08 deixaria cobrar 50% p
 
 (async () => {
   const origErr = console.error; console.error = () => {};
-  clock.definirAgora && clock.definirAgora(new Date('2026-11-16T12:00:00Z'));
+  clock.definirRelogio(() => new Date('2026-11-16T12:00:00Z'));
   const server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
   let ok = 0;

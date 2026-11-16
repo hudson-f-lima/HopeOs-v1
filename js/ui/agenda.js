@@ -16,7 +16,8 @@ import {
   confirmAction,
   escapeHtml,
   getInitials,
-  waLink
+  waLink,
+  centsToBRL
 } from '../utils.js';
 
 export const PX_POR_MIN = 3;
@@ -552,6 +553,7 @@ function openActionSheet(item) {
     <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
     <div class="row"><span>Status</span><span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span></div>
     <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
+    <p class="body-sm hidden" id="sheetPlano" role="status"></p>
     <div class="sheet-actions">${actionsHtml}${acoesDaSerie(item)}${acoesDoAtendimento(item)}</div>
     <details class="sheet-historico" id="historicoDetails">
       <summary>Histórico</summary>
@@ -563,6 +565,27 @@ function openActionSheet(item) {
   details.addEventListener('toggle', () => { if (details.open && !details.dataset.loaded) loadHistorico(item.id); });
   openModal('actionSheet');
   loadReliabilityBadge(item.cliente_id);
+  carregarSeloPlano(item);
+}
+
+// Selo do plano de assinatura no card (D-043): "Plano X: coberto (2 de 4)" ou o motivo de não
+// cobrir. Só leitura; quem não pode ver assinaturas não vê o selo.
+async function carregarSeloPlano(item) {
+  const el = document.getElementById('sheetPlano');
+  if (!el || !item.cliente_id || !item.servico_id || !item.profissional_id || !sessionPode('assinatura:ver')) return;
+  try {
+    const q = new URLSearchParams({ clienteId: item.cliente_id, servicoId: item.servico_id, profissionalId: item.profissional_id, data: item.data, horario: String(item.horario).slice(0, 5) });
+    const cob = await api('/assinaturas/cobertura?' + q.toString());
+    const m = cob && cob.melhor;
+    if (!m || document.getElementById('sheetPlano') !== el) return;
+    const u = m.usoDoCiclo;
+    let texto;
+    if (m.situacaoUso === 'coberto') texto = 'coberto' + (u && u.limite ? ' (' + (u.usados + 1) + ' de ' + u.limite + ')' : '');
+    else if (m.situacaoUso === 'fora_da_regra' && m.cobrarCentavos < m.precoTabelaCentavos) texto = 'fora da regra: cobra ' + centsToBRL(m.cobrarCentavos) + (m.consomeUso ? ' e gasta 1 uso' : '');
+    else texto = 'não cobre — ' + ((m.motivos && m.motivos[0] && m.motivos[0].texto) || m.situacaoUso);
+    el.textContent = '★ Assinante · Plano ' + m.planoNome + ': ' + texto + (m.aviso ? ' (' + m.aviso + ')' : '');
+    el.classList.remove('hidden');
+  } catch (_) { /* selo é informativo: sem ele o card continua igual */ }
 }
 
 // Trilha de status (GET /agenda/:id/historico). Só leitura; carrega ao abrir.
