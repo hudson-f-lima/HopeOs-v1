@@ -41,6 +41,13 @@
 | Alterar a escala de várias pessoas de uma vez e aplicar modelos | `escala:lote` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 | Criar, editar, duplicar e arquivar modelos de escala | `escala:modelos` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
 
+### Assinaturas
+
+| Permissão | Código | Proprietário | Gerente | Recepção | Profissional | Quem concede | Concedível ao profissional |
+|---|---|---|---|---|---|---|---|
+| Ver planos de assinatura e simular a cobertura | `assinatura:ver` | Sim | Sim | Sim | — | Proprietário ou gerente | Não |
+| Criar, editar e arquivar planos de assinatura (preço, comissão e regras de uso) | `planos:editar` | Sim | Sim | — | — | Só o proprietário (sensível) | Não |
+
 ### Lista de espera
 
 | Permissão | Código | Proprietário | Gerente | Recepção | Profissional | Quem concede | Concedível ao profissional |

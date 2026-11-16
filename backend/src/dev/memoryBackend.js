@@ -108,6 +108,27 @@ function installMemoryBackend(seed = {}) {
     prof.overrides = overrides;
     return { profissionalId, servicoId, overrides };
   };
+  // Espelho do assinatura_plano_salvar (021): nome único entre ativos, tudo ou nada.
+  P.salvarPlanoAssinatura = async function ({ planoId, plano, itens, profissionais = [], actorId }) {
+    const chave = n => String(n || '').trim().toLowerCase();
+    const ativos = rows('assinatura_planos').filter(p => p.empresa_id === this.empresaId && !p.arquivado_em && p.id !== planoId);
+    if (ativos.some(p => chave(p.nome) === chave(plano.nome))) throw createAppError('PLANO_NOME_DUPLICADO', 'Já existe um plano ativo com esse nome.', 409);
+    const agora = clock.agora().toISOString();
+    let alvo;
+    if (planoId) {
+      alvo = rows('assinatura_planos').find(p => p.id === planoId && p.empresa_id === this.empresaId && !p.arquivado_em);
+      if (!alvo) throw createAppError('PLANO_NAO_ENCONTRADO', 'Plano não encontrado.', 404);
+      Object.assign(alvo, plano, { updated_at: agora, updated_by: actorId });
+    } else {
+      alvo = { id: randomUUID(), empresa_id: this.empresaId, ...plano, arquivado_em: null, created_at: agora, created_by: actorId, updated_at: agora, updated_by: actorId };
+      rows('assinatura_planos').push(alvo);
+    }
+    db.assinatura_plano_itens = rows('assinatura_plano_itens').filter(i => i.plano_id !== alvo.id)
+      .concat(itens.map(i => ({ id: randomUUID(), empresa_id: this.empresaId, plano_id: alvo.id, ...i, created_by: actorId })));
+    db.assinatura_plano_profissionais = rows('assinatura_plano_profissionais').filter(x => x.plano_id !== alvo.id)
+      .concat(profissionais.map(id => ({ plano_id: alvo.id, profissional_id: id, empresa_id: this.empresaId, created_by: actorId })));
+    return alvo.id;
+  };
   // Espelho do atendimento_criar (019): confere todas as etapas antes de gravar qualquer uma.
   P.criarAtendimento = async function ({ etapas, createdBy }) {
     const empresa = rows('empresas').find(e => e.id === this.empresaId) || {};

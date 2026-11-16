@@ -18,7 +18,7 @@
 ## Fases (um PR por fase; cada uma com gate SQL e offline, e controle negativo)
 | Fase | Entrega | Migration |
 |---|---|---|
-| **1. Planos e restrições** | Plano, itens (desconto %, usos, dias da semana por item), profissionais permitidos (vazio = todos), política de uso fora da regra, tolerância. Telas de gestão. Permissões `planos:editar`, `assinatura:ver`. | 021 (tabelas, RLS que nega tudo ao anon/authenticated, escrita só por função) |
+| **1. Planos e restrições** — **entregue (D-042)** | Plano, itens (desconto %, usos, dias da semana por item), profissionais permitidos (vazio = todos), política de uso fora da regra, tolerância. Telas de gestão. Permissões `planos:editar`, `assinatura:ver`. | 021 (tabelas, RLS que nega tudo ao anon/authenticated, escrita só por função) |
 | **2. Assinantes e uso** | Assinatura (cliente + plano + ciclo), usos imutáveis, estados (pendente, ativa, inadimplente, suspensa, pausada, cancelada), "coberto (2 de 4)" na agenda, cobertura na comanda (item a R$ 0 ou a X%), estorno com devolução de uso. Permissão `assinatura:vender`, `assinatura:gerir`. | mesma 021 ou 022 (a decidir; cada uma exige autorização) |
 | **3. Comissão e margem** | Comissão do uso coberto e do uso fora da regra; rateio no fechamento do ciclo (se aprovado); margem por plano. | só se a fase exigir |
 | **4. Aviso ao cliente** | Link do cliente mostra o preço e o uso antes de confirmar um dia fora da regra. | não |

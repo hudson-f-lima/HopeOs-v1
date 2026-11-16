@@ -455,6 +455,20 @@ class SupabaseRepository {
   // Checagem de conflito + insert numa transação sob lock (migration 007):
   // dois pedidos simultâneos para o mesmo horário não gravam os dois.
   // Atendimento com várias etapas (019, D-040): todas ou nenhuma, numa transação no banco.
+  // Plano de assinatura + itens + profissionais numa só função do banco (021): tudo ou nada.
+  async salvarPlanoAssinatura({ planoId = null, plano, itens, profissionais = [], actorId = null }) {
+    const { data, error } = await this.supabase.rpc('assinatura_plano_salvar', {
+      p_empresa_id: this.empresaId, p_plano_id: planoId, p_plano: plano, p_itens: itens, p_profissionais: profissionais, p_actor_id: actorId
+    });
+    if (error) {
+      if (error.code === '23505') throw createAppError('PLANO_NOME_DUPLICADO', 'Já existe um plano ativo com esse nome.', 409);
+      if (error.code === 'P0002') throw createAppError('PLANO_NAO_ENCONTRADO', 'Plano não encontrado.', 404);
+      if (error.code === '23514' || error.code === '22P02') throw createAppError('PLANO_INVALIDO', 'O banco recusou o plano: confira os valores.', 422);
+      throw error;
+    }
+    return data;
+  }
+
   async criarAtendimento({ etapas, createdBy = null }) {
     const { data, error } = await this.supabase.rpc('atendimento_criar', { p_empresa_id: this.empresaId, p_etapas: etapas, p_created_by: createdBy });
     if (error) {
