@@ -58,6 +58,11 @@ function installMemoryBackend(seed = {}) {
     const row = rows('empresas').find(e => e.online_slug === slug);
     return row ? { id: row.id, online_ativo: row.online_ativo === true } : null;
   };
+  P.eventosAgendaDesde = async function (tipo, desdeIso, limite = 100) {
+    return rows('agendamento_eventos')
+      .filter(e => e.empresa_id === this.empresaId && e.tipo === tipo && String(e.created_at || '') >= desdeIso)
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, limite);
+  };
   P.acessoPorTokenHash = async function (hash) {
     if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) return null;
     return rows('agendamento_acessos').find(a => a.token_hash === hash) || null;

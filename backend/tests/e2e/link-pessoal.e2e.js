@@ -112,6 +112,21 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'recepcao@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
+  // C3: aviso de agendamento online novo na agenda.
+  await p.waitForSelector('#btnOnlineNovos:not(.hidden)', { timeout: 8000 }).catch(() => {});
+  const pill = (await p.textContent('#btnOnlineNovos')).trim();
+  console.log('AVISO ONLINE:', pill);
+  if (!/novos? online/.test(pill) || await p.locator('#btnOnlineNovos.hidden').count()) errs.push('aviso de online novo não apareceu');
+  await p.click('#btnOnlineNovos');
+  await p.waitForSelector('#onlineNovosDialog[open]');
+  const lista = await p.locator('#onlineNovosConteudo .eq-row').allInnerTexts();
+  console.log('LISTA ONLINE:', JSON.stringify(lista.map(t => t.replace(/\s+/g, ' ').trim())));
+  if (!lista.some(t => /Caio Lembrete/.test(t))) errs.push('agendamento online não está na lista');
+  await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-c3-online-novos.png') });
+  await p.click('#btnOnlineVistos');
+  await p.waitForTimeout(300);
+  console.log('DEPOIS DE VER:', await p.locator('#btnOnlineNovos.hidden').count() ? 'aviso some' : 'aviso continua');
+  if (!(await p.locator('#btnOnlineNovos.hidden').count())) errs.push('aviso não sumiu depois de marcar como vistos');
   await p.click('#btnAgendaLembretes'); await p.waitForTimeout(900);
   const zap = p.locator('#lembretesConteudo [data-zap]').first();
   if (await zap.count()) {

@@ -268,6 +268,17 @@ class SupabaseRepository {
     return (data && data[0]) || null;
   }
 
+  // Aviso de agendamento online novo (C3, D-038): eventos de um tipo criados a partir de um
+  // instante, do mais novo ao mais antigo, com teto (a recepção só precisa dos recentes).
+  async eventosAgendaDesde(tipo, desdeIso, limite = 100) {
+    if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
+    const { data, error } = await this.supabase.from('agendamento_eventos').select('*')
+      .eq('empresa_id', this.empresaId).eq('tipo', tipo).gte('created_at', desdeIso)
+      .order('created_at', { ascending: false }).limit(limite);
+    if (error) throw error;
+    return data || [];
+  }
+
   // Link pessoal do agendamento (017, D-038): o acesso pelo hash do código, sem contexto de
   // tenant (é ele que diz a empresa). Hash fora do formato nunca vira consulta.
   async acessoPorTokenHash(hash) {

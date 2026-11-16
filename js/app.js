@@ -29,6 +29,7 @@ import { initEscalas } from './ui/escalas.js';
 import { initAgendamentoOnline } from './ui/agendamentoOnline.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
+import { initOnlineNovos } from './ui/onlineNovos.js';
 import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
@@ -397,6 +398,8 @@ async function init() {
     initPermissoes();
   initEscalas();
   initAgendamentoOnline();
+  // Depende da sessão (permissão agenda:ver): por isso aqui, e não com os outros módulos da agenda.
+  initOnlineNovos();
     initComissoes();
     initGanhos();
     initAgora();

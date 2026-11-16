@@ -492,4 +492,10 @@
   - Recepção: ao tocar em WhatsApp nos lembretes, `POST /api/agenda/:id/link-cliente` (`agenda:lembretes`) gera um link e ele vai no fim da mensagem. Remarcação pela recepção leva o link do cliente para o novo horário.
 - **Riscos aceitos:** quem tiver o link (encaminhado, no histórico ou na agenda sincronizada na nuvem) pode confirmar, cancelar ou remarcar dentro das regras; a trilha registra que foi pelo link. O ícone de instalação da página do cliente fica para a C5 (push no iPhone exige o app instalado).
 - **Verificação:** `gate_017.sql` (5 blocos); `meu-agendamento-gate` 11/11 (2 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-pessoal`.
+- **C3 entregue (sem migration):** aviso de agendamento online novo.
+  - `GET /api/agenda/online-novos?desde=` (`agenda:ver`): devolve os agendamentos criados pelo link público desde o instante dado, no máximo 7 dias para trás e 50 itens, com o mesmo escopo da agenda.
+  - Na agenda, o botão "N novos online" consulta o servidor a cada minuto, com o app aberto e visível, e abre a lista com "Marcar como vistos".
+  - "Visto" fica guardado **no aparelho** (`localStorage`), não no banco. Cada aparelho da recepção tem o seu, e limpar o navegador traz de volta as últimas 24 h. Para valer entre aparelhos, precisaria de migration (não pedido agora).
+  - Sem som: o aviso é visual.
+  - Verificação: `meu-agendamento-gate` C301 e E2E `link-pessoal` (aviso aparece, lista, some depois de visto).
 

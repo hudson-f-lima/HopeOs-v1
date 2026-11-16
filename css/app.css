@@ -1050,6 +1050,8 @@ dialog {
 
 /* Lembretes de confirmação (D-011) */
 .agenda-lembretes-pill{left:88px;}
+/* Aviso de agendamento online novo (C3, D-038): ao lado dos lembretes, em destaque. */
+.agenda-online-pill{left:192px;background:var(--md-primary,#6750a4);color:#fff;}
 .lembretes-dialog{margin:auto;width:min(560px,calc(100vw - 32px));max-height:85vh;border:none;border-radius:16px;padding:16px;}
 .lembretes-dialog::backdrop{background:rgba(0,0,0,.35);}
 .lembretes-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
@@ -1088,6 +1090,7 @@ body{font-variant-numeric:tabular-nums;}
   .fab{right:32px;bottom:32px;}
   .agenda-today-pill{left:128px;bottom:32px;}
   .agenda-lembretes-pill{left:204px;}
+  .agenda-online-pill{left:320px;}
   .agenda-scroll-container{height:calc(100vh - 260px);min-height:600px;}
   .agenda-grid{grid-template-columns:56px repeat(var(--prof-count, 1), minmax(140px, 1fr));}
   .checkout-grid{grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);}

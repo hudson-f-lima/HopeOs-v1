@@ -267,6 +267,23 @@ test('M09 remarcação feita pela recepção leva o link do cliente para o novo 
   assert.strictEqual(v.status, 200); assert.strictEqual(v.data.data.agendamento.horario, '15:00');
 });
 
+test('C301 aviso de online novo (C3): recepção vê o agendamento feito pelo link; "desde" depois dele zera; sem login 401', async () => {
+  const r = await request('GET', '/api/agenda/online-novos', { token: 'h.recep.s' });
+  assert.strictEqual(r.status, 200, r.raw);
+  const rita = r.data.data.itens.find(i => i.clienteNome === 'Rita Link');
+  assert.ok(rita, 'o agendamento online do M01 aparece');
+  assert.deepStrictEqual({ data: rita.data, horario: rita.horario, servico: rita.servicoNome, prof: rita.profissionalNome }, { data: AMANHA, horario: '15:00', servico: 'Corte', prof: 'Beto' });
+  assert.strictEqual(r.data.data.agora, AGORA.toISOString());
+  // Agendamento criado pela equipe (sem evento de origem online) não aparece.
+  assert.ok(!r.data.data.itens.some(i => i.clienteNome === 'Cliente Segredo'));
+  const depois = await request('GET', `/api/agenda/online-novos?desde=${encodeURIComponent('2026-11-10T12:00:01Z')}`, { token: 'h.recep.s' });
+  assert.strictEqual(depois.data.data.total, 0, 'visto depois do agendamento: nada novo');
+  const antigo = await request('GET', `/api/agenda/online-novos?desde=${encodeURIComponent('2020-01-01T00:00:00Z')}`, { token: 'h.recep.s' });
+  assert.strictEqual(antigo.data.data.desde, '2026-11-03T12:00:00.000Z', 'no máximo 7 dias para trás');
+  assert.strictEqual((await request('GET', '/api/agenda/online-novos?desde=ontem', { token: 'h.recep.s' })).status, 422);
+  assert.strictEqual((await request('GET', '/api/agenda/online-novos')).status, 401);
+});
+
 // --- Controles negativos ----------------------------------------------------
 function routerMutante(trocas) {
   const arquivo = path.join(__dirname, '../src/routes/publicBooking.js');

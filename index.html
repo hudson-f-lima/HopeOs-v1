@@ -157,6 +157,7 @@
       </div>
       <button class="agenda-today-pill" id="btnAgendaToday" type="button">Hoje</button>
       <button class="agenda-today-pill agenda-lembretes-pill" id="btnAgendaLembretes" type="button">Lembretes</button>
+      <button class="agenda-today-pill agenda-online-pill hidden" id="btnOnlineNovos" type="button" aria-live="polite"></button>
     </section>
 
     <section id="tab-checkout" class="tab-content hidden">
@@ -1089,6 +1090,16 @@
   <label class="body-sm">Dia <input type="date" id="lembretesData"/></label>
   <p class="body-sm text-tertiary">Abra o WhatsApp de cada cliente, envie a mensagem pronta e marque "Confirmou" quando a resposta chegar.</p>
   <div id="lembretesConteudo"></div>
+</dialog>
+
+<dialog id="onlineNovosDialog" class="lembretes-dialog" aria-labelledby="onlineNovosTitulo">
+  <div class="lembretes-head">
+    <h2 id="onlineNovosTitulo" class="m-0">Novos pelo link online</h2>
+    <button class="btn" type="button" id="btnFecharOnlineNovos" aria-label="Fechar">✕</button>
+  </div>
+  <p class="body-sm text-tertiary">Agendamentos que clientes marcaram sozinhos desde a última vez que alguém viu neste aparelho.</p>
+  <div id="onlineNovosConteudo"></div>
+  <button class="btn btn-primary" type="button" id="btnOnlineVistos">Marcar como vistos</button>
 </dialog>
 
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>

@@ -616,6 +616,39 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
   } catch (err) { next(err); }
 });
 
+// Aviso de agendamento online novo para a recepção (C3, D-038). Sem migration: "visto" fica no
+// aparelho (a tela manda `desde`, o instante em que alguém viu pela última vez ali). Devolve os
+// agendamentos criados pelo link público desde então (até 7 dias, no máximo 50). Profissional
+// só vê os próprios, como na agenda.
+const TIPO_ORIGEM_ONLINE = 'origem_link_publico';
+router.get('/agenda/online-novos', authorize('agenda:ver'), async (req, res, next) => {
+  try {
+    const agora = clock.agora();
+    const minimo = new Date(agora.getTime() - 7 * 864e5);
+    let desde = req.query.desde === undefined ? new Date(agora.getTime() - 864e5) : new Date(String(req.query.desde));
+    if (Number.isNaN(desde.getTime())) throw createAppError('INVALID_DATE', 'desde deve ser uma data e hora ISO.', 422);
+    if (desde < minimo) desde = minimo;
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const eventos = await repo.eventosAgendaDesde(TIPO_ORIGEM_ONLINE, desde.toISOString(), 100);
+    const ids = [...new Set(eventos.map(e => e.agendamento_id).filter(Boolean))].slice(0, 50);
+    const [agendamentos, clientes, servicos, profissionais] = await Promise.all([
+      Promise.all(ids.map(id => repo.getByIdScoped('agendamentos', id))),
+      repo.list('clientes', { empresa_id: repo.empresaId }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('profissionais', { empresa_id: repo.empresaId })
+    ]);
+    const proprio = req.authz && req.authz.own ? (req.authz.profissionalId || req.auth.profissional_id) : null;
+    const nome = (lista, id) => ((lista.find(x => x.id === id) || {}).nome) || null;
+    const criadoEm = new Map(eventos.map(e => [e.agendamento_id, e.created_at]));
+    const itens = agendamentos.filter(Boolean).filter(a => !proprio || a.profissional_id === proprio).map(a => ({
+      agendamentoId: a.id, data: String(a.data), horario: String(a.horario).slice(0, 5), status: a.status,
+      clienteNome: nome(clientes, a.cliente_id), servicoNome: nome(servicos, a.servico_id), profissionalNome: nome(profissionais, a.profissional_id),
+      criadoEm: criadoEm.get(a.id) || null
+    }));
+    res.json({ ok: true, data: { desde: desde.toISOString(), agora: agora.toISOString(), total: itens.length, itens } });
+  } catch (err) { next(err); }
+});
+
 // Link pessoal do agendamento para o cliente (017, D-038): a recepção gera ao mandar o lembrete
 // por WhatsApp. Devolve o código uma única vez; o banco guarda só o hash. Só para horários ainda
 // por acontecer (agendado ou confirmado).
