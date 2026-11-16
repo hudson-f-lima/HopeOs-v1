@@ -346,7 +346,11 @@ test('I01 criação devolve o segredo uma única vez; listagem nunca devolve seg
   integ = r.data.data.integration; secret1 = r.data.data.secret;
   const list = await request('GET', '/api/admin/integrations', { token: jwt('admin') });
   const raw = JSON.stringify(list.data);
-  assert.ok(!raw.includes(secret1.split('_').pop()) && !raw.includes('secret_hash') && !raw.includes('scrypt$'));
+  // Token = kxi_<id>_<segredo>. O segredo é base64url e pode conter "_": pegar só o último pedaço
+  // podia dar 1–2 caracteres e acusar vazamento falso (falha intermitente no CI, 2026-11-16).
+  const segredo = secret1.split('_').slice(2).join('_');
+  assert.ok(segredo.length >= 40, 'segredo inteiro extraído');
+  assert.ok(!raw.includes(segredo) && !raw.includes('secret_hash') && !raw.includes('scrypt$'));
   const curinga = await request('POST', '/api/admin/integrations', { token: jwt('admin'), body: { nome: 'X', scopes: ['admin'] } });
   assert.strictEqual(code(curinga), 'INVALID_SCOPE');
 });
