@@ -10,7 +10,9 @@ import { escapeHtml, showBanner, centsToBRL, formatDDMM } from '../utils.js';
 const el = id => document.getElementById(id);
 const ESTADO = { em_dia: 'Em dia', atrasada: 'Atrasada', suspensa: 'Suspensa', pausada: 'Pausada', cancelada: 'Cancelada', futura: 'Começa depois' };
 const COR = { em_dia: 'success', atrasada: 'warning', suspensa: 'danger', pausada: 'neutral', cancelada: 'neutral', futura: 'neutral' };
-const FORMAS = { pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', outro: 'Outro' };
+// Formas cadastradas (Cadastros → Pagamentos): a taxa e o prazo de recebimento entram na comissão (D-045).
+const formas = () => (state.catalog.formas_pagamento || []).filter(f => f.ativo !== false);
+const opcoesFormas = () => formas().map(f => '<option value="' + escapeHtml(f.code) + '">' + escapeHtml(f.label || f.code) + '</option>').join('');
 let lista = [];
 let planos = [];
 let filtro = '';
@@ -37,7 +39,7 @@ function card(a) {
     '<p class="body-sm text-tertiary">' + escapeHtml(s.texto) + '</p>' +
     (usos ? '<p class="body-sm">' + escapeHtml('Usos no ciclo: ' + usos) + '</p>' : '') +
     (abertos.length ? '<ul class="body-sm" style="margin:4px 0 4px 18px;">' + abertos.map(c => '<li>' + escapeHtml('Ciclo de ' + formatDDMM(c.inicio) + ': ' + centsToBRL(c.valorCentavos) + ' em aberto' + (c.diasAtraso ? ' (' + c.diasAtraso + ' dia(s) de atraso)' : '')) +
-      (podeReceber ? ' <button class="btn" type="button" data-ass-pagar="' + escapeHtml(c.inicio) + '">Registrar pagamento</button>' : '') + '</li>').join('') + '</ul>' : '') +
+      (podeReceber ? ' <select data-ass-forma aria-label="Forma de pagamento">' + opcoesFormas() + '</select> <button class="btn" type="button" data-ass-pagar="' + escapeHtml(c.inicio) + '">Registrar pagamento</button>' : '') + '</li>').join('') + '</ul>' : '') +
     (botoes.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">' + botoes.join('') + '</div>' : '') +
     '</article>';
 }
@@ -52,7 +54,7 @@ function formNova() {
       vendaveis.map(p => '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.nome + ' · ' + centsToBRL(p.precoCentavos)) + '</option>').join('') + '</select></div>' +
     '<div class="field"><label for="assInicio">Início</label><input type="date" id="assInicio" value="' + hojeLocal() + '"/></div>' +
     '<label class="filter-inline"><input type="checkbox" id="assPagoAgora" checked/> Pagamento do 1º ciclo recebido agora</label>' +
-    '<div class="field" id="assFormaBox"><label for="assForma">Forma</label><select id="assForma">' + Object.entries(FORMAS).map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select></div>' +
+    '<div class="field" id="assFormaBox"><label for="assForma">Forma</label><select id="assForma">' + opcoesFormas() + '</select></div>' +
     '<p class="body-sm" id="assMsg" role="alert"></p>' +
     '<div style="display:flex;gap:8px;"><button class="btn btn-primary" type="submit" id="btnAssSalvar">Assinar</button><button class="btn" type="button" id="btnAssCancelarForm">Cancelar</button></div></form>';
 }
@@ -65,13 +67,18 @@ function resumoMes() {
   const cab = '<section class="card" id="assResumoMes" style="margin-bottom:10px;"><h3 class="m-0">Resumo do mês</h3>' +
     '<div class="field"><label for="assMes">Mês</label><input type="month" id="assMes" value="' + escapeHtml(mesRelatorio) + '"/></div>';
   if (!r) return cab + '<p class="body-sm text-tertiary">Carregando…</p></section>';
-  if (!r.planos.length) return cab + '<p class="body-sm text-tertiary">Sem cobranças pagas nem atendimentos de plano neste mês.</p></section>';
-  const linhas = r.planos.map(p => '<li>' + escapeHtml(p.planoNome + ': receita ' + centsToBRL(p.receitaCentavos) + ' · comissão ' + centsToBRL(p.comissaoCentavos) +
-    (p.regra === 'rateio' ? ' (rateio de ' + p.percentual + '%)' : '') + ' · margem ' + centsToBRL(p.margemCentavos) + ' · ' + p.atendimentos + ' atendimento(s)' +
+  if (!r.planos.length && !(r.emAberto || []).length) return cab + '<p class="body-sm text-tertiary">Nada liberado neste mês e nada em aberto.</p></section>';
+  const linhas = r.planos.map(p => '<li>' + escapeHtml(p.planoNome + ': ' + p.ciclos + ' ciclo(s) liberado(s) · líquido ' + centsToBRL(p.liquidoCentavos) + ' (taxas ' + centsToBRL(p.taxaCentavos) + ') · comissão ' + centsToBRL(p.comissaoCentavos) +
+    ' · margem ' + centsToBRL(p.margemCentavos) + ' · ' + p.atendimentos + ' atendimento(s)' +
     (p.naoDistribuidoCentavos ? ' · ' + centsToBRL(p.naoDistribuidoCentavos) + ' sem atendimento para dividir' : '') +
     (p.profissionais.length ? ' — ' + p.profissionais.map(x => x.nome + ' ' + centsToBRL(x.comissaoCentavos) + ' (' + x.atendimentos + ')').join(', ') : '')) + '</li>').join('');
   const acima = r.acimaDoPreco.length ? '<p class="body-sm">' + escapeHtml('Usaram mais do que pagam: ' + r.acimaDoPreco.map(x => (x.clienteNome || 'Cliente') + ' (' + centsToBRL(x.consumoCentavos) + ' de ' + centsToBRL(x.mensalidadeCentavos) + ')').join(', ')) + '</p>' : '';
-  return cab + '<p class="body-sm" id="assResumoTotais">' + escapeHtml('Total: receita ' + centsToBRL(r.totais.receitaCentavos) + ' · comissão ' + centsToBRL(r.totais.comissaoCentavos) + ' · margem ' + centsToBRL(r.totais.margemCentavos)) + '</p>' +
+  const aberto = (r.emAberto || []);
+  const prev = aberto.filter(x => x.estado === 'prevista');
+  const aguard = aberto.filter(x => x.estado === 'aguardando_pagamento');
+  const linhaAberto = (prev.length || aguard.length) ? '<p class="body-sm text-tertiary" id="assResumoAberto">' + escapeHtml('Em aberto: ' + prev.length + ' ciclo(s) pago(s) com comissão prevista de ' + centsToBRL(prev.reduce((s, x) => s + x.comissaoCentavos, 0)) +
+    ' (libera depois do fim do ciclo e do prazo da forma)' + (aguard.length ? ' · ' + aguard.length + ' ciclo(s) com atendimento aguardando pagamento' : '') + '.') + '</p>' : '';
+  return cab + '<p class="body-sm" id="assResumoTotais">' + escapeHtml('Liberado no mês: bruto ' + centsToBRL(r.totais.brutoCentavos || 0) + ' · líquido ' + centsToBRL(r.totais.liquidoCentavos || 0) + ' · comissão ' + centsToBRL(r.totais.comissaoCentavos || 0) + ' · margem ' + centsToBRL(r.totais.margemCentavos || 0)) + '</p>' + linhaAberto +
     '<ul class="body-sm" style="margin:4px 0 4px 18px;">' + linhas + '</ul>' + acima + '</section>';
 }
 
@@ -110,11 +117,10 @@ async function acao(a, tipo) {
   } catch (err) { showBanner(err.message, 'error'); }
 }
 
-async function pagar(a, cicloInicio) {
-  const forma = window.prompt('Forma de pagamento (pix, dinheiro, debito, credito, outro):', 'pix');
-  if (forma === null) return;
+async function pagar(a, cicloInicio, forma) {
+  if (!forma) { showBanner('Cadastre uma forma de pagamento em Cadastros → Pagamentos.', 'error'); return; }
   try {
-    await api('/assinaturas/' + encodeURIComponent(a.id) + '/pagar', { method: 'POST', body: { cicloInicio, forma: forma.trim().toLowerCase() || null } });
+    await api('/assinaturas/' + encodeURIComponent(a.id) + '/pagar', { method: 'POST', body: { cicloInicio, forma } });
     showBanner('Pagamento registrado.', 'ok');
     await carregarAssinantes();
   } catch (err) { showBanner(err.message, 'error'); }
@@ -155,7 +161,7 @@ export function initAssinantes() {
     const cardEl = t.closest('[data-assinatura]');
     if (!cardEl) return;
     const a = lista.find(x => x.id === cardEl.dataset.assinatura);
-    if (t.dataset.assPagar) pagar(a, t.dataset.assPagar);
+    if (t.dataset.assPagar) pagar(a, t.dataset.assPagar, (t.parentElement.querySelector('[data-ass-forma]') || {}).value);
     if (t.dataset.assAcao) acao(a, t.dataset.assAcao);
   });
   c.addEventListener('change', ev => {

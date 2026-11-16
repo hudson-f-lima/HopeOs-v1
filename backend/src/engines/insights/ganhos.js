@@ -49,10 +49,13 @@ function computeGanhos({ comandos = [], comandoItens = [], gorjetas = [], estorn
     dia(data).gorjetaCentavos -= n(eg.valor_liquido_centavos);
   }
   r.estornos.quantidade = estornosDoProf.size;
-  r.assinaturaCentavos = 0;
+  // Assinatura (D-045): só a comissão LIBERADA (ciclo vencido e dinheiro recebido) entra no ganho
+  // e no saldo; a prevista e os atendimentos de ciclo ainda não pago vêm só para mostrar.
+  r.assinaturaCentavos = 0; r.assinaturaPrevistaCentavos = 0; r.assinaturaAtendimentosAguardandoPagamento = 0;
   if (assinatura) {
-    const { comissoesDeAssinatura } = require('../AssinaturaComissaoEngine');
-    r.assinaturaCentavos = comissoesDeAssinatura({ ...assinatura, comandoItens, mes }).porProfissional.get(profissionalId) || 0;
+    const { comissaoDoProfissional } = require('../AssinaturaComissaoEngine');
+    const a = comissaoDoProfissional({ ...assinatura, comandoItens, mes, profissionalId });
+    r.assinaturaCentavos = a.liberadaCentavos; r.assinaturaPrevistaCentavos = a.previstaCentavos; r.assinaturaAtendimentosAguardandoPagamento = a.atendimentosAguardandoPagamento;
   }
   r.totalCentavos = r.comissaoCentavos + r.assinaturaCentavos + r.gorjetaLiquidaCentavos - r.estornos.comissaoCentavos - r.estornos.gorjetaCentavos;
   r.porDia = [...dias.values()].sort((a, b) => a.data.localeCompare(b.data));
