@@ -328,6 +328,29 @@ class SupabaseRepository {
     return data;
   }
 
+  // D-046, migration 023: encurtar bloqueio/ausência, aceite da escala e conferência da trilha.
+  async encurtarExcecaoDisponibilidade({ id, dataInicio, dataFim, inicio = null, fim = null, actorId }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_excecao_encurtar', {
+      p_empresa_id: this.empresaId, p_id: id, p_data_inicio: dataInicio, p_data_fim: dataFim, p_inicio: inicio, p_fim: fim, p_actor_id: actorId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async aceitarEscalaDisponibilidade({ profissionalId, eventoId, actorId }) {
+    const { data, error } = await this.supabase.rpc('disponibilidade_escala_aceitar', {
+      p_empresa_id: this.empresaId, p_profissional_id: profissionalId, p_actor_id: actorId, p_evento_id: eventoId
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async conferirCadeiaDisponibilidade() {
+    const { data, error } = await this.supabase.rpc('disponibilidade_cadeia_conferir', { p_empresa_id: this.empresaId });
+    if (error) throw error;
+    return data;
+  }
+
   async loadSnapshot() {
     const [empresa, clientes, servicos, produtos, profissionais, profissionalServicos, agendamentos, formasPagamento, comandos, comandoItens, comandoPagamentos, comandoGorjetas, caixaMovimentos, estoqueMovimentos, listaEspera, eventos,
       comandaEstornos, comandaEstornoItens, comandaEstornoPagamentos, comandaEstornoGorjetas] = await Promise.all([

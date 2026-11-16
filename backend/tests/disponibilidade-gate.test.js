@@ -381,13 +381,85 @@ test('D22 histórico de bloqueios: da trilha imutável, com origem, só o seu pa
   assert.ok(itens.find(i => i.inicio === '15:00').feitoPor === 'gestor', 'nome de quem fez');
   assert.ok(itens.every((i, n) => !n || itens[n - 1].quando >= i.quando), 'mais recente primeiro');
   assert.strictEqual(createHash('sha256').update(csv, 'utf8').digest('hex'), sha256, 'SHA-256 confere com o CSV');
-  assert.ok(csv.startsWith('evento,quando,acao,') && csv.includes(`"'=HYPERLINK(""http://x"")"`), 'fórmula de planilha neutralizada');
+  assert.ok(csv.startsWith('evento,seq,hash,quando,acao,') && csv.includes(`"'=HYPERLINK(""http://x"")"`), 'fórmula de planilha neutralizada');
   const outro = await request('GET', `/api/disponibilidade/bloqueios/historico?profissionalId=${P.a}`, { token: 'h.edu.s' });
   assert.ok(outro.data.data.itens.every(i => i.profissionalId === P.edu), 'pedir outro profissional não vaza');
   const daAna = await request('GET', `/api/disponibilidade/bloqueios/historico?profissionalId=${P.a}`);
   assert.ok(daAna.status === 200 && daAna.data.data.itens.every(i => i.profissionalId === P.a), 'gestão filtra por profissional');
   assert.strictEqual((await request('GET', '/api/disponibilidade/bloqueios/historico', { token: process.env.API_ACCESS_TOKEN })).status, 403, 'token legado não lê');
   assert.strictEqual((await request('GET', '/api/disponibilidade/bloqueios/historico?profissionalId=x')).status, 422);
+});
+
+// ---------- D-046 Onda 1 (023): encurtar, aceite da escala, corrente da trilha ----------
+test('D23 encurtar: só dentro do original; o do profissional só ele; o da gestão a gestão; vai para o histórico', async () => {
+  const marca = (body, token) => excecao({ profissionalId: P.edu, tipo: 'bloqueio', dataInicio: SEG, dataFim: SEG, ...body }, token);
+  const dele = await marca({ periodos: [{ inicio: '13:00', fim: '16:00' }], motivo: 'Curso' }, 'h.edu.s');
+  assert.strictEqual(dele.status, 201, JSON.stringify(dele.data));
+  const id = dele.data.data.ids[0];
+  const enc = (body, token = 'h.edu.s', alvo = id) => request('POST', `/api/disponibilidade/excecoes/${alvo}/encurtar`, { token, body });
+  for (const token of ['h.admin.s', 'h.gestor.s', 'h.recep.s']) {
+    const r = await enc({ fim: '15:00' }, token);
+    assert.deepStrictEqual([r.status, code(r)], [403, 'BLOQUEIO_DO_PROFISSIONAL'], token);
+  }
+  for (const body of [{ inicio: '12:00' }, { fim: '17:00' }, { fim: '13:00' }, { inicio: '13:00', fim: '16:00' }, { dataInicio: D }]) {
+    const r = await enc(body);
+    assert.strictEqual(r.status, 422, `${JSON.stringify(body)} ${JSON.stringify(r.data)}`);
+  }
+  assert.strictEqual((await enc({ fim: 'xx' })).status, 422);
+  const ok = await enc({ fim: '14:30' });
+  assert.strictEqual(ok.status, 200, JSON.stringify(ok.data));
+  assert.deepStrictEqual([ok.data.data.antes.fim, ok.data.data.depois.fim, ok.data.data.depois.id], ['16:00', '14:30', id], 'mesmo bloqueio, menor');
+  assert.ok(horas(await slots(P.edu, SEG)).includes('15:00'), 'o horário liberado volta a ser oferecido');
+  const g = await marca({ periodos: [{ inicio: '17:00', fim: '18:00' }] }, 'h.gestor.s');
+  assert.strictEqual((await enc({ fim: '17:30' }, 'h.recep.s', g.data.data.ids[0])).status, 200, 'o da equipe a equipe encurta');
+  const aus = await excecao({ profissionalId: P.edu, tipo: 'ausencia', dataInicio: add(SEG, 21), dataFim: add(SEG, 23) }, 'h.edu.s');
+  const ausId = aus.data.data.ids[0];
+  assert.strictEqual((await enc({ inicio: '09:00', fim: '10:00' }, 'h.edu.s', ausId)).status, 422, 'ausência não ganha horário');
+  assert.strictEqual((await enc({ dataFim: add(SEG, 21) }, 'h.edu.s', ausId)).status, 200, 'ausência encurtada pelas datas');
+  const fechamento = db.disponibilidade_excecoes.find(e => !e.profissional_id);
+  assert.strictEqual((await enc({ dataFim: fechamento.data_inicio }, 'h.admin.s', fechamento.id)).status, 422, 'exceção da unidade não se encurta');
+  const h = (await request('GET', '/api/disponibilidade/bloqueios/historico', { token: 'h.edu.s' })).data.data;
+  const e = h.itens.find(i => i.acao === 'encurtou' && i.inicio === '13:00');
+  assert.ok(e && e.fim === '14:30' && e.origem === 'profissional' && /era .* 13:00–16:00/.test(e.detalhe), JSON.stringify(e));
+});
+
+test('D24 aceite da escala: só o próprio, só a última, idempotente; a gestão vê a situação', async () => {
+  const def = await request('PUT', `/api/disponibilidade/profissionais/${P.edu}/semanal`, { body: { periodos: [{ diaSemana: 1, inicio: '09:00', fim: '19:00' }, { diaSemana: 2, inicio: '09:00', fim: '19:00' }], decisoes: [] } });
+  assert.strictEqual(def.status, 200, JSON.stringify(def.data));
+  const sit = async (token = 'h.admin.s') => (await request('GET', '/api/disponibilidade', { token })).data.data.profissionais.find(p => p.id === P.edu).aceite;
+  const pend = await sit();
+  assert.strictEqual(pend.situacao, 'pendente');
+  const aceitar = (eventoId, token = 'h.edu.s') => request('POST', '/api/disponibilidade/escala/aceitar', { token, body: { eventoId } });
+  assert.deepStrictEqual([(await aceitar(pend.eventoId, 'h.admin.s')).status, code(await aceitar(pend.eventoId, 'h.admin.s'))], [403, 'SO_O_PROFISSIONAL'], 'admin não aceita pelo profissional');
+  assert.strictEqual((await aceitar('x')).status, 422);
+  const r = await aceitar(pend.eventoId);
+  assert.deepStrictEqual([r.status, r.data.data.jaAceita], [200, false], JSON.stringify(r.data));
+  assert.strictEqual((await aceitar(pend.eventoId)).data.data.jaAceita, true, 'idempotente');
+  const aceita = await sit('h.edu.s');
+  assert.ok(aceita.situacao === 'aceita' && aceita.aceitaEm, JSON.stringify(aceita));
+  await request('PUT', `/api/disponibilidade/profissionais/${P.edu}/semanal`, { body: { periodos: [{ diaSemana: 1, inicio: '10:00', fim: '19:00' }, { diaSemana: 2, inicio: '09:00', fim: '19:00' }], decisoes: [] } });
+  assert.strictEqual((await sit()).situacao, 'pendente', 'escala nova volta a pedir aceite');
+  const velho = await aceitar(pend.eventoId);
+  assert.ok(velho.status === 422 && /A escala mudou/.test(velho.data.error.message), JSON.stringify(velho.data));
+  const h = (await request('GET', '/api/disponibilidade/bloqueios/historico', { token: 'h.edu.s' })).data.data.itens;
+  const ac = h.find(i => i.acao === 'aceitou_escala');
+  assert.ok(ac && ac.origem === 'profissional' && ac.detalhe === 'Seg 09:00–19:00; Ter 09:00–19:00', JSON.stringify(ac));
+  assert.ok(h.some(i => i.acao === 'definiu_escala' && i.origem === 'equipe' && i.detalhe.startsWith('Seg 10:00')), 'definição da escala no histórico');
+});
+
+test('D25 corrente da trilha: íntegra; adulterar um evento é detectado; o CSV leva o último elo', async () => {
+  const c = await request('GET', '/api/disponibilidade/cadeia', { token: 'h.edu.s' });
+  assert.ok(c.status === 200 && c.data.data.ok === true && c.data.data.total > 5, JSON.stringify(c.data));
+  const h = (await request('GET', '/api/disponibilidade/bloqueios/historico', { token: 'h.edu.s' })).data.data;
+  assert.ok(h.csv.includes(`hash ${c.data.data.ultimoHash}`) && h.itens.every(i => i.seq && /^[0-9a-f]{64}$/.test(i.hash)), 'CSV com o último elo; itens com seq e hash');
+  const alvo = db.disponibilidade_eventos.find(e => e.seq === 3);
+  const original = alvo.depois;
+  alvo.depois = [];
+  const quebra = (await request('GET', '/api/disponibilidade/cadeia')).data.data;
+  alvo.depois = original;
+  assert.deepStrictEqual([quebra.ok, quebra.quebraEm, quebra.motivo], [false, 3, 'o conteúdo do evento foi alterado']);
+  assert.strictEqual((await request('GET', '/api/disponibilidade/cadeia')).data.data.ok, true, 'restaurado, volta a conferir');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/cadeia', { token: process.env.API_ACCESS_TOKEN })).status, 403);
 });
 
 (async () => {

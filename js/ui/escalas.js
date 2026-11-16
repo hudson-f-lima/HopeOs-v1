@@ -3,6 +3,7 @@
 // decide; se a mudança deixar agendamentos de fora, ele devolve a lista e nada é gravado até
 // alguém com permissão confirmar que ficam mantidos (remarcar ou cancelar é feito na agenda).
 import { api } from '../api.js';
+import { abrirBloqueio } from './agendaBloqueio.js';
 import { state, sessionPode } from '../state.js';
 import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr, baixarArquivo } from '../utils.js';
 
@@ -35,12 +36,24 @@ function render() {
       <span class="esc-quem"><b>Unidade</b><span>${escapeHtml(resumoSemanal(dados.unidade.semanal))}</span></span>
       ${podeUnidade ? '<button type="button" class="btn btn-secondary esc-btn" data-esc-semanal="">Horário</button>' : ''}
     </div>`;
-  const profs = dados.profissionais.map(p => `
+  // D-046 (023): aceite da escala pelo profissional (comum acordo, com registro).
+  const textoAceite = a => !a ? '' : a.situacao === 'aceita' ? 'Aceita pelo profissional em ' + dataBR(a.aceitaEm.slice(0, 10))
+    : a.situacao === 'pendente' ? 'Aguardando aceite do profissional'
+    : a.situacao === 'sem_registro' ? 'Escala anterior ao registro: salve de novo para pedir o aceite' : '';
+  const profs = dados.profissionais.map(p => {
+    const a = p.aceite;
+    const minha = p.id === proprioId();
+    const aceitar = minha && a && a.situacao === 'pendente'
+      ? '<button type="button" class="btn btn-primary esc-btn" data-esc-aceitar="' + escapeHtml(a.eventoId) + '">Aceitar minha escala</button>' : '';
+    return `
     <div class="esc-linha" data-prof="${escapeHtml(p.id)}">
       <span class="esc-quem"><b>${escapeHtml(p.nome)}</b>
-        <span>${p.escalaPublicada ? escapeHtml(resumoSemanal(p.semanal)) : '<span class="esc-alerta">Escala não publicada: não aparece para agendar</span>'}</span></span>
+        <span>${p.escalaPublicada ? escapeHtml(resumoSemanal(p.semanal)) : '<span class="esc-alerta">Escala não publicada: não aparece para agendar</span>'}</span>
+        ${textoAceite(a) ? '<span class="esc-aceite" data-aceite="' + escapeHtml(a.situacao) + '">' + escapeHtml(textoAceite(a)) + '</span>' : ''}</span>
+      ${aceitar}
       ${podeEditar ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-semanal="${escapeHtml(p.id)}">Escala</button>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const excecoes = dados.excecoes.map(e => {
     const quem = e.profissionalId ? nomeProf(e.profissionalId) : 'Unidade';
     const datas = e.dataInicio === e.dataFim ? dataBR(e.dataInicio) : `${dataBR(e.dataInicio)} a ${dataBR(e.dataFim)}`;
@@ -50,6 +63,7 @@ function render() {
     const podeRemover = !e.profissionalId ? podeUnidade : e.tipo === 'horario' ? podeEditar : (!doProfissional && podeBloquear && (sessionPode('escala:bloquear', true) || e.profissionalId === proprioId()));
     return `<div class="esc-excecao" data-tipo="${escapeHtml(e.tipo)}">
       <span><b>${escapeHtml(datas)}</b> · ${escapeHtml(quem)} · ${escapeHtml(TIPO[e.tipo] || e.tipo)}${escapeHtml(horas)}${e.motivo ? ` · ${escapeHtml(e.motivo)}` : ''}${e.marcadoPeloProfissional ? ' · <span class="text-tertiary">marcado pelo profissional</span>' : ''}</span>
+      ${podeRemover && (e.tipo === 'bloqueio' || (e.tipo === 'ausencia' && e.dataFim > e.dataInicio)) ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-encurtar="${escapeHtml(e.id)}" aria-label="Encurtar">Encurtar</button>` : ''}
       ${podeRemover ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-remover="${escapeHtml(e.id)}" aria-label="Remover exceção">Remover</button>` : ''}
     </div>`;
   }).join('') || '<p class="body-sm text-tertiary">Nenhuma exceção marcada daqui para a frente.</p>';
@@ -276,21 +290,41 @@ async function verHistorico() {
   box.innerHTML = '<p class="body-sm text-tertiary">Carregando…</p>';
   try {
     historico = await api('/disponibilidade/bloqueios/historico');
+    const ACAO = { marcou: 'marcou', removeu: 'removeu', encurtou: 'encurtou', definiu_escala: 'teve a escala semanal definida', aceitou_escala: 'aceitou a escala semanal' };
     const linhas = historico.itens.map(i => {
-      const datas = i.dataInicio === i.dataFim ? dataBR(i.dataInicio) : dataBR(i.dataInicio) + ' a ' + dataBR(i.dataFim);
-      const horas = i.inicio ? ' ' + i.inicio + '–' + i.fim : '';
       const quem = i.origem === 'profissional' ? 'pelo próprio profissional' : 'por ' + escapeHtml(i.feitoPor) + ' (equipe)';
+      let oque;
+      if (i.tipo === 'escala') oque = escapeHtml(ACAO[i.acao] || i.acao) + ': ' + escapeHtml(i.detalhe || '');
+      else {
+        const datas = i.dataInicio === i.dataFim ? dataBR(i.dataInicio) : dataBR(i.dataInicio) + ' a ' + dataBR(i.dataFim);
+        const horas = i.inicio ? ' ' + i.inicio + '–' + i.fim : '';
+        oque = escapeHtml(ACAO[i.acao] || i.acao) + ' ' + escapeHtml((TIPO[i.tipo] || i.tipo).toLowerCase()) + ' em ' + escapeHtml(datas + horas)
+          + (i.detalhe ? ' (' + escapeHtml(i.detalhe) + ')' : '') + (i.motivo ? ' · ' + escapeHtml(i.motivo) : '');
+      }
       return '<div class="esc-excecao" data-historico="' + escapeHtml(i.acao) + '"><span><b>' + escapeHtml(dataHoraBR(i.quando)) + '</b> · ' + escapeHtml(i.profissional) + ' '
-        + (i.acao === 'marcou' ? 'marcou' : 'removeu') + ' ' + escapeHtml((TIPO[i.tipo] || i.tipo).toLowerCase()) + ' em ' + escapeHtml(datas + horas)
-        + (i.motivo ? ' · ' + escapeHtml(i.motivo) : '') + ' · ' + quem + '</span></div>';
-    }).join('') || '<p class="body-sm text-tertiary">Nenhum bloqueio registrado.</p>';
-    box.innerHTML = linhas + (historico.itens.length
+        + oque + ' · ' + quem + '</span></div>';
+    }).join('') || '<p class="body-sm text-tertiary">Nenhum registro ainda.</p>';
+    const c = historico.cadeia;
+    const trilha = !c ? '' : c.ok
+      ? '<p class="body-sm" id="escTrilha" data-ok="1">Trilha íntegra: ' + c.total + ' registros encadeados, nenhum alterado ou apagado.</p>'
+      : '<p class="body-sm" id="escTrilha" data-ok="0" role="alert" style="color:var(--md-error)">Atenção: a trilha tem uma quebra no registro ' + escapeHtml(String(c.quebraEm)) + ' (' + escapeHtml(c.motivo || '') + ').</p>';
+    box.innerHTML = trilha + linhas + (historico.itens.length
       ? '<button type="button" class="btn btn-secondary esc-btn" id="btnEscHistBaixar">Baixar cópia (CSV)</button><p class="body-sm text-tertiary" id="escHistSha">Código de conferência (SHA-256): ' + escapeHtml(historico.sha256) + '</p>'
+        + '<p class="body-sm text-tertiary">Guarde a cópia fora do sistema (e-mail, nuvem): ela traz o último elo da trilha e mostra se algo mudou depois.</p>'
       : '');
   } catch (err) {
     box.innerHTML = '<p class="body-sm" role="alert" style="color:var(--md-error)">' + escapeHtml(err.message) + '</p>';
   }
 }
+async function aceitarEscala(eventoId, botao) {
+  botao.disabled = true;
+  try {
+    await api('/disponibilidade/escala/aceitar', { method: 'POST', body: { eventoId } });
+    showBanner('Escala aceita. Fica registrado no histórico.', 'ok');
+    carregarEscalas();
+  } catch (err) { showBanner(err.message, 'error'); botao.disabled = false; }
+}
+
 function baixarHistorico() {
   if (!historico) return;
   baixarArquivo('historico-bloqueios-' + historico.geradoEm.slice(0, 10) + '.csv', historico.csv);
@@ -399,6 +433,9 @@ async function acaoModelo(tipo, id) {
 
 export function initEscalas() {
   if (!sessionPode('escala:ver')) return;
+  document.addEventListener('escala:mudou', () => { if (dados) carregarEscalas(); });
+  // Ao abrir a aba, sempre a escala atual (o aceite precisa ser da última versão).
+  el('subtabBtnEscalas')?.addEventListener('click', () => { if (dados) carregarEscalas(); });
   el('subtabBtnEscalas')?.classList.remove('hidden');
   el('escConteudo').addEventListener('click', ev => {
     const s = ev.target.closest('[data-esc-semanal]');
@@ -407,6 +444,10 @@ export function initEscalas() {
     if (r) return removerExcecao(r.dataset.escRemover);
     if (ev.target.closest('#btnEscNovaExcecao')) return abrirExcecao();
     if (ev.target.closest('#btnEscHistorico')) return verHistorico();
+    const enc = ev.target.closest('[data-esc-encurtar]');
+    if (enc) { const x = dados.excecoes.find(e => e.id === enc.dataset.escEncurtar); if (x) abrirBloqueio(x); return; }
+    const ac = ev.target.closest('[data-esc-aceitar]');
+    if (ac) return aceitarEscala(ac.dataset.escAceitar, ac);
     if (ev.target.closest('#btnEscHistBaixar')) return baixarHistorico();
     if (ev.target.closest('#btnEscLote')) return abrirLote();
     if (ev.target.closest('#btnEscNovoModelo')) return abrirModelo(null);

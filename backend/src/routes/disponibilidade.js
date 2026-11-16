@@ -133,7 +133,8 @@ router.get('/disponibilidade', authorize('escala:ver'), async (req, res, next) =
   try {
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const de = req.query.de ? dataValida(req.query.de, 'de') : hoje();
-    const [disp, profissionais, autores] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId }), autoresProfissionais(repo.empresaId)]);
+    const [disp, profissionais, autores, eventos] = await Promise.all([carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId }), autoresProfissionais(repo.empresaId),
+      repo.list('disponibilidade_eventos', { empresa_id: repo.empresaId })]);
     const visiveis = profissionais.filter(p => p.ativo !== false && (!req.authz.own || p.id === req.authz.profissionalId));
     const ids = new Set(visiveis.map(p => p.id));
     res.json({
@@ -144,7 +145,8 @@ router.get('/disponibilidade', authorize('escala:ver'), async (req, res, next) =
           .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio)),
         profissionais: visiveis.map(p => ({
           id: p.id, nome: p.nome, escalaPublicada: Boolean(p.escala_publicada_em),
-          semanal: disp.semanal.filter(r => r.profissional_id === p.id).map(publicoSemanal)
+          semanal: disp.semanal.filter(r => r.profissional_id === p.id).map(publicoSemanal),
+          aceite: aceiteDa(eventos, disp.semanal, p.id)
         })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'))
       }
     });
@@ -272,16 +274,74 @@ router.delete('/disponibilidade/excecoes/:id', authorize('escala:ver'), async (r
   } catch (err) { next(err); }
 });
 
-// ---------- Histórico de bloqueios (D-046) ----------
-// Lido da trilha imutável (disponibilidade_eventos): cada bloqueio ou ausência marcado e removido,
-// quando (hora do servidor), por quem e se foi o próprio profissional. O profissional vê só o seu.
-// Vem também em CSV com o SHA-256 do arquivo, para guardar uma cópia conferível.
-const CSV_COLUNAS = ['evento', 'quando', 'acao', 'profissional', 'tipo', 'data_inicio', 'data_fim', 'inicio', 'fim', 'motivo', 'feito_por', 'origem'];
+// Encurtar (D-046, 023): bloqueio ou ausência do profissional fica menor, dentro do original. Mesma
+// permissão de remover; o que o profissional marcou só ele encurta. Liberar horário não cria conflito.
+router.post('/disponibilidade/excecoes/:id/encurtar', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const id = String(req.params.id || '');
+    if (!UUID.test(id)) throw invalido('id', 'id inválido.');
+    const b = corpo(req, ['dataInicio', 'dataFim', 'inicio', 'fim']);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [disp, autores] = await Promise.all([carregar(repo), autoresProfissionais(repo.empresaId)]);
+    const exc = disp.excecoes.find(e => e.id === id);
+    if (!exc) throw createAppError('NOT_FOUND', 'Exceção não encontrada.', 404);
+    const { authorizeAuth } = require('../auth/rbac');
+    req.authz = authorizeAuth(req.auth, permissaoDaExcecao({ profissionalId: exc.profissional_id, tipo: exc.tipo }));
+    if (!exc.profissional_id || !TIPOS_DO_PROFISSIONAL.includes(exc.tipo)) throw invalido('id', 'Só bloqueio ou ausência de profissional pode ser encurtado.');
+    assertOwn(req, exc.profissional_id);
+    if (marcadoPeloProfissional(exc, autores) && req.auth.profissional_id !== exc.profissional_id) {
+      throw createAppError('BLOQUEIO_DO_PROFISSIONAL', 'Este bloqueio foi marcado pelo próprio profissional: só ele pode encurtar.', 403);
+    }
+    const dataInicio = dataValida(b.dataInicio || String(exc.data_inicio).slice(0, 10), 'dataInicio');
+    const dataFim = dataValida(b.dataFim || String(exc.data_fim).slice(0, 10), 'dataFim');
+    let inicio = null; let fim = null;
+    if (exc.tipo === 'bloqueio') {
+      inicio = String(b.inicio === undefined ? hhmm(exc.inicio) : b.inicio);
+      fim = String(b.fim === undefined ? hhmm(exc.fim) : b.fim);
+      if (!HORA.test(inicio) || !HORA.test(fim)) throw invalido('fim', 'Horário deve ser HH:MM.');
+    } else if (b.inicio !== undefined || b.fim !== undefined) throw invalido('inicio', 'Ausência é o dia inteiro: encurte pelas datas.');
+    const r = await repo.encurtarExcecaoDisponibilidade({ id, dataInicio, dataFim, inicio, fim, actorId: req.auth.actor_id });
+    res.json({ ok: true, data: { antes: publicoExcecao(r.antes, autores), depois: publicoExcecao(r.depois, autores) } });
+  } catch (err) { next(err); }
+});
+
+// ---------- Histórico de bloqueios e da escala (D-046) ----------
+// Lido da trilha imutável (disponibilidade_eventos): cada bloqueio ou ausência marcado, encurtado e
+// removido, e cada escala semanal definida e aceita; quando (hora do servidor), por quem e a origem
+// (o próprio profissional ou a equipe). O profissional vê só o seu. Vem em CSV com o SHA-256 do
+// arquivo e o último elo da corrente da trilha (023): guardado fora do sistema, prova o estado do
+// registro naquele momento.
+const CSV_COLUNAS = ['evento', 'seq', 'hash', 'quando', 'acao', 'profissional', 'tipo', 'data_inicio', 'data_fim', 'inicio', 'fim', 'motivo', 'detalhe', 'feito_por', 'origem'];
 const celulaCsv = v => {
   let t = v === null || v === undefined ? '' : String(v);
   if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`; // fórmula em planilha
   return /[",\n\r;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 };
+const ordemEventos = (a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0) || String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id));
+const DIA_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const resumoPeriodos = linhas => (Array.isArray(linhas) ? linhas : [])
+  .map(r => ({ d: r.dia_semana !== undefined ? r.dia_semana : r.diaSemana, i: hhmm(r.inicio), f: hhmm(r.fim) }))
+  .sort((a, b) => a.d - b.d || a.i.localeCompare(b.i))
+  .map(r => `${DIA_CURTO[r.d] || r.d} ${r.i}–${r.f}`).join('; ') || 'sem horário';
+const faixa = r => `${String(r.data_inicio).slice(0, 10)}${String(r.data_fim).slice(0, 10) !== String(r.data_inicio).slice(0, 10) ? ` a ${String(r.data_fim).slice(0, 10)}` : ''}${r.inicio ? ` ${hhmm(r.inicio)}–${hhmm(r.fim)}` : ''}`;
+
+// Escala semanal: a última definida para o profissional e se ele já a aceitou.
+function aceiteDa(eventos, semanal, profId) {
+  const doProf = eventos.filter(e => e.profissional_id === profId).sort(ordemEventos);
+  const def = doProf.filter(e => e.acao === 'semanal_definir').pop();
+  if (!def) return { situacao: semanal.some(r => r.profissional_id === profId) ? 'sem_registro' : 'sem_escala' };
+  const ac = doProf.find(e => e.acao === 'semanal_aceitar' && Array.isArray(e.depois) && e.depois[0] && e.depois[0].eventoId === def.id);
+  return { situacao: ac ? 'aceita' : 'pendente', eventoId: def.id, definidaEm: new Date(def.created_at).toISOString(), aceitaEm: ac ? new Date(ac.created_at).toISOString() : null };
+}
+
+async function conferirCadeia(repo) {
+  try { return await repo.conferirCadeiaDisponibilidade(); } catch (err) {
+    if (['42883', 'PGRST202'].includes(err && err.code)) return null; // banco sem a 023
+    throw err;
+  }
+}
+
 router.get('/disponibilidade/bloqueios/historico', authorize('escala:ver'), async (req, res, next) => {
   try {
     exigirUsuario(req);
@@ -289,10 +349,11 @@ router.get('/disponibilidade/bloqueios/historico', authorize('escala:ver'), asyn
     if (alvo && !UUID.test(alvo)) throw invalido('profissionalId', 'profissionalId inválido.');
     if (req.authz.own) alvo = req.authz.profissionalId;
     const repo = new SupabaseRepository(req.auth.empresa_id);
-    const [eventos, profissionais, autores] = await Promise.all([
+    const [eventos, profissionais, autores, cadeia] = await Promise.all([
       repo.list('disponibilidade_eventos', { empresa_id: repo.empresaId }),
       repo.list('profissionais', { empresa_id: repo.empresaId }),
-      autoresProfissionais(repo.empresaId)
+      autoresProfissionais(repo.empresaId),
+      conferirCadeia(repo)
     ]);
     const nomeProf = id => (profissionais.find(p => p.id === id) || {}).nome || 'Profissional';
     const store = getIdentityStore();
@@ -302,25 +363,62 @@ router.get('/disponibilidade/bloqueios/historico', authorize('escala:ver'), asyn
       return nomes.get(id);
     };
     const itens = [];
-    for (const ev of eventos) {
-      if (!['excecao_criar', 'excecao_remover'].includes(ev.acao)) continue;
-      const linhas = ev.acao === 'excecao_criar' ? ev.depois : ev.antes;
-      for (const r of Array.isArray(linhas) ? linhas : []) {
+    const item = async (ev, profId, extra) => itens.push({
+      eventoId: ev.id, seq: ev.seq || null, hash: ev.hash || null, quando: new Date(ev.created_at).toISOString(),
+      profissionalId: profId, profissional: nomeProf(profId), feitoPor: await nomeUsuario(ev.actor_id),
+      origem: ev.origem || (autores.get(ev.actor_id) === profId ? 'profissional' : 'equipe'),
+      tipo: null, dataInicio: null, dataFim: null, inicio: null, fim: null, motivo: null, detalhe: null, ...extra
+    });
+    const doBloqueio = r => ({ tipo: r.tipo, dataInicio: String(r.data_inicio).slice(0, 10), dataFim: String(r.data_fim).slice(0, 10),
+      inicio: r.inicio ? hhmm(r.inicio) : null, fim: r.fim ? hhmm(r.fim) : null, motivo: r.motivo || null });
+    for (const ev of [...eventos].sort(ordemEventos)) {
+      if (ev.acao === 'semanal_definir' || ev.acao === 'semanal_aceitar') {
+        if (!ev.profissional_id || (alvo && ev.profissional_id !== alvo)) continue;
+        const periodos = ev.acao === 'semanal_definir' ? ev.depois : ev.depois && ev.depois[0] && ev.depois[0].periodos;
+        await item(ev, ev.profissional_id, { acao: ev.acao === 'semanal_definir' ? 'definiu_escala' : 'aceitou_escala', tipo: 'escala', detalhe: resumoPeriodos(periodos) });
+        continue;
+      }
+      if (!['excecao_criar', 'excecao_remover', 'excecao_encurtar'].includes(ev.acao)) continue;
+      const linhas = ev.acao === 'excecao_remover' ? ev.antes : ev.depois;
+      for (const [n, r] of (Array.isArray(linhas) ? linhas : []).entries()) {
         if (!r || !r.profissional_id || !TIPOS_DO_PROFISSIONAL.includes(r.tipo)) continue;
         if (alvo && r.profissional_id !== alvo) continue;
-        itens.push({
-          eventoId: ev.id, quando: new Date(ev.created_at).toISOString(), acao: ev.acao === 'excecao_criar' ? 'marcou' : 'removeu',
-          profissionalId: r.profissional_id, profissional: nomeProf(r.profissional_id), tipo: r.tipo,
-          dataInicio: String(r.data_inicio).slice(0, 10), dataFim: String(r.data_fim).slice(0, 10),
-          inicio: r.inicio ? hhmm(r.inicio) : null, fim: r.fim ? hhmm(r.fim) : null, motivo: r.motivo || null,
-          feitoPor: await nomeUsuario(ev.actor_id), origem: autores.get(ev.actor_id) === r.profissional_id ? 'profissional' : 'equipe'
-        });
+        const antes = ev.acao === 'excecao_encurtar' && Array.isArray(ev.antes) ? ev.antes[n] : null;
+        await item(ev, r.profissional_id, { acao: { excecao_criar: 'marcou', excecao_remover: 'removeu', excecao_encurtar: 'encurtou' }[ev.acao], ...doBloqueio(r),
+          detalhe: antes ? `era ${faixa(antes)}` : null });
       }
     }
-    itens.sort((a, b) => b.quando.localeCompare(a.quando) || a.eventoId.localeCompare(b.eventoId));
-    const csv = [CSV_COLUNAS.join(','), ...itens.map(i => [i.eventoId, i.quando, i.acao, i.profissional, i.tipo, i.dataInicio, i.dataFim, i.inicio, i.fim, i.motivo, i.feitoPor, i.origem].map(celulaCsv).join(','))].join('\r\n') + '\r\n';
+    itens.sort((a, b) => b.quando.localeCompare(a.quando) || (b.seq || 0) - (a.seq || 0) || a.eventoId.localeCompare(b.eventoId));
+    const linhasCsv = [CSV_COLUNAS.join(','), ...itens.map(i => [i.eventoId, i.seq, i.hash, i.quando, i.acao, i.profissional, i.tipo, i.dataInicio, i.dataFim, i.inicio, i.fim, i.motivo, i.detalhe, i.feitoPor, i.origem].map(celulaCsv).join(','))];
+    if (cadeia) linhasCsv.push(`# trilha ${cadeia.ok ? 'íntegra' : 'com quebra'}: ${cadeia.total} eventos encadeados; último elo seq ${cadeia.ultimoSeq || cadeia.quebraEm || 0} hash ${cadeia.ultimoHash || '-'}`);
+    const csv = linhasCsv.join('\r\n') + '\r\n';
     const sha256 = createHash('sha256').update(csv, 'utf8').digest('hex');
-    res.json({ ok: true, data: { itens, csv, sha256, geradoEm: clock.agora().toISOString() } });
+    res.json({ ok: true, data: { itens, csv, sha256, cadeia, geradoEm: clock.agora().toISOString() } });
+  } catch (err) { next(err); }
+});
+
+// Conferência da corrente da trilha (023): íntegra ou onde quebrou.
+router.get('/disponibilidade/cadeia', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const cadeia = await conferirCadeia(new SupabaseRepository(req.auth.empresa_id));
+    if (!cadeia) throw createAppError('NOT_AVAILABLE', 'Conferência da trilha ainda não disponível neste banco (migration 023).', 503);
+    res.json({ ok: true, data: cadeia });
+  } catch (err) { next(err); }
+});
+
+// ---------- Aceite da escala (D-046, 023) ----------
+// Só o próprio profissional aceita, e só a última escala definida para ele.
+router.post('/disponibilidade/escala/aceitar', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    exigirUsuario(req);
+    const b = corpo(req, ['eventoId']);
+    const eventoId = String(b.eventoId || '');
+    if (!UUID.test(eventoId)) throw invalido('eventoId', 'eventoId inválido.');
+    if (!req.auth.profissional_id) throw createAppError('SO_O_PROFISSIONAL', 'Só o próprio profissional aceita a escala dele.', 403);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const r = await repo.aceitarEscalaDisponibilidade({ profissionalId: req.auth.profissional_id, eventoId, actorId: req.auth.actor_id });
+    res.json({ ok: true, data: r });
   } catch (err) { next(err); }
 });
 

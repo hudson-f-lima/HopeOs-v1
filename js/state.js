@@ -118,7 +118,12 @@ export async function loadCatalog() {
 export async function loadWeekAgenda() {
   const dates = weekDates(state.currentWeekStart);
   let falhas = 0;
+  // Bloqueios e ausências da semana (D-046): a grade mostra e não oferece o horário bloqueado.
+  const excecoes = sessionPode('escala:ver')
+    ? api('/disponibilidade?de=' + encodeURIComponent(dates[0])).then(d => (d && d.excecoes) || []).catch(() => [])
+    : Promise.resolve([]);
   const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhas += 1; return []; })));
+  state.weekExcecoes = await excecoes;
   state.weekAgenda = {};
   state.agendaFalhas = falhas; // a tela avisa: dia vazio por falha não é dia sem horários
   dates.forEach((d, i) => { state.weekAgenda[d] = results[i]; });
