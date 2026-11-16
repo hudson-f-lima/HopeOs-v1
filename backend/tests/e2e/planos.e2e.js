@@ -45,7 +45,9 @@ function proximo(diaSemana) {
     await p.click('#navAvatar'); await p.waitForTimeout(400);
     const aba = p.locator('#subtabBtnPlanos');
     if (!(await aba.isVisible())) return false;
-    await aba.click(); await p.waitForSelector('#planosConteudo .plano-card, #btnPlanoNovo, #planosConteudo p', { timeout: 8000 });
+    await aba.click();
+    // Espera a lista de verdade: o "Carregando…" inicial também é um <p> e enganava a espera.
+    await p.waitForFunction(() => { const c = document.getElementById('planosConteudo'); return c && c.textContent.trim() !== '' && !/Carregando/.test(c.textContent); }, null, { timeout: 8000 });
     return true;
   };
 
