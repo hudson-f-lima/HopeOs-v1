@@ -57,7 +57,9 @@
   - **Teto por ciclo:** máximo de usos fora da regra por assinante e ciclo (ex.: 2 por mês), para a exceção não virar o padrão.
   - **Aprovação opcional:** o plano pode exigir liberação de quem tem a permissão sensível; o motivo e quem liberou ficam no registro imutável.
   - **Mais de uma restrição violada:** vale a de maior percentual (não soma).
-  - **Pontos a decidir antes de implementar:** (a) comissão do uso fora da regra (sobre o valor cobrado, e se entra ou não no rateio do ciclo); (b) se o link do cliente oferece a opção (preço mostrado antes de confirmar) ou só a equipe; (c) estorno devolve o uso e a parte cobrada, como no D-013.
+  - **Decisões do dono (2026-11-16):** (a) a comissão do profissional é a **comissão padrão do serviço, sobre o valor cobrado**, e o uso **fora do rateio** do ciclo (interpretação a confirmar); (b) o **cliente é avisado** antes de confirmar: no link, aparece "fora do seu plano: R$ X e 1 uso" e ele confirma; (c) estorno: **o que for mais inteligente** (proposta abaixo).
+  - **Estorno (proposta):** por padrão reverte tudo por lançamento contrário (devolve o uso, devolve a parte cobrada e estorna a comissão). Estorno só do valor, mantendo o uso, exige permissão sensível e motivo. Depois do **fechamento do ciclo** o uso não volta (usos não acumulam); só o estorno financeiro vale.
+  - **Padrão ao criar plano (aguarda confirmação):** "bloquear a cobertura". Os 9 planos importados do AppBarber recebem a regra explícita do salão, não o padrão.
 
 ## 5. Inteligência (o diferencial)
 - **Margem por plano:** receita do ciclo − comissões dos usos − taxa do fornecedor − insumos dos serviços (quando houver ficha de insumos).
