@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="theme-color" content="#7c6af7"/>
+<!-- Link pessoal do cliente (C2, D-038): nunca indexar; o código fica no fragmento (#t=), que não vai ao servidor nem no Referer. -->
+<meta name="robots" content="noindex"/>
+<meta name="referrer" content="no-referrer"/>
+<!-- CSP própria (Red Team 2026-11, RT-11): vale também onde não há o header do
+     render.yaml (ex.: GitHub Pages). connect-src só a API de produção e a API local
+     do E2E/dev (http:// é bloqueado como conteúdo misto numa página https://). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"/>
+<link rel="icon" href="icon.svg"/>
+<title>Meu horário</title>
+<!-- Sem Google Fonts de propósito: a página pública não faz requisição a terceiros (LGPD). -->
+<link rel="stylesheet" href="css/agendar.css"/>
+</head>
+<body>
+<main class="pg">
+  <header class="pg-topo">
+    <p class="pg-marca">Meu horário</p>
+    <h1 id="nomeSalao" class="pg-titulo">Carregando…</h1>
+  </header>
+
+  <p id="carregando" class="pg-info">Carregando seu horário…</p>
+
+  <section id="invalido" class="cartao" hidden>
+    <h2>Link inválido ou expirado</h2>
+    <p>Este link não abre mais. Fale com o salão pelo WhatsApp.</p>
+  </section>
+
+  <div id="aviso" class="aviso" role="alert" hidden></div>
+
+  <section id="secHorario" class="cartao" hidden>
+    <h2>Seu horário <span id="status" class="status"></span></h2>
+    <ul class="detalhes">
+      <li id="quando"></li>
+      <li id="oque"></li>
+      <li id="preco" hidden></li>
+    </ul>
+    <p id="prazo" class="pg-info"></p>
+    <div class="acoes">
+      <button id="btnConfirmar" class="btn-principal" type="button" hidden>Confirmar presença</button>
+      <button id="btnRemarcar" class="btn-secundario" type="button" hidden>Remarcar</button>
+      <button id="btnCancelar" class="btn-secundario" type="button" hidden>Cancelar horário</button>
+      <button id="btnIcs" class="btn-secundario" type="button" hidden>Adicionar à agenda (iPhone, Outlook)</button>
+      <a id="linkGoogle" class="btn-secundario" href="#" target="_blank" rel="noopener noreferrer" hidden>Adicionar ao Google Agenda</a>
+      <a id="linkSalao" class="btn-secundario" href="#" target="_blank" rel="noopener noreferrer" hidden>Falar com o salão no WhatsApp</a>
+    </div>
+  </section>
+
+  <section id="secRemarcar" class="cartao" hidden>
+    <h2>Escolha o novo dia e horário</h2>
+    <p id="remarcacoesRestantes" class="pg-info"></p>
+    <div id="listaDias" class="dias" role="list"></div>
+    <p id="horariosCarregando" class="pg-info" hidden>Buscando horários livres…</p>
+    <p id="horariosVazio" class="pg-info" hidden>Nenhum horário livre neste dia. Escolha outro dia.</p>
+    <div id="listaHorarios" class="horarios"></div>
+    <div class="acoes">
+      <button id="btnConfirmarRemarcacao" class="btn-principal" type="button" disabled>Remarcar para o horário escolhido</button>
+      <button id="btnVoltar" class="btn-secundario" type="button">Voltar</button>
+    </div>
+  </section>
+</main>
+<script type="module" src="js/meu-horario.js"></script>
+</body>
+</html>

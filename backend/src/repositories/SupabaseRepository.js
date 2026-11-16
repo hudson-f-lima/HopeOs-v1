@@ -268,6 +268,15 @@ class SupabaseRepository {
     return (data && data[0]) || null;
   }
 
+  // Link pessoal do agendamento (017, D-038): o acesso pelo hash do código, sem contexto de
+  // tenant (é ele que diz a empresa). Hash fora do formato nunca vira consulta.
+  async acessoPorTokenHash(hash) {
+    if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) return null;
+    const { data, error } = await this.supabase.from('agendamento_acessos').select('*').eq('token_hash', hash).limit(1);
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
   // A linha da empresa com a disponibilidade anexada (fonte do SlotEngine e da ocupação).
   async empresaComDisponibilidade() {
     const [[empresa], disponibilidade] = await Promise.all([this.list('empresas', { id: this.empresaId }), this.carregarDisponibilidade()]);

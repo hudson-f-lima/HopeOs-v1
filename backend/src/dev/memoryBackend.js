@@ -58,6 +58,10 @@ function installMemoryBackend(seed = {}) {
     const row = rows('empresas').find(e => e.online_slug === slug);
     return row ? { id: row.id, online_ativo: row.online_ativo === true } : null;
   };
+  P.acessoPorTokenHash = async function (hash) {
+    if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) return null;
+    return rows('agendamento_acessos').find(a => a.token_hash === hash) || null;
+  };
   P.updateEmpresa = async function (patch) {
     const row = rows('empresas').find(r => r.id === this.empresaId);
     if (!row) { const err = new Error('0 rows'); err.code = 'PGRST116'; throw err; }

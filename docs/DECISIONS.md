@@ -466,3 +466,30 @@
   - Smoke: liga/desliga agora é por salão (`--public-slug`); slug inexistente continua 404 no GET e no POST.
 - **Verificação:** `gate_016.sql` (5 blocos); `agendamento-online-config-gate` 13/13 (3 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-online` (admin liga, cliente agenda sem preferência, admin desliga).
 - **Fora do escopo (próximas etapas):** C2 link pessoal do cliente (confirmar, cancelar, remarcar, .ics/Google Agenda), C3 aviso à recepção, C4 série recorrente só pela equipe, C5 push e WhatsApp pré-configurado. Ícone de instalação da página do cliente fica para a C2.
+
+## D-038 — Plano autorizado (C2–C5, assinatura Onda A) e C2: link pessoal do agendamento (migration 017)
+- **Decisão (Platform Owner, 2026-11-16):** "Autorizado plano de assinatura, C2, migrações, C3 C4 C5".
+  - Autoriza a implementação de C2, C3, C4, C5 (auditoria do agendamento) e da Onda A do clube de assinatura (D-036), **com as migrations que cada uma precisar**.
+  - Continua valendo: cada migration tem linha no `migrations.lock`, gate SQL, rollback e decisão registrada; o merge que aplica SQL em produção exige "ok merge" explícito.
+  - Ordem de execução: C2 → C3 → C4 → C5 → Onda A (o critério do dono para sair do AppBarber é o agendamento de ponta a ponta).
+  - Na mesma rodada (2026-11-16): aprovados o limite IPv4 por /24 no agendamento público (RTP-01), a fase "link ligado" do Red Team em produção (até 6 agendamentos de teste) e a limpeza depois.
+- **C2 entregue:**
+  - Migration 017: tabela `agendamento_acessos`:
+    - só o SHA-256 do código (o banco recusa texto que não seja hash);
+    - validade, revogação, contador de remarcações (0–20) e origem (`link_publico` ou `recepcao`);
+    - trigger que impede acesso de uma empresa apontar para agendamento de outra;
+    - RLS ligada, sem acesso de `anon`/`authenticated`, `service_role` sem `delete`;
+    - rollback em `supabase/rollback/017_down.sql`.
+  - O link: código aleatório de 32 bytes no fragmento da URL (`meu-horario.html#t=…`), que não vai ao servidor nem no Referer. A página manda o código no **corpo** de POSTs (a URL é registrada no log de acesso). Vale até 24 h depois do início do horário. No máximo 5 links ativos por agendamento (o mais antigo é revogado).
+  - `POST /api/public/meu-agendamento` (ver), `/confirmar`, `/cancelar`, `/horarios`, `/remarcar`:
+    - código ausente, malformado, desconhecido, revogado ou vencido → o mesmo 404;
+    - cancelar e remarcar só até o prazo do salão (`online_cancelamento_prazo_min`), conferido no servidor;
+    - remarcar: mesmo serviço e profissional, regras do link público do salão (antecedência, janela, disponibilidade), mesma duração e preço, no máximo 3 vezes por link, só com o link do salão ligado; o antigo vira `reagendado`, o link passa a mostrar o novo; se o original mudar no meio, o novo é desfeito (409);
+    - confirmar e cancelar são atualizações condicionais;
+    - trilha em `agendamento_eventos` com `origem: link_cliente` e `actor_type: cliente_link`;
+    - limite de 30 pedidos por minuto por /24 (`PUBLIC_BOOKING_RATE_LINK_MAX`).
+  - Confirmação do agendamento online: "Guarde seu link", copiar, e lembrete na agenda do celular (.ics com alarmes de 1 dia e 2 h, gerado no aparelho; link do Google Agenda).
+  - Recepção: ao tocar em WhatsApp nos lembretes, `POST /api/agenda/:id/link-cliente` (`agenda:lembretes`) gera um link e ele vai no fim da mensagem. Remarcação pela recepção leva o link do cliente para o novo horário.
+- **Riscos aceitos:** quem tiver o link (encaminhado, no histórico ou na agenda sincronizada na nuvem) pode confirmar, cancelar ou remarcar dentro das regras; a trilha registra que foi pelo link. O ícone de instalação da página do cliente fica para a C5 (push no iPhone exige o app instalado).
+- **Verificação:** `gate_017.sql` (5 blocos); `meu-agendamento-gate` 11/11 (2 controles negativos); `agendamento-publico-gate` 19/19; E2E `link-pessoal`.
+

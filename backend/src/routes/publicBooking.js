@@ -23,6 +23,8 @@ const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
 const { criarLimitador, chaveIpPublico } = require('../security/rateLimit');
 const crypto = require('crypto');
+const { TOKEN_RE, gerarToken, hashToken, instanteLocal, criarAcesso, moverAcessos } = require('../services/AcessoAgendamento');
+const { registrarEventoAgenda } = require('../services/AgendaEventosService');
 
 const router = express.Router();
 
@@ -198,7 +200,9 @@ function limitarPorIp(tipo) {
   return (req, res, next) => {
     const [max, janelaMs] = tipo === 'post'
       ? [num(env.PUBLIC_BOOKING_RATE_POST_IP_MAX, 10), 3600e3]
-      : [num(env.PUBLIC_BOOKING_RATE_GET_MAX, 60), 60e3];
+      : tipo === 'link'
+        ? [num(env.PUBLIC_BOOKING_RATE_LINK_MAX, 30), 60e3]
+        : [num(env.PUBLIC_BOOKING_RATE_GET_MAX, 60), 60e3];
     if (excedeu(`${tipo}|${chaveIpPublico(req.ip)}`, max, janelaMs)) return next(muitasTentativas());
     next();
   };
@@ -291,12 +295,16 @@ async function carregarCatalogo(repo) {
 
 // Horários livres para o público: mesmo motor do GET /agenda/slots, com "agora"
 // deslocado pela antecedência mínima e a janela máxima de dias. Só horários.
-async function slotsDoProfissional(repo, cat, servico, profissional, data, lim) {
-  const duracaoMin = resolveDuracaoMin({ servico, profissional });
+// Na remarcação pelo link pessoal, `ignorarId` é o próprio horário (não ocupa a si mesmo) e
+// `duracaoFixa` é a duração já marcada.
+async function slotsDoProfissional(repo, cat, servico, profissional, data, lim, { ignorarId = null, duracaoFixa } = {}) {
+  const duracaoMin = duracaoFixa || resolveDuracaoMin({ servico, profissional });
   if (data < lim.minimo.data || data > lim.ultimoDia) return { profissional, duracaoMin, slots: [], ocupacao: 0 };
-  const agendamentos = await repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data });
+  const agendamentos = (await repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data }))
+    .filter(a => a.id !== ignorarId);
   const r = buildSlotsDoDia({
-    data, profissional, empresa: cat.empresa, servico, servicosAtivos: cat.servicosAtivos, agendamentos, agora: lim.minimo
+    data, profissional, empresa: cat.empresa, servico, servicosAtivos: cat.servicosAtivos, agendamentos, agora: lim.minimo,
+    duracaoMin: duracaoFixa
   });
   const piso = data === lim.minimo.data ? lim.minimo.minuto : -1;
   const slots = [...new Set(r.slots.map(s => s.horario))].filter(h => timeToMinutes(h) >= piso);
@@ -513,7 +521,8 @@ router.post('/agendar/:slug', limitarPorIp('post'), resolverAntes, lerCorpo, asy
     // Honeypot preenchido (robô): finge sucesso e não grava nada.
     if (entrada.website) {
       const quem = pedido || (escolhido(entrada.horario) || {}).profissional || candidatos[0];
-      return res.status(201).json({ ok: true, data: { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(quem.nome) } });
+      const falso = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(quem.nome) };
+      return res.status(201).json({ ok: true, data: { ...falso, link: gerarToken(), calendario: calendarioDe(cat.empresa, falso, resolveDuracaoMin({ servico, profissional: quem })) } });
     }
     // Revalidação no servidor: expediente, antecedência, janela, ocupação e vínculo.
     if (!slots.includes(entrada.horario)) throw horarioIndisponivel(); // [protecao:slot]
@@ -522,9 +531,183 @@ router.post('/agendar/:slug', limitarPorIp('post'), resolverAntes, lerCorpo, asy
     if (!profissional) throw horarioIndisponivel();
     const semPreferencia = entrada.profissionalId === SEM_PREFERENCIA;
     const resposta = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(profissional.nome) };
-    await comTrava(`${repo.empresaId}|${entrada.whatsapp}`, () => gravar(repo, cat, { entrada, servico, profissional, duracaoMin, lim, req, semPreferencia }));
-    res.status(201).json({ ok: true, data: resposta });
+    const agendamento = await comTrava(`${repo.empresaId}|${entrada.whatsapp}`, () => gravar(repo, cat, { entrada, servico, profissional, duracaoMin, lim, req, semPreferencia }));
+    // Link pessoal (017): se falhar, o agendamento já existe; o cliente fica sem o link.
+    let link = null;
+    try {
+      link = await criarAcesso(repo, agendamento, { timeZone: env.APP_TIMEZONE, agora: relogio() });
+    } catch (err) {
+      console.error('[agendar] link pessoal não criado:', erroParaLog(err));
+    }
+    res.status(201).json({ ok: true, data: { ...resposta, link, calendario: calendarioDe(cat.empresa, resposta, duracaoMin) } });
   } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// Link pessoal do agendamento (migration 017, D-038, C2). Sem login: o código de 32 bytes do link
+// é a credencial. Vai no CORPO de um POST (nunca na URL, que o morgan registra). Código ausente,
+// malformado, desconhecido, revogado ou vencido: o mesmo 404. As ações conferem status e prazo no
+// servidor a cada pedido; cancelar e confirmar são atualizações condicionais (corrida perde com
+// 409). A página não recebe ids nem dados do cliente além do próprio horário.
+const MAX_REMARCACOES = 3;
+const STATUS_ATIVOS = ['agendado', 'confirmado'];
+const ROTULO_STATUS = {
+  agendado: 'agendado', confirmado: 'confirmado', cancelado: 'cancelado', reagendado: 'remarcado',
+  aguardando: 'em_atendimento', em_atendimento: 'em_atendimento', concluido: 'concluido', fechado: 'concluido', no_show: 'falta'
+};
+const AUTOR_CLIENTE = { principal_type: 'cliente_link' };
+const linkInvalido = () => erroPublico('LINK_INVALIDO', 404, 'Link inválido ou expirado. Fale com o salão.');
+const foraDoPrazo = () => erroPublico('FORA_DO_PRAZO', 422, 'Pelo link, este horário não pode mais ser mudado. Fale com o salão.');
+const agendamentoMudou = () => erroPublico('AGENDAMENTO_MUDOU', 409, 'Este agendamento acabou de mudar. Atualize a página.');
+const hhmm = h => String(h || '').slice(0, 5);
+
+// Evento para a agenda do celular do cliente (.ics e Google Agenda, montados na página).
+function calendarioDe(empresa, { data, horario, servico }, duracaoMin) {
+  const inicio = instanteLocal(data, horario, env.APP_TIMEZONE);
+  const nome = String((empresa && empresa.nome) || 'Salão');
+  return {
+    inicioIso: inicio.toISOString(),
+    fimIso: new Date(inicio.getTime() + (Number(duracaoMin) || 30) * 60e3).toISOString(),
+    titulo: `${servico} — ${nome}`,
+    local: [empresa && empresa.endereco, empresa && empresa.cidade].filter(Boolean).join(', ') || nome
+  };
+}
+
+function corpoDoLink(body, extras = []) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw linkInvalido();
+  if (Object.keys(body).some(k => k !== 'token' && !extras.includes(k))) throw dadosInvalidos();
+  return body;
+}
+
+async function contextoDoAcesso(req, extras) {
+  const { token } = corpoDoLink(req.body, extras);
+  if (typeof token !== 'string' || !TOKEN_RE.test(token)) throw linkInvalido();
+  const acesso = await new SupabaseRepository(null).acessoPorTokenHash(hashToken(token));
+  const agora = relogio();
+  if (!acesso || acesso.revogado_em || !(Date.parse(acesso.expira_em) > agora.getTime())) throw linkInvalido();
+  const repo = new SupabaseRepository(String(acesso.empresa_id));
+  const ag = await repo.getByIdScoped('agendamentos', acesso.agendamento_id);
+  if (!ag) throw linkInvalido();
+  const [empresas, servicos, profissionais] = await Promise.all([
+    repo.list('empresas', { id: repo.empresaId }),
+    repo.list('servicos', { empresa_id: repo.empresaId }),
+    repo.list('profissionais', { empresa_id: repo.empresaId })
+  ]);
+  const empresa = empresas[0] || {};
+  const servico = servicos.find(x => x.id === ag.servico_id) || null;
+  const profissional = profissionais.find(x => x.id === ag.profissional_id) || null;
+  const cfg = configOnline(empresa);
+  const inicio = instanteLocal(ag.data, hhmm(ag.horario), env.APP_TIMEZONE);
+  const limite = new Date(inicio.getTime() - cfg.cancelamentoPrazoMin * 60e3);
+  const ativo = STATUS_ATIVOS.includes(ag.status);
+  const antesDoPrazo = agora.getTime() < limite.getTime();
+  const remarcavel = !!(servico && servico.ativo !== false && profissional && profissional.ativo !== false);
+  const pode = {
+    confirmar: ag.status === 'agendado' && agora.getTime() < inicio.getTime(),
+    cancelar: ativo && antesDoPrazo,
+    remarcar: ativo && antesDoPrazo && empresa.online_ativo === true && remarcavel && (Number(acesso.remarcacoes) || 0) < MAX_REMARCACOES
+  };
+  return { repo, acesso, ag, agora, empresa, servico, profissional, cfg, inicio, limite, pode };
+}
+
+function visao(c) {
+  const servicoNome = (c.servico && c.servico.nome) || 'Serviço';
+  const duracaoMin = Number(c.ag.duracao_min) || 30;
+  return {
+    salao: { nome: c.empresa.nome || '', whatsapp: normalizarWhatsapp(c.empresa.whatsapp) || null },
+    agendamento: {
+      data: String(c.ag.data), horario: hhmm(c.ag.horario), duracaoMin, servico: servicoNome,
+      profissional: primeiroNome(c.profissional && c.profissional.nome), status: ROTULO_STATUS[c.ag.status] || 'outro',
+      precoCentavos: c.cfg.mostrarPreco ? Number(c.ag.valor_centavos) || 0 : null
+    },
+    prazo: { cancelamentoPrazoMin: c.cfg.cancelamentoPrazoMin, limiteIso: c.limite.toISOString() },
+    remarcacoesRestantes: Math.max(0, MAX_REMARCACOES - (Number(c.acesso.remarcacoes) || 0)),
+    pode: c.pode,
+    calendario: calendarioDe(c.empresa, { data: String(c.ag.data), horario: hhmm(c.ag.horario), servico: servicoNome }, duracaoMin)
+  };
+}
+
+const rotaLink = (caminho, fn) => router.post(`/meu-agendamento${caminho}`, limitarPorIp('link'), lerCorpo, async (req, res, next) => {
+  try { await fn(req, res); } catch (err) { next(err); }
+});
+
+rotaLink('', async (req, res) => {
+  res.json({ ok: true, data: visao(await contextoDoAcesso(req)) });
+});
+
+rotaLink('/confirmar', async (req, res) => {
+  const c = await contextoDoAcesso(req);
+  if (!c.pode.confirmar) throw c.ag.status === 'confirmado' ? agendamentoMudou() : foraDoPrazo();
+  const agoraIso = c.agora.toISOString();
+  const r = await c.repo.atualizarStatusAgendamentoSe(c.ag.id, ['agendado'], { status: 'confirmado', updated_at: agoraIso, updated_by: null });
+  if (!r) throw agendamentoMudou();
+  await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: c.ag.id, tipo: 'status', de: 'agendado', para: 'confirmado', origem: 'link_cliente' });
+  res.json({ ok: true, data: visao(await contextoDoAcesso(req)) });
+});
+
+rotaLink('/cancelar', async (req, res) => {
+  const c = await contextoDoAcesso(req);
+  if (!c.pode.cancelar) throw STATUS_ATIVOS.includes(c.ag.status) ? foraDoPrazo() : agendamentoMudou();
+  const agoraIso = c.agora.toISOString();
+  const de = c.ag.status;
+  const r = await c.repo.atualizarStatusAgendamentoSe(c.ag.id, STATUS_ATIVOS, { status: 'cancelado', cancelled_by: null, updated_at: agoraIso, updated_by: null });
+  if (!r) throw agendamentoMudou();
+  await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: c.ag.id, tipo: 'status', de, para: 'cancelado', origem: 'link_cliente' });
+  res.json({ ok: true, data: visao(await contextoDoAcesso(req)) });
+});
+
+// Remarcação: mesmo serviço e mesmo profissional, regras do link público do salão (antecedência,
+// janela, disponibilidade), mesma duração e preço já marcados. No máximo MAX_REMARCACOES por link.
+async function slotsDaRemarcacao(c, data) {
+  if (!dataValida(data)) throw dadosInvalidos();
+  if (!c.pode.remarcar) throw foraDoPrazo();
+  const cat = await carregarCatalogo(c.repo);
+  const oferta = cat.ofertas.find(o => o.servico.id === c.ag.servico_id);
+  const profissional = oferta && oferta.profissionais.find(p => p.id === c.ag.profissional_id);
+  if (!profissional) throw foraDoPrazo();
+  const lim = limitesDoMomento(cat.cfg);
+  const r = await slotsDoProfissional(c.repo, cat, oferta.servico, profissional, data, lim, { ignorarId: c.ag.id, duracaoFixa: Number(c.ag.duracao_min) || undefined });
+  // O próprio horário não é opção de "remarcar".
+  const slots = r.slots.filter(h => !(data === String(c.ag.data) && h === hhmm(c.ag.horario)));
+  return { slots, lim };
+}
+
+rotaLink('/horarios', async (req, res) => {
+  const c = await contextoDoAcesso(req, ['data']);
+  const { slots, lim } = await slotsDaRemarcacao(c, req.body.data);
+  res.json({ ok: true, data: { data: req.body.data, slots, primeiroDia: lim.minimo.data, ultimoDia: lim.ultimoDia } });
+});
+
+rotaLink('/remarcar', async (req, res) => {
+  const c = await contextoDoAcesso(req, ['data', 'horario']);
+  const { data, horario } = req.body;
+  if (typeof horario !== 'string' || !HORA_RE.test(horario)) throw dadosInvalidos();
+  const { slots } = await slotsDaRemarcacao(c, data);
+  if (!slots.includes(horario)) throw horarioIndisponivel();
+  let novo;
+  try {
+    novo = await c.repo.criarAgendamento({
+      agendamento: {
+        cliente_id: c.ag.cliente_id, servico_id: c.ag.servico_id, profissional_id: c.ag.profissional_id,
+        data, horario, duracao_min: Number(c.ag.duracao_min) || 30, valor_centavos: Number(c.ag.valor_centavos) || 0, status: 'agendado'
+      },
+      permitirConflito: false, ignorarId: c.ag.id, createdBy: null
+    });
+  } catch (err) {
+    if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) throw horarioOcupado();
+    throw err;
+  }
+  const agoraIso = c.agora.toISOString();
+  const antigo = await c.repo.atualizarStatusAgendamentoSe(c.ag.id, STATUS_ATIVOS, { status: 'reagendado', updated_at: agoraIso, updated_by: null });
+  if (!antigo) {
+    // O original mudou no meio (a recepção cancelou ou remarcou): desfaz o novo e avisa.
+    await c.repo.atualizarStatusAgendamentoSe(novo.id, ['agendado'], { status: 'cancelado', cancelled_by: null, updated_at: agoraIso, updated_by: null });
+    throw agendamentoMudou();
+  }
+  await moverAcessos(c.repo, c.ag.id, novo, { timeZone: env.APP_TIMEZONE, contarRemarcacao: true, agora: c.agora });
+  await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: c.ag.id, tipo: 'reagendado', de: c.ag.status, para: 'reagendado', origem: 'link_cliente', extra: { reagendado_para: novo.id } });
+  await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: novo.id, tipo: 'reagendado', de: null, para: 'agendado', origem: 'link_cliente', extra: { reagendado_de: c.ag.id } });
+  res.json({ ok: true, data: visao(await contextoDoAcesso(req, ['data', 'horario'])) });
 });
 
 // Qualquer outro caminho sob /api/public: mesmo 404 (não cai no requireAuth).
@@ -540,4 +723,4 @@ router.use((err, req, res, next) => {
   res.status(500).json({ ok: false, error: { code: 'INDISPONIVEL_AGORA', message: 'Não foi possível concluir agora. Tente de novo em instantes.' } });
 });
 
-module.exports = { publicBookingRouter: router, resetRateLimitPublico, limparCacheSlug, linksDaEnv: linksPublicos, configOnline, SLUG_RE, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };
+module.exports = { MAX_REMARCACOES, publicBookingRouter: router, resetRateLimitPublico, limparCacheSlug, linksDaEnv: linksPublicos, configOnline, SLUG_RE, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };

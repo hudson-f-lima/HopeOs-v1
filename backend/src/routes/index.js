@@ -61,6 +61,7 @@ const { registrarEventoAgenda, montarHistorico } = require('../services/AgendaEv
 const { validateEstornoPayload } = require('../validators/estorno.validator');
 const { saldoDaComanda, diasEntre, PRAZO_DIAS } = require('../engines/EstornoEngine');
 const clock = require('../config/clock');
+const { criarAcesso, moverAcessos } = require('../services/AcessoAgendamento');
 
 const router = express.Router();
 
@@ -604,8 +605,31 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
       agendamentoId: novo && novo.id, tipo: 'reagendado', de: null, para: (novo && novo.status) || 'agendado',
       origem: 'reagendamento', extra: { reagendado_de: original.id, ...(foraRe.forcado ? { fora_da_disponibilidade: foraRe.origem } : {}) }
     });
+    // O link pessoal do cliente (017) passa a mostrar o novo horário. Best-effort: sem a 017 ou
+    // em falha, o cliente só perde o link (a recepção pode gerar outro).
+    if (novo) {
+      try { await moverAcessos(repo, original.id, novo, { timeZone: env.APP_TIMEZONE }); }
+      catch (err) { console.error('[agenda] link pessoal não acompanhou a remarcação:', (err && err.code) || 'erro'); }
+    }
 
     res.json({ ok: true, data: { original: updatedOriginal, novo } });
+  } catch (err) { next(err); }
+});
+
+// Link pessoal do agendamento para o cliente (017, D-038): a recepção gera ao mandar o lembrete
+// por WhatsApp. Devolve o código uma única vez; o banco guarda só o hash. Só para horários ainda
+// por acontecer (agendado ou confirmado).
+router.post('/agenda/:id/link-cliente', authorize('agenda:lembretes'), async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'id');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const ag = await requireScopedEntity(repo, 'agendamentos', id, 'Agendamento', 'AGENDAMENTO_NOT_FOUND');
+    if (!['agendado', 'confirmado'].includes(ag.status)) {
+      throw createAppError('AGENDAMENTO_ENCERRADO', 'Só dá para gerar o link de um horário agendado ou confirmado.', 409, { status: ag.status });
+    }
+    const { actorId } = autoriaDe(req.auth);
+    const token = await criarAcesso(repo, ag, { origem: 'recepcao', createdBy: actorId || null, timeZone: env.APP_TIMEZONE, agora: clock.agora() });
+    res.status(201).json({ ok: true, data: { token } });
   } catch (err) { next(err); }
 });
 

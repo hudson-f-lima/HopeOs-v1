@@ -612,7 +612,10 @@ test('RT-19 prazo na virada do fuso: 30º dia às 23:59 de Brasília (02:59 UTC 
 const ROTAS_SEM_RBAC = new Set([
   'GET /', 'GET /api/health',
   'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
-  'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug'
+  'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug',
+  // Link pessoal do agendamento (017, D-038): a credencial é o código do link, no corpo.
+  'POST /api/public/meu-agendamento', 'POST /api/public/meu-agendamento/confirmar', 'POST /api/public/meu-agendamento/cancelar',
+  'POST /api/public/meu-agendamento/horarios', 'POST /api/public/meu-agendamento/remarcar'
 ]);
 function inventarioDeRotas() {
   const { authRouter } = require('../src/routes/auth');

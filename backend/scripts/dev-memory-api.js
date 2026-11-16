@@ -71,6 +71,11 @@ const db = installMemoryBackend({
 });
 
 // DEV_EMPRESA_VAZIA=1: salão recém-criado (só o nome), para testar o assistente de configuração.
+// DEV_PUBLIC_SLUG também liga o link no banco (016), como um salão configurado em Conta → Link
+// online: vale a remarcação pelo link pessoal (C2), que exige o link do salão ligado.
+if (process.env.DEV_PUBLIC_SLUG) {
+  Object.assign(db.empresas[0], { online_slug: process.env.DEV_PUBLIC_SLUG, online_ativo: true, razao_social: 'Salão Dev Ltda', privacidade_contato: 'privacidade@dev.local', endereco: 'Rua Dev, 10', cidade: 'São Paulo' });
+}
 if (process.env.DEV_EMPRESA_VAZIA === '1') {
   Object.assign(db.empresas[0], { whatsapp: null, horario_por_dia: {} });
   for (const t of ['servicos', 'profissionais', 'profissional_servicos', 'agendamentos', 'formas_pagamento', 'disponibilidade_semanal']) db[t] = [];
