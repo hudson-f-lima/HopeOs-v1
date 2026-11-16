@@ -25,6 +25,13 @@ async function escolher(p, campo, texto) {
   const plano = (await (await fetch(`${API}/api/assinaturas/planos`, { method: 'POST', headers: auth, body: JSON.stringify({ nome: 'Clube Corte', precoCentavos: 11500, comissao: { regra: 'rateio', percentual: 50 }, itens: [{ servicoId: corte.id, limitePorCiclo: 4 }] }) })).json()).data;
   const ass = await (await fetch(`${API}/api/assinaturas`, { method: 'POST', headers: auth, body: JSON.stringify({ clienteId: cliente.id, planoId: plano.id, pagamento: { forma: 'pix' } }) })).json();
   console.log('ASSINATURA PELA API:', ass.ok, ass.data && ass.data.situacao.estado);
+  // Plano que NÃO cobre o dia de hoje (fora da regra: cobra 60% e gasta 1 uso), para outro cliente.
+  const hojeDow = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) + 'T12:00:00Z').getUTCDay();
+  const outrosDias = [0, 1, 2, 3, 4, 5, 6].filter(d => d !== hojeDow);
+  const cli2 = (await (await fetch(`${API}/api/clientes`, { method: 'POST', headers: auth, body: JSON.stringify({ nome: 'Cliente Fora do Dia', whatsapp: '11 97777-6666' }) })).json()).data;
+  const planoDias = (await (await fetch(`${API}/api/assinaturas/planos`, { method: 'POST', headers: auth, body: JSON.stringify({ nome: 'Smart Dias', precoCentavos: 9490, comissao: { regra: 'rateio', percentual: 50 }, foraDaRegra: { acao: 'cobrar_percentual_consumir', percentual: 60 }, itens: [{ servicoId: corte.id, limitePorCiclo: 4, diasSemana: outrosDias }] }) })).json()).data;
+  const ass2 = await (await fetch(`${API}/api/assinaturas`, { method: 'POST', headers: auth, body: JSON.stringify({ clienteId: cli2.id, planoId: planoDias.id, pagamento: { forma: 'pix' } }) })).json();
+  console.log('PLANO FORA DO DIA:', ass2.ok);
 
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
@@ -77,6 +84,21 @@ async function escolher(p, campo, texto) {
   console.log('SEM "ADICIONAR":', linhaCampos, '| RECEBIDO:', recebidoCampos);
   if (!/Plano Clube Corte: coberto \(2 de 4\)/.test(linhaCampos) || !/R\$\s*0,00/.test(recebidoCampos)) errs.push('serviço deixado nos campos não passou pelo plano');
   await p.click('[data-remover-item="0"]'); await p.waitForTimeout(300);
+
+  // 2c) Fora do dia do plano: a tela diz o PORQUÊ (achado do dono, 16/11: parecia erro).
+  await p.goto(APP); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
+  await p.click('#navCheckout'); await p.waitForTimeout(500);
+  await escolher(p, '#coCliente', 'Cliente Fora do Dia');
+  await escolher(p, '#coServico', 'Corte'); await escolher(p, '#coProfissional', bruno.nome);
+  await escolher(p, '#coForma', 'Pix'); // fora do dia sobra valor a pagar
+  await p.click('#btnSimular'); await p.waitForSelector('#cardPreview:not(.hidden)', { timeout: 8000 });
+  const linhaFora = (await p.locator('#coItensLista .row').first().innerText()).replace(/\s+/g, ' ');
+  const avisoFora = (await p.textContent('#coPlanoAviso')).trim();
+  console.log('FORA DO DIA:', linhaFora, '| RESUMO:', avisoFora);
+  if (!/fora da regra, R\$\s*36,00, gasta 1 uso — O plano não cobre/.test(linhaFora) || !/\(O plano não cobre/.test(avisoFora)) errs.push('fora do dia sem o motivo na tela');
+  await p.click('[data-remover-item="0"]'); await p.waitForTimeout(300);
+  await p.goto(APP); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
+  await p.click('#navCheckout'); await p.waitForTimeout(500);
 
   // 3) "Não usar o plano": valor cheio e pede forma de pagamento.
   await escolher(p, '#coCliente', cliente.nome);
