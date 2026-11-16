@@ -15,6 +15,7 @@ const { installMemoryBackend } = require('../src/dev/memoryBackend');
 const { disponibilidadeDoDia, subtrair, intersecao } = require('../src/engines/DisponibilidadeEngine');
 const { createAppError } = require('../src/errors');
 const { app } = require('../src/app');
+const { createHash } = require('crypto');
 
 const tests = [];
 const test = (n, f) => tests.push({ n, f });
@@ -346,6 +347,47 @@ test('D20 lote e modelos: só gestão; recepção, profissional e legado recusad
     assert.strictEqual((await request('GET', '/api/disponibilidade/modelos', { token })).status, 403, `modelos ${token}`);
   }
   assert.strictEqual((await lote({ profissionalIds: [P.a], operacao: { tipo: 'ausencia', dataInicio: SAB2, dataFim: SAB2 }, simular: true }, 'h.gestor.s')).status, 200, 'controle negativo: gerente pode');
+});
+
+// ---------- D-046: bloqueio do próprio profissional é dele; histórico imutável com cópia ----------
+test('D21 bloqueio marcado pelo profissional: só ele remove; gestão, recepção e admin recebem 403', async () => {
+  const lista = (await request('GET', '/api/disponibilidade')).data.data.excecoes;
+  const dele = lista.find(e => e.profissionalId === P.edu && e.tipo === 'bloqueio' && e.motivo === 'Médico');
+  assert.ok(dele && dele.marcadoPeloProfissional === true, 'a lista marca o bloqueio como do profissional');
+  for (const token of ['h.admin.s', 'h.gestor.s', 'h.recep.s']) {
+    const r = await request('DELETE', `/api/disponibilidade/excecoes/${dele.id}`, { token, body: {} });
+    assert.deepStrictEqual([r.status, code(r)], [403, 'BLOQUEIO_DO_PROFISSIONAL'], token);
+  }
+  assert.ok(db.disponibilidade_excecoes.some(e => e.id === dele.id), 'continua na agenda');
+  // Controle negativo: bloqueio que a gestão marcou para ele, a gestão remove.
+  const g = await excecao({ profissionalId: P.edu, tipo: 'bloqueio', dataInicio: SEG, dataFim: SEG, periodos: [{ inicio: '15:00', fim: '16:00' }], motivo: '=HYPERLINK("http://x")' }, 'h.gestor.s');
+  assert.strictEqual(g.status, 201);
+  const daGestao = (await request('GET', '/api/disponibilidade')).data.data.excecoes.find(e => e.id === g.data.data.ids[0]);
+  assert.strictEqual(daGestao.marcadoPeloProfissional, false);
+  assert.strictEqual((await request('DELETE', `/api/disponibilidade/excecoes/${daGestao.id}`, { token: 'h.gestor.s', body: {} })).status, 200, 'o da gestão a gestão remove');
+  // O próprio profissional remove o seu (cancelar é livre; a trilha guarda).
+  const r = await request('DELETE', `/api/disponibilidade/excecoes/${dele.id}`, { token: 'h.edu.s', body: {} });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+});
+
+test('D22 histórico de bloqueios: da trilha imutável, com origem, só o seu para o profissional, CSV com SHA-256', async () => {
+  const h = await request('GET', '/api/disponibilidade/bloqueios/historico', { token: 'h.edu.s' });
+  assert.strictEqual(h.status, 200, JSON.stringify(h.data));
+  const { itens, csv, sha256 } = h.data.data;
+  assert.ok(itens.length >= 4 && itens.every(i => i.profissionalId === P.edu), 'profissional vê só o próprio');
+  const chave = i => [i.acao, i.inicio, i.origem].join(' ');
+  const ks = itens.map(chave);
+  for (const k of ['marcou 09:00 profissional', 'removeu 09:00 profissional', 'marcou 15:00 equipe', 'removeu 15:00 equipe']) assert.ok(ks.includes(k), `${k} em ${ks}`);
+  assert.ok(itens.find(i => i.inicio === '15:00').feitoPor === 'gestor', 'nome de quem fez');
+  assert.ok(itens.every((i, n) => !n || itens[n - 1].quando >= i.quando), 'mais recente primeiro');
+  assert.strictEqual(createHash('sha256').update(csv, 'utf8').digest('hex'), sha256, 'SHA-256 confere com o CSV');
+  assert.ok(csv.startsWith('evento,quando,acao,') && csv.includes(`"'=HYPERLINK(""http://x"")"`), 'fórmula de planilha neutralizada');
+  const outro = await request('GET', `/api/disponibilidade/bloqueios/historico?profissionalId=${P.a}`, { token: 'h.edu.s' });
+  assert.ok(outro.data.data.itens.every(i => i.profissionalId === P.edu), 'pedir outro profissional não vaza');
+  const daAna = await request('GET', `/api/disponibilidade/bloqueios/historico?profissionalId=${P.a}`);
+  assert.ok(daAna.status === 200 && daAna.data.data.itens.every(i => i.profissionalId === P.a), 'gestão filtra por profissional');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/bloqueios/historico', { token: process.env.API_ACCESS_TOKEN })).status, 403, 'token legado não lê');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/bloqueios/historico?profissionalId=x')).status, 422);
 });
 
 (async () => {

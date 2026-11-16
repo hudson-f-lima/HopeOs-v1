@@ -4,7 +4,7 @@
 // alguém com permissão confirmar que ficam mantidos (remarcar ou cancelar é feito na agenda).
 import { api } from '../api.js';
 import { state, sessionPode } from '../state.js';
-import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr } from '../utils.js';
+import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr, baixarArquivo } from '../utils.js';
 
 const el = id => document.getElementById(id);
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -45,9 +45,11 @@ function render() {
     const quem = e.profissionalId ? nomeProf(e.profissionalId) : 'Unidade';
     const datas = e.dataInicio === e.dataFim ? dataBR(e.dataInicio) : `${dataBR(e.dataInicio)} a ${dataBR(e.dataFim)}`;
     const horas = e.inicio ? ` ${e.inicio}–${e.fim}` : (e.tipo === 'fechamento' ? ' (dia inteiro)' : '');
-    const podeRemover = !e.profissionalId ? podeUnidade : e.tipo === 'horario' ? podeEditar : (podeBloquear && (sessionPode('escala:bloquear', true) || e.profissionalId === proprioId()));
+    // D-046: o que o próprio profissional marcou só ele remove (o servidor também recusa).
+    const doProfissional = e.marcadoPeloProfissional && e.profissionalId !== proprioId();
+    const podeRemover = !e.profissionalId ? podeUnidade : e.tipo === 'horario' ? podeEditar : (!doProfissional && podeBloquear && (sessionPode('escala:bloquear', true) || e.profissionalId === proprioId()));
     return `<div class="esc-excecao" data-tipo="${escapeHtml(e.tipo)}">
-      <span><b>${escapeHtml(datas)}</b> · ${escapeHtml(quem)} · ${escapeHtml(TIPO[e.tipo] || e.tipo)}${escapeHtml(horas)}${e.motivo ? ` · ${escapeHtml(e.motivo)}` : ''}</span>
+      <span><b>${escapeHtml(datas)}</b> · ${escapeHtml(quem)} · ${escapeHtml(TIPO[e.tipo] || e.tipo)}${escapeHtml(horas)}${e.motivo ? ` · ${escapeHtml(e.motivo)}` : ''}${e.marcadoPeloProfissional ? ' · <span class="text-tertiary">marcado pelo profissional</span>' : ''}</span>
       ${podeRemover ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-remover="${escapeHtml(e.id)}" aria-label="Remover exceção">Remover</button>` : ''}
     </div>`;
   }).join('') || '<p class="body-sm text-tertiary">Nenhuma exceção marcada daqui para a frente.</p>';
@@ -67,6 +69,10 @@ function render() {
     <h3 class="esc-sub">Datas especiais</h3>
     ${podeExcecao ? '<button type="button" class="btn btn-primary" id="btnEscNovaExcecao">Nova data especial</button>' : ''}
     <div id="escExcecoes">${excecoes}</div>
+    <h3 class="esc-sub">Histórico de bloqueios</h3>
+    <p class="body-sm text-tertiary">Tudo o que foi marcado e removido, com data, hora e quem fez. Não pode ser apagado.</p>
+    <button type="button" class="btn btn-secondary esc-btn" id="btnEscHistorico">Ver histórico</button>
+    <div id="escHistorico"></div>
     ${listaModelos}`;
 }
 
@@ -260,6 +266,36 @@ async function removerExcecao(id) {
   }
 }
 
+// ---------- Histórico de bloqueios (D-046) ----------
+// Da trilha imutável do servidor. "Baixar cópia" salva o CSV; o código SHA-256 confere que o
+// arquivo guardado é o mesmo que o sistema gerou.
+let historico = null;
+const dataHoraBR = iso => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+async function verHistorico() {
+  const box = el('escHistorico');
+  box.innerHTML = '<p class="body-sm text-tertiary">Carregando…</p>';
+  try {
+    historico = await api('/disponibilidade/bloqueios/historico');
+    const linhas = historico.itens.map(i => {
+      const datas = i.dataInicio === i.dataFim ? dataBR(i.dataInicio) : dataBR(i.dataInicio) + ' a ' + dataBR(i.dataFim);
+      const horas = i.inicio ? ' ' + i.inicio + '–' + i.fim : '';
+      const quem = i.origem === 'profissional' ? 'pelo próprio profissional' : 'por ' + escapeHtml(i.feitoPor) + ' (equipe)';
+      return '<div class="esc-excecao" data-historico="' + escapeHtml(i.acao) + '"><span><b>' + escapeHtml(dataHoraBR(i.quando)) + '</b> · ' + escapeHtml(i.profissional) + ' '
+        + (i.acao === 'marcou' ? 'marcou' : 'removeu') + ' ' + escapeHtml((TIPO[i.tipo] || i.tipo).toLowerCase()) + ' em ' + escapeHtml(datas + horas)
+        + (i.motivo ? ' · ' + escapeHtml(i.motivo) : '') + ' · ' + quem + '</span></div>';
+    }).join('') || '<p class="body-sm text-tertiary">Nenhum bloqueio registrado.</p>';
+    box.innerHTML = linhas + (historico.itens.length
+      ? '<button type="button" class="btn btn-secondary esc-btn" id="btnEscHistBaixar">Baixar cópia (CSV)</button><p class="body-sm text-tertiary" id="escHistSha">Código de conferência (SHA-256): ' + escapeHtml(historico.sha256) + '</p>'
+      : '');
+  } catch (err) {
+    box.innerHTML = '<p class="body-sm" role="alert" style="color:var(--md-error)">' + escapeHtml(err.message) + '</p>';
+  }
+}
+function baixarHistorico() {
+  if (!historico) return;
+  baixarArquivo('historico-bloqueios-' + historico.geradoEm.slice(0, 10) + '.csv', historico.csv);
+}
+
 // ---------- Alterar vários de uma vez (D-035) ----------
 const ACOES_LOTE = [
   ['ausencia', 'Ausência (dia inteiro): folga, férias, treinamento'],
@@ -370,6 +406,8 @@ export function initEscalas() {
     const r = ev.target.closest('[data-esc-remover]');
     if (r) return removerExcecao(r.dataset.escRemover);
     if (ev.target.closest('#btnEscNovaExcecao')) return abrirExcecao();
+    if (ev.target.closest('#btnEscHistorico')) return verHistorico();
+    if (ev.target.closest('#btnEscHistBaixar')) return baixarHistorico();
     if (ev.target.closest('#btnEscLote')) return abrirLote();
     if (ev.target.closest('#btnEscNovoModelo')) return abrirModelo(null);
     const me = ev.target.closest('[data-esc-modelo-editar]');
