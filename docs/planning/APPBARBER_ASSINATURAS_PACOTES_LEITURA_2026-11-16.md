@@ -22,13 +22,13 @@
 
 ### Campos do formulário do plano (5 abas)
 - **Dados do plano:** descrição; valor total; *tipo de vencimento* (data fixa / base na contratação / base na contratação fixa); dia de vencimento (só para data fixa); *periodicidade* (mensal, trimestral, semestral, anual); *disponível para venda* (sim/não).
-- **Serviços do plano:** lista de itens, cada um com tipo (serviço ou produto), item, **desconto %** (100 = coberto), **quantidade de usos** e "gerar pontos do programa de fidelidade". Aviso na tela: "serviços já agendados não terão desconto aplicado".
+- **Serviços do plano:** lista de itens, cada um com tipo (serviço ou produto), item, **desconto %** (100 = coberto), **quantidade de usos**, "gerar pontos do programa de fidelidade", "disponível na apresentação" e **dias da semana em que o cliente pode usar** (ex.: terça, quarta e quinta; visto em "Editar item", informado pelo dono em 2026-11-16). Aviso na tela: "serviços já agendados não terão desconto aplicado".
 - **Comissão:** tipo — **"por produtividade (divisão)"** ou "comissão fixa (porcentagem)"; campo "comissão sobre o clube (%)".
-- **Apresentação:** texto de descrição (vazio nos planos lidos). **Documentos:** não aberta.
+- **Apresentação:** texto de descrição (vazio nos planos lidos). **Documentos:** não aberta. **Profissionais** (6ª aba, informada pelo dono): lista de profissionais permitidos; **lista vazia = todos podem atender; com lista, o agendamento só é permitido com os profissionais dela.**
 
 ### Fatos que mais importam
 1. **Os 9 planos usam a mesma comissão: "por produtividade (divisão)", 50% do valor do clube.** A tela explica: uma porcentagem do valor do clube é destinada à comissão e **dividida entre os profissionais conforme o número de serviços que cada um realizou no período**. É o **rateio** que a Onda A tinha adiado (D-036). Nenhum plano usa a opção de comissão fixa.
-2. **Restrição "3ª–5ª" está só no nome do plano.** Nas abas lidas não há campo de dia da semana, horário ou profissional. Como o AppBarber impede o uso fora de 3ª–5ª, se é que impede, é DESCONHECIDO.
+2. **Restrições existem como regra, em dois níveis:** **dias da semana por item** ("3ª–5ª" no nome do plano reflete terça, quarta e quinta marcadas no item) e **lista de profissionais por plano**. **Correção:** a primeira versão deste documento dizia que a restrição estava só no nome; era erro meu (não abri o "Editar item" nem a aba "Profissionais"). Não há, nas telas vistas, restrição por horário do dia, unidade ou intervalo entre usos (não verificado: aba Documentos).
 3. **O serviço coberto é um serviço "sombra"** (ex.: "*CORTE ASSINATURA", R$ 94,90, 30 min, comissão de serviço 50%), com preço igual ao do plano mais barato; o desconto de 100% do plano o zera na comanda.
 4. **Usos:** a tela de usos mostra "utilizados X de N" por item e a lista de comandas. Há uso **por fatura** (ciclo).
 
@@ -65,7 +65,7 @@ Agendamentos por assinatura; contratações e tentativas; novas contratações (
 | Ponto | AppBarber (real) | Desenho atual (`ASSINATURAS_DESENHO.md`) | Consequência |
 |---|---|---|---|
 | Comissão | 9 de 9 planos usam **rateio de 50% do valor do clube pelos serviços feitos** | Onda A entrega tabela e fixo; rateio adiado | **Sem rateio, a Onda A não reproduz a comissão que a equipe recebe hoje.** Risco de conflito com a equipe |
-| Restrição de dia/horário | Só no nome do plano | Campos próprios (dias da semana, profissionais) | Melhora o AppBarber; manter |
+| Restrição de dia/profissional | **Existe**: dias da semana por item e lista de profissionais por plano (vazia = todos) | Campos próprios (dias da semana, profissionais) | **Equivalente**: a Onda A precisa ter os dois desde o início; o desenho já prevê |
 | Ilimitado | número alto digitado (999…) | limite nulo = ilimitado | Melhora; manter |
 | Pacote com saldo, validade, parcelas | Produto à parte, com expiração e venda parcelada | Fora da Onda A (saldo do cliente) | Confirma separar; ver §8 |
 | Assinante "comum" vs recorrência | 5 de 10 na 1ª página são "comum" (cobrança manual) | Onda A já prevê cobrança fora do HOPE OS | Confirma a Onda A sem gateway |
@@ -85,5 +85,5 @@ Agendamentos por assinatura; contratações e tentativas; novas contratações (
 
 ## 9. Limites desta leitura
 - Aba "Documentos" do plano, "Clube de clientes" (fidelidade) e cupons não foram abertos.
-- Fórmula do rateio, regra de 3ª–5ª e política de pausa: DESCONHECIDAS.
+- Fórmula do rateio e política de pausa: DESCONHECIDAS.
 - Detalhes da cobrança na GalaxPay (taxas, retentativas) não estão no AppBarber.
