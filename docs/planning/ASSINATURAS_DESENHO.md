@@ -51,6 +51,13 @@
 - **Cancelamento:** o padrão é valer no fim do ciclo pago, sem reembolso proporcional; o cancelamento imediato com reembolso fica a critério da gestão e é registrado. Regras de direito do consumidor, como o arrependimento em 7 dias na contratação online, ficam para validação jurídica.
 - **Troca de plano:** vale no próximo ciclo (simples e sem proporcional). Troca imediata fica para depois, se houver demanda.
 - **Pausa:** a gestão pode pausar (ex.: férias do cliente) por até N ciclos; o fornecedor deixa de cobrar.
+- **Uso fora da regra do plano (proposta do dono, 2026-11-16; DRAFT, aguarda os pontos abaixo):** quando o atendimento foge de uma restrição (dia da semana, profissional, faixa de horário), o **gestor configura por plano** o que acontece. Exemplo do dono: assinante de corte de terça a quinta vem no sábado → **consome 1 uso do plano e paga 50% do valor do corte**.
+  - **Ação por tipo de restrição violada:** (1) **bloquear** a cobertura (cobra o valor integral, sem consumir uso); (2) **cobrar X% e consumir 1 uso**; (3) **cobrar X% sem consumir uso**; (4) **cobertura total** (a restrição só avisa). Padrão sugerido ao criar o plano: (1), o mais seguro.
+  - **Base do percentual:** valor de tabela do serviço realizado, no momento do atendimento, arredondado ao centavo.
+  - **Teto por ciclo:** máximo de usos fora da regra por assinante e ciclo (ex.: 2 por mês), para a exceção não virar o padrão.
+  - **Aprovação opcional:** o plano pode exigir liberação de quem tem a permissão sensível; o motivo e quem liberou ficam no registro imutável.
+  - **Mais de uma restrição violada:** vale a de maior percentual (não soma).
+  - **Pontos a decidir antes de implementar:** (a) comissão do uso fora da regra (sobre o valor cobrado, e se entra ou não no rateio do ciclo); (b) se o link do cliente oferece a opção (preço mostrado antes de confirmar) ou só a equipe; (c) estorno devolve o uso e a parte cobrada, como no D-013.
 
 ## 5. Inteligência (o diferencial)
 - **Margem por plano:** receita do ciclo − comissões dos usos − taxa do fornecedor − insumos dos serviços (quando houver ficha de insumos).
