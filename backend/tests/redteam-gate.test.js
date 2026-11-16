@@ -615,7 +615,7 @@ const ROTAS_SEM_RBAC = new Set([
   'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug',
   // Link pessoal do agendamento (017, D-038): a credencial é o código do link, no corpo.
   'POST /api/public/meu-agendamento', 'POST /api/public/meu-agendamento/confirmar', 'POST /api/public/meu-agendamento/cancelar',
-  'POST /api/public/meu-agendamento/horarios', 'POST /api/public/meu-agendamento/remarcar'
+  'POST /api/public/meu-agendamento/horarios', 'POST /api/public/meu-agendamento/remarcar', 'POST /api/public/meu-agendamento/push'
 ]);
 function inventarioDeRotas() {
   const { authRouter } = require('../src/routes/auth');

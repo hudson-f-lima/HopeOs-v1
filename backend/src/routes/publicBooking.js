@@ -25,6 +25,8 @@ const { criarLimitador, chaveIpPublico } = require('../security/rateLimit');
 const crypto = require('crypto');
 const { TOKEN_RE, gerarToken, hashToken, instanteLocal, criarAcesso, moverAcessos } = require('../services/AcessoAgendamento');
 const { registrarEventoAgenda } = require('../services/AgendaEventosService');
+const { validarAssinatura } = require('../notifications/lembretes');
+const { criarCanalPush } = require('../notifications/canais');
 
 const router = express.Router();
 
@@ -610,6 +612,11 @@ async function contextoDoAcesso(req, extras) {
   return { repo, acesso, ag, agora, empresa, servico, profissional, cfg, inicio, limite, pode };
 }
 
+// Push (C5): disponível quando as chaves VAPID estão no servidor e o salão não desligou.
+const canalPush = () => criarCanalPush({ env, webpush: null });
+const MAX_PUSH_POR_LINK = 5;
+const hashEndpoint = endpoint => crypto.createHash('sha256').update(String(endpoint)).digest('hex');
+
 function visao(c) {
   const servicoNome = (c.servico && c.servico.nome) || 'Serviço';
   const duracaoMin = Number(c.ag.duracao_min) || 30;
@@ -623,6 +630,7 @@ function visao(c) {
     prazo: { cancelamentoPrazoMin: c.cfg.cancelamentoPrazoMin, limiteIso: c.limite.toISOString() },
     remarcacoesRestantes: Math.max(0, MAX_REMARCACOES - (Number(c.acesso.remarcacoes) || 0)),
     pode: c.pode,
+    push: { disponivel: canalPush().ativo() && c.empresa.lembretes_push_ativo !== false && ['agendado', 'confirmado'].includes(c.ag.status), chavePublica: canalPush().chavePublica() },
     calendario: calendarioDe(c.empresa, { data: String(c.ag.data), horario: hhmm(c.ag.horario), servico: servicoNome }, duracaoMin)
   };
 }
@@ -654,6 +662,46 @@ rotaLink('/cancelar', async (req, res) => {
   if (!r) throw agendamentoMudou();
   await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: c.ag.id, tipo: 'status', de, para: 'cancelado', origem: 'link_cliente' });
   res.json({ ok: true, data: visao(await contextoDoAcesso(req)) });
+});
+
+// Lembretes por push (C5): o cliente liga ou desliga no próprio aparelho. A assinatura fica presa
+// ao link pessoal (acesso). Só endereços de servidores de push conhecidos são aceitos (SSRF).
+rotaLink('/push', async (req, res) => {
+  const c = await contextoDoAcesso(req, ['acao', 'assinatura', 'endpoint']);
+  const { acao } = req.body;
+  if (acao === 'assinar') {
+    if (!canalPush().ativo() || c.empresa.lembretes_push_ativo === false) throw erroPublico('PUSH_INDISPONIVEL', 422, 'Os lembretes por notificação não estão disponíveis.');
+    if (!['agendado', 'confirmado'].includes(c.ag.status)) throw agendamentoMudou();
+    const a = validarAssinatura(req.body.assinatura);
+    if (!a) throw dadosInvalidos();
+    const hash = hashEndpoint(a.endpoint);
+    const agoraIso = c.agora.toISOString();
+    const existentes = (await c.repo.list('agendamento_push', { empresa_id: c.repo.empresaId, acesso_id: c.acesso.id })).filter(p => !p.revogado_em);
+    const dele = existentes.find(p => p.endpoint_hash === hash);
+    if (!dele) {
+      if (existentes.length >= MAX_PUSH_POR_LINK) throw erroPublico('LIMITE_APARELHOS', 422, 'Limite de aparelhos com lembrete neste link.');
+      try {
+        await c.repo.insert('agendamento_push', { acesso_id: c.acesso.id, endpoint_hash: hash, assinatura: a, falhas: 0, created_at: agoraIso, updated_at: agoraIso });
+      } catch (err) {
+        // O mesmo aparelho já ligado em outro link: a assinatura passa a valer para este.
+        if (err && err.code === '23505') {
+          const outra = (await new SupabaseRepository(null).list('agendamento_push', { endpoint_hash: hash }))[0];
+          if (!outra || String(outra.empresa_id) !== String(c.repo.empresaId)) throw dadosInvalidos();
+          await c.repo.updateScoped('agendamento_push', outra.id, { acesso_id: c.acesso.id, assinatura: a, revogado_em: null, falhas: 0, created_at: agoraIso, updated_at: agoraIso });
+        } else throw err;
+      }
+    }
+    return res.json({ ok: true, data: { ativo: true } });
+  }
+  if (acao === 'cancelar') {
+    const e = req.body.endpoint;
+    if (typeof e !== 'string' || e.length > 600) throw dadosInvalidos();
+    const hash = hashEndpoint(e);
+    const doLink = (await c.repo.list('agendamento_push', { empresa_id: c.repo.empresaId, acesso_id: c.acesso.id })).filter(p => !p.revogado_em && p.endpoint_hash === hash);
+    for (const p of doLink) await c.repo.updateScoped('agendamento_push', p.id, { revogado_em: c.agora.toISOString(), updated_at: c.agora.toISOString() });
+    return res.json({ ok: true, data: { ativo: false } });
+  }
+  throw dadosInvalidos();
 });
 
 // Remarcação: mesmo serviço e mesmo profissional, regras do link público do salão (antecedência,
@@ -723,4 +771,4 @@ router.use((err, req, res, next) => {
   res.status(500).json({ ok: false, error: { code: 'INDISPONIVEL_AGORA', message: 'Não foi possível concluir agora. Tente de novo em instantes.' } });
 });
 
-module.exports = { MAX_REMARCACOES, publicBookingRouter: router, resetRateLimitPublico, limparCacheSlug, linksDaEnv: linksPublicos, configOnline, SLUG_RE, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };
+module.exports = { MAX_REMARCACOES, MAX_PUSH_POR_LINK, publicBookingRouter: router, resetRateLimitPublico, limparCacheSlug, linksDaEnv: linksPublicos, configOnline, SLUG_RE, setRelogioParaTestes, ipTruncado, chaveNumero, erroParaLog, TIPO_EVENTO };

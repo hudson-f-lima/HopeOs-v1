@@ -111,7 +111,7 @@ router.patch('/empresa', authorize('empresa:configurar'), async (req, res, next)
 const ONLINE_CAMPOS = {
   slug: 'online_slug', ativo: 'online_ativo', antecedenciaMin: 'online_antecedencia_min', janelaDias: 'online_janela_dias',
   cancelamentoPrazoMin: 'online_cancelamento_prazo_min', maxFuturos: 'online_max_futuros', mostrarPreco: 'online_mostrar_preco',
-  privacidadeContato: 'privacidade_contato'
+  privacidadeContato: 'privacidade_contato', lembretesPush: 'lembretes_push_ativo'
 };
 const ONLINE_FAIXAS = { antecedenciaMin: [0, 10080], janelaDias: [1, 180], cancelamentoPrazoMin: [0, 10080], maxFuturos: [1, 10] };
 const SLUG_ONLINE_RE = /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/;
@@ -135,6 +135,7 @@ function configOnlinePublica(e) {
     cancelamentoPrazoMin: e.online_cancelamento_prazo_min ?? 120,
     maxFuturos: e.online_max_futuros ?? 2,
     mostrarPreco: e.online_mostrar_preco !== false,
+    lembretesPush: e.lembretes_push_ativo !== false,
     privacidadeContato: e.privacidade_contato ?? null,
     razaoSocial: e.razao_social ?? null,
     cnpj: e.cnpj ?? null,
@@ -151,7 +152,7 @@ function validarConfigOnline(body) {
     if (v && !SLUG_ONLINE_RE.test(v)) throw invalidoOnline('slug', 'Endereço do link: 3 a 60 letras minúsculas, números ou hífen, sem hífen nas pontas.');
     out.online_slug = v || null;
   }
-  for (const campo of ['ativo', 'mostrarPreco']) {
+  for (const campo of ['ativo', 'mostrarPreco', 'lembretesPush']) {
     if (body[campo] === undefined) continue;
     if (typeof body[campo] !== 'boolean') throw invalidoOnline(campo, `${campo} deve ser verdadeiro ou falso.`);
     out[ONLINE_CAMPOS[campo]] = body[campo];

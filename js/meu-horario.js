@@ -5,6 +5,7 @@
 // com dado da API: tudo entra por textContent.
 import { apiBaseDaUrl } from './api-base.js';
 import { baixarIcs, googleAgendaUrl } from './calendario-cliente.js';
+import * as Push from './push-cliente.js';
 
 const $ = id => document.getElementById(id);
 const estado = { api: null, token: null, dados: null, dataEscolhida: null, horarioEscolhido: null, seq: 0, ocupado: false };
@@ -57,6 +58,7 @@ async function chamar(acao, extra = {}) {
 const mensagemDe = r => (r && r.corpo && r.corpo.error && r.corpo.error.message) || 'Não foi possível concluir agora. Tente de novo.';
 
 function linkInvalido() {
+  Push.esquecerToken();
   mostrar('carregando', false);
   mostrar('secHorario', false);
   mostrar('secRemarcar', false);
@@ -86,6 +88,7 @@ function render(d) {
   mostrar('btnIcs', ativo);
   mostrar('linkGoogle', ativo);
   if (ativo) $('linkGoogle').href = googleAgendaUrl(d.calendario, location.href);
+  atualizarPush(d, ativo);
   mostrar('linkSalao', !!d.salao.whatsapp);
   if (d.salao.whatsapp) $('linkSalao').href = `https://wa.me/${encodeURIComponent(d.salao.whatsapp)}`;
   mostrar('carregando', false);
@@ -196,15 +199,65 @@ async function confirmarRemarcacao() {
   aviso('Horário remarcado. Se você adicionou à agenda do celular, adicione de novo.', 'ok');
 }
 
+// --- Lembrete por notificação (C5) -------------------------------------------
+async function atualizarPush(d, ativo) {
+  const botao = $('btnPush');
+  const dica = $('pushDica');
+  mostrar('btnPush', false); mostrar('pushDica', false);
+  if (!ativo || !d.push || !d.push.disponivel) return;
+  if (Push.ehIphoneForaDaTela() && !Push.suportado()) {
+    dica.textContent = 'Para receber lembrete por notificação no iPhone: toque em Compartilhar, depois em "Adicionar à Tela de Início", e abra o horário por lá.';
+    mostrar('pushDica');
+    return;
+  }
+  if (!Push.suportado()) return;
+  let ligado = false;
+  try { ligado = Boolean(await Push.assinaturaAtual()); } catch { ligado = false; }
+  botao.textContent = ligado ? 'Desativar lembrete por notificação' : 'Receber lembrete por notificação';
+  botao.dataset.ligado = ligado ? '1' : '0';
+  mostrar('btnPush');
+}
+
+async function alternarPush() {
+  if (estado.ocupado || !estado.dados) return;
+  estado.ocupado = true;
+  const botao = $('btnPush');
+  botao.disabled = true;
+  aviso('');
+  try {
+    if (botao.dataset.ligado === '1') {
+      const endpoint = await Push.desativar();
+      if (endpoint) await chamar('/push', { acao: 'cancelar', endpoint });
+      Push.esquecerToken();
+      aviso('Lembretes por notificação desativados.', 'ok');
+    } else {
+      const assinatura = await Push.ativar(estado.dados.push.chavePublica);
+      const r = await chamar('/push', { acao: 'assinar', assinatura });
+      if (!r || r.status !== 200) throw new Error(mensagemDe(r));
+      Push.guardarToken(estado.token);
+      aviso('Pronto! Você recebe um aviso 1 dia antes e 2 horas antes do horário.', 'ok');
+    }
+  } catch (err) {
+    aviso(err && err.message === 'PERMISSAO_NEGADA' ? 'As notificações estão bloqueadas neste aparelho. Libere nas configurações do navegador para receber os lembretes.' : ((err && err.message) || MSG_CONEXAO));
+  } finally {
+    estado.ocupado = false;
+    botao.disabled = false;
+    if (estado.dados) atualizarPush(estado.dados, true);
+  }
+}
+
 async function iniciar() {
   // Outro link colado na mesma aba (só o #t= muda): o navegador não recarrega sozinho.
   window.addEventListener('hashchange', () => location.reload());
-  estado.token = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+  // O código vem do link (#t=). Quem abre pelo toque na notificação não tem o #t: usa o que este
+  // aparelho guardou ao ligar os lembretes.
+  estado.token = new URLSearchParams(location.hash.slice(1)).get('t') || Push.tokenGuardado();
   $('btnConfirmar').addEventListener('click', ev => acao('/confirmar', ev.currentTarget));
   $('btnCancelar').addEventListener('click', ev => acao('/cancelar', ev.currentTarget, 'Cancelar este horário? Para marcar de novo, use o link do salão.'));
   $('btnRemarcar').addEventListener('click', abrirRemarcar);
   $('btnVoltar').addEventListener('click', () => { mostrar('secRemarcar', false); mostrar('secHorario'); aviso(''); });
   $('btnConfirmarRemarcacao').addEventListener('click', confirmarRemarcacao);
+  $('btnPush').addEventListener('click', alternarPush);
   $('btnIcs').addEventListener('click', () => { if (estado.dados) baixarIcs(estado.dados.calendario, location.href); });
   if (!/^[A-Za-z0-9_-]{43}$/.test(estado.token)) return linkInvalido();
   try { estado.api = await resolverApi(); } catch { mostrar('carregando', false); return aviso(MSG_CONEXAO); }

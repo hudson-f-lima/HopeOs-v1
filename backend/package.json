@@ -20,7 +20,7 @@
     "test:identity": "node tests/identity-gate.test.js",
     "test:onboarding": "node tests/onboarding-gate.test.js",
     "test:onda-b": "node tests/onda-b-gate.test.js",
-    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:online && npm run test:link && npm run test:series && npm run test:atendimento && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam",
+    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:online && npm run test:link && npm run test:series && npm run test:atendimento && npm run test:lembretes-push && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam",
     "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js",
@@ -35,6 +35,7 @@
     "test:link": "node tests/meu-agendamento-gate.test.js",
     "test:series": "node tests/series-gate.test.js",
     "test:atendimento": "node tests/atendimento-gate.test.js",
+    "test:lembretes-push": "node tests/lembretes-push-gate.test.js",
     "test:ops": "node tests/ops-gate.test.js",
     "test:correcoes": "node tests/correcoes-gate.test.js",
     "test:ganhos": "node tests/ganhos-gate.test.js",
@@ -50,7 +51,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "xlsx": "^0.18.5"

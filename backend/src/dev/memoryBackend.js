@@ -34,6 +34,11 @@ function installMemoryBackend(seed = {}) {
     if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
     const { empresa_id, empresaId, ...rest } = p;
     const row = { id: p.id || randomUUID(), ...rest, empresa_id: this.empresaId };
+    // Chaves únicas do banco que os gates precisam sentir (020: lembrete e endpoint de push).
+    const UNICAS = { agendamento_lembretes: ['agendamento_id', 'tipo', 'canal'], agendamento_push: ['endpoint_hash'] };
+    if (UNICAS[t] && rows(t).some(r => UNICAS[t].every(c => r[c] === row[c]))) {
+      const err = new Error(`duplicate key value violates unique constraint on ${t}`); err.code = '23505'; throw err;
+    }
     rows(t).push(row);
     return row;
   };

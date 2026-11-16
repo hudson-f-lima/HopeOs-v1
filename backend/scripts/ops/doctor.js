@@ -106,6 +106,15 @@ function checkEnv(env, report) {
   else if (!UUID_RE.test(env.DEFAULT_EMPRESA_ID)) report.fail('env.DEFAULT_EMPRESA_ID', 'não é UUID');
   else report.ok('env.DEFAULT_EMPRESA_ID', env.DEFAULT_EMPRESA_ID);
 
+  // Lembretes por push (C5, D-041): chaves VAPID só no ambiente do servidor.
+  const vapid = [env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT];
+  if (vapid.every(Boolean)) {
+    if (!/^mailto:|^https:\/\//.test(env.VAPID_SUBJECT)) report.fail('env.VAPID_SUBJECT', 'deve começar com mailto: ou https://');
+    else report.ok('env.VAPID', 'chaves de push presentes → lembretes por notificação LIGADOS');
+  } else if (vapid.some(Boolean)) report.fail('env.VAPID', 'faltam variáveis: defina VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT juntas');
+  else report.ok('env.VAPID', 'ausentes → lembretes por notificação DESLIGADOS');
+  if (env.LEMBRETES_INTERVALO_MS !== undefined && !(env.LEMBRETES_INTERVALO_MS >= 0)) report.fail('env.LEMBRETES_INTERVALO_MS', 'deve ser um número (milissegundos; 0 desliga o agendador)');
+
   // PUBLIC_BOOKING_LINKS
   const links = env.PUBLIC_BOOKING_LINKS;
   if (!links) report.ok('env.PUBLIC_BOOKING_LINKS', 'ausente → nenhum link pela env (links por salão vêm do banco, Conta → Link online, D-037)');
