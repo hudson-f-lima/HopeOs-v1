@@ -15,6 +15,8 @@ let lista = [];
 let planos = [];
 let filtro = '';
 let novaAberta = false;
+let relatorio = null;
+let mesRelatorio = new Date().toLocaleDateString('en-CA').slice(0, 7);
 
 const nomeServico = id => { const s = (state.catalog.servicos || []).find(x => x.id === id); return s ? s.nome : 'Serviço'; };
 const hojeLocal = () => new Date().toLocaleDateString('en-CA');
@@ -55,6 +57,31 @@ function formNova() {
     '<div style="display:flex;gap:8px;"><button class="btn btn-primary" type="submit" id="btnAssSalvar">Assinar</button><button class="btn" type="button" id="btnAssCancelarForm">Cancelar</button></div></form>';
 }
 
+// Resumo do mês por plano (só a gestão): receita das cobranças pagas, comissão, margem e quem usou
+// mais do que paga. O servidor calcula; a tela só mostra.
+function resumoMes() {
+  if (!sessionPode('painel:financeiro')) return '';
+  const r = relatorio;
+  const cab = '<section class="card" id="assResumoMes" style="margin-bottom:10px;"><h3 class="m-0">Resumo do mês</h3>' +
+    '<div class="field"><label for="assMes">Mês</label><input type="month" id="assMes" value="' + escapeHtml(mesRelatorio) + '"/></div>';
+  if (!r) return cab + '<p class="body-sm text-tertiary">Carregando…</p></section>';
+  if (!r.planos.length) return cab + '<p class="body-sm text-tertiary">Sem cobranças pagas nem atendimentos de plano neste mês.</p></section>';
+  const linhas = r.planos.map(p => '<li>' + escapeHtml(p.planoNome + ': receita ' + centsToBRL(p.receitaCentavos) + ' · comissão ' + centsToBRL(p.comissaoCentavos) +
+    (p.regra === 'rateio' ? ' (rateio de ' + p.percentual + '%)' : '') + ' · margem ' + centsToBRL(p.margemCentavos) + ' · ' + p.atendimentos + ' atendimento(s)' +
+    (p.naoDistribuidoCentavos ? ' · ' + centsToBRL(p.naoDistribuidoCentavos) + ' sem atendimento para dividir' : '') +
+    (p.profissionais.length ? ' — ' + p.profissionais.map(x => x.nome + ' ' + centsToBRL(x.comissaoCentavos) + ' (' + x.atendimentos + ')').join(', ') : '')) + '</li>').join('');
+  const acima = r.acimaDoPreco.length ? '<p class="body-sm">' + escapeHtml('Usaram mais do que pagam: ' + r.acimaDoPreco.map(x => (x.clienteNome || 'Cliente') + ' (' + centsToBRL(x.consumoCentavos) + ' de ' + centsToBRL(x.mensalidadeCentavos) + ')').join(', ')) + '</p>' : '';
+  return cab + '<p class="body-sm" id="assResumoTotais">' + escapeHtml('Total: receita ' + centsToBRL(r.totais.receitaCentavos) + ' · comissão ' + centsToBRL(r.totais.comissaoCentavos) + ' · margem ' + centsToBRL(r.totais.margemCentavos)) + '</p>' +
+    '<ul class="body-sm" style="margin:4px 0 4px 18px;">' + linhas + '</ul>' + acima + '</section>';
+}
+
+async function carregarRelatorio() {
+  if (!sessionPode('painel:financeiro')) return;
+  try { relatorio = await api('/assinaturas/relatorio?mes=' + encodeURIComponent(mesRelatorio)); }
+  catch (err) { relatorio = { planos: [], acimaDoPreco: [], totais: {} }; showBanner(err.message, 'error'); }
+  render();
+}
+
 function render() {
   const c = el('assinantesConteudo');
   const visiveis = lista.filter(a => !filtro || String(a.clienteNome || '').toLowerCase().includes(filtro));
@@ -63,6 +90,7 @@ function render() {
     '<p class="body-sm" id="assResumo">' + escapeHtml(lista.length + ' assinante(s): ' + contagem[0] + ' em dia, ' + contagem[1] + ' atrasada(s), ' + contagem[2] + ' suspensa(s).') + '</p>' +
     (sessionPode('assinatura:vender') && !novaAberta ? '<button class="btn btn-primary" type="button" id="btnAssNova" style="margin-bottom:10px;">+ Nova assinatura</button>' : '') +
     (novaAberta ? formNova() : '') +
+    resumoMes() +
     '<div class="field"><label for="assBusca">Buscar cliente</label><input id="assBusca" value="' + escapeHtml(filtro) + '" autocomplete="off"/></div>' +
     (visiveis.length ? visiveis.map(card).join('') : '<p class="body-sm text-tertiary">Nenhum assinante.</p>');
 }
@@ -111,6 +139,7 @@ export async function carregarAssinantes() {
   try {
     [lista, planos] = await Promise.all([api('/assinaturas'), api('/assinaturas/planos')]);
     render();
+    carregarRelatorio();
   } catch (err) { el('assinantesConteudo').textContent = err.message; }
 }
 
@@ -129,7 +158,10 @@ export function initAssinantes() {
     if (t.dataset.assPagar) pagar(a, t.dataset.assPagar);
     if (t.dataset.assAcao) acao(a, t.dataset.assAcao);
   });
-  c.addEventListener('change', ev => { if (ev.target.id === 'assPagoAgora') el('assFormaBox').classList.toggle('hidden', !ev.target.checked); });
+  c.addEventListener('change', ev => {
+    if (ev.target.id === 'assPagoAgora') el('assFormaBox').classList.toggle('hidden', !ev.target.checked);
+    if (ev.target.id === 'assMes' && /^\d{4}-\d{2}$/.test(ev.target.value)) { mesRelatorio = ev.target.value; relatorio = null; render(); carregarRelatorio(); }
+  });
   c.addEventListener('input', ev => {
     if (ev.target.id !== 'assBusca') return;
     filtro = ev.target.value.trim().toLowerCase();
