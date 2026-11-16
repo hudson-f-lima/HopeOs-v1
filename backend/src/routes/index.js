@@ -78,11 +78,19 @@ router.use((req, res, next) => {
 
 // Cobertura do plano de assinatura nos itens marcados (D-043): ajusta o preço no servidor e devolve
 // os usos a gravar. Data e hora = agora no fuso da empresa.
-async function coberturaDaComanda(req, repo, payload, resolved) {
+// Comanda vinda de um agendamento: vale o dia e a hora DO AGENDAMENTO (lidos do banco), como o selo
+// da agenda. Antes valia o dia do fechamento: agendamento de terça fechado na segunda caía fora do
+// plano de 3ª a 5ª (achado do dono, 2026-11-16). Comanda avulsa: agora.
+async function coberturaDaComanda(req, repo, payload, resolved, vinculo = null) {
   const { aplicarAssinaturas } = require('../services/AssinaturaCheckout');
   const agora = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
-  const horario = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
-  return aplicarAssinaturas({ repo, auth: req.auth, actorId: autoriaDe(req.auth).actorId || null, payload, resolved, dia: agora.data, horario });
+  let dia = agora.data;
+  let horario = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
+  if (vinculo && vinculo.ag && vinculo.ag.data && vinculo.ag.horario) {
+    dia = String(vinculo.ag.data).slice(0, 10);
+    horario = String(vinculo.ag.horario).slice(0, 5);
+  }
+  return aplicarAssinaturas({ repo, auth: req.auth, actorId: autoriaDe(req.auth).actorId || null, payload, resolved, dia, horario });
 }
 
 async function buildServerResolvedCheckout(repo, rawBody) {
@@ -761,9 +769,9 @@ router.post('/checkout/preview', authorize('comanda:fechar'), async (req, res, n
   try {
     assertOwnCheckout(req, req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
-    await validarVinculoAgendamento(req, repo);
+    const vinculo = await validarVinculoAgendamento(req, repo);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
-    const cobertura = await coberturaDaComanda(req, repo, payload, resolved);
+    const cobertura = await coberturaDaComanda(req, repo, payload, resolved, vinculo);
     const preview = previewCheckout(resolved);
     // Comparativo para o balcão: a taxa de cada forma sobre o total desta comanda.
     // Fica só na resposta do preview; o fechamento recalcula tudo e não lê este campo.
@@ -803,7 +811,7 @@ router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, nex
     const hora = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
     payload.data = agora.data; payload.hora = hora;
     resolved.data = agora.data; resolved.hora = hora;
-    const cobertura = await coberturaDaComanda(req, repo, payload, resolved);
+    const cobertura = await coberturaDaComanda(req, repo, payload, resolved, vinculo);
     const preview = previewCheckout(resolved);
     // Com uso de plano: fechamento e usos na mesma transação (D-043). Sem: o fechamento de sempre.
     const saved = cobertura.usos.length

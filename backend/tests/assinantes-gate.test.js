@@ -317,6 +317,23 @@ test('C05 estornar a comanda devolve o uso ao ciclo; a cobertura volta a valer',
   } finally { em(HOJE.toISOString()); }
 });
 
+test('C06 caso do dono: agendamento de QUARTA fechado na SEGUNDA vale pela data do agendamento (coberto); avulso na segunda, fora da regra', async () => {
+  const agId = '90000000-0000-4000-8000-0000000c0006';
+  db.agendamentos = db.agendamentos || [];
+  db.agendamentos.push({ id: agId, empresa_id: A, cliente_id: CLI5, servico_id: CORTE, profissional_id: BRUNO, data: '2026-11-18', horario: '10:00:00', duracao_min: 30, status: 'agendado' });
+  const usosAntes = usosDe(cli5).filter(x => x.consome_uso).length;
+  const prev = await request('POST', '/api/checkout/preview', { token: 'h.admin.a', body: { clienteId: CLI5, agendamentoId: agId, itens: [corte(BRUNO, { assinaturaId: cli5 })], payments: [] } });
+  assert.strictEqual(prev.status, 200, prev.raw);
+  assert.deepStrictEqual([prev.data.data.assinaturas[0].situacao, prev.data.data.assinaturas[0].cobrarCentavos], ['coberto', 0], 'pela data do agendamento (quarta)');
+  const avulso = await request('POST', '/api/checkout/preview', { token: 'h.admin.a', body: { clienteId: CLI5, itens: [corte(BRUNO, { assinaturaId: cli5 })], payments: [{ formaCode: 'pix', valorCentavos: 3000 }] } });
+  assert.deepStrictEqual([avulso.data.data.assinaturas[0].situacao, avulso.data.data.assinaturas[0].cobrarCentavos], ['fora_da_regra', 3000], 'sem vínculo, vale hoje (segunda)');
+  const fechou = await request('POST', '/api/checkout/close', { token: 'h.admin.a', body: { clienteId: CLI5, agendamentoId: agId, itens: [corte(BRUNO, { assinaturaId: cli5 })], payments: [] } });
+  assert.strictEqual(fechou.status, 201, fechou.raw);
+  assert.strictEqual(usosDe(cli5).filter(x => x.consome_uso).length, usosAntes + 1);
+  assert.strictEqual(usosDe(cli5).pop().tipo, 'coberto');
+  assert.strictEqual(db.agendamentos.find(x => x.id === agId).status, 'concluido', 'o agendamento é concluído pelo checkout, como sempre');
+});
+
 // --- Controle negativo -------------------------------------------------------
 test('NC1 controle negativo: sem a tolerância, 4 dias de atraso já suspenderia (A04 pegaria)', () => {
   const arquivo = path.join(__dirname, '../src/engines/AssinaturaCicloEngine.js');

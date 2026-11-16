@@ -1,5 +1,5 @@
 import { api, getInsightsRebooking, getInsightsAttach } from '../api.js';
-import { state, stateBus, sessionPode } from '../state.js';
+import { state, stateBus, sessionPode, findAgendaItemById } from '../state.js';
 import {
   centsToBRL,
   brlToCents,
@@ -196,9 +196,12 @@ async function atualizarCobertura() {
     if (item.tipo !== 'servico') continue;
     delete item.assinaturaId; delete item.precoPlanoCentavos; delete item.planoTexto;
     if (!clienteId || item.semPlano || !sessionPode('assinatura:ver')) continue;
+    // Comanda vinda de um agendamento: estima pelo dia e hora dele (o servidor faz o mesmo).
+    const ag = state.agendamentoIdParaCheckout ? findAgendaItemById(state.agendamentoIdParaCheckout) : null;
     const agora = new Date();
     const q = new URLSearchParams({ clienteId, servicoId: item.servicoId, profissionalId: item.profissionalId,
-      data: agora.toLocaleDateString('en-CA'), horario: agora.toTimeString().slice(0, 5) });
+      data: ag && ag.data ? String(ag.data).slice(0, 10) : agora.toLocaleDateString('en-CA'),
+      horario: ag && ag.horario ? String(ag.horario).slice(0, 5) : agora.toTimeString().slice(0, 5) });
     let cob;
     try { cob = await api('/assinaturas/cobertura?' + q.toString()); } catch (_) { continue; }
     const m = cob && cob.melhor;
