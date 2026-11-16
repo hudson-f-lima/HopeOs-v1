@@ -575,3 +575,14 @@
   - WhatsApp e SMS: abrir esses canais exige antes escolher o fornecedor e criar o campo de opt-out do cliente (migration e texto de consentimento).
 - **Verificação:** `gate_020.sql` (5 blocos); `lembretes-push-gate` 18/18 (3 controles negativos); E2E `push-cliente`: página liga e desliga, toque sem `#t=`, e o service worker real mostra a notificação entregue pelo protocolo do Chromium.
 
+
+## D-042 — Assinatura, Onda A, fase 1: planos e restrições (migration 021)
+- **Decisão (Platform Owner, 2026-11-16):** "Onda a: autorizado" (D-038); "Aprovado o rateio por quantidade. Conforme recomendação"; "Pode começar a fazer um da onda a". Regras de uso fora do plano: comissão padrão do profissional, cliente avisado, estorno "o que for mais inteligente", padrão de plano novo = bloquear, regra de cada plano configurável pelo gestor.
+- **Base:** leitura real do AppBarber ([`planning/APPBARBER_ASSINATURAS_PACOTES_LEITURA_2026-11-16.md`](planning/APPBARBER_ASSINATURAS_PACOTES_LEITURA_2026-11-16.md)): 9 planos com rateio de 50%, dias da semana por item, profissionais por plano.
+- **Entregue:**
+  - Migration 021: `assinatura_planos` (preço, periodicidade, vencimento, cobrança manual ou recorrente, tolerância, regra de comissão, política fora da regra com teto e aprovação, arquivamento), `assinatura_plano_itens` (desconto, limite por ciclo nulo = ilimitado, dias da semana, faixa de horário, intervalo mínimo) e `assinatura_plano_profissionais` (vazio = todos). Coerência no banco (cada escolha traz o seu número), nome único entre ativos, nada cruza empresa, RLS, sem `delete` de plano; itens e profissionais só pela função `assinatura_plano_salvar` (tudo ou nada). Rollback em `supabase/rollback/021_down.sql`.
+  - Motor puro `AssinaturaRegrasEngine.avaliarUso`: serviço fora do plano e limite esgotado cobram cheio; restrição violada aplica a política do plano (bloquear, cobrar X% e gastar uso, cobrar X% sem gastar, cobertura total), com teto por ciclo; uma política por plano, sem somar.
+  - Rotas `/api/assinaturas/planos` (listar, ver, criar, editar, arquivar, simular). Permissões novas: `assinatura:ver` (operação) e `planos:editar` (gestão, sensível).
+  - PWA: Gestão → Planos, com simulador. Cache `v1-40-0-planos-assinatura`.
+- **Fora desta fase:** assinantes, ciclos, usos na agenda e na comanda, estorno de uso (fase 2); cálculo da comissão e rateio, margem (fase 3); aviso ao cliente no link (fase 4); cobrança pelo fornecedor (Onda B); pacotes.
+- **Verificação:** `gate_021.sql` (6 blocos, controle negativo conferido à mão: sem a checagem de empresa o gate reprova); `assinatura-planos-gate` 15/15 (com NC1); E2E `planos` (criar, simular sábado e quarta, editar, arquivar, nome repetido, recepção e profissional).

@@ -56,6 +56,10 @@ const PERMISSOES = Object.freeze([
   // D-035 (migration 015): alterar várias pessoas de uma vez e modelos de escala.
   p('escala:lote', 'Escala', 'Alterar a escala de várias pessoas de uma vez e aplicar modelos', 'cadastros:write', GESTAO, 'sensivel'),
   p('escala:modelos', 'Escala', 'Criar, editar, duplicar e arquivar modelos de escala', 'cadastros:write', GESTAO, 'sensivel'),
+  // D-042 (migration 021): planos de assinatura (Onda A, fase 1). Ver e simular é da operação
+  // (a recepção vende); criar e editar mexe em preço e comissão: gestão, sensível.
+  p('assinatura:ver', 'Assinaturas', 'Ver planos de assinatura e simular a cobertura', 'cadastros:read', OPERACAO),
+  p('planos:editar', 'Assinaturas', 'Criar, editar e arquivar planos de assinatura (preço, comissão e regras de uso)', 'cadastros:write', GESTAO, 'sensivel'),
   p('espera:ver', 'Lista de espera', 'Ver a lista de espera', 'lista_espera:read', OPERACAO),
   p('espera:gerir', 'Lista de espera', 'Incluir e atualizar na lista de espera', 'lista_espera:write', OPERACAO),
   p('comanda:fechar', 'Comanda', 'Simular e fechar comanda', 'checkout:write', OPERACAO_PROPRIO, 'operacao',

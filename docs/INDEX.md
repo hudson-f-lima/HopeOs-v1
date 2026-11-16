@@ -8,6 +8,8 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`RUNBOOK_MIGRATION_007.md`](RUNBOOK_MIGRATION_007.md) — aplicar a 007 e ativar login por usuário em produção
 - [`audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`](audit/AUDITORIA_E_BENCHMARK_2026-11-10.md) — 2ª auditoria + benchmark global e cross-indústria
 - [`audit/AUDITORIA_RECORRENCIA_2026-11-16.md`](audit/AUDITORIA_RECORRENCIA_2026-11-16.md) — recorrência que não aparecia na agenda: causa comprovada × hipótese, correções, testes
+- [`planning/ASSINATURAS_ONDA_A_PLANO.md`](planning/ASSINATURAS_ONDA_A_PLANO.md) — Onda A da assinatura: decisões do dono, fases e critérios de aceite
+- [`planning/ASSINATURAS_PACOTES_BENCHMARK_2026-11-16.md`](planning/ASSINATURAS_PACOTES_BENCHMARK_2026-11-16.md) — assinaturas e pacotes: Trinks, BestBarbers, CashBarber (fontes públicas) e lacunas do AppBarber
 - [`audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`](audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md) — práticas de outras disciplinas (fintech, caixa, saúde, SRE, LGPD, UX) × HOPE OS
 - [`planning/INTEGRACOES_FUTURAS.md`](planning/INTEGRACOES_FUTURAS.md) — pagamento, NFS-e, WhatsApp, comissão paga, caixa salvo, alertas: contrato e pré-requisitos
 - [`RUNBOOK_BACKUP.md`](RUNBOOK_BACKUP.md) — ferramentas de backup, teste de restauração e a decisão pendente sobre a rotina diária

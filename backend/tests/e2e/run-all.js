@@ -45,6 +45,7 @@ const CASOS = [
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'series' },
   { nome: 'atendimento' },
+  { nome: 'planos' },
   { nome: 'push-cliente', env: { DEV_PUBLIC_SLUG: 'salao-dev', VAPID_PUBLIC_KEY: 'BPUBLICAdeTESTEe2e'.padEnd(87, 'x'), VAPID_PRIVATE_KEY: 'privada-de-teste-e2e', VAPID_SUBJECT: 'mailto:e2e@example.test' } }
 ];
 // Linha "ROTULO erros: [...]" / "ERROS: [...]" / "ERRS: [...]" / "VIOLAÇÕES CSP: [...]" com conteúdo.

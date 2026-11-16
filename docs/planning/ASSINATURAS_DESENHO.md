@@ -51,6 +51,15 @@
 - **Cancelamento:** o padrão é valer no fim do ciclo pago, sem reembolso proporcional; o cancelamento imediato com reembolso fica a critério da gestão e é registrado. Regras de direito do consumidor, como o arrependimento em 7 dias na contratação online, ficam para validação jurídica.
 - **Troca de plano:** vale no próximo ciclo (simples e sem proporcional). Troca imediata fica para depois, se houver demanda.
 - **Pausa:** a gestão pode pausar (ex.: férias do cliente) por até N ciclos; o fornecedor deixa de cobrar.
+- **Uso fora da regra do plano (proposta do dono, 2026-11-16; DRAFT, aguarda os pontos abaixo):** quando o atendimento foge de uma restrição (dia da semana, profissional, faixa de horário), o **gestor configura por plano** o que acontece. Exemplo do dono: assinante de corte de terça a quinta vem no sábado → **consome 1 uso do plano e paga 50% do valor do corte**.
+  - **Uma política por plano** (implementada assim na fase 1, D-042), valendo para qualquer restrição violada: dia, horário, profissional ou intervalo. O limite do ciclo não entra: esgotado, cobra cheio. **Ações:** (1) **bloquear** a cobertura (cobra o valor integral, sem consumir uso); (2) **cobrar X% e consumir 1 uso**; (3) **cobrar X% sem consumir uso**; (4) **cobertura total** (a restrição só avisa). Padrão sugerido ao criar o plano: (1), o mais seguro.
+  - **Base do percentual:** valor de tabela do serviço realizado, no momento do atendimento, arredondado ao centavo.
+  - **Teto por ciclo:** máximo de usos fora da regra por assinante e ciclo (ex.: 2 por mês), para a exceção não virar o padrão.
+  - **Aprovação opcional:** o plano pode exigir liberação de quem tem a permissão sensível; o motivo e quem liberou ficam no registro imutável.
+  - **Mais de uma restrição violada:** a mesma política vale uma vez (não soma).
+  - **Decisões do dono (2026-11-16):** (a) a comissão do profissional é a **comissão padrão do serviço, sobre o valor cobrado**, e o uso **fora do rateio** do ciclo (**confirmado**); (b) o **cliente é avisado** (**confirmado**) antes de confirmar: no link, aparece "fora do seu plano: R$ X e 1 uso" e ele confirma; (c) estorno: **o que for mais inteligente** (proposta abaixo).
+  - **Estorno (proposta):** por padrão reverte tudo por lançamento contrário (devolve o uso, devolve a parte cobrada e estorna a comissão). Estorno só do valor, mantendo o uso, exige permissão sensível e motivo. Depois do **fechamento do ciclo** o uso não volta (usos não acumulam); só o estorno financeiro vale.
+  - **Padrão ao criar plano (confirmado):** "bloquear a cobertura". **A regra de cada plano é configurável pelo gestor**; os planos importados do AppBarber **não** recebem regra fixa no código: nascem com o padrão e o gestor ajusta plano a plano. Estorno: proposta acima, aprovada pelo dono ("o que for mais inteligente").
 
 ## 5. Inteligência (o diferencial)
 - **Margem por plano:** receita do ciclo − comissões dos usos − taxa do fornecedor − insumos dos serviços (quando houver ficha de insumos).

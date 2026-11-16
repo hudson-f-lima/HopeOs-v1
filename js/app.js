@@ -28,6 +28,7 @@ import { initTema } from './ui/tema.js';
 import { initPermissoes } from './ui/permissoes.js';
 import { initEscalas } from './ui/escalas.js';
 import { initAgendamentoOnline } from './ui/agendamentoOnline.js';
+import { initPlanos } from './ui/planos.js';
 import { initAgora } from './ui/agora.js';
 import { initLembretes } from './ui/lembretes.js';
 import { initOnlineNovos } from './ui/onlineNovos.js';
@@ -401,6 +402,7 @@ async function init() {
     initPermissoes();
   initEscalas();
   initAgendamentoOnline();
+  initPlanos();
   // Depende da sessão (permissão agenda:ver): por isso aqui, e não com os outros módulos da agenda.
   initOnlineNovos();
   initSeries();
