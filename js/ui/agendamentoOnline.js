@@ -46,6 +46,7 @@ function render() {
       <div class="field"><label for="onlineMaxFuturos">Horários futuros por número de WhatsApp</label>
         <select id="onlineMaxFuturos">${opcoes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], c.maxFuturos, v => String(v))}</select></div>
       <label class="filter-inline"><input type="checkbox" id="onlineMostrarPreco"${c.mostrarPreco ? ' checked' : ''}/> Mostrar preços na página</label>
+      <label class="filter-inline"><input type="checkbox" id="onlineLembretes"${c.lembretesPush ? ' checked' : ''}/> Lembretes por notificação no celular do cliente (1 dia e 2 h antes)</label>
       <label class="filter-inline"><input type="checkbox" id="onlineAtivo"${c.ativo ? ' checked' : ''}/> Link ligado</label>
       <p class="body-sm text-tertiary">O cliente vê preço e duração de cada profissional, pode escolher "sem preferência" e não consegue marcar horários recorrentes.</p>
       <p class="body-sm" id="onlineMsg" role="status"></p>
@@ -66,6 +67,7 @@ async function salvar(ev) {
     cancelamentoPrazoMin: Number(el('onlineCancelamento').value),
     maxFuturos: Number(el('onlineMaxFuturos').value),
     mostrarPreco: el('onlineMostrarPreco').checked,
+    lembretesPush: el('onlineLembretes').checked,
     ativo: el('onlineAtivo').checked
   };
   el('btnOnlineSalvar').disabled = true;

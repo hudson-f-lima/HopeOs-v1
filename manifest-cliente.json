@@ -1,0 +1,14 @@
+{
+  "name": "Meu horário",
+  "short_name": "Meu horário",
+  "description": "Veja, confirme ou remarque o seu horário.",
+  "id": "./meu-horario.html",
+  "start_url": "./meu-horario.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f9f8ff",
+  "theme_color": "#7c6af7",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

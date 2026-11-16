@@ -10,8 +10,9 @@
 <!-- CSP própria (Red Team 2026-11, RT-11): vale também onde não há o header do
      render.yaml (ex.: GitHub Pages). connect-src só a API de produção e a API local
      do E2E/dev (http:// é bloqueado como conteúdo misto numa página https://). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"/>
 <link rel="icon" href="icon.svg"/>
+<link rel="manifest" href="manifest-cliente.json"/>
 <title>Meu horário</title>
 <!-- Sem Google Fonts de propósito: a página pública não faz requisição a terceiros (LGPD). -->
 <link rel="stylesheet" href="css/agendar.css"/>
@@ -46,6 +47,8 @@
       <button id="btnCancelar" class="btn-secundario" type="button" hidden>Cancelar horário</button>
       <button id="btnIcs" class="btn-secundario" type="button" hidden>Adicionar à agenda (iPhone, Outlook)</button>
       <a id="linkGoogle" class="btn-secundario" href="#" target="_blank" rel="noopener noreferrer" hidden>Adicionar ao Google Agenda</a>
+      <button id="btnPush" class="btn-secundario" type="button" hidden>Receber lembrete por notificação</button>
+      <p id="pushDica" class="pg-info" hidden></p>
       <a id="linkSalao" class="btn-secundario" href="#" target="_blank" rel="noopener noreferrer" hidden>Falar com o salão no WhatsApp</a>
     </div>
   </section>

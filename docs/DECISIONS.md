@@ -552,3 +552,26 @@
   - checkout: cada etapa vai para a comanda como hoje (uma por vez).
 - **Verificação:** `gate_019.sql` (5 blocos); `concurrency_atendimento.sh` (duas reservas simultâneas → uma inteira, a outra sem nenhuma etapa); `atendimento-gate` 16/16 (cenários de aceite 1 a 10); E2E `atendimento`.
 
+## D-041 — C5: lembretes por push; WhatsApp e SMS pré-configurados e desligados (migration 020)
+- **Decisão (Platform Owner, 2026-11-16):** "C5: autorizado", o que inclui a dependência `web-push` (3.6.7, `npm audit` sem achados) e a migration 020.
+- **Entregue:**
+  - Migration 020:
+    - `agendamento_push`: assinatura do aparelho do cliente, presa ao link pessoal (017); o mesmo aparelho só entra uma vez; o banco recusa assinatura que não seja objeto ou passe de 4 KB;
+    - `agendamento_lembretes`: um registro por (agendamento, tipo, canal), com UNIQUE. É a trava contra envio duplicado, inclusive com duas instâncias do servidor;
+    - `empresas.lembretes_push_ativo` (padrão ligado);
+    - triggers que impedem cruzar empresa; RLS ligada; sem `delete`; rollback em `supabase/rollback/020_down.sql`.
+  - Lembretes: `d1` entre 24 h e 12 h antes do horário; `h2` entre 2 h e 30 min antes. Passou da janela, não sai. Só recebe quem ligou o push **antes** de a janela abrir.
+  - O aviso diz serviço, salão, dia e hora; sem preço nem nome do cliente.
+  - Agendador dentro do próprio servidor, uma rodada por minuto (`LEMBRETES_INTERVALO_MS`). Prefere perder um lembrete a mandar dois: se o envio falha, não há reenvio automático.
+  - Assinatura morta (HTTP 404 ou 410) é revogada. Máximo de 5 aparelhos por link. Remarcar leva o push junto, porque ele está preso ao link.
+  - Segurança: o endereço da assinatura vem do aparelho do cliente, então só servidores de push conhecidos (Google, Mozilla, Apple, Microsoft), em https, sem credenciais nem porta estranha, são aceitos. Sem isso, qualquer pessoa faria o servidor chamar um endereço interno (SSRF).
+  - Canais: `push` ativo quando as três variáveis VAPID existem no servidor; `whatsapp` e `sms` com adaptador pronto e **desligados**, com duas travas: `WHATSAPP_ENABLED`/`SMS_ENABLED` mais um provedor registrado, e `podeContatar(cliente)`, que hoje devolve sempre falso porque o cadastro ainda não tem o "não quero receber mensagens" do cliente. Nenhuma mensagem sai por esses canais.
+  - Cliente: botão "Receber lembrete por notificação" na página do horário; service worker próprio (`sw-cliente.js`, escopo `./cliente-push/`), que só recebe o push e abre a página. O código do link fica guardado no aparelho para o toque na notificação abrir o horário, e some ao desativar. Interruptor do salão em Conta → Link online.
+- **Para ligar em produção (o dono, no Render):** gerar o par de chaves no próprio computador com `npx web-push generate-vapid-keys` (a chave privada não passa por chat nem repositório) e definir `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` (`mailto:` do salão). O `doctor.js` confere. Sem as três, o push fica desligado e nada mais muda.
+- **Limitações e riscos:**
+  - iPhone: o navegador só aceita push em página adicionada à Tela de Início (iOS 16.4 ou mais novo). A página explica o caminho.
+  - Se o servidor dormir (Render gratuito sem ping do UptimeRobot), os lembretes esperam ele acordar. As janelas largas dão folga, mas uma parada longa perde o lembrete daquela janela.
+  - O toque na notificação depende do código guardado no aparelho. Se o cliente limpar os dados do navegador, abre a tela neutra e ele usa o link original.
+  - WhatsApp e SMS: abrir esses canais exige antes escolher o fornecedor e criar o campo de opt-out do cliente (migration e texto de consentimento).
+- **Verificação:** `gate_020.sql` (5 blocos); `lembretes-push-gate` 18/18 (3 controles negativos); E2E `push-cliente`: página liga e desliga, toque sem `#t=`, e o service worker real mostra a notificação entregue pelo protocolo do Chromium.
+

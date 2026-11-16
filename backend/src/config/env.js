@@ -46,6 +46,14 @@ const env = {
   // Versão do aviso de privacidade aceito pela equipe ao criar a conta e entrar (D-018).
   // Trocar a versão faz todo usuário aceitar de novo no próximo acesso.
   PRIVACY_NOTICE_VERSION: process.env.PRIVACY_NOTICE_VERSION || '2026-11-10',
+  // C5 (D-041): lembretes por push. As chaves VAPID só ficam no ambiente do servidor (Render); sem
+  // elas o push fica desligado. LEMBRETES_INTERVALO_MS=0 desliga o agendador.
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || '',
+  LEMBRETES_INTERVALO_MS: process.env.LEMBRETES_INTERVALO_MS ? Number(process.env.LEMBRETES_INTERVALO_MS) : 60000,
+  WHATSAPP_ENABLED: process.env.WHATSAPP_ENABLED || '',
+  SMS_ENABLED: process.env.SMS_ENABLED || '',
   PUBLIC_BOOKING_AVISO_VERSAO: process.env.PUBLIC_BOOKING_AVISO_VERSAO || 'modelo-2026-11',
   CORS_ORIGIN: splitCsv(process.env.CORS_ORIGIN || 'null,http://localhost:5173,http://127.0.0.1:5500')
 };
