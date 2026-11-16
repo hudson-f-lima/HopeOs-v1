@@ -298,6 +298,15 @@ export async function simular() {
   hideAttachSuggestion();
   document.getElementById('btnFechar').disabled = true;
   try {
+    // O que ficou nos campos (sem tocar em "Adicionar à comanda") entra na lista antes da conta:
+    // assim passa pela checagem do plano de assinatura como qualquer item. Antes, ia para o
+    // fechamento sem a checagem e cobrava o valor cheio sem aviso (achado do dono, 2026-11-16).
+    const pendentes = itensDosCampos(false);
+    if (pendentes.length) {
+      if (state.comandaItens.length + pendentes.length > MAX_ITENS) throw new Error(`Uma comanda aceita até ${MAX_ITENS} itens.`);
+      state.comandaItens.push(...pendentes);
+      limparCamposDeItem();
+    }
     await atualizarCobertura();
     renderComandaItens();
     const payload = buildPayload();

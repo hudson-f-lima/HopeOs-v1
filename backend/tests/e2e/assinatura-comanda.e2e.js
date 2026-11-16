@@ -67,6 +67,17 @@ async function escolher(p, campo, texto) {
   console.log('BANCO: usos', usos.length, '| tipo', usos[0] && usos[0].tipo, '| item a', item && item.preco_unitario_centavos, '| pagamentos da comanda', (await db('comando_pagamentos')).filter(x => item && x.comando_id === item.comando_id).length);
   if (usos.length !== 1 || usos[0].tipo !== 'coberto' || !item || item.preco_unitario_centavos !== 0) errs.push('uso não gravado preso ao item a R$ 0');
 
+  // 2b) Caso do dono (16/11): serviço deixado nos campos, sem "Adicionar à comanda", e Simular.
+  //     Antes ia para o fechamento sem passar pelo plano (valor cheio, sem aviso).
+  await escolher(p, '#coCliente', cliente.nome);
+  await escolher(p, '#coServico', 'Corte'); await escolher(p, '#coProfissional', bruno.nome);
+  await p.click('#btnSimular'); await p.waitForSelector('#cardPreview:not(.hidden)', { timeout: 8000 });
+  const linhaCampos = (await p.locator('#coItensLista .row').first().innerText()).replace(/\s+/g, ' ');
+  const recebidoCampos = (await p.textContent('#pvRecebido')).trim();
+  console.log('SEM "ADICIONAR":', linhaCampos, '| RECEBIDO:', recebidoCampos);
+  if (!/Plano Clube Corte: coberto \(2 de 4\)/.test(linhaCampos) || !/R\$\s*0,00/.test(recebidoCampos)) errs.push('serviço deixado nos campos não passou pelo plano');
+  await p.click('[data-remover-item="0"]'); await p.waitForTimeout(300);
+
   // 3) "Não usar o plano": valor cheio e pede forma de pagamento.
   await escolher(p, '#coCliente', cliente.nome);
   await escolher(p, '#coServico', 'Corte'); await escolher(p, '#coProfissional', bruno.nome); await p.click('#btnAddItem');
