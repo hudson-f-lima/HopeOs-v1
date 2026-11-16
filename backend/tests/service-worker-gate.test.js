@@ -109,6 +109,16 @@ test('SW6 primeira instalação (sem cache anterior): ninguém é avisado de "no
   assert.strictEqual(amb.mensagens.length, 0);
 });
 
+test('SW7 a página pergunta a versão e recebe a do cache ativo', async () => {
+  const amb = criarAmbiente({ rede: async () => resposta('x') });
+  const recebidas = [];
+  amb.handlers.message({ data: { tipo: 'versao' }, source: { postMessage: m => recebidas.push(m) } });
+  assert.strictEqual(recebidas.length, 1);
+  assert.ok(/^hope-os-shell-/.test(recebidas[0].versao));
+  amb.handlers.message({ data: { tipo: 'outra' }, source: { postMessage: m => recebidas.push(m) } });
+  assert.strictEqual(recebidas.length, 1, 'mensagem desconhecida é ignorada');
+});
+
 (async () => {
   let ok = 0;
   for (const { n, f } of tests) {

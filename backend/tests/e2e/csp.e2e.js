@@ -44,6 +44,11 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   await p.click('#navAgenda'); await p.waitForTimeout(600);
   if (await p.isVisible('#btnAgendaLembretes')) { await p.click('#btnAgendaLembretes'); await p.waitForTimeout(800); }
   const sw = await p.evaluate(() => navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(r => r.length) : -1);
+  await p.waitForFunction(() => /^v1-/.test((document.getElementById('appVersao') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
+  const versaoNaTela = await p.evaluate(() => (document.getElementById('appVersao') || {}).textContent || '');
+  console.log('VERSÃO NA TELA:', versaoNaTela);
+  if (!/^v1-/.test(versaoNaTela)) { console.log('ERROS: ["versão do app não aparece na tela"]'); process.exitCode = 1; }
+  console.log('AVISO DE ATUALIZAÇÃO oculto no início:', await p.evaluate(() => document.getElementById('bannerAtualizacao').classList.contains('hidden')));
   console.log('SERVICE WORKER registrado:', sw, '| fonte de fonts.gstatic.com requisitada:', fonteBaixada);
   if (!fonteBaixada) process.exitCode = 1;
   const antesDoLogout = await p.evaluate(() => window.__csp);

@@ -455,9 +455,22 @@ async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
     // Versão nova instalada: a página aberta ainda roda o código antigo até recarregar.
+    const rotuloVersao = v => String(v || '').replace('hope-os-shell-', '');
     navigator.serviceWorker.addEventListener('message', ev => {
-      if (ev.data && ev.data.tipo === 'nova-versao') showBanner('O app foi atualizado. Feche e abra de novo (ou recarregue) para usar a versão nova.', 'warning');
+      const d = ev.data || {};
+      if (d.tipo === 'nova-versao') document.getElementById('bannerAtualizacao')?.classList.remove('hidden'); // fica até atualizar
+      if (d.tipo === 'versao' && document.getElementById('appVersao')) document.getElementById('appVersao').textContent = rotuloVersao(d.versao);
     });
+    document.getElementById('btnAtualizarApp')?.addEventListener('click', () => window.location.reload());
+    // Versão em uso (para suporte) e checagem de atualização: ao voltar para o app e a cada 30 min
+    // (a recepção deixa o app aberto o dia todo; o navegador sozinho demora a perguntar).
+    navigator.serviceWorker.ready.then(reg => {
+      const perguntar = () => { if (reg.active) reg.active.postMessage({ tipo: 'versao' }); };
+      perguntar();
+      const checar = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checar(); });
+      setInterval(checar, 30 * 60 * 1000);
+    }).catch(() => {});
   }
 }
 

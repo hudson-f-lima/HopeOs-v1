@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-38-0-recorrencia-cache';
+const CACHE_NAME = 'hope-os-shell-v1-39-0-aviso-atualizacao';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
@@ -37,6 +37,11 @@ const SHELL_ASSETS = [
   './js/tema-inicial.js',
   './js/ui/agora.js'
 ];
+
+// A página pergunta qual versão do app está ativa (mostrada na tela, para suporte).
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.tipo === 'versao' && event.source) event.source.postMessage({ tipo: 'versao', versao: CACHE_NAME });
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
