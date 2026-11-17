@@ -707,6 +707,10 @@
     <div class="field"><label for="svDuracao">Duração (min)</label><input id="svDuracao" type="number" min="5" max="480" step="1"/></div>
     <div class="field"><label for="svSlot">Slot (min, opcional)</label><input id="svSlot" type="number" min="5" max="480" step="1"/></div>
     <div class="field"><label for="svComissao">Comissão (%)</label><input id="svComissao" type="number" min="0" max="100" step="0.01"/></div>
+    <div class="field"><label for="svAntecedencia">Antecedência no link (este serviço)</label>
+      <select id="svAntecedencia"><option value="">Igual à do salão</option><option value="0">Sem antecedência</option><option value="60">1 h</option><option value="120">2 h</option><option value="240">4 h</option><option value="720">12 h</option><option value="1440">24 h</option><option value="2880">48 h</option></select></div>
+    <div class="field"><label for="svPrazo">Prazo de cancelamento (este serviço)</label>
+      <select id="svPrazo"><option value="">Igual ao do salão</option><option value="0">Até o horário</option><option value="60">1 h antes</option><option value="120">2 h antes</option><option value="240">4 h antes</option><option value="720">12 h antes</option><option value="1440">24 h antes</option><option value="2880">48 h antes</option></select></div>
     <div class="field hidden" id="svAtivoField">
       <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="svAtivo" style="width:auto;"/> Ativo</label>
     </div>
@@ -777,6 +781,7 @@
       <button class="subtab-btn hidden" data-subtab="escalas" id="subtabBtnEscalas">Escalas</button>
       <button class="subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes">Comissões</button>
       <button class="subtab-btn hidden" data-subtab="online" id="subtabBtnOnline">Link online</button>
+      <button class="subtab-btn hidden" data-subtab="regras" id="subtabBtnRegras">Regras da agenda</button>
       <button class="subtab-btn hidden" data-subtab="planos" id="subtabBtnPlanos">Planos</button>
       <button class="subtab-btn hidden" data-subtab="assinantes" id="subtabBtnAssinantes">Assinantes</button>
     </div>
@@ -802,6 +807,14 @@
         <h2 class="m-0" id="onlineTitulo" style="margin-bottom:4px;">Agendamento online</h2>
         <p class="body-sm text-tertiary" style="margin-bottom:8px;">O link que o cliente usa para marcar sozinho. Os horários oferecidos seguem as escalas; o servidor confere tudo de novo ao gravar.</p>
         <div id="onlineConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
+      </section>
+    </div>
+
+    <div class="subtab-content hidden" id="subtab-regras">
+      <section class="card" aria-labelledby="regrasTitulo">
+        <h2 class="m-0" id="regrasTitulo" style="margin-bottom:4px;">Regras da agenda</h2>
+        <p class="body-sm text-tertiary" style="margin-bottom:8px;">Na recepção a regra avisa e deixa seguir (a exceção fica no histórico). No link online ela bloqueia.</p>
+        <div id="regrasConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
       </section>
     </div>
 

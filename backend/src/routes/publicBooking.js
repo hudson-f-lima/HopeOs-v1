@@ -19,6 +19,7 @@ const { env } = require('../config/env');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
 const { normalizarWhatsapp } = require('../engines/ReminderEngine');
+const { prazoCancelamentoMin, antecedenciaOnlineMin, violaIntervaloOnline } = require('../engines/AgendaPoliticaEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
 const { criarLimitador, chaveIpPublico } = require('../security/rateLimit');
@@ -314,12 +315,19 @@ async function slotsDoProfissional(repo, cat, servico, profissional, data, lim, 
   return { profissional, duracaoMin: r.duracaoMin, slots, ocupacao };
 }
 
+// Antecedência própria do serviço (D-049, 024): ex. química só com 24 h. Sem ela, a do salão.
+function limiteDoServico(cat, servico, lim) {
+  const ant = antecedenciaOnlineMin(cat.empresa, servico, cat.cfg.antecedenciaMin);
+  return ant === cat.cfg.antecedenciaMin ? lim : limitesDoMomento({ ...cat.cfg, antecedenciaMin: ant });
+}
+
 // profissionalId = SEM_PREFERENCIA: horários de qualquer profissional do serviço. Para gravar,
 // `escolhido(horario)` devolve quem atende: o de agenda mais leve no dia, depois o nome.
-async function slotsPublicos(repo, cat, { servicoId, profissionalId, data }, lim) {
+async function slotsPublicos(repo, cat, { servicoId, profissionalId, data }, limSalao) {
   const oferta = cat.ofertas.find(o => o.servico.id === servicoId);
   if (!oferta) throw indisponivel();
   const servico = oferta.servico;
+  const lim = limiteDoServico(cat, servico, limSalao);
   if (profissionalId !== SEM_PREFERENCIA) {
     const profissional = oferta.profissionais.find(p => p.id === profissionalId);
     if (!profissional) throw indisponivel();
@@ -385,6 +393,9 @@ async function gravar(repo, cat, ctx) {
     const futuros = historico.filter(a => STATUS_FUTUROS.includes(a.status) &&
       (String(a.data) > lim.agora.data || (String(a.data) === lim.agora.data && timeToMinutes(a.horario) >= lim.agora.minuto)));
     if (futuros.length >= cat.cfg.maxFuturos) throw agendamentoOnlineRecusado();
+    // Intervalo mínimo no mesmo serviço (D-049): recusa sem dizer a data do outro horário (quem
+    // digita um número não pode descobrir a agenda de quem é dono dele).
+    if (violaIntervaloOnline({ empresa: cat.empresa, servicoId: ctx.servico.id, data: entrada.data, historico })) throw agendamentoOnlineRecusado();
     regua = computeReguaFaltas(historico, {
       alerta: cat.empresa.regua_alerta_faltas ?? 2, sinal: cat.empresa.regua_sinal_faltas ?? 3
     }, lim.agora.data).nivel;
@@ -600,7 +611,8 @@ async function contextoDoAcesso(req, extras) {
   const profissional = profissionais.find(x => x.id === ag.profissional_id) || null;
   const cfg = configOnline(empresa);
   const inicio = instanteLocal(ag.data, hhmm(ag.horario), env.APP_TIMEZONE);
-  const limite = new Date(inicio.getTime() - cfg.cancelamentoPrazoMin * 60e3);
+  const prazoMin = prazoCancelamentoMin(empresa, servico); // D-049: o do serviço ou o do salão
+  const limite = new Date(inicio.getTime() - prazoMin * 60e3);
   const ativo = STATUS_ATIVOS.includes(ag.status);
   const antesDoPrazo = agora.getTime() < limite.getTime();
   const remarcavel = !!(servico && servico.ativo !== false && profissional && profissional.ativo !== false);
@@ -609,7 +621,7 @@ async function contextoDoAcesso(req, extras) {
     cancelar: ativo && antesDoPrazo,
     remarcar: ativo && antesDoPrazo && empresa.online_ativo === true && remarcavel && (Number(acesso.remarcacoes) || 0) < MAX_REMARCACOES
   };
-  return { repo, acesso, ag, agora, empresa, servico, profissional, cfg, inicio, limite, pode };
+  return { repo, acesso, ag, agora, empresa, servico, profissional, cfg, prazoMin, inicio, limite, pode };
 }
 
 // Push (C5): disponível quando as chaves VAPID estão no servidor e o salão não desligou.
@@ -627,7 +639,7 @@ function visao(c) {
       profissional: primeiroNome(c.profissional && c.profissional.nome), status: ROTULO_STATUS[c.ag.status] || 'outro',
       precoCentavos: c.cfg.mostrarPreco ? Number(c.ag.valor_centavos) || 0 : null
     },
-    prazo: { cancelamentoPrazoMin: c.cfg.cancelamentoPrazoMin, limiteIso: c.limite.toISOString() },
+    prazo: { cancelamentoPrazoMin: c.prazoMin, limiteIso: c.limite.toISOString() },
     remarcacoesRestantes: Math.max(0, MAX_REMARCACOES - (Number(c.acesso.remarcacoes) || 0)),
     pode: c.pode,
     push: { disponivel: canalPush().ativo() && c.empresa.lembretes_push_ativo !== false && ['agendado', 'confirmado'].includes(c.ag.status), chavePublica: canalPush().chavePublica() },
@@ -713,7 +725,7 @@ async function slotsDaRemarcacao(c, data) {
   const oferta = cat.ofertas.find(o => o.servico.id === c.ag.servico_id);
   const profissional = oferta && oferta.profissionais.find(p => p.id === c.ag.profissional_id);
   if (!profissional) throw foraDoPrazo();
-  const lim = limitesDoMomento(cat.cfg);
+  const lim = limiteDoServico(cat, oferta.servico, limitesDoMomento(cat.cfg));
   const r = await slotsDoProfissional(c.repo, cat, oferta.servico, profissional, data, lim, { ignorarId: c.ag.id, duracaoFixa: Number(c.ag.duracao_min) || undefined });
   // O próprio horário não é opção de "remarcar".
   const slots = r.slots.filter(h => !(data === String(c.ag.data) && h === hhmm(c.ag.horario)));

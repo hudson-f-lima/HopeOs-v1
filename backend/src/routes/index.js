@@ -61,6 +61,7 @@ const { registrarEventoAgenda, montarHistorico } = require('../services/AgendaEv
 const { validateEstornoPayload } = require('../validators/estorno.validator');
 const { saldoDaComanda, diasEntre, PRAZO_DIAS } = require('../engines/EstornoEngine');
 const clock = require('../config/clock');
+const { avisosRecepcao } = require('../engines/AgendaPoliticaEngine');
 const { criarAcesso, moverAcessos } = require('../services/AcessoAgendamento');
 
 const router = express.Router();
@@ -529,6 +530,7 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
     // Mesma regra do GET /agenda/slots: override do profissional > serviço > 30.
     const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
     const fora = await assertDentroDaDisponibilidade(req, repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin, forcar: payload.foraDaDisponibilidade });
+    const avisos = await avisosDaAgenda(repo, { clienteId: payload.clienteId, servico, data: payload.data, horario: payload.horario, aceitar: payload.aceitarAvisos });
 
     // Conflito checado e gravado atomicamente no banco (agendamento_criar, migration 007).
     const created = await repo.criarAgendamento({
@@ -546,11 +548,30 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
       createdBy: actorId
     });
     // Encaixe forçado fora da disponibilidade fica registrado no próprio evento de criação.
-    await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado', extra: fora.forcado ? { fora_da_disponibilidade: fora.origem } : {} });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado', extra: {
+      ...(fora.forcado ? { fora_da_disponibilidade: fora.origem } : {}),
+      ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {})
+    } });
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }
 });
+
+// Regras da agenda (D-049, 024): na recepção, AVISA. Sem `aceitarAvisos`, devolve 409 com a
+// lista e não grava; com ele, grava e a exceção vai para o histórico do horário.
+async function avisosDaAgenda(repo, { clienteId, servico, data, horario, ignorarId, aceitar }) {
+  if (!clienteId) return [];
+  const [[empresa], doCliente] = await Promise.all([
+    repo.list('empresas', { id: repo.empresaId }),
+    repo.list('agendamentos', { empresa_id: repo.empresaId, cliente_id: clienteId })
+  ]);
+  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const avisos = avisosRecepcao({ empresa: empresa || {}, servico, novo: { servicoId: servico && servico.id, data, horario, ignorarId }, agendamentosDoCliente: doCliente, hoje });
+  if (avisos.length && !aceitar) {
+    throw createAppError('REGRAS_DA_AGENDA', avisos.map(a => a.mensagem).join(' '), 409, { avisos });
+  }
+  return avisos;
+}
 
 // D-032: o status pedido decide a permissão — cancelar, remarcar ou atender (confirmar,
 // chegada, início, conclusão, falta). Encaixe na remarcação exige agenda:encaixar também.
@@ -595,6 +616,10 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
 
     const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
     const foraRe = await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
+    // Regras da agenda só quando o dia muda (trocar serviço ou hora no mesmo dia não cria horário novo para o cliente).
+    const avisosRe = reagendamento.novaData !== String(original.data).slice(0, 10)
+      ? await avisosDaAgenda(repo, { clienteId: original.cliente_id, servico: servico || await repo.getByIdScoped('servicos', novoServicoId), data: reagendamento.novaData, horario: reagendamento.novoHorario, ignorarId: original.id, aceitar: reagendamento.aceitarAvisos })
+      : [];
 
     // O original ainda está ativo neste momento: é ignorado na checagem de conflito.
     const novo = await repo.criarAgendamento({
@@ -606,7 +631,10 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
         horario: reagendamento.novoHorario,
         duracao_min: duracaoMinNovo,
         valor_centavos: servico ? (servico.valor_centavos ?? original.valor_centavos) : original.valor_centavos,
-        status: 'agendado'
+        // Editar pelo card (trocar só serviço ou profissional, mesmo dia e hora) não desfaz a
+        // confirmação do cliente; mudar dia ou hora volta para "agendado" (o cliente reconfirma).
+        status: statusAnterior === 'confirmado' && reagendamento.novaData === String(original.data).slice(0, 10)
+          && String(reagendamento.novoHorario).slice(0, 5) === String(original.horario).slice(0, 5) ? 'confirmado' : 'agendado'
       },
       permitirConflito: reagendamento.permitirConflito,
       ignorarId: original.id,
@@ -620,7 +648,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     });
     await registrarEventoAgenda(repo, req.auth, {
       agendamentoId: novo && novo.id, tipo: 'reagendado', de: null, para: (novo && novo.status) || 'agendado',
-      origem: 'reagendamento', extra: { reagendado_de: original.id, ...(foraRe.forcado ? { fora_da_disponibilidade: foraRe.origem } : {}) }
+      origem: 'reagendamento', extra: { reagendado_de: original.id, ...(foraRe.forcado ? { fora_da_disponibilidade: foraRe.origem } : {}), ...(avisosRe.length ? { excecao_regras: avisosRe.map(a => a.codigo) } : {}) }
     });
     // O link pessoal do cliente (017) passa a mostrar o novo horário. Best-effort: sem a 017 ou
     // em falha, o cliente só perde o link (a recepção pode gerar outro).

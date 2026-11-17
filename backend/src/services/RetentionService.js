@@ -2,6 +2,7 @@ const { computeReguaFaltas } = require('../engines/NoShowLadder');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { createAppError } = require('../errors');
 const retention = require('../engines/insights/retention');
+const { prazoCancelamentoMin } = require('../engines/AgendaPoliticaEngine');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { env } = require('../config/env');
 const clock = require('../config/clock');
@@ -196,7 +197,10 @@ class RetentionService {
       throw createAppError('CLIENT_NOT_FOUND', `Cliente nao encontrado: ${clienteId}`, 404, { clienteId });
     }
 
-    const result = retention.computeReliability(agendamentos, hoje);
+    // D-049: tardio pelo prazo do serviço ou do salão (o mesmo que o cliente vê no link).
+    const servicos = await this.repo.list('servicos', { empresa_id: this.repo.empresaId });
+    const porId = new Map(servicos.map(sv => [sv.id, sv]));
+    const result = retention.computeReliability(agendamentos, hoje, { prazoMinDe: a => prazoCancelamentoMin(empresa, porId.get(a.servico_id)) });
     const faltasCadastro = Number(cliente.faltas || 0);
     return {
       clienteId,

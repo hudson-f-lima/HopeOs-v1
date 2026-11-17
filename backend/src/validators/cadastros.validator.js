@@ -154,6 +154,15 @@ function validateUpdateClientePayload(payload = {}) {
   return withUpdatedAt(out);
 }
 
+// Regras próprias do serviço (D-049, 024): vazio/null = segue a do salão.
+function regrasDoServico(payload, out) {
+  for (const [camel, snake] of [['antecedenciaMinOnline', 'antecedencia_min_online'], ['cancelamentoPrazoMin', 'cancelamento_prazo_min']]) {
+    if (!hasOwn(payload, camel) && !hasOwn(payload, snake)) continue;
+    const v = hasOwn(payload, camel) ? payload[camel] : payload[snake]; // null aqui é "limpar", não "ausente"
+    out[snake] = v === null || v === '' ? null : intField(v, camel, { min: 0, max: 10080 });
+  }
+}
+
 function validateCreateServicoPayload(payload = {}) {
   rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId']);
   const out = {
@@ -167,6 +176,7 @@ function validateCreateServicoPayload(payload = {}) {
   };
   optionalRef(payload, ['categoriaId', 'categoria_id'], 'categoriaId', 'categoria_id', out);
   optionalModeloHeranca(payload, out);
+  regrasDoServico(payload, out);
   return withUpdatedAt(out);
 }
 
@@ -182,6 +192,7 @@ function validateUpdateServicoPayload(payload = {}) {
   if (hasOwn(payload, 'ativo')) out.ativo = boolField(payload.ativo, 'ativo');
   optionalRef(payload, ['categoriaId', 'categoria_id'], 'categoriaId', 'categoria_id', out);
   optionalModeloHeranca(payload, out);
+  regrasDoServico(payload, out);
   if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
   return withUpdatedAt(out);
 }

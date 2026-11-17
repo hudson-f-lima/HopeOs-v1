@@ -77,14 +77,70 @@ export function renderList(containerId, items, rowRenderer) {
   }
 }
 
-export function openModal(id) { 
-  const el = document.getElementById(id);
-  if (el) el.classList.remove('hidden'); 
+// Pilha de camadas: quem abre por último fica por cima, sempre. Antes todos os modais e folhas
+// tinham o mesmo z-index e o de cima era o que vinha depois no HTML: metade dos pares abria por
+// baixo (ex.: Conta → Cliente). O observador cobre também quem mostra o overlay sem openModal.
+const CAMADA_BASE = 300;
+let camadaTopo = CAMADA_BASE;
+const OVERLAY = '.modal-backdrop, .sheet-backdrop';
+function elevar(el) {
+  camadaTopo += 1;
+  el.style.zIndex = String(camadaTopo);
+}
+function abertos() {
+  return [...document.querySelectorAll(OVERLAY)].filter(o => !o.classList.contains('hidden'));
+}
+export function overlayDoTopo() {
+  return abertos().sort((a, b) => Number(b.style.zIndex || 0) - Number(a.style.zIndex || 0))[0] || null;
+}
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+  const obs = new MutationObserver(mutacoes => {
+    for (const m of mutacoes) {
+      const el = m.target;
+      if (!el.matches || !el.matches(OVERLAY)) continue;
+      const estavaOculto = String(m.oldValue || '').split(/\s+/).includes('hidden');
+      if (estavaOculto && !el.classList.contains('hidden')) { montarTopo(el); elevar(el); }
+    }
+    if (!abertos().length) camadaTopo = CAMADA_BASE;
+  });
+  const ligar = () => obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  if (document.body) ligar(); else document.addEventListener('DOMContentLoaded', ligar);
+  // Esc fecha só o de cima (os <dialog> nativos já fecham sozinhos).
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+    const topo = overlayDoTopo();
+    if (topo) { ev.preventDefault(); topo.classList.add('hidden'); }
+  });
 }
 
-export function closeModal(id) { 
+// Redesign dos modais: o título vira um cabeçalho fixo com ✕ (fechar sem rolar até o fim).
+// Feito uma vez por modal, na primeira abertura; o h2 original é mantido (ids e textos).
+function montarTopo(el) {
+  const box = el.querySelector(':scope > .modal-box');
+  if (!box || box.querySelector(':scope > .modal-topo')) return;
+  const h2 = box.querySelector(':scope > h2');
+  if (!h2) return;
+  const topo = document.createElement('div');
+  topo.className = 'modal-topo';
+  box.insertBefore(topo, h2);
+  topo.appendChild(h2);
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'modal-fechar'; x.setAttribute('aria-label', 'Fechar'); x.textContent = '✕';
+  x.addEventListener('click', () => el.classList.add('hidden'));
+  topo.appendChild(x);
+}
+
+export function openModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add('hidden'); 
+  if (!el) return;
+  montarTopo(el);
+  el.classList.remove('hidden');
+  elevar(el); // já reaberto (sem mudar a classe) também sobe para o topo
+}
+
+export function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
 }
 
 export function showModalError(errorElId, message) {

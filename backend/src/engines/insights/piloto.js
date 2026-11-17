@@ -145,7 +145,7 @@ function agrupar(itens, chavesFn) {
 function falta(passados) {
   const atendidos = passados.filter(a => ATENDIDO.includes(a.status)).length;
   const noShow = passados.filter(a => a.status === 'no_show').length;
-  const cancelTardio = passados.filter(isLateCancel).length;
+  const cancelTardio = passados.filter(a => isLateCancel(a)).length;
   return kpi('taxaFalta', noShow, atendidos + noShow + cancelTardio, { atendidos, noShow, cancelTardio });
 }
 
