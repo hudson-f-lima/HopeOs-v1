@@ -1,11 +1,11 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { initAgendaMes, desenharFiltro, recarregarMesSeAberto, profsNaGrade, atualizarPaineis } from './agendaMes.js';
 import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
-import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
+import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia, motivoIncerto } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
-import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode } from '../state.js';
+import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode, semanaPronta } from '../state.js';
 import {
   todayStr,
   addDays,
@@ -156,11 +156,15 @@ function renderAgBlock(item, color) {
 
 function renderProfColInner(p) {
   const color = profColor(p.id);
+  // Disponibilidade desconhecida (D-055): o horário vazio não é "livre confirmado". Fica hachurado,
+  // com o motivo; tocar ainda leva ao agendar e o servidor confere ao gravar.
+  const incerto = motivoIncerto(p.id, state.selectedDay);
   const emptyHtml = emptySlotsForProf(p.id).map(m => {
     const timeStr = minutesSinceStartToHHMM(m);
     const ini = HORA_INICIO * 60 + m;
-    const fora = foraDaEscala(p.id, state.selectedDay, ini, ini + GRID_MIN) ? ' fora' : '';
-    return `<div class="slot-vazio${fora}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
+    const fora = !incerto && foraDaEscala(p.id, state.selectedDay, ini, ini + GRID_MIN) ? ' fora' : '';
+    const extra = incerto ? ` incerto" title="${escapeHtml(incerto)}` : '';
+    return `<div class="slot-vazio${fora}${extra}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
   const foraHtml = htmlFora(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN });
   const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item, color)).join('');
@@ -173,8 +177,15 @@ export function renderTimeline() {
   // Filtro de vários profissionais (D-050) e escopo próprio do profissional (D-053).
   const profs = profsNaGrade();
 
+  renderStatus();
   if (!profs.length) {
     container.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--md-outline);grid-column: 1 / -1;">Nenhum profissional ativo.</div>';
+    return;
+  }
+  // Semana pedida ainda não chegou (D-055): não pinta a grade com dados de outra semana.
+  if (!semanaPronta()) {
+    container.style.setProperty('--prof-count', 1);
+    container.innerHTML = '<div class="ag-carregando" role="status" style="grid-column: 1 / -1;">Carregando a semana…</div>';
     return;
   }
   
@@ -194,7 +205,7 @@ export function renderTimeline() {
         <div class="timeline-avatar" style="background:${color};">${initials}</div>
         <div class="timeline-prof-info">
           <div class="timeline-prof-name" style="color:${color};">${escapeHtml(firstName)}</div>
-          <div class="timeline-prof-count">${count} agend. no dia</div>
+          <div class="timeline-prof-count" title="${count} agendamento(s) no dia">${count} agend.</div>
         </div>
       </div>`;
   }).join('');
@@ -223,9 +234,38 @@ export function renderTimeline() {
   container.innerHTML = html;
 
   positionRedline();
-  // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez.
+  // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez (também
+  // na falha: o dia passa de "conferindo" para "não carregou").
   const dia = state.selectedDay;
-  if (!gradeDoDia(dia)) carregarGradeDia(dia).then(ok => { if (ok && state.selectedDay === dia) renderTimeline(); });
+  if (!gradeDoDia(dia)) carregarGradeDia(dia).then(r => { if (r && state.selectedDay === dia) renderTimeline(); });
+}
+
+// Linha de estado (D-055): carregando, falha, dados de quando e horários sem confirmação.
+const hhmm = d => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+function renderStatus() {
+  const el = document.getElementById('agStatus');
+  if (!el) return;
+  const partes = [];
+  let tentar = false;
+  if (state.agendaCarregando) partes.push(semanaPronta() ? 'Atualizando…' : 'Carregando a semana…');
+  if (semanaPronta()) {
+    const diaFalhou = state.agendaFalhasDias && state.agendaFalhasDias.has(state.selectedDay);
+    const gradeFalhou = state.gradeFalha && state.gradeFalha[state.selectedDay];
+    if (diaFalhou) { partes.push('Os agendamentos deste dia não carregaram: horários vazios não estão confirmados.'); tentar = true; }
+    else if (state.excecoesFalharam) { partes.push('Os bloqueios não carregaram: horários vazios não estão confirmados.'); tentar = true; }
+    else if (gradeFalhou) { partes.push('A escala do dia não carregou: horários vazios não estão confirmados.'); tentar = true; }
+    if (state.agendaErro) { partes.push(state.agendaErro); tentar = true; }
+    if (tentar && state.agendaAtualizadaEm) partes.push('Dados de ' + hhmm(state.agendaAtualizadaEm) + '.');
+  }
+  el.classList.toggle('hidden', !partes.length);
+  el.classList.toggle('agx-status-erro', tentar);
+  el.innerHTML = escapeHtml(partes.join(' ')) + (tentar ? ' <button type="button" class="agx-tentar" id="btnAgTentar">Tentar de novo</button>' : '');
+}
+
+export async function recarregarAgenda() {
+  state.agendaErro = null;
+  if (state.gradeFalha) delete state.gradeFalha[state.selectedDay];
+  try { await loadWeekAgenda(); } catch (err) { state.agendaErro = 'Não consegui atualizar: ' + err.message; state.agendaCarregando = false; renderStatus(); }
 }
 
 export function positionRedline() {
@@ -253,6 +293,7 @@ export function positionRedline() {
 
 export function renderWeekStats() {
   const dates = weekDates(state.currentWeekStart);
+  const pronta = semanaPronta();
   const naSemana = dates.reduce((t, d) => t + activeAgendaItemsForDate(d).length, 0);
   const noDia = activeAgendaItemsForDate(state.selectedDay).length;
   const nProfs = profsNaGrade().length;
@@ -261,10 +302,10 @@ export function renderWeekStats() {
   set('weekRangeLabel', `${formatDDMM(dates[0])} - ${formatDDMM(dates[6])}`);
   set('agendaDateLabel', formatAgendaDate(state.selectedDay));
   // O total diz o escopo: dia escolhido e profissionais na grade.
-  set('dayCountLabel', `${noDia} agend. no dia`);
+  set('dayCountLabel', pronta ? `${noDia} agend. no dia` : '… agend.');
   const dia = document.getElementById('dayCountLabel');
   if (dia) dia.title = `${noDia} agendamento(s) ativo(s) em ${formatDDMM(state.selectedDay)}, ${quem} na grade.`;
-  set('weekCountLabel', `Semana ${formatDDMM(dates[0])}–${formatDDMM(dates[6])}: ${naSemana} agend. ${quem}.`
+  set('weekCountLabel', !pronta ? `Semana ${formatDDMM(dates[0])}–${formatDDMM(dates[6])}: carregando…` : `Semana ${formatDDMM(dates[0])}–${formatDDMM(dates[6])}: ${naSemana} agend. ${quem}.`
     + (state.agendaFalhas ? ` ${state.agendaFalhas} dia(s) não carregaram: o total pode estar incompleto.` : ''));
   const hoje = document.getElementById('btnAgendaToday');
   if (hoje) hoje.classList.toggle('agx-hoje-ativo', state.selectedDay === todayStr());
@@ -277,7 +318,7 @@ export function renderDayPills() {
   const hoje = todayStr();
   dayPills.innerHTML = dates.map(d => {
     const dt = new Date(d + 'T12:00:00');
-    const count = activeAgendaItemsForDate(d).length;
+    const count = semanaPronta() ? activeAgendaItemsForDate(d).length : 0;
     const isSelected = d === state.selectedDay;
     // Semana compacta: dia da semana e número; o ponto diz que há agendamento (o número exato no rótulo).
     return `<button type="button" class="day-pill ${isSelected ? 'selected' : ''}${d === hoje ? ' hoje' : ''}" data-day="${d}" aria-pressed="${isSelected}" aria-label="${WEEKDAY_LABELS[dt.getDay()]} ${dt.getDate()}: ${count} agendamento(s)">
@@ -292,6 +333,8 @@ export function shiftWeek(deltaWeeks) {
   const offsetDays = Math.round((new Date(state.selectedDay + 'T12:00:00') - new Date(state.currentWeekStart + 'T12:00:00')) / 86400000);
   state.currentWeekStart = addDays(state.currentWeekStart, deltaWeeks * 7);
   state.selectedDay = addDays(state.currentWeekStart, offsetDays);
+  // Data, semana e contadores já mostram o período pedido; a grade diz "carregando" até ele chegar.
+  renderDayPills(); renderWeekStats(); renderTimeline();
   loadWeekAgenda().catch(err => showBanner('Agenda: ' + err.message, 'error'));
 }
 
@@ -353,7 +396,7 @@ function abrirAgendarDaEspera(item, data, horario, profissionalId) {
   openNovoAgendamentoModal(data, horario, profissionalId);
   state.fuzzyAgCliente.setValue(item.clienteId);
   state.fuzzyAgServico.setValue(item.servicoId);
-  state.agListaEspera = { id: item.id, clienteId: item.clienteId };
+  state.agListaEspera = { id: item.id, clienteId: item.clienteId, servicoId: item.servicoId };
   avisarReguaCliente(item.clienteId);
   updateNovoAgendamentoPreview();
   refreshAgendaSlots();
@@ -487,7 +530,9 @@ async function confirmarForaDaDisponibilidade(err) {
 async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
   clearBanner();
   try {
-    const espera = state.agListaEspera && state.agListaEspera.clienteId === clienteId ? state.agListaEspera.id : undefined;
+    // Trocou cliente ou serviço no formulário: o pedido da espera era para outra coisa e não é baixado (D-055).
+    const espera = state.agListaEspera && state.agListaEspera.clienteId === clienteId && state.agListaEspera.servicoId === servicoId ? state.agListaEspera.id : undefined;
+    if (state.agListaEspera && !espera) showBanner('O pedido da lista de espera era para outro cliente ou serviço: continua na espera.', 'info');
     await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera } });
     state.agListaEspera = null;
     closeNovoAgendamentoModal();
@@ -783,7 +828,7 @@ function proximoSlotLivre(profId, data, duracaoMin, aPartirDeMin) {
   return null;
 }
 
-function highlightSlot(profId, minC, temConflito) {
+function highlightSlot(profId, minC, temConflito, duracaoMin = 20) {
   clearHighlights();
   const col = document.querySelector(`.agenda-grid-col[data-prof-id="${profId}"]`);
   if (!col) return;
@@ -792,11 +837,13 @@ function highlightSlot(profId, minC, temConflito) {
   div.className = 'drag-highlight';
   div.style.cssText = `
     position: absolute; left: 2px; right: 2px;
-    top: ${top}px; height: 60px;
+    top: ${top}px; height: ${duracaoMin * PX_POR_MIN}px;
     border-radius: 6px; pointer-events: none; z-index: 10;
     background: ${temConflito ? '#ffebee' : '#e8f5e9'};
     border: 2px dashed ${temConflito ? '#f44336' : '#4caf50'};
+    font-size: 11px; font-weight: 800; color: #1b1b1b; padding: 2px 4px;
   `;
+  div.textContent = minutesSinceStartToHHMM(minC); // a prévia diz o horário que será gravado
   col.appendChild(div);
 }
 
@@ -904,17 +951,23 @@ function startDrag(agId, e) {
   const clientX = e.touches?.[0].clientX ?? e.clientX;
   const clientY = e.touches?.[0].clientY ?? e.clientY;
 
+  // Arraste (D-055): o bloco acompanha o dedo a partir do ponto em que foi pego; o horário vem do
+  // TOPO do bloco medido na coluna (que já desconta o cabeçalho fixo e a rolagem). Prévia, régua e
+  // horário gravado usam a mesma conta.
+  const r = block.getBoundingClientRect();
+  const pegaY = clientY - r.top;
+  const pegaX = clientX - r.left;
   const clone = block.cloneNode(true);
   clone.style.cssText = `
     position: fixed; opacity: 0.9; pointer-events: none;
     z-index: 9999; width: ${block.offsetWidth}px;
-    box-shadow: var(--elevation-2); transform: scale(1.02);
-    left: ${clientX - 60}px;
-    top: ${clientY - 20}px;
+    box-shadow: var(--elevation-2);
+    left: ${clientX - pegaX}px;
+    top: ${clientY - pegaY}px;
   `;
   document.body.appendChild(clone);
 
-  state.dragging = { agId, clone, targetProf: null, targetMin: null, originalBlock: block };
+  state.dragging = { agId, clone, targetProf: null, targetMin: null, originalBlock: block, pegaY, pegaX };
 
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('touchmove', onDragMove, { passive: false });
@@ -927,18 +980,16 @@ function onDragMove(e) {
   const clientX = e.touches?.[0].clientX ?? e.clientX;
   const clientY = e.touches?.[0].clientY ?? e.clientY;
 
-  state.dragging.clone.style.left = clientX - 60 + 'px';
-  state.dragging.clone.style.top  = clientY - 20 + 'px';
+  state.dragging.clone.style.left = clientX - state.dragging.pegaX + 'px';
+  state.dragging.clone.style.top  = clientY - state.dragging.pegaY + 'px';
 
   state.dragging.clone.style.pointerEvents = 'none';
   const el = document.elementFromPoint(clientX, clientY);
 
   const profCol = el?.closest('[data-prof-id]');
-  const container = document.getElementById('timelineContainer');
 
-  if (profCol && container) {
-    const rect = container.getBoundingClientRect();
-    const yRel = clientY - rect.top + container.scrollTop;
+  if (profCol) {
+    const yRel = clientY - state.dragging.pegaY - profCol.getBoundingClientRect().top;
     const min  = Math.round(yRel / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
     const minC = Math.max(0, Math.min(min, (HORA_FIM - HORA_INICIO) * 60 - 20));
 
@@ -950,7 +1001,8 @@ function onDragMove(e) {
     const ag   = findAgendaItemById(state.dragging.agId);
     const conf = detectConflict(state.dragging.targetProf, state.selectedDay, hora, mins, ag.duracao_min || 30, ag.id);
 
-    highlightSlot(profCol.dataset.profId, minC, conf.length > 0);
+    highlightSlot(profCol.dataset.profId, minC, conf.length > 0, ag.duracao_min || 30);
+    profCol.closest('.agenda-grid')?.setAttribute('data-arraste-horario', formatTime(hora, mins));
   }
 }
 
@@ -1301,6 +1353,8 @@ export function initAgenda() {
     atualizarPaineis();
   });
 
+  stateBus.addEventListener('agenda:carregando', renderStatus);
+  document.getElementById('agStatus')?.addEventListener('click', ev => { if (ev.target.id === 'btnAgTentar') recarregarAgenda(); });
   stateBus.addEventListener('catalog:updated', () => {
     desenharFiltro();
     renderDayPills();

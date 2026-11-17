@@ -41,15 +41,36 @@ export function htmlBloqueios(profId, data, { horaInicio, horaFim, pxPorMin }) {
 const ROTULO_DIA = { FOLGA: 'Folga', UNIDADE_FECHADA: 'Fechado', UNIDADE_SEM_HORARIO: 'Fechado', ESCALA_NAO_PUBLICADA: 'Escala não publicada', SEM_HORARIO: 'Fora da escala', AUSENCIA: '' };
 const carregando = new Set();
 export function gradeDoDia(data) { return (state.gradeDia || {})[data] || null; }
-export async function carregarGradeDia(data) {
+// Devolve true quando carregou, 'falha' quando o servidor não respondeu (a tela mostra o dia como
+// não confirmado, D-055) e false quando não há o que fazer agora (já tem, já está carregando,
+// sem permissão ou falhou antes: só tenta de novo pelo botão "Tentar de novo").
+export async function carregarGradeDia(data, { forcar = false } = {}) {
   if (!sessionPode('escala:ver') || gradeDoDia(data) || carregando.has(data)) return false;
+  if (!forcar && state.gradeFalha && state.gradeFalha[data]) return false;
   carregando.add(data);
   try {
     const g = await api('/disponibilidade/grade?data=' + encodeURIComponent(data));
     state.gradeDia = state.gradeDia || {};
     state.gradeDia[data] = Object.fromEntries((g.profissionais || []).map(p => [p.profissionalId, p]));
+    if (state.gradeFalha) delete state.gradeFalha[data];
     return true;
-  } catch (_) { return false; } finally { carregando.delete(data); }
+  } catch (_) {
+    state.gradeFalha = state.gradeFalha || {};
+    state.gradeFalha[data] = true;
+    return 'falha';
+  } finally { carregando.delete(data); }
+}
+
+// Por que a grade não pode afirmar que um horário está livre (D-055). null = pode afirmar.
+export function motivoIncerto(profId, data) {
+  if (state.agendaFalhasDias && state.agendaFalhasDias.has(data)) return 'Os agendamentos deste dia não carregaram';
+  if (state.excecoesFalharam) return 'Os bloqueios da semana não carregaram';
+  if (!sessionPode('escala:ver')) return 'Sem acesso à escala: o servidor confere ao agendar';
+  if (state.gradeFalha && state.gradeFalha[data]) return 'A escala do dia não carregou';
+  const g = gradeDoDia(data);
+  if (!g) return 'Conferindo a escala…';
+  if (!g[profId]) return 'Escala deste profissional desconhecida';
+  return null;
 }
 function periodosMin(profId, data) {
   const g = gradeDoDia(data); const p = g && g[profId];

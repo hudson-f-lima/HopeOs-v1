@@ -25,8 +25,18 @@ function soProprio() {
 export function profsNaGrade() {
   const todos = activeProfissionais();
   if (soProprio()) return todos.filter(p => p.id === state.session.profissional_id);
+  normalizarSelecao(todos);
   const sel = state.profsVisiveis;
   return !sel || !sel.size ? todos : todos.filter(p => sel.has(p.id));
+}
+
+// Profissional desativado (ou removido do catálogo) sai da seleção (D-055). Se não sobrar ninguém
+// selecionado, volta a "Todos" — a grade nunca fica vazia por causa de uma seleção antiga.
+function normalizarSelecao(todos) {
+  const sel = state.profsVisiveis;
+  if (!sel || !sel.size) return;
+  const ativos = new Set(todos.map(p => p.id));
+  for (const id of [...sel]) if (!ativos.has(id)) sel.delete(id);
 }
 
 export function profsFiltrados() {

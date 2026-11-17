@@ -1340,3 +1340,17 @@ body{font-variant-numeric:tabular-nums;}
 .le-faixa legend{font-size:13px;font-weight:600;margin-bottom:4px;}
 .le-faixa-campos{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .le-faixa-campos label{font-size:12px;display:flex;flex-direction:column;gap:2px;}
+
+/* Agenda confiável (D-055): horário sem confirmação, carregando e estado da carga. */
+.slot-vazio.incerto{background-image:repeating-linear-gradient(135deg,color-mix(in srgb,var(--md-outline) 22%,transparent) 0 2px,transparent 2px 9px);}
+.ag-carregando{padding:24px 16px;font-size:13px;color:var(--text-tertiary);text-align:center;}
+.agx-status{margin:0 0 6px;padding:6px 10px;border-radius:10px;font-size:12px;color:var(--text-secondary);background:var(--bg-glass-light);display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+.agx-status.hidden{display:none;}
+.agx-status-erro{background:var(--warning-light,#fff4e5);color:var(--warning,#8a4b00);}
+.agx-tentar{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid currentColor;background:transparent;color:inherit;font-weight:700;}
+.lg-incerto{background-image:repeating-linear-gradient(135deg,var(--md-outline) 0 1.5px,transparent 1.5px 5px);}
+.at-ordem{display:flex;align-items:center;gap:8px;margin:4px 0;}.at-ordem select{width:auto;flex:1;}.at-aviso{padding:6px 10px;border-radius:10px;background:var(--bg-glass-light);}
+/* Colunas da grade ao espaço (D-055): no celular cabem até 3 profissionais sem rolar de lado. */
+@media (max-width:767px){.agenda-android .agenda-grid{grid-template-columns:44px repeat(var(--prof-count, 1), minmax(96px, 1fr));min-width:100%;}}
+.agenda-android .agenda-grid-header{min-width:0;overflow:hidden;}
+.agenda-android .timeline-prof-name,.agenda-android .timeline-prof-count{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

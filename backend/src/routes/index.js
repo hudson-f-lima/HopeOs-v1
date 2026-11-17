@@ -48,6 +48,16 @@ async function assertDentroDaDisponibilidade(req, repo, { profissional, data, ho
   exigirTambem(req, 'agenda:encaixar');
   return { forcado: true, origem: d.origem };
 }
+// Escala e reserva ao mesmo tempo (D-055): a disponibilidade é lida antes de gravar e o banco não
+// tem trava comum entre escala e agendamento. Depois de gravar, confere de novo; se a escala mudou
+// no meio (ex.: um bloqueio entrou), a reserva recém-criada é desfeita e quem agendava recebe 409.
+// Reduz a janela, não a fecha: a garantia completa precisa de trava no banco (proposta 026, D-055).
+async function escalaMudouDepois(repo, { profissional, data, horario, duracaoMin }) {
+  const disp = await repo.carregarDisponibilidade();
+  if (!disp || (!disp.semanal.length && !disp.excecoes.length)) return null;
+  const d = disponibilidadeDoDia({ data, semanal: disp.semanal, excecoes: disp.excecoes, profissional });
+  return cabe(d.periodos, timeToMinutes(String(horario).slice(0, 5)), Number(duracaoMin) || 30) ? null : d.origem;
+}
 const { montarLembretes, normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
@@ -533,18 +543,32 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
     const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
     const fora = await assertDentroDaDisponibilidade(req, repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin, forcar: payload.foraDaDisponibilidade });
     const avisos = await avisosDaAgenda(repo, { clienteId: payload.clienteId, servico, data: payload.data, horario: payload.horario, aceitar: payload.aceitarAvisos });
-    // Vaga dada a alguém da lista de espera (D-054): o item é da empresa, do mesmo cliente e ainda ativo.
+    // Vaga dada a alguém da lista de espera (D-054/D-055): o item é da empresa, do mesmo cliente,
+    // do mesmo serviço e ainda ativo. Trocou o serviço no formulário? O pedido da espera não é
+    // baixado (era para outro serviço): o servidor recusa o vínculo e a tela grava sem ele.
     let itemEspera = null;
     if (payload.listaEsperaId) {
       exigirTambem(req, 'espera:gerir');
       itemEspera = await requireScopedEntity(repo, 'lista_espera', validateUUID(payload.listaEsperaId, 'listaEsperaId'), 'Item da lista de espera', 'WAITLIST_ITEM_NOT_FOUND');
-      if (itemEspera.cliente_id !== payload.clienteId || !['aguardando', 'contatado'].includes(itemEspera.status)) {
-        throw createAppError('WAITLIST_MISMATCH', 'Este item da lista de espera é de outro cliente ou já foi resolvido.', 422);
+      if (itemEspera.cliente_id !== payload.clienteId || itemEspera.servico_id !== payload.servicoId) {
+        throw createAppError('WAITLIST_MISMATCH', 'Este pedido da lista de espera é de outro cliente ou de outro serviço.', 422);
+      }
+      if (!['aguardando', 'contatado'].includes(itemEspera.status)) {
+        throw createAppError('WAITLIST_ALREADY_USED', 'Este pedido da lista de espera já foi resolvido.', 409);
       }
     }
 
+    // Baixa da espera ANTES de gravar e atômica (D-055): dois pedidos ao mesmo tempo com o mesmo
+    // item — só um leva; o outro recebe 409 e nada é gravado. Se a gravação falhar, o item volta.
+    const statusEsperaAntes = itemEspera ? itemEspera.status : null; // guardado antes da baixa (para devolver)
+    if (itemEspera) {
+      const tomado = await repo.atualizarStatusSe('lista_espera', itemEspera.id, ['aguardando', 'contatado'], { status: 'agendado' });
+      if (!tomado) throw createAppError('WAITLIST_ALREADY_USED', 'Este pedido da lista de espera acabou de ser usado em outro agendamento.', 409);
+    }
     // Conflito checado e gravado atomicamente no banco (agendamento_criar, migration 007).
-    const created = await repo.criarAgendamento({
+    let created;
+    try {
+      created = await repo.criarAgendamento({
       agendamento: {
         cliente_id: payload.clienteId,
         servico_id: payload.servicoId,
@@ -558,15 +582,33 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
       permitirConflito: payload.permitirConflito,
       createdBy: actorId
     });
+      if (!fora.forcado && created) {
+        const mudou = await escalaMudouDepois(repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin });
+        if (mudou) {
+          const agoraIso = clock.agora().toISOString();
+          await repo.atualizarStatusAgendamentoSe(created.id, ['agendado', 'confirmado'], { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+          await registrarEventoAgenda(repo, req.auth, { agendamentoId: created.id, tipo: 'status', de: 'agendado', para: 'cancelado', extra: { motivo: 'escala_mudou_durante_reserva', origem: mudou } });
+          throw createAppError('ESCALA_MUDOU', `A escala mudou enquanto o horário era gravado (${mudou}). Nada ficou reservado: escolha outro horário.`, 409, { origem: mudou });
+        }
+      }
+    } catch (err) {
+      if (itemEspera) {
+        // A reserva não aconteceu: devolve o pedido à espera. Se nem isso der, avisa no erro.
+        try {
+          const volta = await repo.atualizarStatusSe('lista_espera', itemEspera.id, ['agendado'], { status: statusEsperaAntes });
+          if (!volta) throw new Error('item mudou');
+        } catch (_) {
+          err.details = { ...(err.details || {}), listaEspera: 'nao_devolvida' };
+          console.error('[agenda] pedido da lista de espera não voltou para a espera após falha ao gravar');
+        }
+      }
+      throw err;
+    }
     // Encaixe forçado fora da disponibilidade fica registrado no próprio evento de criação.
     await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado', extra: {
       ...(fora.forcado ? { fora_da_disponibilidade: fora.origem } : {}),
       ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {})
     } });
-
-    if (itemEspera && created) {
-      try { await repo.updateScoped('lista_espera', itemEspera.id, { status: 'agendado' }); } catch (err) { console.error('[agenda] lista de espera não acompanhou o agendamento:', (err && err.code) || 'erro'); }
-    }
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }

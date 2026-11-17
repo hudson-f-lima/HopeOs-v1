@@ -6,6 +6,7 @@
 // POST /agenda revalida conflito ao gravar.
 const { timeToMinutes, minutesToTime } = require('./ScheduleEngine');
 const { janelasLivres, intervalosOcupados, periodosDoDia, resolveDuracaoMin } = require('./SlotEngine');
+const { habilitadoPor } = require('./AtendimentoEngine');
 
 const ATIVOS = ['aguardando', 'contatado'];
 const hhmm = t => (t ? String(t).slice(0, 5) : null);
@@ -30,7 +31,8 @@ function compativeis({ itens, data, horario, profissional, empresa, agendamentos
   if (fim === null) return { livreAte: null, itens: [] };
   const servico = new Map((servicos || []).map(s => [s.id, s]));
   const nome = new Map((clientes || []).map(c => [c.id, c.nome]));
-  const doProf = (links || []).filter(l => l.profissional_id === profissional.id).map(l => l.servico_id);
+  // Mesma regra de habilitação do resto (D-040/D-055): sem vínculo, só se o salão não tiver nenhum.
+  const habilitado = habilitadoPor(links);
   const achados = [];
   for (const it of itens || []) {
     if (!ATIVOS.includes(it.status)) continue;
@@ -38,7 +40,7 @@ function compativeis({ itens, data, horario, profissional, empresa, agendamentos
     if (it.data_preferencia && it.data_preferencia !== data) continue;
     const s = servico.get(it.servico_id);
     if (!s || s.ativo === false) continue;
-    if (doProf.length && !doProf.includes(s.id)) continue;
+    if (!habilitado(profissional.id, s.id)) continue;
     const dur = resolveDuracaoMin({ servico: s, profissional });
     if (inicio + dur > fim) continue;
     const fi = hhmm(it.faixa_inicio); const ff = hhmm(it.faixa_fim);
