@@ -43,6 +43,7 @@ const CASOS = [
   { nome: 'escalas' },
   { nome: 'agenda-bloqueio' },
   { nome: 'card-agendamento' },
+  { nome: 'regras-agenda' },
   { nome: 'link-online' },
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'series' },

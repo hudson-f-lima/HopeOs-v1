@@ -361,20 +361,25 @@ function isWithinLastDays(dateOnly, today, days) {
   return diff !== null && diff >= 0 && diff <= days;
 }
 
-function isLateCancel(agendamento) {
+// Tardio = cancelado a menos de `prazoMin` do horário (D-049: o prazo do salão/serviço; sem
+// prazo informado, 24 h, como era). Cancelado em tempo não é falta e não conta.
+function isLateCancel(agendamento, prazoMin = 1440) {
   if (agendamento.status !== 'cancelado' || !agendamento.updated_at) return false;
   const scheduled = scheduledDateTime(agendamento);
   const updated = new Date(agendamento.updated_at);
   if (!scheduled || Number.isNaN(updated.getTime())) return false;
   const delta = scheduled - updated;
-  return delta >= 0 && delta <= MS_PER_DAY;
+  return delta >= 0 && delta < (Number.isFinite(prazoMin) ? prazoMin : 1440) * 60000;
 }
 
-function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly()) {
+// opts.prazoMinDe(agendamento) → prazo de cancelamento em minutos (D-049). Sem ele, 24 h.
+function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly(), opts = {}) {
   const today = parseDateOnly(hoje) || todayUtcDateOnly();
+  const prazoDe = typeof opts.prazoMinDe === 'function' ? opts.prazoMinDe : () => 1440;
+  const tardio = a => isLateCancel(a, prazoDe(a));
   const relevant = (agendamentosCliente || []).filter(a => isWithinLastDays(a.data, today, 365));
   const noShows365d = relevant.filter(a => a.status === 'no_show').length;
-  const cancelTardios365d = relevant.filter(isLateCancel).length;
+  const cancelTardios365d = relevant.filter(tardio).length;
 
   const pastSortedDesc = relevant
     .filter(a => parseDateOnly(a.data) <= today)
@@ -390,6 +395,8 @@ function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly()) {
   let streakConcluidos = 0;
   for (const agendamento of pastSortedDesc) {
     if (SEM_DESFECHO_STATUSES.includes(agendamento.status)) continue;
+    // D-049: cancelar em tempo não é falha e não zera a sequência; só o tardio zera.
+    if (agendamento.status === 'cancelado' && !tardio(agendamento)) continue;
     if (!SUCCESS_APPOINTMENT_STATUSES.includes(agendamento.status)) break;
     streakConcluidos += 1;
   }

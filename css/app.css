@@ -632,6 +632,8 @@ button.agc-campo.ativo{border-color:var(--md-primary);}
 .agc-acoes .btn.primary{min-height:46px;font-size:14px;}
 .agc-acoes .btn.primary,.agc-acoes .agc-largo,.agc-acoes .agc-grupo,.agc-acoes .agc-feito,.agc-acoes [data-sheet-action="serie-ver"],.agc-acoes [data-sheet-action="atendimento-etapas"]{grid-column:1/-1;}
 .agc-grupo{margin:6px 0 0;font-size:11px;color:var(--md-neutral);}
+.agc-atraso{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:700;color:var(--md-error);background:var(--error-light);}
+.agc-acoes .btn.agc-destaque{box-shadow:inset 0 0 0 2px var(--md-error);}
 .agc-feito{margin:0;font-size:13px;font-weight:700;color:var(--md-success);}
 .sheet-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
 .sheet-actions .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}

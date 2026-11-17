@@ -29,7 +29,7 @@ function assertTransicaoStatus(statusAtual, novoStatus) {
 
 function validateCreateAgendamentoPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
-  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade } = body;
+  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade, aceitarAvisos } = body;
 
   if (!servicoId) throw createAppError('SERVICE_ID_REQUIRED', 'servicoId obrigatório.', 422);
   if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'profissionalId obrigatório.', 422);
@@ -47,7 +47,8 @@ function validateCreateAgendamentoPayload(body) {
     horario,
     duracaoMin: duracaoMin !== undefined ? Number(duracaoMin) : undefined,
     permitirConflito: permitirConflito === true,
-    foraDaDisponibilidade: foraDaDisponibilidade === true
+    foraDaDisponibilidade: foraDaDisponibilidade === true,
+    aceitarAvisos: aceitarAvisos === true
   };
 }
 
@@ -60,7 +61,7 @@ function validateStatusChangePayload(body) {
 }
 
 function validateReagendamentoPayload(body) {
-  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito, foraDaDisponibilidade } = body || {};
+  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito, foraDaDisponibilidade, aceitarAvisos } = body || {};
   if (!novaData) throw createAppError('DATE_REQUIRED', 'novaData obrigatória para reagendamento.', 422);
   if (!novoHorario) throw createAppError('TIME_REQUIRED', 'novoHorario obrigatório para reagendamento.', 422);
   return {
@@ -69,7 +70,8 @@ function validateReagendamentoPayload(body) {
     novoServicoId: novoServicoId || null,
     novoProfissionalId: novoProfissionalId || null,
     permitirConflito: permitirConflito === true,
-    foraDaDisponibilidade: foraDaDisponibilidade === true
+    foraDaDisponibilidade: foraDaDisponibilidade === true,
+    aceitarAvisos: aceitarAvisos === true
   };
 }
 

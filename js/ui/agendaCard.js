@@ -15,6 +15,54 @@ const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const diaCurto = d => { const x = new Date(d + 'T12:00:00'); return DIAS[x.getDay()] + ' ' + d.slice(8, 10) + '/' + d.slice(5, 7); };
 const EDITAVEL = ['agendado', 'confirmado'];
 
+// ---------- Regras da agenda (D-049) ----------
+// O servidor devolve 409 REGRAS_DA_AGENDA com os avisos; a recepção decide seguir (fica no histórico).
+export async function confirmarRegras(err) {
+  if (!err || err.code !== 'REGRAS_DA_AGENDA') return false;
+  const avisos = ((err.details && err.details.avisos) || []).map(a => a.mensagem);
+  return confirmAction({ title: 'Regras da agenda', message: avisos.join(' • ') + ' Seguir mesmo assim? Fica registrado como exceção.', confirmLabel: 'Seguir mesmo assim' });
+}
+
+// Regras do salão para a tela (prazo de cancelamento e alerta de atraso). Carregadas uma vez.
+let regras = null;
+export async function carregarRegras(forcar = false) {
+  if (regras && !forcar) return regras;
+  try { regras = await api('/empresa'); } catch (_) { regras = regras || {}; }
+  return regras;
+}
+const agoraSP = () => {
+  const d = new Date();
+  const data = d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const [h, m] = d.toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).split(':').map(Number);
+  return { data, minuto: h * 60 + m };
+};
+const minutos = t => { const [h, m] = hhmm(t).split(':').map(Number); return h * 60 + m; };
+const minutosAte = item => {
+  const a = agoraSP(); const d = String(item.data).slice(0, 10);
+  const dias = Math.round((Date.parse(d + 'T12:00:00Z') - Date.parse(a.data + 'T12:00:00Z')) / 864e5);
+  return dias * 1440 + minutos(item.horario) - a.minuto;
+};
+export function prazoCancelamento(item) {
+  const sv = (state.catalog.servicos || []).find(s => s.id === item.servico_id) || {};
+  const doServico = Number.isInteger(sv.cancelamento_prazo_min) ? sv.cancelamento_prazo_min : null;
+  const doSalao = regras && Number.isInteger(regras.online_cancelamento_prazo_min) ? regras.online_cancelamento_prazo_min : 120;
+  return doServico !== null ? doServico : doSalao;
+}
+const horasTxt = m => (m >= 60 ? (m % 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m / 60 + ' h') : m + ' min');
+// Texto para o diálogo de cancelar: dentro ou fora do prazo (o mesmo que a confiabilidade usa).
+export function textoCancelamento(item) {
+  const prazo = prazoCancelamento(item); const falta = minutosAte(item);
+  if (falta >= prazo) return 'Dentro do prazo (' + horasTxt(prazo) + ' antes): não conta contra o cliente.';
+  return 'Cancelamento tardio: ' + (falta > 0 ? 'faltam ' + horasTxt(falta) : 'o horário já passou') + ' e o prazo é ' + horasTxt(prazo) + '. Conta na confiabilidade do cliente.';
+}
+// Atraso: hoje, ainda não chegou e passou do alerta configurado → minutos de atraso (ou 0).
+export function atrasoMin(item) {
+  if (!['agendado', 'confirmado'].includes(item.status)) return 0;
+  const alerta = regras && Number.isInteger(regras.agenda_atraso_alerta_min) ? regras.agenda_atraso_alerta_min : 15;
+  const atraso = -minutosAte(item);
+  return alerta > 0 && atraso >= alerta && atraso < 24 * 60 ? atraso : 0;
+}
+
 export function podeEditarCampo(item, campo) {
   if (!EDITAVEL.includes(item.status) || !sessionPode('agenda:editar')) return false;
   if (campo === 'profissional') return sessionPode('agenda:editar', true); // quem só mexe no próprio não troca de profissional
@@ -117,6 +165,7 @@ async function reagendar(item, mudancas, extra = {}) {
       && await confirmAction({ title: 'Fora do horário', message: err.message + ' Alterar mesmo assim? Fica registrado como encaixe.', confirmLabel: 'Alterar mesmo assim' })) {
       return reagendar(item, mudancas, { ...extra, foraDaDisponibilidade: true });
     }
+    if (!extra.aceitarAvisos && await confirmarRegras(err)) return reagendar(item, mudancas, { ...extra, aceitarAvisos: true });
     if (err.code === 'SCHEDULE_CONFLICT' && !extra.permitirConflito && sessionPode('agenda:encaixar')
       && await confirmAction({ title: 'Horário ocupado', message: 'Já há atendimento nesse horário. Encaixar mesmo assim?', confirmLabel: 'Encaixar' })) {
       return reagendar(item, mudancas, { ...extra, permitirConflito: true });
@@ -156,6 +205,7 @@ async function salvar() {
 export function initCardAgendamento() {
   const raiz = el('actionSheetContent');
   if (!raiz) return;
+  carregarRegras();
   raiz.addEventListener('click', ev => {
     const c = ev.target.closest('[data-editar]');
     if (c) {

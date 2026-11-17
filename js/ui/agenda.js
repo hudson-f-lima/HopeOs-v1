@@ -1,5 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
-import { htmlCampos, initCardAgendamento, resetarEditor } from './agendaCard.js';
+import { htmlCampos, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
@@ -512,15 +512,16 @@ async function confirmarForaDaDisponibilidade(err) {
   return confirmAction({ title: 'Fora do horário', message: `${err.message} Agendar mesmo assim? Fica registrado como encaixe.`, confirmLabel: 'Agendar mesmo assim' });
 }
 
-async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false) {
+async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
   clearBanner();
   try {
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade } });
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos } });
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
     await loadWeekAgenda();
   } catch (err) {
-    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, true);
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, true, aceitarAvisos);
+    if (!aceitarAvisos && await confirmarRegras(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade, true);
     showBanner(err.message, 'error');
   }
 }
@@ -554,12 +555,15 @@ function openActionSheet(item) {
   }
 
   resetarEditor();
+  // Atraso (D-049): passou do alerta configurado e o cliente não chegou → destaca o no-show.
+  const atraso = atrasoMin(item);
+  if (atraso) actionsHtml = actionsHtml.replace('class="btn danger" data-sheet-action="noshow"', 'class="btn danger agc-destaque" data-sheet-action="noshow"');
   document.getElementById('actionSheetContent').innerHTML = `
     <div class="agc-head">
       <h2 class="agc-cliente">${escapeHtml(findClienteNome(item.cliente_id))}</h2>
       <span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span>
     </div>
-    <div class="agc-sub"><span class="agc-hora">${horario}–${computeEndTime(item)}</span>
+    <div class="agc-sub"><span class="agc-hora">${horario}–${computeEndTime(item)}${atraso ? ` <span class="agc-atraso" role="status">⏱ atrasado ${atraso} min</span>` : ''}</span>
       <span class="agc-conf" id="reliabilityRow">Confiabilidade <b id="reliabilityValue">…</b></span></div>
     ${htmlCampos(item)}
     <p class="body-sm hidden agc-plano" id="sheetPlano" role="status"></p>
@@ -707,7 +711,7 @@ async function onActionSheetClick(ev) {
   }
   if (action === 'cancelar') {
     closeActionSheet();
-    if (await confirmAction({ title: 'Cancelar atendimento', message: 'Cancelar este atendimento na agenda?', confirmLabel: 'Cancelar atendimento', danger: true })) {
+    if (await confirmAction({ title: 'Cancelar atendimento', message: 'Cancelar este atendimento na agenda? ' + textoCancelamento(item), confirmLabel: 'Cancelar atendimento', danger: true })) {
       await patchAgendaStatus(id, 'cancelado');
       await promptWaitlistCandidates(item.servico_id);
     }
@@ -892,7 +896,7 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
   dialog.showModal();
 }
 
-function executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade = false) {
+function executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
   api('/agenda/' + agId + '/status', {
     method: 'PATCH',
     body: {
@@ -901,7 +905,8 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
       novoHorario: horario,
       novoProfissionalId: profId,
       permitirConflito: !!permitirConflito,
-      foraDaDisponibilidade
+      foraDaDisponibilidade,
+      aceitarAvisos
     }
   })
   .then(() => {
@@ -909,7 +914,8 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
     navigator.vibrate?.([10, 50, 10]);
   })
   .catch(async err => {
-    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true);
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true, aceitarAvisos);
+    if (!aceitarAvisos && await confirmarRegras(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade, true);
     showBanner('Erro ao reagendar: ' + err.message, 'error');
   });
 }
@@ -1276,16 +1282,17 @@ export function initAgenda() {
     const [h, m] = novoHorario.split(':').map(Number);
     const conflitos = profissionalAlvo ? detectConflict(profissionalAlvo, novaData, h, m, duracaoMin, state.reagendarAlvoId) : [];
 
-    const submeterReagendamento = async (horarioFinal, permitirConflito) => {
+    const submeterReagendamento = async (horarioFinal, permitirConflito, aceitarAvisos = false) => {
       try {
         await api(`/agenda/${state.reagendarAlvoId}/status`, {
           method: 'PATCH',
-          body: { novoStatus: 'reagendado', novaData, novoHorario: horarioFinal, novoServicoId, novoProfissionalId, permitirConflito: !!permitirConflito }
+          body: { novoStatus: 'reagendado', novaData, novoHorario: horarioFinal, novoServicoId, novoProfissionalId, permitirConflito: !!permitirConflito, aceitarAvisos }
         });
         closeReagendarModal();
         showBanner('Reagendado com sucesso.', 'ok');
         await loadWeekAgenda();
       } catch (err) {
+        if (!aceitarAvisos && await confirmarRegras(err)) return submeterReagendamento(horarioFinal, permitirConflito, true);
         showBanner(err.message, 'error');
       }
     };

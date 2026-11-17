@@ -108,6 +108,13 @@ function openServicoModal(servico) {
   document.getElementById('svDuracao').value = servico ? servico.duracao_min : '';
   document.getElementById('svSlot').value = servico ? (servico.slot_min || '') : '';
   document.getElementById('svComissao').value = servico ? servico.comissao_pct : '0';
+  // Regras próprias do serviço (D-049): vazio = segue a do salão.
+  const regra = v => (v === null || v === undefined ? '' : String(v));
+  for (const [idCampo, valor] of [['svAntecedencia', servico && servico.antecedencia_min_online], ['svPrazo', servico && servico.cancelamento_prazo_min]]) {
+    const sel = document.getElementById(idCampo); const v = regra(valor);
+    if (v && ![...sel.options].some(o => o.value === v)) sel.add(new Option(v + ' min', v));
+    sel.value = v;
+  }
   document.getElementById('svAtivoField').classList.toggle('hidden', !servico);
   document.getElementById('svAtivo').checked = servico ? servico.ativo !== false : true;
   clearModalError('svError');
@@ -122,7 +129,9 @@ async function submitServicoForm() {
     valorCentavos: brlToCents(document.getElementById('svValor').value),
     duracaoMin: Number(document.getElementById('svDuracao').value),
     slotMin: document.getElementById('svSlot').value ? Number(document.getElementById('svSlot').value) : undefined,
-    comissaoPct: Number(document.getElementById('svComissao').value || 0)
+    comissaoPct: Number(document.getElementById('svComissao').value || 0),
+    antecedenciaMinOnline: document.getElementById('svAntecedencia').value === '' ? null : Number(document.getElementById('svAntecedencia').value),
+    cancelamentoPrazoMin: document.getElementById('svPrazo').value === '' ? null : Number(document.getElementById('svPrazo').value)
   };
   if (id) body.ativo = document.getElementById('svAtivo').checked;
   const data = await submitCadastro(

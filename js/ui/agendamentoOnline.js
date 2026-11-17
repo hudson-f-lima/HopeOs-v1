@@ -41,7 +41,7 @@ function render() {
         <select id="onlineAntecedencia">${opcoes(comAtual([0, 30, 60, 120, 180, 240, 720, 1440], c.antecedenciaMin), c.antecedenciaMin, v => (v ? horas(v) : 'Sem antecedência'))}</select></div>
       <div class="field"><label for="onlineJanela">Até quantos dias à frente</label>
         <select id="onlineJanela">${opcoes(comAtual([7, 14, 21, 30, 45, 60, 90], c.janelaDias), c.janelaDias, v => `${v} dias`)}</select></div>
-      <div class="field"><label for="onlineCancelamento">Prazo para o cliente cancelar ou remarcar</label>
+      <div class="field"><label for="onlineCancelamento">Prazo para cancelar ou remarcar (o mesmo de Regras da agenda)</label>
         <select id="onlineCancelamento">${opcoes(comAtual([0, 60, 120, 180, 240, 720, 1440, 2880], c.cancelamentoPrazoMin), c.cancelamentoPrazoMin, v => (v ? `até ${horas(v)} antes` : 'Até o horário'))}</select></div>
       <div class="field"><label for="onlineMaxFuturos">Horários futuros por número de WhatsApp</label>
         <select id="onlineMaxFuturos">${opcoes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], c.maxFuturos, v => String(v))}</select></div>

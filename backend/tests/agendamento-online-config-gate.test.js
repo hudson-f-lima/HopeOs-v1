@@ -329,6 +329,28 @@ async function comServidor(appMutante, fn) {
   try { return await fn(`http://127.0.0.1:${srv.address().port}`); } finally { srv.close(); }
 }
 
+test('O11 regras da agenda (D-049): antecedência própria do serviço e intervalo mínimo no mesmo serviço', async () => {
+  reset();
+  const corte = db.servicos.find(x => x.id === CORTE);
+  const hoje = async () => (await slots(BETO, HOJE)).data.data.slots;
+  const antes = await hoje(); // antecedência do salão (2 h): a partir das 11:00
+  corte.antecedencia_min_online = 420; // 7 h só para o Corte
+  const depois = await hoje();
+  delete corte.antecedencia_min_online;
+  assert.ok(antes.includes('11:00') && !depois.includes('11:00') && depois.every(h => h >= '16:00'), `${antes} | ${depois}`);
+  const emp = empresa(A); emp.agenda_intervalo_min_dias = 7;
+  const tel = '21 95432-0099';
+  try {
+    const primeiro = await post(pedido({ horario: '15:00', whatsapp: tel }));
+    assert.strictEqual(primeiro.status, 201, primeiro.raw);
+    const perto = await post(pedido({ data: '2026-11-14', horario: '15:00', whatsapp: tel }));
+    assert.deepStrictEqual([perto.status, code(perto)], [422, 'AGENDAMENTO_ONLINE_INDISPONIVEL'], 'mesmo serviço a 3 dias: recusa sem dizer a data do outro');
+    assert.ok(!/11\/11|2026-11-11/.test(perto.raw), 'não revela o outro horário');
+    const outro = await post(pedido({ data: '2026-11-14', horario: '15:00', whatsapp: tel, servicoId: BARBA, profissionalId: ANA }));
+    assert.notStrictEqual(code(outro), 'AGENDAMENTO_ONLINE_INDISPONIVEL', 'outro serviço não entra no intervalo');
+  } finally { delete emp.agenda_intervalo_min_dias; }
+});
+
 test('NC1 controle negativo: sem checar o liga/desliga do banco, o salão desligado (O01) abre', async () => {
   await comServidor(routerMutante([['if (!doBanco.ativo) throw naoEncontrado();', '']]), async url => {
     const r = await request('GET', '/api/public/agendar/salao-beta', { baseUrl: url });
