@@ -109,11 +109,6 @@
   </div>
   <header class="topbar">
     <h1>HOPE OS</h1>
-    <div id="sessionChip" class="session-chip hidden">
-      <span id="sessionLabel"></span>
-      <span id="appVersao" class="body-sm text-tertiary" title="Versão do app neste aparelho"></span>
-      <button id="btnLogout" type="button" class="session-sair">Sair</button>
-    </div>
   </header>
 
   <main>
@@ -122,54 +117,49 @@
     <section id="tab-agenda" class="tab-content agenda-android">
       <section id="agoraCard" class="agora hidden" aria-label="Atendimento de agora"></section>
       <div class="agenda-surface">
-        <div class="agenda-hero">
-          <div class="agenda-title-row">
-            <button class="agenda-menu-btn" id="btnPrevWeekMobile" aria-label="Semana anterior"><span></span><span></span><span></span></button>
-            <div class="agenda-title-copy">
-              <h2>Agenda</h2>
-              <button class="agenda-date-btn" id="btnNextWeekMobile" aria-label="Proxima semana">
-                <span id="agendaDateLabel">Carregando semana</span>
-                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </div>
+        <!-- Agenda (D-053): data → profissionais → grade. Ícones abrem painéis; nada fixo competindo com a grade. -->
+        <div class="agx-top">
+          <h2 class="agx-titulo">Agenda</h2>
+          <div class="agx-icones">
+            <button type="button" class="agx-ic" id="btnAgBuscar" aria-expanded="false" aria-controls="agBusca" aria-label="Buscar cliente na semana"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <button type="button" class="agx-ic" id="btnAgMes" aria-expanded="false" aria-controls="agMes" aria-label="Abrir o calendário do mês"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/><line x1="3.5" y1="10" x2="20.5" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <button type="button" class="agx-ic" id="btnAgendaLembretes" aria-label="Lembretes de confirmação"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <button type="button" class="agx-ic" id="btnAgInfo" aria-expanded="false" aria-controls="agInfo" aria-label="Legenda, totais e lista de espera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg></button>
           </div>
-          <div class="agenda-actions" aria-hidden="true">
-            <span class="agenda-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
-            <span class="agenda-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="2.2" fill="var(--bg-surface)" stroke="currentColor" stroke-width="2"/><line x1="4" y1="14" x2="20" y2="14" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="14" r="2.2" fill="var(--bg-surface)" stroke="currentColor" stroke-width="2"/></svg></span>
-            <span class="agenda-bell"></span>
-          </div>
+        </div>
+        <div class="agx-data">
+          <button type="button" class="agx-seta" id="btnPrevWeekMobile" aria-label="Semana anterior">‹</button>
+          <button type="button" class="agx-data-pill" id="btnAgData" aria-expanded="false" aria-controls="agMes" aria-label="Escolher a data no calendário do mês"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/><line x1="3.5" y1="10" x2="20.5" y2="10" stroke="currentColor" stroke-width="2"/></svg><span id="agendaDateLabel">Carregando…</span><span class="agx-seta-baixo" aria-hidden="true">⌄</span></button>
+          <button type="button" class="agx-seta" id="btnNextWeekMobile" aria-label="Próxima semana">›</button>
+          <button type="button" class="agx-hoje" id="btnAgendaToday">Hoje</button>
         </div>
         <div class="week-header">
           <button class="week-nav-btn" id="btnPrevWeek" aria-label="Semana anterior">‹</button>
           <span class="week-range" id="weekRangeLabel">—</span>
           <button class="week-nav-btn" id="btnNextWeek" aria-label="Próxima semana">›</button>
         </div>
-        <div class="week-stats">
-          <span id="weekCountLabel">0 agend.</span>
-          <span id="weekOccupancyLabel">0%</span>
-        </div>
         <div class="day-pills" id="dayPills"></div>
-        <div class="agenda-info-bar">
-          <button type="button" class="agm-btn" id="btnAgMes" aria-expanded="false" aria-controls="agMes" aria-label="Abrir o calendário do mês"><span aria-hidden="true">📅</span><b id="selectedDayLabel">Hoje</b><span class="agm-seta" aria-hidden="true">▾</span></button>
-          <div><span>👥</span><b id="dayCountLabel">0 agend.</b></div>
-          <div class="agenda-occ">
-            <svg class="occ-ring" id="dayOccRing" width="20" height="20" viewBox="0 0 20 20">
-              <circle cx="10" cy="10" r="8" fill="none" stroke="var(--border)" stroke-width="2.4"></circle>
-              <circle cx="10" cy="10" r="8" fill="none" stroke="var(--success)" stroke-width="2.4" stroke-dasharray="var(--occ-dash, 50.2) 50.2" stroke-linecap="round" transform="rotate(-90 10 10)"></circle>
-            </svg>
-            <b id="dayOccupancyLabel">0% Ocupação</b>
-          </div>
-        </div>
         <section class="ag-mes hidden" id="agMes" aria-label="Calendário do mês"></section>
-        <button class="btn btn-secondary" id="btnAbrirListaEspera" style="margin:0 12px 10px;width:calc(100% - 24px);">+ Lista de espera</button>
-        <div class="ag-filtro-profs" id="agFiltroProfs" role="group" aria-label="Profissionais na agenda"></div>
-        <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span></div>
+        <section class="agx-painel hidden" id="agBusca" aria-label="Buscar na semana">
+          <input type="search" id="agBuscaTermo" placeholder="Cliente, telefone ou serviço" autocomplete="off" aria-describedby="agBuscaEscopo"/>
+          <p class="agx-escopo" id="agBuscaEscopo"></p>
+          <div id="agBuscaResultado" aria-live="polite"></div>
+        </section>
+        <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais e lista de espera">
+          <p class="agx-escopo" id="weekCountLabel">—</p>
+          <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span></div>
+          <p class="agx-escopo">Contam os agendamentos ativos (sem cancelados e remarcados) dos profissionais selecionados. Nenhum número aqui é estimado.</p>
+          <button class="btn btn-secondary" id="btnAbrirListaEspera" type="button">+ Lista de espera</button>
+        </section>
+        <div class="agx-profs">
+          <button type="button" class="agx-profs-btn" id="btnAgProfs" aria-expanded="false" aria-controls="agFiltroProfs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Profissionais · <b id="agProfsResumo">Todos</b><span class="agx-seta-baixo" aria-hidden="true">⌄</span></button>
+          <span class="agx-total" id="dayCountLabel">—</span>
+        </div>
+        <div class="ag-filtro-profs hidden" id="agFiltroProfs" role="group" aria-label="Profissionais na agenda (vários)"></div>
         <div class="agenda-scroll-container" id="timelineContainer">
           <div class="agenda-grid" id="agendaGrid"></div>
         </div>
       </div>
-      <button class="agenda-today-pill" id="btnAgendaToday" type="button">Hoje</button>
-      <button class="agenda-today-pill agenda-lembretes-pill" id="btnAgendaLembretes" type="button">Lembretes</button>
       <button class="agenda-today-pill agenda-online-pill hidden" id="btnOnlineNovos" type="button" aria-live="polite"></button>
     </section>
 
@@ -766,6 +756,12 @@
         </div>
       </div>
       <button class="gestao-close" id="btnFecharGestao" aria-label="Fechar gestão">×</button>
+    </div>
+    <!-- Conta e versão (D-053): lugar secundário, fora da agenda. -->
+    <div id="sessionChip" class="session-chip gestao-conta hidden">
+      <span id="sessionLabel"></span>
+      <span id="appVersao" class="body-sm text-tertiary" title="Versão do app neste aparelho"></span>
+      <button id="btnLogout" type="button" class="session-sair">Sair</button>
     </div>
 
     <fieldset class="tema-escolha" id="temaEscolha">

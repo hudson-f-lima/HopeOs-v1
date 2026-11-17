@@ -46,7 +46,6 @@ export const state = {
   dragging: null,
   resizing: null,
   selectedDay: todayStr(),
-  activeProfFilter: null, // null = "Todos"
   insights: {
     occupancy: null,
     margin: null,

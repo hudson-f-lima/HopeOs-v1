@@ -52,7 +52,7 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   console.log('SERVICE WORKER registrado:', sw, '| fonte de fonts.gstatic.com requisitada:', fonteBaixada);
   if (!fonteBaixada) process.exitCode = 1;
   const antesDoLogout = await p.evaluate(() => window.__csp);
-  await p.click('#btnLogout').catch(() => {}); await p.waitForTimeout(800);
+  await (async () => { if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar'); return p.click('#btnLogout'); })().catch(() => {}); await p.waitForTimeout(800);
   // O logout pode recarregar a página (zera window.__csp): soma as duas leituras.
   const violacoes = [...antesDoLogout, ...await p.evaluate(() => window.__csp), ...cspConsole];
   console.log('VIOLAÇÕES CSP:', JSON.stringify(violacoes)); if (violacoes.length) process.exitCode = 1;

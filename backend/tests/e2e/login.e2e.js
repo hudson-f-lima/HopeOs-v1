@@ -41,7 +41,7 @@ async function entrar(p, email, senha = 'dev12345') {
   out('ADMIN gravou:', novo.horario, novo.duracao_min, 'created_by=', (users.find(u => u.id === novo.created_by) || {}).email);
   out('ADMIN erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   // logout
-  await p.click('#btnLogout'); await p.waitForSelector('#loginScreen:not(.hidden)', { timeout: 15000 });
+  await (async () => { if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar'); return p.click('#btnLogout'); })(); await p.waitForSelector('#loginScreen:not(.hidden)', { timeout: 15000 });
   out('LOGOUT → tela de login:', await p.isVisible('#loginScreen'));
   // 3. profissional
   p = await novaPagina(b);

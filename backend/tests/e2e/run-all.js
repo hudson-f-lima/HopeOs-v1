@@ -46,6 +46,7 @@ const CASOS = [
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
   { nome: 'agenda-mes' },
+  { nome: 'agenda-inteligente' },
   { nome: 'link-online' },
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'series' },

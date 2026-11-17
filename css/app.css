@@ -325,10 +325,6 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .overflow-hidden{overflow:hidden;}
 
 /* ============ AGENDA INFO BAR — Stats do dia ============ */
-.agenda-info-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-lg);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-md) var(--space-lg);box-shadow:var(--elevation-1);margin:var(--space-md) 0;}
-.agenda-info-bar > div{display:flex;align-items:center;gap:var(--space-sm);font-size:11.5px;font-weight:700;color:var(--text-primary);}
-.agenda-info-bar > div > span{font-size:14px;}
-.agenda-occ{display:flex;align-items:center;gap:var(--space-md);}
 .occ-ring{width:20px;height:20px;flex-shrink:0;}
 
 /* ============ CHECKOUT TABS — Serviços / Produtos ============ */
@@ -374,17 +370,6 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .agenda-android{position:relative;}
 .agenda-android .week-header{display:none;}
 .agenda-surface{background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:14px;box-shadow:0 8px 24px rgba(29,27,32,.18);overflow:hidden;}
-.agenda-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;background:var(--bg-glass-light);border-radius:16px;padding:12px;}
-.agenda-title-row{display:flex;align-items:flex-start;gap:10px;min-width:0;}
-.agenda-menu-btn{width:40px;height:40px;min-width:40px;border-radius:20px;background:var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;}
-.agenda-menu-btn span{display:block;width:18px;height:2px;border-radius:2px;background:var(--text-primary);}
-.agenda-title-copy h2{font-size:24px;line-height:1.05;font-weight:800;color:var(--text-primary);margin:0 0 4px;text-transform:none;letter-spacing:0;}
-.agenda-date-btn{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-size:13px;font-weight:700;background:var(--primary-soft);border-radius:999px;padding:5px 10px;}
-.agenda-actions{display:flex;align-items:center;gap:8px;color:var(--text-secondary);padding-top:0;}
-.agenda-icon,.agenda-bell{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:20px;background:var(--border);font-size:18px;font-weight:800;line-height:1;}
-.agenda-bell{position:relative;font-size:0;}
-.agenda-bell::before{content:'';width:13px;height:15px;border:2px solid currentColor;border-radius:9px 9px 5px 5px;border-bottom-width:1px;}
-.agenda-bell::after{content:'';position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--primary);border:2px solid var(--border);}
 .agenda-week-stats{margin:10px 2px;color:var(--text-tertiary);}
 .agenda-today-pill{position:fixed;left:16px;bottom:96px;background:var(--primary-soft);border:1px solid var(--primary);border-radius:999px;padding:10px 18px;min-height:var(--tap-min);font-size:13px;font-weight:600;color:var(--primary);box-shadow:var(--elevation-2);z-index:110;}
 .week-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
@@ -905,7 +890,8 @@ dialog {
 
 /* Responsive timeline: week ≥768px, day <768px */
 @media (max-width: 767px) {
-  .agenda-scroll-container { height: 450px; }
+  /* A grade fica com o resto da tela (D-053): cabeçalho ~250px + navegação inferior. */
+  .agenda-scroll-container { height: calc(100dvh - 330px); min-height: 380px; }
   .agenda-grid { grid-template-columns: 52px repeat(var(--prof-count, 1), minmax(100px, 1fr)); }
 }
 @media (min-width: 768px) {
@@ -1114,9 +1100,8 @@ dialog {
 .onb-sub{font-size:14px;font-weight:800;margin-top:12px;}
 
 /* Lembretes de confirmação (D-011) */
-.agenda-lembretes-pill{left:88px;}
 /* Aviso de agendamento online novo (C3, D-038): ao lado dos lembretes, em destaque. */
-.agenda-online-pill{left:192px;background:var(--md-primary,#6750a4);color:#fff;}
+.agenda-online-pill{left:16px;background:var(--md-primary,#6750a4);color:#fff;}
 .lembretes-dialog{margin:auto;width:min(560px,calc(100vw - 32px));max-height:85vh;border:none;border-radius:16px;padding:16px;}
 .lembretes-dialog::backdrop{background:rgba(0,0,0,.35);}
 .lembretes-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
@@ -1154,8 +1139,7 @@ body{font-variant-numeric:tabular-nums;}
   main{max-width:1280px;padding:20px 32px;}
   .fab{right:32px;bottom:32px;}
   .agenda-today-pill{left:128px;bottom:32px;}
-  .agenda-lembretes-pill{left:204px;}
-  .agenda-online-pill{left:320px;}
+  .agenda-online-pill{left:128px;}
   .agenda-scroll-container{height:calc(100vh - 260px);min-height:600px;}
   .agenda-grid{grid-template-columns:56px repeat(var(--prof-count, 1), minmax(140px, 1fr));}
   .checkout-grid{grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);}
@@ -1219,9 +1203,6 @@ body{font-variant-numeric:tabular-nums;}
 .at-total{font-size:12px;font-weight:700;}
 
 /* Calendário do mês e filtro de profissionais (D-050) */
-.agm-btn{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 6px;border-radius:10px;background:transparent;color:inherit;font:inherit;}
-.agm-btn:hover{background:var(--md-surface-variant);}
-.agm-seta{font-size:10px;color:var(--md-neutral);}
 .ag-mes{margin:0 12px 10px;padding:10px;border:1px solid var(--md-surface-variant);border-radius:14px;background:var(--md-surface);}
 .agm-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .agm-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
@@ -1293,3 +1274,57 @@ body{font-variant-numeric:tabular-nums;}
 .agc-clientes{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow-y:auto;}
 .agc-clientes .chip{min-height:40px;}
 .agc-grupo-tit{flex-basis:100%;margin:4px 0 0;font-size:11px;font-weight:700;color:var(--md-neutral);}
+
+/* Agenda (D-053): leitura data → profissionais → grade; ícones abrem painéis, um por vez. */
+.agenda-android .agenda-surface{padding:10px 10px 0;}
+.agx-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.agx-titulo{font-size:22px;line-height:1.1;font-weight:800;color:var(--text-primary);margin:0;text-transform:none;letter-spacing:0;}
+.agx-icones{display:flex;gap:2px;}
+.agx-ic{width:44px;height:44px;border-radius:22px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--text-secondary);}
+.agx-ic:hover,.agx-ic[aria-expanded="true"]{background:var(--primary-soft);color:var(--primary);}
+.agx-data{display:flex;align-items:center;gap:4px;margin:4px 0 6px;}
+.agx-seta{width:44px;height:44px;flex:0 0 44px;border-radius:22px;font-size:22px;line-height:1;color:var(--text-secondary);background:transparent;}
+.agx-seta:hover{background:var(--md-surface-variant);}
+.agx-data-pill{flex:1 1 auto;min-width:0;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:14px;font-weight:700;white-space:nowrap;}
+.agx-data-pill #agendaDateLabel{overflow:hidden;text-overflow:ellipsis;}
+.agx-seta-baixo{font-size:14px;line-height:1;}
+.agx-hoje{flex:0 0 auto;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--primary);background:transparent;color:var(--primary);font-size:13px;font-weight:700;}
+.agx-hoje.agx-hoje-ativo{background:var(--primary);color:var(--on-primary);}
+.agenda-android .day-pills{margin:0;padding:4px 2px;border:0;border-radius:14px;gap:2px;}
+.agenda-android .day-pill{min-height:52px;padding:4px 0;gap:1px;}
+.agenda-android .day-pill .pill-occ{font-size:0;width:5px;height:5px;border-radius:50%;background:transparent;}
+.agenda-android .day-pill .pill-occ.tem{background:var(--primary);}
+.agenda-android .day-pill.selected .pill-occ.tem{background:var(--on-primary);}
+.agenda-android .day-pill.hoje:not(.selected) .pill-daynum{color:var(--primary);text-decoration:underline;text-underline-offset:3px;}
+.agx-profs{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 4px;}
+.agx-profs-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 10px;border-radius:12px;background:transparent;color:var(--text-primary);font-size:13px;font-weight:600;min-width:0;}
+.agx-profs-btn b{color:var(--primary);white-space:nowrap;}
+.agx-profs-btn:hover:not(:disabled),.agx-profs-btn[aria-expanded="true"]{background:var(--md-surface-variant);}
+.agx-profs-btn:disabled{opacity:1;cursor:default;}
+.agx-profs-btn:disabled .agx-seta-baixo{display:none;}
+.agx-total{font-size:12px;font-weight:700;color:var(--text-tertiary);white-space:nowrap;}
+.agenda-android .ag-filtro-profs,.agenda-android .ag-mes{margin:0 0 8px;}
+.agenda-android .ag-filtro-profs{flex-wrap:wrap;overflow:visible;}
+.agenda-android .ag-filtro-profs .chip{min-height:44px;}
+.agx-painel{margin:0 0 8px;padding:10px;border:1px solid var(--md-surface-variant);border-radius:14px;background:var(--md-surface);display:flex;flex-direction:column;gap:8px;}
+.agx-painel .ag-legenda{margin:0;}
+.agx-escopo{margin:0;font-size:12px;color:var(--text-tertiary);}
+.agx-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:40vh;overflow:auto;}
+.agx-achado{width:100%;min-height:44px;text-align:left;padding:6px 10px;border-radius:10px;background:var(--bg-glass-light);color:var(--text-primary);font-size:13px;}
+.agx-achado span{display:block;font-size:11.5px;color:var(--text-tertiary);}
+.gestao-conta{flex-wrap:wrap;margin:-4px 0 10px;}
+@media (max-width:767px){
+  .topbar{display:none;}
+  .gestao-conta span{max-width:none;}
+}
+@media (min-width:768px){
+  .agenda-android .agx-data{max-width:520px;}
+  .agenda-android .ag-mes,.agenda-android .agx-painel{max-width:560px;}
+}
+/* Grade (D-053): cabeçalho do profissional em linha (avatar + nome), 08:00 sem corte, folga para o "+" no fim. */
+.agenda-android .agenda-grid-header{flex-direction:row;gap:6px;padding:6px 6px;cursor:default;justify-content:flex-start;}
+.agenda-android .timeline-avatar{width:28px;height:28px;font-size:11px;flex:0 0 28px;}
+.agenda-android .timeline-prof-info{text-align:left;margin-top:0;min-width:0;}
+.agenda-android .timeline-prof-name{text-align:left;font-size:12px;}
+.agenda-android .ruler-mark:first-child{transform:none;}
+@media (max-width:767px){.agenda-android .agenda-grid{padding-bottom:72px;}}
