@@ -721,3 +721,29 @@
 - **Achado na verificação:** os tipos de evento da agenda são uma lista fechada (`AgendaEventosService.TIPOS`); um tipo novo era descartado em silêncio (o evento é best-effort). Os dois tipos novos entraram na lista; o teste pegou.
 - **Limites:** não há cadastro rápido de cliente dentro do editor (cadastra em Clientes e volta); a troca não reaproveita a confirmação do anterior por desenho.
 - **Verificação:** `agenda-regras-gate` 11/11 (R09 corrigir; R10 passar a vaga com a confiabilidade de quem desistiu intacta e **controle negativo** sem o evento = tardio; lista de espera vira agendado; R11 recusas: mesmo cliente, motivo, passado, cancelado, profissional); offline verde; E2E `card-agendamento` (passar a vaga pela busca; profissional sem o botão) e **suíte E2E completa 33/33**.
+
+## D-052 — Checklist de lançamento (20 itens de segurança): auditoria com evidência e correções
+- **Pedido (Platform Owner, 2026-11-17):** lista "20 coisas pra pedir pro seu Claude Code fazer antes de lançar o seu app".
+- **Resultado por item (evidência no código, na configuração e em produção, só leitura):**
+  1. Chaves de API escondidas — **REAL**: nenhuma chave no front; `service_role` só no backend (Render).
+  2. Segredos fora do Git — **REAL**: varredura do histórico só achou placeholders (`COLE_AQUI…`) e uma chave falsa de teste. (A senha do AppBarber colada no chat nunca foi para o Git, mas **precisa ser trocada**.)
+  3. Chave pública do banco — **N/A melhor**: o front não fala com o banco; tudo passa pelo backend.
+  4. RLS — **REAL**: RLS ligada nas 50 tabelas, sem política (nega tudo a anon/authenticated); o aviso "sem políticas" do Supabase é INFO e é o desenho.
+  5. Dados sensíveis criptografados — **PARCIAL**: links e credenciais guardados só como hash; disco criptografado pelo Supabase; telefone e nome em texto (necessário para operar).
+  6. Autenticação no servidor — **REAL**: RBAC por ação e escopo em toda rota.
+  7. Logs — **REAL**: tokens nunca em URL (morgan registra só a URL); erros 500 sem detalhe ao cliente, com requestId.
+  8. Adulteração de campos — **REAL**: `empresa_id` só do login; corpos com lista de campos permitidos; campos perigosos recusados.
+  9. Sessão — **PARCIAL**: token no `localStorage` (não em cookie), exposto a XSS; mitigado agora pela CSP no app (item 18). Cookie httpOnly exige mudança de arquitetura (front no GitHub Pages e API no Render = cookie entre sites + CSRF): **proposto**.
+  10. Hash de senhas — **REAL**: Supabase Auth.
+  11. Tentativas de login — **REAL** (em memória, por IP e e-mail; zera ao reiniciar o servidor: PARCIAL documentado).
+  12. Proteção contra bots — **REAL** no link público (armadilha invisível, limite por IP e por número, teto diário).
+  13. Queries parametrizadas — **REAL**: supabase-js e RPCs com parâmetros; nenhum SQL montado com texto.
+  14. Validar entradas — **REAL**: validadores por rota.
+  15. Escapar conteúdo — **REAL**: `escapeHtml`, varredura RT-13 contra interpolação de dados de cadastro, `encodeURIComponent`.
+  16. Upload de arquivos — **N/A**: não há upload.
+  17. Respostas enxutas — **REAL**: `publica()` na empresa, contato do cliente recortado para quem não pode ver.
+  18. Headers de segurança — API **REAL** (nosniff, DENY, no-referrer, HSTS). **App principal: AUSENTE em produção (CRÍTICO de configuração)**: a CSP estava no `render.yaml`, mas a PWA é servida pelo GitHub Pages, que não envia esses headers; conferido em produção (`curl -I`: só HSTS). **Corrigido:** CSP no `<meta>` do `index.html` (mesma do render.yaml + API local de dev), `referrer` no-referrer, e anti-clickjacking em `js/app.js` (dentro de iframe o app fica oculto), porque `frame-ancestors`/X-Frame-Options não funcionam em `<meta>`.
+  19. HTTPS — **REAL**: HSTS no Pages e no Render.
+  20. Dependências — **REAL**: `npm audit` de produção com 0 vulnerabilidades; **adicionado ao CI** (`npm audit --omit=dev --audit-level=high` antes dos testes).
+- **Fica com o dono:** ligar a **proteção contra senhas vazadas** no Supabase (Auth → senhas; aviso WARN do Supabase); trocar a senha do AppBarber.
+- **Verificação:** E2E novo `seguranca-pwa` remove os headers da resposta (como o GitHub Pages) e prova: o app funciona com a CSP do `<meta>`; script inline injetado não roda; dentro de iframe o app fica oculto; **controle negativo** sem o `<meta>`, o mesmo script roda. Suíte offline verde; E2E completo verde (`regras-agenda` corrigido: a conferência de atraso só roda quando o horário cai na grade 08:00–20:00, antes falhava de madrugada).

@@ -1,3 +1,9 @@
+// Anti-clickjacking (D-052): o GitHub Pages não envia X-Frame-Options/frame-ancestors. Se o app for
+// aberto dentro de um iframe de outro site, some e tenta abrir na janela de cima.
+if (window.top !== window.self) {
+  document.documentElement.style.display = 'none';
+  try { window.top.location = window.location.href; } catch (_) { /* outro domínio: fica oculto */ }
+}
 import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, aceitarPrivacidade, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
 import { state, stateBus, loadCatalog, loadWeekAgenda, sessionRoleIn, sessionPode } from './state.js';
 import { 
