@@ -1283,3 +1283,13 @@ body{font-variant-numeric:tabular-nums;}
 .esc-aviso{font-size:11px;}
 .bento .esc-excecao{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--md-surface-variant);font-size:12px;}
 .bento .esc-excecao:first-child{border-top:0;}
+
+/* Troca de cliente no card (D-051) */
+.agc-cliente-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0;background:transparent;color:inherit;font:inherit;text-align:left;}
+.agc-cliente-btn i{font-style:normal;font-size:13px;color:var(--md-primary);}
+.agc-motivo{display:flex;flex-wrap:wrap;gap:6px 14px;border:0;padding:0;margin:0;}
+.agc-motivo legend{font-size:12px;font-weight:700;margin-bottom:4px;}
+.agc-motivo label{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:13px;font-weight:600;}
+.agc-clientes{display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow-y:auto;}
+.agc-clientes .chip{min-height:40px;}
+.agc-grupo-tit{flex-basis:100%;margin:4px 0 0;font-size:11px;font-weight:700;color:var(--md-neutral);}

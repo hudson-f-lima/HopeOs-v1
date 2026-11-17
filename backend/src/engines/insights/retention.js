@@ -376,7 +376,9 @@ function isLateCancel(agendamento, prazoMin = 1440) {
 function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly(), opts = {}) {
   const today = parseDateOnly(hoje) || todayUtcDateOnly();
   const prazoDe = typeof opts.prazoMinDe === 'function' ? opts.prazoMinDe : () => 1440;
-  const tardio = a => isLateCancel(a, prazoDe(a));
+  // D-051: vaga repassada (o cliente desistiu e outro assumiu o horário) é neutra.
+  const repassada = opts.vagasRepassadas instanceof Set ? opts.vagasRepassadas : new Set();
+  const tardio = a => !repassada.has(a.id) && isLateCancel(a, prazoDe(a));
   const relevant = (agendamentosCliente || []).filter(a => isWithinLastDays(a.data, today, 365));
   const noShows365d = relevant.filter(a => a.status === 'no_show').length;
   const cancelTardios365d = relevant.filter(tardio).length;
@@ -396,7 +398,7 @@ function computeReliability(agendamentosCliente, hoje = todayUtcDateOnly(), opts
   for (const agendamento of pastSortedDesc) {
     if (SEM_DESFECHO_STATUSES.includes(agendamento.status)) continue;
     // D-049: cancelar em tempo não é falha e não zera a sequência; só o tardio zera.
-    if (agendamento.status === 'cancelado' && !tardio(agendamento)) continue;
+    if (agendamento.status === 'cancelado' && (repassada.has(agendamento.id) || !tardio(agendamento))) continue;
     if (!SUCCESS_APPOINTMENT_STATUSES.includes(agendamento.status)) break;
     streakConcluidos += 1;
   }

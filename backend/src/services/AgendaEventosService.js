@@ -17,7 +17,7 @@
 // Nunca há PII no payload: só status, números, UUIDs e rótulos fixos.
 const { getIdentityStore } = require('../auth/identityStore');
 
-const TIPOS = ['criado', 'status', 'reagendado', 'duracao'];
+const TIPOS = ['criado', 'status', 'reagendado', 'duracao', 'cliente_corrigido', 'vaga_repassada'];
 const metricasEventos = { gravados: 0, falhas: 0 };
 
 function atorDe(auth) {

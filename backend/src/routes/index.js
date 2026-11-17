@@ -666,6 +666,63 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
   } catch (err) { next(err); }
 });
 
+// Troca de cliente no card (D-051). Duas intenções, registros diferentes:
+//   correcao       — o cliente estava errado (engano de cadastro): o original vira "reagendado"
+//                    (neutro) e nada conta contra quem estava;
+//   vaga_repassada — o cliente desistiu e outra pessoa assume o horário: o original vira
+//                    "cancelado" com o evento "vaga_repassada", que a confiabilidade ignora
+//                    (o salão não perdeu o horário: não é falta nem cancelamento tardio).
+// Mesmo horário, profissional, serviço, duração e valor; gravado pelo agendamento_criar (atômico).
+// O novo nasce "agendado" (quem vem é que confirma). O link pessoal do anterior NÃO acompanha
+// (ele não pode ver nem remarcar um horário que não é mais dele); a série não acompanha.
+// Só horário futuro, agendado ou confirmado; só quem edita a agenda de todos (não o profissional).
+const MOTIVOS_TROCA = ['correcao', 'vaga_repassada'];
+router.post('/agenda/:id/trocar-cliente', authorize('agenda:editar'), async (req, res, next) => {
+  try {
+    if (req.authz && req.authz.own) throw createAppError('INSUFFICIENT_ROLE', 'Só a recepção ou a gestão troca o cliente de um horário.', 403);
+    const id = validateUUID(req.params.id, 'id');
+    const b = req.body && typeof req.body === 'object' ? req.body : {};
+    const clienteId = validateUUID(b.clienteId, 'clienteId');
+    if (!MOTIVOS_TROCA.includes(b.motivo)) throw createAppError('INVALID_FIELD', 'motivo deve ser correcao ou vaga_repassada.', 422, { field: 'motivo' });
+    const { actorId } = autoriaDe(req.auth);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const original = await repo.getByIdScoped('agendamentos', id);
+    if (!original) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${id}`, 404, { id });
+    if (!['agendado', 'confirmado'].includes(original.status)) throw createAppError('INVALID_STATUS', 'Só dá para trocar o cliente de um horário agendado ou confirmado.', 422);
+    const agora = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
+    const dia = String(original.data).slice(0, 10); const hora = String(original.horario).slice(0, 5);
+    const [h, m] = hora.split(':').map(Number);
+    if (dia < agora.data || (dia === agora.data && h * 60 + m <= agora.minuto)) throw createAppError('INVALID_STATUS', 'O horário já começou ou passou: a troca não muda o que já aconteceu.', 422);
+    if (original.cliente_id === clienteId) throw createAppError('INVALID_FIELD', 'É o mesmo cliente.', 422, { field: 'clienteId' });
+    await requireActiveEntity(repo, 'clientes', clienteId, 'Cliente', 'CLIENT_NOT_FOUND');
+    const servico = await repo.getByIdScoped('servicos', original.servico_id);
+    const avisos = await avisosDaAgenda(repo, { clienteId, servico, data: dia, horario: hora, aceitar: b.aceitarAvisos === true });
+
+    const novo = await repo.criarAgendamento({
+      agendamento: {
+        cliente_id: clienteId, servico_id: original.servico_id, profissional_id: original.profissional_id,
+        data: dia, horario: hora, duracao_min: original.duracao_min, valor_centavos: original.valor_centavos, status: 'agendado'
+      },
+      ignorarId: original.id,
+      createdBy: actorId
+    });
+    const statusOriginal = b.motivo === 'vaga_repassada' ? 'cancelado' : 'reagendado';
+    const patch = { status: statusOriginal, updated_at: new Date().toISOString(), updated_by: actorId };
+    if (statusOriginal === 'cancelado') patch.cancelled_by = actorId;
+    await repo.updateScoped('agendamentos', original.id, patch);
+    const extra = { motivo: b.motivo, cliente_de: original.cliente_id, cliente_para: clienteId, para: novo && novo.id };
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: original.id, tipo: b.motivo === 'vaga_repassada' ? 'vaga_repassada' : 'cliente_corrigido', de: original.status, para: statusOriginal, extra });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: novo && novo.id, tipo: 'criado', de: null, para: 'agendado', origem: 'troca_cliente', extra: { de: original.id, motivo: b.motivo, ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {}) } });
+    // Lista de espera: quem estava aguardando este serviço e ganhou o horário passa a "agendado".
+    try {
+      const espera = (await repo.list('lista_espera', { empresa_id: repo.empresaId, cliente_id: clienteId, servico_id: original.servico_id }))
+        .filter(x => x.status === 'aguardando' || x.status === 'contatado');
+      for (const x of espera) await repo.updateScoped('lista_espera', x.id, { status: 'agendado' });
+    } catch (err) { console.error('[agenda] lista de espera não acompanhou a troca:', (err && err.code) || 'erro'); }
+    res.json({ ok: true, data: { original: { id: original.id, status: statusOriginal }, novo } });
+  } catch (err) { next(err); }
+});
+
 // Aviso de agendamento online novo para a recepção (C3, D-038). Sem migration: "visto" fica no
 // aparelho (a tela manda `desde`, o instante em que alguém viu pela última vez ali). Devolve os
 // agendamentos criados pelo link público desde então (até 7 dias, no máximo 50). Profissional
