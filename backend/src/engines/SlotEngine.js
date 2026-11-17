@@ -154,6 +154,42 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
   return slots.map(({ inicioMin, ...s }) => s);
 }
 
+// Política de sugestão (D-054, migration 025). Regras explicáveis, nada reservado:
+//   null          como antes: recepção vê primeiro os encaixes ideais; o link mostra todos
+//   'flexivel'    todo horário livre
+//   'equilibrada' só o que não deixa sobra inútil (menor que o menor serviço); se o dia ficar
+//                 sem nenhum, ficam os encaixes ideais (melhor sobra do que nada)
+//   'compacta'    só os encaixes ideais (encostam em outro horário com a menor sobra)
+// canal 'recepcao' marca `sugerido` (a recepção ainda vê todos e escolhe qualquer um);
+// canal 'online' devolve só os oferecidos (o link não marca fora da política).
+const POLITICAS = ['flexivel', 'equilibrada', 'compacta'];
+const POLITICA_TEXTO = {
+  padrao: 'Sem política definida: a recepção vê primeiro os encaixes ideais; o link mostra todos os horários livres.',
+  flexivel: 'Flexível: oferece todo horário livre.',
+  equilibrada: 'Equilibrada: só horários que não deixam sobra menor que o menor serviço.',
+  compacta: 'Compacta: só os encaixes ideais, colados em outro horário, com a menor sobra.'
+};
+
+function politicaDe(empresa) {
+  const p = empresa && empresa.agenda_politica;
+  return POLITICAS.includes(p) ? p : null;
+}
+
+function oferecidos(slots, politica, canal) {
+  const regra = politica || (canal === 'online' ? 'flexivel' : 'compacta');
+  if (regra === 'flexivel') return slots;
+  const ideais = slots.filter(s => s.recomendado);
+  if (regra === 'compacta') return ideais;
+  const semSobra = slots.filter(s => s.desperdicioMin === 0);
+  return semSobra.length ? semSobra : ideais;
+}
+
+function aplicarPolitica(slots, politica, canal = 'recepcao') {
+  const ok = new Set(oferecidos(slots, politica, canal));
+  if (canal === 'online') return slots.filter(s => ok.has(s));
+  return slots.map(s => ({ ...s, sugerido: ok.has(s) }));
+}
+
 // Data e minuto atual no fuso da operação, para não sugerir horário passado.
 function agoraNoFuso(timeZone, now = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -212,7 +248,8 @@ function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos,
     minUtilMin,
     inicioMinimoMin: agora && data === agora.data ? agora.minuto : undefined
   }));
-  return { ...base, minUtilMin, bufferMin, slots };
+  const politica = politicaDe(empresa);
+  return { ...base, minUtilMin, bufferMin, politica, politicaTexto: POLITICA_TEXTO[politica || 'padrao'], slots };
 }
 
 module.exports = {
@@ -221,8 +258,13 @@ module.exports = {
   resolveJanela,
   resolveDuracaoMin,
   janelasLivres,
+  intervalosOcupados,
   computeSlots,
   agoraNoFuso,
   periodosDoDia,
-  buildSlotsDoDia
+  buildSlotsDoDia,
+  POLITICAS,
+  POLITICA_TEXTO,
+  politicaDe,
+  aplicarPolitica
 };

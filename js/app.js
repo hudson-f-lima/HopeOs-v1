@@ -252,6 +252,7 @@ async function init() {
     fab.addEventListener('click', () => {
       // Trigger new agendamento modal opening via stateBus or custom event
       const date = state.selectedDay || new Date().toISOString().slice(0, 10);
+      state.agListaEspera = null;
       state.fuzzyAgCliente.clear();
       avisarReguaCliente(null);
       state.fuzzyAgServico.setItems(state.catalog.servicos.filter(s => s.ativo !== false));

@@ -17,7 +17,7 @@
 const express = require('express');
 const { env } = require('../config/env');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso, aplicarPolitica } = require('../engines/SlotEngine');
 const { normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { prazoCancelamentoMin, antecedenciaOnlineMin, violaIntervaloOnline } = require('../engines/AgendaPoliticaEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
@@ -310,7 +310,8 @@ async function slotsDoProfissional(repo, cat, servico, profissional, data, lim, 
     duracaoMin: duracaoFixa
   });
   const piso = data === lim.minimo.data ? lim.minimo.minuto : -1;
-  const slots = [...new Set(r.slots.map(s => s.horario))].filter(h => timeToMinutes(h) >= piso);
+  // Política de sugestão (D-054): no link, só o que a política oferece (e a gravação usa a mesma lista).
+  const slots = [...new Set(aplicarPolitica(r.slots, r.politica, 'online').map(s => s.horario))].filter(h => timeToMinutes(h) >= piso);
   const ocupacao = agendamentos.filter(a => STATUS_FUTUROS.includes(a.status)).length;
   return { profissional, duracaoMin: r.duracaoMin, slots, ocupacao };
 }

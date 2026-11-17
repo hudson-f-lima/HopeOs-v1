@@ -1328,3 +1328,15 @@ body{font-variant-numeric:tabular-nums;}
 .agenda-android .timeline-prof-name{text-align:left;font-size:12px;}
 .agenda-android .ruler-mark:first-child{transform:none;}
 @media (max-width:767px){.agenda-android .agenda-grid{padding-bottom:72px;}}
+
+/* Política de sugestão e lista de espera compatível (D-054) */
+.ag-slots-politica{margin:4px 0 0;font-size:11.5px;color:var(--text-tertiary);}
+.slot-espera{margin-top:6px;padding-top:8px;border-top:1px solid var(--md-surface-variant);}
+.slot-espera-tit{font-size:13px;font-weight:700;margin:0 0 2px;}
+.slot-espera-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+.slot-espera-item{width:100%;min-height:44px;text-align:left;padding:6px 10px;border-radius:10px;background:var(--bg-glass-light);color:var(--text-primary);font-size:13px;}
+.slot-espera-item span{display:block;font-size:11.5px;color:var(--text-tertiary);}
+.le-faixa{border:0;padding:0;margin:0 0 12px;}
+.le-faixa legend{font-size:13px;font-weight:600;margin-bottom:4px;}
+.le-faixa-campos{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.le-faixa-campos label{font-size:12px;display:flex;flex-direction:column;gap:2px;}

@@ -13,6 +13,15 @@ const opcoes = (lista, atual, rotulo) => {
   const valores = lista.includes(atual) || atual === null ? lista : [...lista, atual].sort((a, b) => (a ?? -1) - (b ?? -1));
   return valores.map(v => `<option value="${v === null ? '' : v}"${v === atual ? ' selected' : ''}>${escapeHtml(rotulo(v))}</option>`).join('');
 };
+// Política de sugestão (D-054, migration 025): regras explicáveis; nada é reservado e a
+// recepção sempre pode ver todos os horários livres.
+const POLITICAS = [['', 'Padrão (como antes)'], ['flexivel', 'Flexível'], ['equilibrada', 'Equilibrada'], ['compacta', 'Compacta']];
+const DICA_POLITICA = {
+  '': 'A recepção vê primeiro os encaixes ideais; o link do cliente mostra todos os horários livres.',
+  flexivel: 'Oferece todo horário livre, na recepção e no link. Mais escolha para o cliente; a agenda pode ficar com buracos.',
+  equilibrada: 'Só horários que não deixam uma sobra menor que o menor serviço (tempo que ninguém consegue usar). Se o dia ficar sem nenhum, oferece os encaixes ideais.',
+  compacta: 'Só os encaixes ideais: colados no início, no fim ou em outro horário, com a menor sobra. Agenda mais cheia e sem buracos; menos opções no link.'
+};
 const campo = (id, rotulo, html, dica) => `<div class="field"><label for="${id}">${escapeHtml(rotulo)}</label><select id="${id}">${html}</select>${dica ? `<p class="body-sm text-tertiary">${escapeHtml(dica)}</p>` : ''}</div>`;
 
 function render(e) {
@@ -22,6 +31,9 @@ function render(e) {
       <h3 class="esc-sub">Cancelamento</h3>
       ${campo('rgPrazo', 'Prazo para cancelar sem penalidade', opcoes([0, 60, 120, 180, 240, 720, 1440, 2880], v('online_cancelamento_prazo_min') ?? 120, horas),
         'Vale para o link do cliente, para o aviso ao cancelar na recepção e para a confiabilidade. Cancelar antes do prazo não é falta.')}
+      <h3 class="esc-sub">Sugestão de horários</h3>
+      <div class="field"><label for="rgPolitica">Como a agenda sugere horários</label><select id="rgPolitica">${POLITICAS.map(([val, rot]) => `<option value="${val}"${(v('agenda_politica') || '') === val ? ' selected' : ''}>${escapeHtml(rot)}</option>`).join('')}</select>
+        <p class="body-sm text-tertiary" id="rgPoliticaDica">${escapeHtml(DICA_POLITICA[v('agenda_politica') || ''])}</p></div>
       <h3 class="esc-sub">Recepção (avisa e deixa seguir)</h3>
       ${campo('rgJanela', 'Agendar até quantos dias à frente', opcoes([null, 30, 60, 90, 180, 365], v('agenda_janela_dias_recepcao'), x => (x === null ? 'Sem limite' : `${x} dias`)))}
       ${campo('rgMaxFuturos', 'Horários futuros por cliente', opcoes([null, 1, 2, 3, 4, 5, 6, 8, 10], v('agenda_max_futuros_recepcao'), x => (x === null ? 'Sem limite' : String(x))))}
@@ -49,6 +61,7 @@ async function salvar(ev) {
     agendaMaxFuturosRecepcao: num('rgMaxFuturos'),
     agendaIntervaloMinDias: num('rgIntervalo'),
     agendaAtrasoAlertaMin: num('rgAtraso'),
+    agendaPolitica: el('rgPolitica').value || null,
     reguaAlertaFaltas: num('rgReguaAlerta'),
     reguaSinalFaltas: num('rgReguaSinal')
   };
@@ -72,4 +85,5 @@ export function initRegrasAgenda() {
   el('subtabBtnRegras').classList.remove('hidden');
   el('subtabBtnRegras').addEventListener('click', carregarRegrasAgenda);
   el('regrasConteudo').addEventListener('submit', ev => { if (ev.target.id === 'formRegras') salvar(ev); });
+  el('regrasConteudo').addEventListener('change', ev => { if (ev.target.id === 'rgPolitica') el('rgPoliticaDica').textContent = DICA_POLITICA[ev.target.value]; });
 }

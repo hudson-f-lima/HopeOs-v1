@@ -81,16 +81,46 @@ const podeMexer = exc => {
 };
 
 // ---------- Horário livre: escolher ----------
-export function abrirHorarioLivre(data, horario, profissionalId, abrirAgendar) {
+// Lista de espera compatível com a vaga (D-054): só sugere; quem agenda decide.
+async function esperaDaVaga(data, horario, profissionalId) {
+  if (!sessionPode('espera:ver') || !sessionPode('agenda:criar')) return null;
+  try {
+    return await api('/lista-espera/compativeis?data=' + encodeURIComponent(data) + '&horario=' + encodeURIComponent(horario) + '&profissionalId=' + encodeURIComponent(profissionalId));
+  } catch (_) { return null; }
+}
+
+function pintarEspera(r) {
+  const box = el('slotEspera');
+  const itens = (r && r.itens) || [];
+  box.classList.toggle('hidden', !itens.length);
+  if (!itens.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<h3 class="slot-espera-tit">Na lista de espera, combinam (' + itens.length + ')</h3>'
+    + '<p class="body-sm text-tertiary" style="margin:0 0 6px;">Livre até ' + escapeHtml(r.livreAte) + '. Nada é reservado nem enviado: escolha e agende.</p>'
+    + '<ul class="slot-espera-lista">' + itens.slice(0, 5).map(i => '<li><button type="button" class="slot-espera-item" data-espera-id="' + escapeHtml(i.id) + '">'
+      + '<b>' + escapeHtml(i.clienteNome) + '</b> · ' + escapeHtml(i.servicoNome)
+      + '<span>' + escapeHtml(i.motivos.slice(1).join(' · ')) + '</span></button></li>').join('') + '</ul>';
+  box.dataset.itens = JSON.stringify(itens.slice(0, 5));
+}
+
+export async function abrirHorarioLivre(data, horario, profissionalId, abrirAgendar, abrirDaEspera) {
   const podeAgendar = sessionPode('agenda:criar');
   // Fora da escala não há o que bloquear: só agendar (o servidor pede confirmação para encaixar).
   const fora = foraDaEscala(profissionalId, data, min(horario), min(horario) + 1);
   const podeBloquear = !fora && podeBloquearPara(profissionalId);
-  if (!podeBloquear) return abrirAgendar(data, horario, profissionalId);
-  alvo = { data, horario, profissionalId, abrirAgendar };
+  const espera = fora || !abrirDaEspera ? Promise.resolve(null) : esperaDaVaga(data, horario, profissionalId);
+  if (!podeBloquear) {
+    // Sem bloquear: só abre a escolha se alguém da lista de espera combina; senão, direto agendar.
+    const r = await espera;
+    if (!r || !(r.itens || []).length) return abrirAgendar(data, horario, profissionalId);
+  }
+  alvo = { data, horario, profissionalId, abrirAgendar, abrirDaEspera };
   el('slotTitulo').textContent = dataBR(data) + ' · ' + horario + ' · ' + (findProfissionalNome(profissionalId) || 'Profissional');
   el('slotEscolha').classList.remove('hidden');
   el('btnSlotAgendar').classList.toggle('hidden', !podeAgendar);
+  el('btnSlotBloquear').classList.toggle('hidden', !podeBloquear);
+  pintarEspera(null);
+  const meu = alvo;
+  espera.then(r => { if (alvo === meu) pintarEspera(r); });
   el('slotBloquear').classList.add('hidden');
   el('slotExistente').classList.add('hidden');
   el('slotErro').classList.add('hidden');
@@ -231,6 +261,14 @@ export function initAgendaBloqueio() {
   el('slotMotivos').innerHTML = MOTIVOS.map(m => '<button type="button" class="chip" data-slot-motivo="' + escapeHtml(m) + '">' + escapeHtml(m) + '</button>').join('');
   el('btnSlotAgendar').addEventListener('click', () => { const a = alvo; closeModal('modalSlot'); a.abrirAgendar(a.data, a.horario, a.profissionalId); });
   el('btnSlotBloquear').addEventListener('click', mostrarBloquear);
+  el('slotEspera').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-espera-id]');
+    if (!b || !alvo) return;
+    const item = JSON.parse(el('slotEspera').dataset.itens || '[]').find(i => i.id === b.dataset.esperaId);
+    const a = alvo;
+    closeModal('modalSlot');
+    if (item) a.abrirDaEspera(item, a.data, a.horario, a.profissionalId);
+  });
   el('btnSlotSalvar').addEventListener('click', salvarBloqueio);
   el('btnSlotEncurtar').addEventListener('click', encurtar);
   el('btnSlotRemover').addEventListener('click', remover);

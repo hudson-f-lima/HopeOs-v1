@@ -26,9 +26,10 @@ const {
   validateCreateListaEsperaPayload,
   validateUpdateListaEsperaPayload
 } = require('../validators/cadastros.validator');
-const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso } = require('../engines/SlotEngine');
+const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso, aplicarPolitica } = require('../engines/SlotEngine');
 const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
+const { compativeis: esperaCompativel } = require('../engines/ListaEsperaEngine');
 
 // Disponibilidade confirmada no servidor ao criar, remarcar ou esticar um atendimento (D-033).
 // Fora dela, só quem tem agenda:encaixar e pede "forçar" (foraDaDisponibilidade), com registro.
@@ -510,7 +511,8 @@ router.get('/agenda/slots', authorize('agenda:ver'), async (req, res, next) => {
       duracaoMin: query.duracaoMin,
       agora: agoraNoFuso(env.APP_TIMEZONE, clock.agora())
     });
-    res.json({ ok: true, data: { ...result, profissionalId: profissional.id, servicoId: servico.id } });
+    // Política de sugestão (D-054): marca `sugerido`; a recepção ainda vê e escolhe qualquer livre.
+    res.json({ ok: true, data: { ...result, slots: aplicarPolitica(result.slots, result.politica, 'recepcao'), profissionalId: profissional.id, servicoId: servico.id } });
   } catch (err) { next(err); }
 });
 
@@ -531,6 +533,15 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
     const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
     const fora = await assertDentroDaDisponibilidade(req, repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin, forcar: payload.foraDaDisponibilidade });
     const avisos = await avisosDaAgenda(repo, { clienteId: payload.clienteId, servico, data: payload.data, horario: payload.horario, aceitar: payload.aceitarAvisos });
+    // Vaga dada a alguém da lista de espera (D-054): o item é da empresa, do mesmo cliente e ainda ativo.
+    let itemEspera = null;
+    if (payload.listaEsperaId) {
+      exigirTambem(req, 'espera:gerir');
+      itemEspera = await requireScopedEntity(repo, 'lista_espera', validateUUID(payload.listaEsperaId, 'listaEsperaId'), 'Item da lista de espera', 'WAITLIST_ITEM_NOT_FOUND');
+      if (itemEspera.cliente_id !== payload.clienteId || !['aguardando', 'contatado'].includes(itemEspera.status)) {
+        throw createAppError('WAITLIST_MISMATCH', 'Este item da lista de espera é de outro cliente ou já foi resolvido.', 422);
+      }
+    }
 
     // Conflito checado e gravado atomicamente no banco (agendamento_criar, migration 007).
     const created = await repo.criarAgendamento({
@@ -552,6 +563,10 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
       ...(fora.forcado ? { fora_da_disponibilidade: fora.origem } : {}),
       ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {})
     } });
+
+    if (itemEspera && created) {
+      try { await repo.updateScoped('lista_espera', itemEspera.id, { status: 'agendado' }); } catch (err) { console.error('[agenda] lista de espera não acompanhou o agendamento:', (err && err.code) || 'erro'); }
+    }
 
     res.status(201).json({ ok: true, data: created });
   } catch (err) { next(err); }
@@ -1147,6 +1162,28 @@ router.get('/lista-espera', authorize('espera:ver'), async (req, res, next) => {
     if (req.query.servicoId) filters.servico_id = validateUUID(req.query.servicoId, 'servicoId');
     if (req.query.status) filters.status = req.query.status;
     res.json({ ok: true, data: await repo.list('lista_espera', filters) });
+  } catch (err) { next(err); }
+});
+
+// Quem da lista de espera combina com uma vaga (D-054). Só sugere: não reserva nem muda nada.
+router.get('/lista-espera/compativeis', authorize('espera:ver'), async (req, res, next) => {
+  try {
+    const { data, horario } = req.query;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || '')) || Number.isNaN(Date.parse(`${data}T00:00:00Z`))) throw createAppError('INVALID_DATE', 'data deve estar no formato AAAA-MM-DD.', 422);
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(horario || ''))) throw createAppError('INVALID_TIME', 'horario deve estar no formato HH:MM.', 422);
+    const profissionalId = validateUUID(req.query.profissionalId, 'profissionalId');
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const profissional = await requireActiveEntity(repo, 'profissionais', profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
+    const [empresa, itens, agendamentos, servicos, links, clientes] = await Promise.all([
+      repo.empresaComDisponibilidade(),
+      repo.list('lista_espera', { empresa_id: repo.empresaId }),
+      repo.list('agendamentos', { empresa_id: repo.empresaId, profissional_id: profissional.id, data }),
+      repo.list('servicos', { empresa_id: repo.empresaId }),
+      repo.list('profissional_servicos', { empresa_id: repo.empresaId }),
+      repo.list('clientes', { empresa_id: repo.empresaId })
+    ]);
+    const r = esperaCompativel({ itens, data, horario, profissional, empresa: empresa || {}, agendamentos, servicos, links, clientes, agora: agoraNoFuso(env.APP_TIMEZONE, clock.agora()) });
+    res.json({ ok: true, data: { data, horario, profissionalId, ...r } });
   } catch (err) { next(err); }
 });
 

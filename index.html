@@ -645,6 +645,10 @@
       <label for="leDataPreferencia">Data de preferência (opcional)</label>
       <input id="leDataPreferencia" type="date"/>
     </div>
+    <fieldset class="field le-faixa"><legend>Faixa de horário (opcional)</legend>
+      <div class="le-faixa-campos"><label>De <input id="leFaixaInicio" type="time" step="900"/></label><label>Até <input id="leFaixaFim" type="time" step="900"/></label></div>
+      <p class="body-sm text-tertiary" style="margin:4px 0 0;">Ex.: só à tarde, 14:00 até 18:00. Ajuda a achar quem combina quando abre uma vaga.</p>
+    </fieldset>
     <div class="field"><label for="leObservacoes">Observações (opcional)</label><input id="leObservacoes" type="text"/></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" id="btnCancelarListaEspera" style="flex:1;">Cancelar</button>
@@ -1104,6 +1108,7 @@
     <div id="slotEscolha" class="slot-escolha">
       <button class="btn btn-primary" type="button" id="btnSlotAgendar">Agendar cliente</button>
       <button class="btn btn-secondary" type="button" id="btnSlotBloquear">Bloquear horário</button>
+      <section id="slotEspera" class="slot-espera hidden" aria-live="polite" aria-label="Lista de espera compatível"></section>
     </div>
     <div id="slotBloquear" class="hidden">
       <p class="body-sm text-tertiary" style="margin:0 0 8px;">Bloquear até:</p>
