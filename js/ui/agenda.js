@@ -1,5 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
-import { initAgendaMes, desenharFiltro, recarregarMesSeAberto } from './agendaMes.js';
+import { initAgendaMes, desenharFiltro, recarregarMesSeAberto, profsNaGrade, atualizarPaineis } from './agendaMes.js';
 import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
@@ -9,6 +9,7 @@ import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findCli
 import {
   todayStr,
   addDays,
+  startOfWeek,
   weekDates,
   formatDDMM,
   WEEKDAY_LABELS,
@@ -58,8 +59,10 @@ const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'S
 function toTop(hora, minuto) { return ((hora - HORA_INICIO) * 60 + minuto) * PX_POR_MIN; }
 function toHeight(duracaoMin) { return duracaoMin * PX_POR_MIN; }
 
+// Contadores e grade com o MESMO escopo (D-053): ativos dos profissionais que a grade mostra.
 function activeAgendaItemsForDate(dateStr) {
-  return (state.weekAgenda[dateStr] || []).filter(i => i.status !== 'cancelado' && i.status !== 'reagendado');
+  const ids = new Set(profsNaGrade().map(p => p.id));
+  return (state.weekAgenda[dateStr] || []).filter(i => i.status !== 'cancelado' && i.status !== 'reagendado' && ids.has(i.profissional_id));
 }
 
 
@@ -164,45 +167,12 @@ function renderProfColInner(p) {
   return foraHtml + emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
 }
 
-export function applyProfFilter() {
-  const container = document.getElementById('timelineContainer');
-  const headers = document.querySelectorAll('.agenda-grid-header');
-  
-  if (!state.activeProfFilter) {
-    headers.forEach(btn => {
-      btn.classList.remove('selected');
-      btn.style.opacity = '1';
-    });
-    document.querySelectorAll('.agenda-grid-col').forEach(col => {
-      col.style.opacity = '1';
-    });
-    return;
-  }
-  
-  headers.forEach(btn => {
-    const isTarget = btn.dataset.prof === state.activeProfFilter;
-    btn.classList.toggle('selected', isTarget);
-    btn.style.opacity = isTarget ? '1' : '0.5';
-  });
-  
-  document.querySelectorAll('.agenda-grid-col').forEach(col => {
-    const isTarget = col.dataset.profId === state.activeProfFilter;
-    col.style.opacity = isTarget ? '1' : '0.3';
-  });
-
-  const targetHeader = document.querySelector(`.agenda-grid-header[data-prof="${state.activeProfFilter}"]`);
-  if (targetHeader && container) {
-    container.scrollTo({ left: targetHeader.offsetLeft - 52, behavior: 'smooth' });
-  }
-}
-
 export function renderTimeline() {
   const container = document.getElementById('agendaGrid');
   if (!container) return;
-  // Filtro de vários profissionais (D-050): vazio = todos.
-  const sel = state.profsVisiveis;
-  const profs = activeProfissionais().filter(p => !sel || !sel.size || sel.has(p.id));
-  
+  // Filtro de vários profissionais (D-050) e escopo próprio do profissional (D-053).
+  const profs = profsNaGrade();
+
   if (!profs.length) {
     container.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--md-outline);grid-column: 1 / -1;">Nenhum profissional ativo.</div>';
     return;
@@ -217,15 +187,14 @@ export function renderTimeline() {
   // Headers
   html += profs.map((p, i) => {
     const color = PROF_COLORS[i % PROF_COLORS.length];
-    const isSelected = state.activeProfFilter === p.id ? 'selected' : '';
     const initials = getInitials(p.nome);
     const firstName = p.nome ? p.nome.split(' ')[0] : '?';
     const count = profItemsForDay(p.id).length;
-    return `<div class="agenda-grid-header ${isSelected}" data-prof="${p.id}" style="grid-column: ${i + 2};">
+    return `<div class="agenda-grid-header" data-prof="${p.id}" style="grid-column: ${i + 2};">
         <div class="timeline-avatar" style="background:${color};">${initials}</div>
         <div class="timeline-prof-info">
           <div class="timeline-prof-name" style="color:${color};">${escapeHtml(firstName)}</div>
-          <div class="timeline-prof-count">${count} agend.</div>
+          <div class="timeline-prof-count">${count} agend. no dia</div>
         </div>
       </div>`;
   }).join('');
@@ -253,16 +222,6 @@ export function renderTimeline() {
 
   container.innerHTML = html;
 
-  // Listeners
-  Array.from(container.querySelectorAll('.agenda-grid-header')).forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const clickedId = e.currentTarget.dataset.prof;
-      state.activeProfFilter = (state.activeProfFilter === clickedId) ? null : clickedId;
-      applyProfFilter();
-    });
-  });
-
-  if (state.activeProfFilter) applyProfFilter();
   positionRedline();
   // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez.
   const dia = state.selectedDay;
@@ -294,52 +253,37 @@ export function positionRedline() {
 
 export function renderWeekStats() {
   const dates = weekDates(state.currentWeekStart);
-  let totalCounted = 0;
-  dates.forEach(d => { totalCounted += activeAgendaItemsForDate(d).length; });
-  
-  const weekCount = document.getElementById('weekCountLabel');
-  const weekOccupancy = document.getElementById('weekOccupancyLabel');
-  const weekRange = document.getElementById('weekRangeLabel');
-  const agendaDate = document.getElementById('agendaDateLabel');
-  const selectedDayLabel = document.getElementById('selectedDayLabel');
-  const dayCountLabel = document.getElementById('dayCountLabel');
-  const dayOccupancyLabel = document.getElementById('dayOccupancyLabel');
-  const dayOccRing = document.getElementById('dayOccRing');
-  const first = dates[0];
-  const last = dates[dates.length - 1];
-  const selectedCount = activeAgendaItemsForDate(state.selectedDay).length;
-  
-  if (weekCount) weekCount.textContent = `${totalCounted} agend. na semana`;
-  if (weekOccupancy) {
-    weekOccupancy.textContent = `—`; // Ocupação falsa removida (Truth Audit)
-    weekOccupancy.style.color = 'var(--md-outline)';
-  }
-  if (weekRange) weekRange.textContent = `${formatDDMM(first)} - ${formatDDMM(last)}`;
-  if (agendaDate) agendaDate.textContent = formatAgendaDate(state.selectedDay);
-  if (selectedDayLabel) selectedDayLabel.textContent = state.selectedDay === todayStr() ? 'Hoje' : formatAgendaDate(state.selectedDay);
-  if (dayCountLabel) dayCountLabel.textContent = `${selectedCount} agend.`;
-  if (dayOccupancyLabel) {
-    dayOccupancyLabel.textContent = `—`; // Ocupação falsa removida
-    dayOccupancyLabel.style.color = 'var(--md-outline)';
-  }
-  if (dayOccRing) {
-    dayOccRing.style.setProperty('--occ-dash', `0`);
-  }
+  const naSemana = dates.reduce((t, d) => t + activeAgendaItemsForDate(d).length, 0);
+  const noDia = activeAgendaItemsForDate(state.selectedDay).length;
+  const nProfs = profsNaGrade().length;
+  const quem = nProfs === activeProfissionais().length ? 'de todos os profissionais' : (nProfs === 1 ? 'de 1 profissional' : `de ${nProfs} profissionais`);
+  const set = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+  set('weekRangeLabel', `${formatDDMM(dates[0])} - ${formatDDMM(dates[6])}`);
+  set('agendaDateLabel', formatAgendaDate(state.selectedDay));
+  // O total diz o escopo: dia escolhido e profissionais na grade.
+  set('dayCountLabel', `${noDia} agend. no dia`);
+  const dia = document.getElementById('dayCountLabel');
+  if (dia) dia.title = `${noDia} agendamento(s) ativo(s) em ${formatDDMM(state.selectedDay)}, ${quem} na grade.`;
+  set('weekCountLabel', `Semana ${formatDDMM(dates[0])}–${formatDDMM(dates[6])}: ${naSemana} agend. ${quem}.`
+    + (state.agendaFalhas ? ` ${state.agendaFalhas} dia(s) não carregaram: o total pode estar incompleto.` : ''));
+  const hoje = document.getElementById('btnAgendaToday');
+  if (hoje) hoje.classList.toggle('agx-hoje-ativo', state.selectedDay === todayStr());
 }
 
 export function renderDayPills() {
   const dates = weekDates(state.currentWeekStart);
   const dayPills = document.getElementById('dayPills');
   if (!dayPills) return;
+  const hoje = todayStr();
   dayPills.innerHTML = dates.map(d => {
     const dt = new Date(d + 'T12:00:00');
     const count = activeAgendaItemsForDate(d).length;
-    const countStr = count === 0 ? '0 agend.' : `${count} agend.`;
     const isSelected = d === state.selectedDay;
-    return `<button class="day-pill ${isSelected ? 'selected' : ''}" data-day="${d}">
+    // Semana compacta: dia da semana e número; o ponto diz que há agendamento (o número exato no rótulo).
+    return `<button type="button" class="day-pill ${isSelected ? 'selected' : ''}${d === hoje ? ' hoje' : ''}" data-day="${d}" aria-pressed="${isSelected}" aria-label="${WEEKDAY_LABELS[dt.getDay()]} ${dt.getDate()}: ${count} agendamento(s)">
       <span class="pill-weekday">${WEEKDAY_LABELS[dt.getDay()]}</span>
       <span class="pill-daynum">${dt.getDate()}</span>
-      <span class="pill-occ">${countStr}</span>
+      <span class="pill-occ${count ? ' tem' : ''}" aria-hidden="true">${count || ''}</span>
     </button>`;
   }).join('');
 }
@@ -1156,7 +1100,10 @@ function onTimelineClick(ev) {
 export function initAgenda() {
   initAgendaBloqueio();
   initCardAgendamento();
-  initAgendaMes({ aoFiltrar: renderTimeline });
+  initAgendaMes({
+    aoFiltrar: () => { renderDayPills(); renderWeekStats(); renderTimeline(); },
+    aoAbrirAgendamento: id => { const item = findAgendaItemById(id); if (item) openActionSheet(item); }
+  });
   initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));
@@ -1164,13 +1111,14 @@ export function initAgenda() {
   document.getElementById('btnNextWeekMobile')?.addEventListener('click', () => shiftWeek(1));
   document.getElementById('btnAgendaToday')?.addEventListener('click', () => {
     state.selectedDay = todayStr();
-    state.currentWeekStart = weekDates(state.currentWeekStart).includes(state.selectedDay)
-      ? state.currentWeekStart
-      : addDays(state.selectedDay, -new Date(state.selectedDay + 'T12:00:00').getDay());
+    const mesmaSemana = weekDates(state.currentWeekStart).includes(state.selectedDay);
+    state.currentWeekStart = startOfWeek(state.selectedDay);
     renderDayPills();
     renderWeekStats();
     renderTimeline();
-    loadWeekAgenda().catch(err => showBanner('Agenda: ' + err.message, 'error'));
+    // Mesma semana: os dados já estão aqui; outra semana: recarrega (a grade não mostra a semana antiga como se fosse hoje).
+    if (!mesmaSemana) loadWeekAgenda().catch(err => showBanner('Agenda: ' + err.message, 'error'));
+    document.getElementById('timelineContainer')?.scrollTo({ top: Math.max(0, (new Date().getHours() - HORA_INICIO - 1) * 60 * PX_POR_MIN), behavior: 'smooth' });
   });
 
   document.getElementById('dayPills').addEventListener('click', (ev) => {
@@ -1330,10 +1278,13 @@ export function initAgenda() {
     renderWeekStats();
     renderTimeline();
     recarregarMesSeAberto();
+    atualizarPaineis();
   });
 
   stateBus.addEventListener('catalog:updated', () => {
     desenharFiltro();
+    renderDayPills();
+    renderWeekStats();
     renderTimeline();
   });
 

@@ -76,6 +76,7 @@ async function mostrarMes(p, mes, raiz = '#agMes') {
   confere('na agenda o calendário só navega (sem escolher datas)', await p.locator('#agMes [data-cal="escolher"]').count() === 0);
 
   // 3) Filtro de vários profissionais.
+  await p.click('#btnAgProfs'); await p.waitForSelector('#agFiltroProfs:not(.hidden)');
   await p.click(`#agFiltroProfs [data-agf="${BRUNO}"]`); await p.waitForTimeout(400);
   const cols = await p.$$eval('.agenda-grid-col', cs => cs.map(c => c.dataset.profId));
   confere('filtro: só a coluna do Bruno', JSON.stringify(cols) === JSON.stringify([BRUNO]), JSON.stringify(cols));

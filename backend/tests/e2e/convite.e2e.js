@@ -39,11 +39,11 @@ async function ultimoLink(email, type) { const ls = await (await fetch(API + '/_
   if (!aceite || aceite.versao !== versao || !/^\d{4}-\d{2}-\d{2}T/.test(aceite.aceito_em)) falhasAviso.push('aceite não gravado com versão e data: ' + JSON.stringify(aceite));
   console.log('AVISO DE PRIVACIDADE versão', versao, '| erros:', JSON.stringify(falhasAviso)); if (falhasAviso.length) process.exitCode = 1;
   console.log('MARIA entrou:', await p.textContent('#sessionLabel'), '| URL sem token:', !p.url().includes('access_token'));
-  await p.click('#btnLogout'); await p.waitForSelector('#loginScreen:not(.hidden)');
+  await (async () => { if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar'); return p.click('#btnLogout'); })(); await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'maria@dev.local'); await p.fill('#loginSenha', 'Maria12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
   console.log('MARIA login com senha nova: ok | aviso não reaparece:', !(await p.isVisible('#privacyCard')));
-  await p.click('#btnLogout'); await p.waitForSelector('#loginScreen:not(.hidden)');
+  await (async () => { if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar'); return p.click('#btnLogout'); })(); await p.waitForSelector('#loginScreen:not(.hidden)');
   // Esqueci minha senha
   await p.fill('#loginEmail', 'maria@dev.local'); await p.click('#btnEsqueciSenha'); await p.waitForTimeout(800);
   console.log('RECUPERAR:', await p.textContent('#loginErro'));
