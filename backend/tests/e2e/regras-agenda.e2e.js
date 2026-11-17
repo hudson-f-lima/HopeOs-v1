@@ -116,7 +116,7 @@ async function abrirCard(p, id) {
   // 5) Atraso: horário de hoje que já passou do alerta (5 min).
   const agora = new Date(); const sp = agora.toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
   const [hh, mm] = sp.split(':').map(Number); const m = hh * 60 + mm - 20;
-  if (m >= 5) {
+  if (m >= 8 * 60 + 5 && m < 20 * 60 - 30) { // dentro da grade visível (08:00–20:00)
     const h = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
     const at = await (await fetch(`${API}/api/agenda`, { method: 'POST', headers: adm, body: JSON.stringify({ clienteId: cat.clientes[0].id, servicoId: BARBA, profissionalId: BRUNO, data: hoje, horario: h, foraDaDisponibilidade: true, permitirConflito: true, aceitarAvisos: true }) })).json();
     if (at.ok) {
@@ -129,7 +129,7 @@ async function abrirCard(p, id) {
         confere('card mostra o atraso e destaca o no-show', /atrasado \d+ min/.test(card) && await r.locator('[data-sheet-action="noshow"].agc-destaque').count() === 1, card.slice(0, 120));
       } else console.log('ATRASO: horário fora da grade visível, conferência pulada');
     } else console.log('ATRASO: não foi possível criar o horário de teste:', JSON.stringify(at.error));
-  } else console.log('ATRASO: muito cedo para o teste de atraso, pulado');
+  } else console.log('ATRASO: fora da grade visível (08:00–20:00) neste horário, conferência pulada');
   console.log('RECEPÇÃO erros:', JSON.stringify(r.erros)); falhas.push(...r.erros);
 
   const viol = [...await g.evaluate(() => window.__csp), ...await r.evaluate(() => window.__csp)];

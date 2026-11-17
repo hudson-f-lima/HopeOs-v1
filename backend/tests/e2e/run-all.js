@@ -21,6 +21,7 @@ const FUSO_DO_SALAO = 'America/Sao_Paulo';
 
 const CASOS = [
   { nome: 'csp' },
+  { nome: 'seguranca-pwa' },
   { nome: 'login' },
   { nome: 'equipe' },
   { nome: 'convite' },

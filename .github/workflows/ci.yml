@@ -29,6 +29,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --no-audit --no-fund
+      # Dependências de produção sem vulnerabilidade alta ou crítica (checklist de lançamento, D-052).
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run test:offline
 
   migrations:

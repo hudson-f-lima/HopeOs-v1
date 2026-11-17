@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<!-- Segurança (checklist de lançamento, D-052): o GitHub Pages não envia os headers do render.yaml,
+     então a política vai aqui. Mesma CSP do render.yaml + a API local (dev/E2E). frame-ancestors não
+     vale em <meta>: o bloqueio de iframe está em js/app.js. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"/>
+<meta name="referrer" content="no-referrer"/>
 <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)"/>
 <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)"/>
 <meta name="color-scheme" content="light dark"/>
