@@ -546,6 +546,7 @@ function renderListaEsperaRow(item) {
   const metaParts = [servico ? servico.nome : 'Serviço removido'];
   if (profissional) metaParts.push(profissional.nome);
   if (item.data_preferencia) metaParts.push('pref. ' + item.data_preferencia);
+  if (item.faixa_inicio && item.faixa_fim) metaParts.push(String(item.faixa_inicio).slice(0, 5) + '–' + String(item.faixa_fim).slice(0, 5));
   metaParts.push(statusLabel);
 
   const whatsappBtn = cliente?.whatsapp
@@ -585,6 +586,8 @@ export async function renderListaEsperaList() {
 export function openListaEsperaModal() {
   document.getElementById('leDataPreferencia').value = '';
   document.getElementById('leObservacoes').value = '';
+  document.getElementById('leFaixaInicio').value = '';
+  document.getElementById('leFaixaFim').value = '';
   state.fuzzyLeCliente?.clear();
   state.fuzzyLeServico?.clear();
   state.fuzzyLeProfissional?.clear();
@@ -600,9 +603,14 @@ async function submitListaEsperaForm() {
     showModalError('leError', 'Selecione cliente e serviço.');
     return;
   }
+  const fi = document.getElementById('leFaixaInicio').value;
+  const ff = document.getElementById('leFaixaFim').value;
+  if (Boolean(fi) !== Boolean(ff)) { showModalError('leError', 'Faixa de horário: preencha o início e o fim, ou deixe os dois vazios.'); return; }
+  if (fi && ff && fi >= ff) { showModalError('leError', 'Faixa de horário: o fim deve ser depois do início.'); return; }
   const body = {
     clienteId,
     servicoId,
+    ...(fi && ff ? { faixaInicio: fi, faixaFim: ff } : {}),
     profissionalId: profissionalId || undefined,
     dataPreferencia: document.getElementById('leDataPreferencia').value || undefined,
     observacoes: document.getElementById('leObservacoes').value.trim() || undefined

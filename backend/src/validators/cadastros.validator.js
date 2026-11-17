@@ -377,6 +377,19 @@ function dateOnlyField(value, field) {
   return String(value);
 }
 
+// Faixa de horário preferida (025, D-054): as duas pontas ou nenhuma; null limpa.
+const HORA_FAIXA = /^([01]\d|2[0-3]):[0-5]\d$/;
+function faixaDe(payload, out) {
+  const temI = hasOwn(payload, 'faixaInicio'); const temF = hasOwn(payload, 'faixaFim');
+  if (!temI && !temF) return;
+  const i = payload.faixaInicio === '' ? null : payload.faixaInicio ?? null;
+  const f = payload.faixaFim === '' ? null : payload.faixaFim ?? null;
+  if (i === null && f === null) { out.faixa_inicio = null; out.faixa_fim = null; return; }
+  if (!HORA_FAIXA.test(String(i)) || !HORA_FAIXA.test(String(f))) throw createAppError('INVALID_FIELD', 'Faixa de horário: informe início e fim no formato HH:MM.', 422, { field: 'faixaInicio' });
+  if (String(i) >= String(f)) throw createAppError('INVALID_FIELD', 'Faixa de horário: o fim deve ser depois do início.', 422, { field: 'faixaFim' });
+  out.faixa_inicio = String(i); out.faixa_fim = String(f);
+}
+
 function validateCreateListaEsperaPayload(payload = {}) {
   rejectDangerousFields(payload, ['id', 'empresa_id', 'empresaId', 'unit_id', 'unitId', 'status', 'created_at']);
   const out = {
@@ -390,6 +403,7 @@ function validateCreateListaEsperaPayload(payload = {}) {
   const dataPreferencia = dateOnlyField(payload.dataPreferencia ?? payload.data_preferencia, 'dataPreferencia');
   if (dataPreferencia !== undefined) out.data_preferencia = dataPreferencia;
   optionalString(payload, 'observacoes', 'observacoes', out);
+  faixaDe(payload, out);
   return out;
 }
 
@@ -408,6 +422,7 @@ function validateUpdateListaEsperaPayload(payload = {}) {
   const dataPreferencia = dateOnlyField(payload.dataPreferencia ?? payload.data_preferencia, 'dataPreferencia');
   if (dataPreferencia !== undefined) out.data_preferencia = dataPreferencia;
   optionalString(payload, 'observacoes', 'observacoes', out);
+  faixaDe(payload, out);
   if (!Object.keys(out).length) throw createAppError('EMPTY_UPDATE', 'Nenhum campo valido para atualizar.', 422);
   return out;
 }

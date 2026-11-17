@@ -322,6 +322,7 @@ export function updateNovoAgendamentoPreview() {
 
 function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   const date = dateStr || state.selectedDay || todayStr();
+  state.agListaEspera = null;
 
   state.fuzzyAgCliente.clear();
   resetClienteRapido();
@@ -344,6 +345,18 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
   updateNovoAgendamentoPreview();
   refreshAgendaSlots();
   openModal('modalNovoAgendamento');
+}
+
+// Vaga para alguém da lista de espera (D-054): o formulário de sempre, já preenchido. Ao gravar,
+// o item da espera vai junto (listaEsperaId) e o servidor o marca "agendado".
+function abrirAgendarDaEspera(item, data, horario, profissionalId) {
+  openNovoAgendamentoModal(data, horario, profissionalId);
+  state.fuzzyAgCliente.setValue(item.clienteId);
+  state.fuzzyAgServico.setValue(item.servicoId);
+  state.agListaEspera = { id: item.id, clienteId: item.clienteId };
+  avisarReguaCliente(item.clienteId);
+  updateNovoAgendamentoPreview();
+  refreshAgendaSlots();
 }
 
 // --- Sugestão de horários (GET /agenda/slots) ------------------------------
@@ -378,18 +391,23 @@ function renderAgendaSlots(el, result) {
     return;
   }
   const verTodos = el.dataset.verTodos === '1';
-  const visiveis = verTodos ? todos : todos.filter(s => s.recomendado);
+  // Política de sugestão (D-054): o servidor marca `sugerido`; sem a marca (API antiga), os ideais.
+  const sugerido = s => (s.sugerido === undefined ? s.recomendado : s.sugerido);
+  const sugeridos = todos.filter(sugerido);
+  const visiveis = verTodos || !sugeridos.length ? todos : sugeridos;
   const atual = document.getElementById('agHorario').value;
   const chips = visiveis.map(s => `
     <button type="button" class="chip ag-slot${s.recomendado ? ' recomendado' : ''}${s.horario === atual ? ' selected' : ''}"
       data-horario="${escapeHtml(s.horario)}" title="${s.recomendado ? 'Encaixe ideal: não deixa buraco na agenda' : `Livre até ${escapeHtml(s.fim)}`}">
       ${s.recomendado ? '★ ' : ''}${escapeHtml(s.horario)}
     </button>`).join('');
-  const restantes = todos.length - todos.filter(s => s.recomendado).length;
-  const toggle = restantes > 0
-    ? `<button type="button" class="ag-slots-toggle" data-toggle="1">${verTodos ? 'Só encaixes ideais' : `Ver todos (${todos.length})`}</button>`
+  const restantes = todos.length - sugeridos.length;
+  const toggle = restantes > 0 && sugeridos.length
+    ? `<button type="button" class="ag-slots-toggle" data-toggle="1">${verTodos ? 'Só os sugeridos' : `Ver todos (${todos.length})`}</button>`
     : '';
-  el.innerHTML = `<span class="ag-slots-msg">${verTodos ? 'Horários livres' : 'Encaixes ideais'} · ${result.duracaoMin} min</span><div class="ag-slots-list">${chips}</div>${toggle}`;
+  const titulo = verTodos || !sugeridos.length ? 'Horários livres' : 'Sugeridos';
+  el.innerHTML = `<span class="ag-slots-msg" title="${escapeHtml(result.politicaTexto || '')}">${titulo} · ${result.duracaoMin} min</span><div class="ag-slots-list">${chips}</div>${toggle}`
+    + (result.politicaTexto ? `<p class="ag-slots-politica">${escapeHtml(result.politicaTexto)} ★ = encaixe ideal.</p>` : '');
 }
 
 export async function refreshAgendaSlots() {
@@ -469,7 +487,9 @@ async function confirmarForaDaDisponibilidade(err) {
 async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
   clearBanner();
   try {
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos } });
+    const espera = state.agListaEspera && state.agListaEspera.clienteId === clienteId ? state.agListaEspera.id : undefined;
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera } });
+    state.agListaEspera = null;
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
     await loadWeekAgenda();
@@ -1093,7 +1113,7 @@ function onTimelineClick(ev) {
   const emptySlot = ev.target.closest('[data-action="add-slot"]');
   if (emptySlot) {
     // D-046: tocar no horário livre oferece Agendar ou Bloquear (quem não bloqueia vai direto agendar).
-    abrirHorarioLivre(state.selectedDay, emptySlot.dataset.time, emptySlot.dataset.prof, openNovoAgendamentoModal);
+    abrirHorarioLivre(state.selectedDay, emptySlot.dataset.time, emptySlot.dataset.prof, openNovoAgendamentoModal, abrirAgendarDaEspera);
   }
 }
 

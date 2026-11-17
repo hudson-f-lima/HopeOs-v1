@@ -29,7 +29,7 @@ function assertTransicaoStatus(statusAtual, novoStatus) {
 
 function validateCreateAgendamentoPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
-  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade, aceitarAvisos } = body;
+  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId } = body;
 
   if (!servicoId) throw createAppError('SERVICE_ID_REQUIRED', 'servicoId obrigatório.', 422);
   if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'profissionalId obrigatório.', 422);
@@ -48,7 +48,9 @@ function validateCreateAgendamentoPayload(body) {
     duracaoMin: duracaoMin !== undefined ? Number(duracaoMin) : undefined,
     permitirConflito: permitirConflito === true,
     foraDaDisponibilidade: foraDaDisponibilidade === true,
-    aceitarAvisos: aceitarAvisos === true
+    aceitarAvisos: aceitarAvisos === true,
+    // Vaga dada a alguém da lista de espera (D-054): o item passa a "agendado" junto.
+    listaEsperaId: listaEsperaId === undefined || listaEsperaId === null || listaEsperaId === '' ? null : String(listaEsperaId)
   };
 }
 
