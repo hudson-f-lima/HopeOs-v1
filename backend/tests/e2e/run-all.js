@@ -44,6 +44,7 @@ const CASOS = [
   { nome: 'agenda-bloqueio' },
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
+  { nome: 'agenda-mes' },
   { nome: 'link-online' },
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'series' },

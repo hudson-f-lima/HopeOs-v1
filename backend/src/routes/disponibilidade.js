@@ -6,7 +6,7 @@ const express = require('express');
 const { createAppError } = require('../errors');
 const { authorize, authorizePor, assertOwn, pode } = require('../auth/rbac');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
-const { disponibilidadeDoDia, cabe } = require('../engines/DisponibilidadeEngine');
+const { disponibilidadeDoDia, cabe, estadoDaUnidade } = require('../engines/DisponibilidadeEngine');
 const { timeToMinutes, INACTIVE_STATUSES } = require('../engines/ScheduleEngine');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { env } = require('../config/env');
@@ -188,6 +188,48 @@ router.get('/disponibilidade/grade', authorize('escala:ver'), async (req, res, n
         })
       }
     });
+  } catch (err) { next(err); }
+});
+
+// Calendário do mês (D-050): por dia, o estado da unidade (aberta, fechada, especial, sem horário),
+// quantos agendamentos ativos e quantos estão em CONFLITO (fora da disponibilidade do profissional,
+// inclusive sobre bloqueio: ficaram por decisão "manter" ou encaixe). Respeita o escopo: o
+// profissional vê só os próprios; `profissionalIds` (vírgulas) filtra.
+const ATIVOS_MES = ['agendado', 'confirmado', 'aguardando', 'em_atendimento'];
+router.get('/disponibilidade/mes', authorize('escala:ver'), async (req, res, next) => {
+  try {
+    const mes = String(req.query.mes || '');
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw invalido('mes', 'mes deve ser AAAA-MM.');
+    let filtro = req.query.profissionalIds ? String(req.query.profissionalIds).split(',').filter(Boolean) : null;
+    if (filtro && (filtro.length > 100 || filtro.some(x => !UUID.test(x)))) throw invalido('profissionalIds', 'profissionalIds inválido.');
+    if (req.authz.own) filtro = [req.authz.profissionalId];
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const [disp, profissionais, agendamentos] = await Promise.all([
+      carregar(repo), repo.list('profissionais', { empresa_id: repo.empresaId }), repo.list('agendamentos', { empresa_id: repo.empresaId })
+    ]);
+    const profPorId = new Map(profissionais.map(p => [p.id, p]));
+    const dias = datasEntre(`${mes}-01`, `${mes}-31`).filter(d => d.startsWith(mes));
+    const doMes = agendamentos.filter(a => String(a.data).slice(0, 7) === mes && ATIVOS_MES.includes(a.status) && (!filtro || filtro.includes(a.profissional_id)));
+    const cache = new Map();
+    const dispDe = (prof, data) => {
+      const k = `${prof.id}|${data}`;
+      if (!cache.has(k)) cache.set(k, disponibilidadeDoDia({ data, ...disp, profissional: prof }));
+      return cache.get(k);
+    };
+    const resultado = dias.map(data => {
+      const u = estadoDaUnidade({ data, ...disp });
+      const ags = doMes.filter(a => String(a.data).slice(0, 10) === data);
+      const conflitos = ags.filter(a => {
+        const p = profPorId.get(a.profissional_id);
+        if (!p) return false;
+        const [h, m] = String(a.horario).slice(0, 5).split(':').map(Number);
+        return !cabe(dispDe(p, data).periodos, h * 60 + m, Number(a.duracao_min) || 30);
+      });
+      const ausencias = disp.excecoes.filter(e => e.profissional_id && (!filtro || filtro.includes(e.profissional_id)) && ['ausencia', 'bloqueio'].includes(e.tipo)
+        && String(e.data_inicio).slice(0, 10) <= data && data <= String(e.data_fim).slice(0, 10)).length;
+      return { data, unidade: u.estado, motivo: u.motivo, agendamentos: ags.length, conflitos: conflitos.length, ausencias };
+    });
+    res.json({ ok: true, data: { mes, dias: resultado } });
   } catch (err) { next(err); }
 });
 
@@ -560,7 +602,7 @@ router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, 
     });
 
     // O que fazer: tipo explícito ou modelo.
-    let tipo; let periodos = []; let dataInicio = null; let dataFim = null; let porData = null; let descricao;
+    let tipo; let periodos = []; let dataInicio = null; let dataFim = null; let porData = null; let descricao; let datasAvulsas = null;
     const motivo = op.motivo === undefined || op.motivo === null ? null : String(op.motivo).trim().slice(0, 200) || null;
     if (op.modeloId !== undefined) {
       const m = await gravarModelo(repo, () => modeloDaEmpresa(repo, op.modeloId));
@@ -579,14 +621,22 @@ router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, 
       tipo = op.tipo;
       if (![...LOTE_TIPOS_PROF, ...LOTE_TIPOS_UNIDADE].includes(tipo)) throw invalido('tipo', 'tipo deve ser semanal, horario, ausencia, bloqueio ou fechamento.');
       if (tipo === 'semanal') periodos = periodosValidos(op.periodos || [], { comDia: true });
-      else {
+      else if (op.datas !== undefined) {
+        // Datas não consecutivas (D-050): cada data vira uma exceção do dia; prévia de dataInicio a dataFim.
+        if (!Array.isArray(op.datas) || !op.datas.length || op.datas.length > 62) throw invalido('datas', 'Escolha de 1 a 62 datas.');
+        datasAvulsas = [...new Set(op.datas.map((d, i) => dataValida(d, `datas[${i}]`)))].sort();
+        dataInicio = datasAvulsas[0]; dataFim = datasAvulsas[datasAvulsas.length - 1];
+        periodos = op.periodos === undefined ? [] : periodosValidos(op.periodos, { comDia: false });
+        if (['horario', 'bloqueio'].includes(tipo) && !periodos.length) throw invalido('periodos', 'Informe ao menos um período.');
+        if (tipo === 'ausencia' && periodos.length) throw invalido('periodos', 'Ausência é o dia inteiro.');
+      } else {
         dataInicio = dataValida(op.dataInicio, 'dataInicio'); dataFim = dataValida(op.dataFim || op.dataInicio, 'dataFim');
         if (dataFim < dataInicio || datasEntre(dataInicio, dataFim).length > 366) throw invalido('dataFim', 'Período de no máximo 1 ano.');
         periodos = op.periodos === undefined ? [] : periodosValidos(op.periodos, { comDia: false });
         if (['horario', 'bloqueio'].includes(tipo) && !periodos.length) throw invalido('periodos', 'Informe ao menos um período.');
         if (tipo === 'ausencia' && periodos.length) throw invalido('periodos', 'Ausência é o dia inteiro.');
       }
-      descricao = `${ROTULO_LOTE[tipo]}${dataInicio ? ` de ${dataInicio} a ${dataFim}` : ''}${periodos.length ? ` (${periodos.map(x => `${x.diaSemana !== undefined ? ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][x.diaSemana] + ' ' : ''}${x.inicio}–${x.fim}`).join(', ')})` : ''}`;
+      descricao = `${ROTULO_LOTE[tipo]}${datasAvulsas ? ` em ${datasAvulsas.length} data(s): ${datasAvulsas.map(d => d.slice(8, 10) + '/' + d.slice(5, 7)).join(', ')}` : dataInicio ? ` de ${dataInicio} a ${dataFim}` : ''}${periodos.length ? ` (${periodos.map(x => `${x.diaSemana !== undefined ? ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][x.diaSemana] + ' ' : ''}${x.inicio}–${x.fim}`).join(', ')})` : ''}`;
     }
     if (incluirUnidade && !LOTE_TIPOS_UNIDADE.includes(tipo)) invalidos.push({ alvo: 'Unidade', motivo: `${ROTULO_LOTE[tipo]} não se aplica à unidade` });
     if (tipo === 'fechamento' && alvosProf.length) invalidos.push({ alvo: 'Profissionais', motivo: 'Fechamento vale só para a unidade; para profissional use ausência' });
@@ -599,6 +649,7 @@ router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, 
     for (const alvo of alvos) {
       if (tipo === 'semanal') semanais.push({ profissionalId: alvo, periodos, publicar: Boolean(alvo) });
       else if (porData) porData.forEach(d => d.periodos.forEach(x => excecoes.push({ profissionalId: alvo, tipo: 'horario', dataInicio: d.data, dataFim: d.data, inicio: x.inicio, fim: x.fim, motivo })));
+      else if (datasAvulsas) datasAvulsas.forEach(d => (periodos.length ? periodos : [{}]).forEach(x => excecoes.push({ profissionalId: alvo, tipo, dataInicio: d, dataFim: d, ...(x.inicio ? { inicio: x.inicio, fim: x.fim } : {}), motivo })));
       else if (periodos.length) periodos.forEach(x => excecoes.push({ profissionalId: alvo, tipo, dataInicio, dataFim, inicio: x.inicio, fim: x.fim, motivo }));
       else excecoes.push({ profissionalId: alvo, tipo, dataInicio, dataFim, motivo });
     }

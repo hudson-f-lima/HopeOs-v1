@@ -118,4 +118,19 @@ function cabe(periodos, inicioMin, duracaoMin) {
   return periodos.some(p => inicioMin >= p.start && inicioMin + duracaoMin <= p.end);
 }
 
-module.exports = { disponibilidadeDoDia, cabe, normalizar, intersecao, subtrair, semanalNoDia };
+// Estado da unidade num dia (calendário do mês, D-050): fechada, especial (horário excepcional ou
+// fechamento parcial), aberta ou sem horário. Determinístico, a partir das mesmas regras do dia.
+function estadoDaUnidade({ data, semanal = [], excecoes = [] }) {
+  const excU = excecoes.filter(e => !e.profissional_id && cobre(e, data));
+  const fechada = excU.find(e => e.tipo === 'fechamento' && !e.inicio);
+  if (fechada) return { estado: 'fechada', motivo: fechada.motivo || null, periodos: [] };
+  const horU = excU.filter(e => e.tipo === 'horario');
+  let periodos = normalizar(horU.length ? horU.map(periodo) : semanalNoDia(semanal.filter(r => !r.profissional_id), data));
+  const parcial = excU.filter(e => e.tipo === 'fechamento' && e.inicio);
+  periodos = subtrair(periodos, parcial.map(periodo));
+  if (!periodos.length) return { estado: horU.length || parcial.length ? 'fechada' : 'sem_horario', motivo: (horU[0] || parcial[0] || {}).motivo || null, periodos: [] };
+  const especial = horU[0] || parcial[0];
+  return { estado: especial ? 'especial' : 'aberta', motivo: especial ? especial.motivo || null : null, periodos };
+}
+
+module.exports = { disponibilidadeDoDia, cabe, normalizar, intersecao, subtrair, semanalNoDia, estadoDaUnidade };

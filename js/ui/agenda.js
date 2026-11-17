@@ -1,4 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
+import { initAgendaMes, desenharFiltro, recarregarMesSeAberto } from './agendaMes.js';
 import { htmlCampos, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
@@ -124,6 +125,13 @@ function renderAgBlock(item, color) {
   if (item.status === 'concluido') opacity = 0.7;
 
   const sColor = getServiceColor(item);
+  // Conflito visível (D-050): agendamento fora do horário de trabalho do dia ou sobre bloqueio.
+  // Fica marcado até alguém resolver (remarcar ou cancelar); nada é movido sozinho.
+  const iniDia = HORA_INICIO * 60 + itemStartMinutes(item);
+  const ativo = !['concluido', 'no_show', 'cancelado', 'reagendado'].includes(item.status);
+  const conflito = ativo && (foraDaEscala(item.profissional_id, state.selectedDay, iniDia, iniDia + duracao)
+    ? 'fora da escala'
+    : bloqueiosDoDia(item.profissional_id, state.selectedDay).some(b => iniDia < b.fim && iniDia + duracao > b.ini) ? 'sobre bloqueio' : '');
   const line2 = compact ? '' : `<div class="ag-line2" class="pointer-none">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
   
   const isEditable = !['concluido', 'no_show'].includes(item.status);
@@ -131,13 +139,13 @@ function renderAgBlock(item, color) {
   const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}"></div>` : '';
 
   return `
-    <div class="ag-block ${compact ? 'compact' : ''}" 
+    <div class="ag-block ${compact ? 'compact' : ''}${conflito ? ' ag-conflito' : ''}" 
          style="top:${top}px;height:${height}px;background:${sColor.bg};border-left:4px solid ${sColor.border};color:#ffffff;opacity:${opacity};position:absolute;box-sizing:border-box;" 
          data-action="open-sheet" 
          data-id="${item.id}"
          data-ag-id="${item.id}">
       ${dragHtml}
-      <div class="ag-line1" style="pointer-events:none;padding-top:${isEditable ? '12px' : '4px'};">${horario} ${escapeHtml(findClienteNome(item.cliente_id))}</div>
+      <div class="ag-line1" style="pointer-events:none;padding-top:${isEditable ? '12px' : '4px'};">${conflito ? '<span class="ag-conf-tag">⚠ ' + conflito + '</span> ' : ''}${horario} ${escapeHtml(findClienteNome(item.cliente_id))}</div>
       ${line2}
       ${resizeHtml}
     </div>`;
@@ -191,7 +199,9 @@ export function applyProfFilter() {
 export function renderTimeline() {
   const container = document.getElementById('agendaGrid');
   if (!container) return;
-  const profs = activeProfissionais();
+  // Filtro de vários profissionais (D-050): vazio = todos.
+  const sel = state.profsVisiveis;
+  const profs = activeProfissionais().filter(p => !sel || !sel.size || sel.has(p.id));
   
   if (!profs.length) {
     container.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--md-outline);grid-column: 1 / -1;">Nenhum profissional ativo.</div>';
@@ -1144,6 +1154,7 @@ function onTimelineClick(ev) {
 export function initAgenda() {
   initAgendaBloqueio();
   initCardAgendamento();
+  initAgendaMes({ aoFiltrar: renderTimeline });
   initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));
@@ -1316,9 +1327,11 @@ export function initAgenda() {
     renderDayPills();
     renderWeekStats();
     renderTimeline();
+    recarregarMesSeAberto();
   });
 
   stateBus.addEventListener('catalog:updated', () => {
+    desenharFiltro();
     renderTimeline();
   });
 

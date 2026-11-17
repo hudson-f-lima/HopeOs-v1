@@ -145,7 +145,7 @@
         </div>
         <div class="day-pills" id="dayPills"></div>
         <div class="agenda-info-bar">
-          <div><span>📅</span><b id="selectedDayLabel">Hoje</b></div>
+          <button type="button" class="agm-btn" id="btnAgMes" aria-expanded="false" aria-controls="agMes" aria-label="Abrir o calendário do mês"><span aria-hidden="true">📅</span><b id="selectedDayLabel">Hoje</b><span class="agm-seta" aria-hidden="true">▾</span></button>
           <div><span>👥</span><b id="dayCountLabel">0 agend.</b></div>
           <div class="agenda-occ">
             <svg class="occ-ring" id="dayOccRing" width="20" height="20" viewBox="0 0 20 20">
@@ -155,8 +155,10 @@
             <b id="dayOccupancyLabel">0% Ocupação</b>
           </div>
         </div>
+        <section class="ag-mes hidden" id="agMes" aria-label="Calendário do mês"></section>
         <button class="btn btn-secondary" id="btnAbrirListaEspera" style="margin:0 12px 10px;width:calc(100% - 24px);">+ Lista de espera</button>
-        <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span></div>
+        <div class="ag-filtro-profs" id="agFiltroProfs" role="group" aria-label="Profissionais na agenda"></div>
+        <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span></div>
         <div class="agenda-scroll-container" id="timelineContainer">
           <div class="agenda-grid" id="agendaGrid"></div>
         </div>
@@ -826,7 +828,7 @@
     <div class="subtab-content hidden" id="subtab-escalas">
       <section class="card" aria-labelledby="escTitulo">
         <h2 class="m-0" id="escTitulo" style="margin-bottom:4px;">Horários e escalas</h2>
-        <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda só oferece horários dentro do horário da unidade e da escala de cada profissional, descontando datas especiais e bloqueios.</p>
+        <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda oferece só o que cabe no horário da unidade e na escala de cada um, sem as datas especiais e os bloqueios.</p>
         <div id="escConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
         <div class="field hidden" id="esperaBox" style="margin-top:12px;">
           <label for="esperaMax">Espera máxima entre etapas (atendimento com vários serviços)</label>
@@ -1073,6 +1075,7 @@
       <fieldset class="perm-grupo"><legend>Para quem</legend><div id="escLoteAlvos"></div></fieldset>
       <div class="field"><label for="escLoteAcao">O que fazer</label><select id="escLoteAcao"></select></div>
       <div class="field hidden" id="escLoteModeloBox"><label for="escLoteModelo">Modelo</label><select id="escLoteModelo"></select></div>
+      <p class="body-sm hidden" id="escLoteDatasAvulsas" aria-live="polite"></p>
       <div class="esc-datas" id="escLoteDatasBox">
         <div class="field"><label for="escLoteDe">De</label><input id="escLoteDe" type="date"/></div>
         <div class="field"><label for="escLoteAte">Até</label><input id="escLoteAte" type="date"/></div>
