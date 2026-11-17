@@ -4,6 +4,7 @@
 // alguém com permissão confirmar que ficam mantidos (remarcar ou cancelar é feito na agenda).
 import { api } from '../api.js';
 import { abrirBloqueio } from './agendaBloqueio.js';
+import { montarCalendario } from './calendarioMes.js';
 import { state, sessionPode, loadWeekAgenda } from '../state.js';
 import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr, baixarArquivo } from '../utils.js';
 
@@ -26,33 +27,52 @@ const resumoSemanal = semanal => {
 const proprioId = () => (state.session && state.session.profissional_id) || null;
 
 // ---------- Lista ----------
+// Redesign (D-050, pedido do dono): blocos (bento) que cabem no celular. Semana padrão em pontos por
+// dia + horas compactas; calendário do mês para gerir datas (tocar = data especial; escolher datas
+// avulsas = lote com prévia); pendências de aceite; datas especiais; histórico e modelos.
+const LETRA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+function horasCompactas(semanal) {
+  const porDia = new Map();
+  for (let d = 0; d < 7; d++) { const t = periodosTexto(semanal.filter(p => p.diaSemana === d)); if (t) porDia.set(d, t); }
+  if (!porDia.size) return 'Sem horário';
+  const grupos = new Map();
+  for (const [d, t] of porDia) grupos.set(t, [...(grupos.get(t) || []), d]);
+  return [...grupos].map(([t, ds]) => {
+    const seq = ds.every((d, i) => !i || d === ds[i - 1] + 1);
+    const dias = ds.length === 1 ? CURTO[ds[0]] : seq ? CURTO[ds[0]] + '–' + CURTO[ds[ds.length - 1]] : ds.map(d => CURTO[d]).join(', ');
+    return dias + ' ' + t;
+  }).join(' · ');
+}
+const pontosDaSemana = semanal => '<span class="esc-dias" aria-hidden="true">' + LETRA.map((l, d) =>
+  '<i class="esc-d' + (semanal.some(p => p.diaSemana === d) ? ' on' : '') + '">' + l + '</i>').join('') + '</span>';
+let calEsc = null; let calEscMes = null; let calEscSel = null;
+
 function render() {
   const podeUnidade = sessionPode('unidade:horario');
   const podeEditar = sessionPode('escala:editar');
   const podeBloquear = sessionPode('escala:bloquear');
   const nomeProf = id => (dados.profissionais.find(p => p.id === id) || {}).nome || 'Profissional';
-  const unidade = `
-    <div class="esc-linha">
-      <span class="esc-quem"><b>Unidade</b><span>${escapeHtml(resumoSemanal(dados.unidade.semanal))}</span></span>
-      ${podeUnidade ? '<button type="button" class="btn btn-secondary esc-btn" data-esc-semanal="">Horário</button>' : ''}
+  const linhaSemana = ({ id, nome, semanal, botao, extra = '' }) => `
+    <div class="esc-linha esc-semana"${id ? ` data-prof="${escapeHtml(id)}"` : ''}>
+      <span class="esc-quem"><b>${escapeHtml(nome)}</b>${pontosDaSemana(semanal)}
+        <span class="esc-horas" title="${escapeHtml(resumoSemanal(semanal))}">${escapeHtml(horasCompactas(semanal))}</span>${extra}</span>
+      ${botao}
     </div>`;
+  const unidade = linhaSemana({ nome: 'Unidade', semanal: dados.unidade.semanal,
+    botao: podeUnidade ? '<button type="button" class="esc-mini" data-esc-semanal="" aria-label="Editar horário da unidade">Editar</button>' : '' });
   // D-046 (023): aceite da escala pelo profissional (comum acordo, com registro).
   const textoAceite = a => !a ? '' : a.situacao === 'aceita' ? 'Aceita pelo profissional em ' + dataBR(a.aceitaEm.slice(0, 10))
     : a.situacao === 'pendente' ? 'Aguardando aceite do profissional'
     : a.situacao === 'sem_registro' ? 'Escala anterior ao registro: salve de novo para pedir o aceite' : '';
   const profs = dados.profissionais.map(p => {
     const a = p.aceite;
-    const minha = p.id === proprioId();
-    const aceitar = minha && a && a.situacao === 'pendente'
+    const aceitar = p.id === proprioId() && a && a.situacao === 'pendente'
       ? '<button type="button" class="btn btn-primary esc-btn" data-esc-aceitar="' + escapeHtml(a.eventoId) + '">Aceitar minha escala</button>' : '';
-    return `
-    <div class="esc-linha" data-prof="${escapeHtml(p.id)}">
-      <span class="esc-quem"><b>${escapeHtml(p.nome)}</b>
-        <span>${p.escalaPublicada ? escapeHtml(resumoSemanal(p.semanal)) : '<span class="esc-alerta">Escala não publicada: não aparece para agendar</span>'}</span>
-        ${textoAceite(a) ? '<span class="esc-aceite" data-aceite="' + escapeHtml(a.situacao) + '">' + escapeHtml(textoAceite(a)) + '</span>' : ''}</span>
-      ${aceitar}
-      ${podeEditar ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-semanal="${escapeHtml(p.id)}">Escala</button>` : ''}
-    </div>`;
+    const extra = (p.escalaPublicada ? '' : '<span class="esc-alerta esc-aviso">Escala não publicada: não aparece para agendar</span>')
+      + (textoAceite(a) ? '<span class="esc-aceite" data-aceite="' + escapeHtml(a.situacao) + '">' + escapeHtml(textoAceite(a)) + '</span>' : '');
+    return linhaSemana({ id: p.id, nome: p.nome, semanal: p.semanal, extra,
+      botao: aceitar + (podeEditar ? `<button type="button" class="esc-mini" data-esc-semanal="${escapeHtml(p.id)}" aria-label="Editar escala">Editar</button>` : '') });
   }).join('');
   const excecoes = dados.excecoes.map(e => {
     const quem = e.profissionalId ? nomeProf(e.profissionalId) : 'Unidade';
@@ -63,35 +83,69 @@ function render() {
     const podeRemover = !e.profissionalId ? podeUnidade : e.tipo === 'horario' ? podeEditar : (!doProfissional && podeBloquear && (sessionPode('escala:bloquear', true) || e.profissionalId === proprioId()));
     return `<div class="esc-excecao" data-tipo="${escapeHtml(e.tipo)}">
       <span><b>${escapeHtml(datas)}</b> · ${escapeHtml(quem)} · ${escapeHtml(TIPO[e.tipo] || e.tipo)}${escapeHtml(horas)}${e.motivo ? ` · ${escapeHtml(e.motivo)}` : ''}${e.marcadoPeloProfissional ? ' · <span class="text-tertiary">marcado pelo profissional</span>' : ''}</span>
-      ${podeRemover && (e.tipo === 'bloqueio' || (e.tipo === 'ausencia' && e.dataFim > e.dataInicio)) ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-encurtar="${escapeHtml(e.id)}" aria-label="Encurtar">Encurtar</button>` : ''}
-      ${podeRemover ? `<button type="button" class="btn btn-secondary esc-btn" data-esc-remover="${escapeHtml(e.id)}" aria-label="Remover exceção">Remover</button>` : ''}
+      <span class="esc-acoes-mini">
+      ${podeRemover && (e.tipo === 'bloqueio' || (e.tipo === 'ausencia' && e.dataFim > e.dataInicio)) ? `<button type="button" class="esc-mini" data-esc-encurtar="${escapeHtml(e.id)}" aria-label="Encurtar">Encurtar</button>` : ''}
+      ${podeRemover ? `<button type="button" class="esc-mini" data-esc-remover="${escapeHtml(e.id)}" aria-label="Remover exceção">Remover</button>` : ''}
+      </span>
     </div>`;
-  }).join('') || '<p class="body-sm text-tertiary">Nenhuma exceção marcada daqui para a frente.</p>';
+  }).join('') || '<p class="body-sm text-tertiary">Nenhuma data especial daqui para a frente.</p>';
   const podeExcecao = podeUnidade || podeEditar || podeBloquear;
+  const pendentes = dados.profissionais.filter(p => p.aceite && p.aceite.situacao === 'pendente').length;
+  const semRegistro = dados.profissionais.filter(p => p.aceite && p.aceite.situacao === 'sem_registro').length;
   const listaModelos = sessionPode('escala:modelos') ? `
-    <h3 class="esc-sub">Modelos de escala</h3>
-    <button type="button" class="btn btn-secondary esc-btn" id="btnEscNovoModelo">Novo modelo</button>
-    ${modelos.map(m => `<div class="esc-linha"><span class="esc-quem"><b>${escapeHtml(m.nome)}</b><span>${escapeHtml(resumoSemanal(m.periodos))}</span></span>
-      <span class="esc-acoes">
-        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-editar="${escapeHtml(m.id)}">Editar</button>
-        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-duplicar="${escapeHtml(m.id)}">Duplicar</button>
-        <button type="button" class="btn btn-secondary esc-btn" data-esc-modelo-arquivar="${escapeHtml(m.id)}">Arquivar</button>
-      </span></div>`).join('') || '<p class="body-sm text-tertiary">Nenhum modelo. Crie um para repetir escalas (ex.: Equipe de sábado, Véspera de Natal).</p>'}` : '';
+    <section class="bento-tile bento-2" aria-labelledby="escModelosTit">
+      <div class="bento-topo"><h3 class="bento-tit" id="escModelosTit">Modelos de escala</h3>
+        <button type="button" class="esc-mini" id="btnEscNovoModelo">+ Novo</button></div>
+      ${modelos.map(m => `<div class="esc-linha"><span class="esc-quem"><b>${escapeHtml(m.nome)}</b><span class="esc-horas">${escapeHtml(horasCompactas(m.periodos))}</span></span>
+        <span class="esc-acoes-mini">
+          <button type="button" class="esc-mini" data-esc-modelo-editar="${escapeHtml(m.id)}">Editar</button>
+          <button type="button" class="esc-mini" data-esc-modelo-duplicar="${escapeHtml(m.id)}">Duplicar</button>
+          <button type="button" class="esc-mini" data-esc-modelo-arquivar="${escapeHtml(m.id)}">Arquivar</button>
+        </span></div>`).join('') || '<p class="body-sm text-tertiary">Nenhum modelo. Ex.: Equipe de sábado, Véspera de Natal.</p>'}
+    </section>` : '';
   el('escConteudo').innerHTML = `
-    ${sessionPode('escala:lote') ? '<button type="button" class="btn btn-primary" id="btnEscLote">Alterar vários de uma vez</button>' : ''}
-    <h3 class="esc-sub">Semana padrão</h3>${unidade}${profs}
-    <h3 class="esc-sub">Datas especiais</h3>
-    ${podeExcecao ? '<button type="button" class="btn btn-primary" id="btnEscNovaExcecao">Nova data especial</button>' : ''}
-    <div id="escExcecoes">${excecoes}</div>
-    <h3 class="esc-sub">Histórico de bloqueios</h3>
-    <p class="body-sm text-tertiary">Tudo o que foi marcado e removido, com data, hora e quem fez. Não pode ser apagado.</p>
-    <button type="button" class="btn btn-secondary esc-btn" id="btnEscHistorico">Ver histórico</button>
-    <div id="escHistorico"></div>
-    ${listaModelos}`;
+    <div class="bento">
+      ${sessionPode('escala:lote') || podeExcecao ? `<div class="bento-tile bento-2 bento-acoes">
+        ${sessionPode('escala:lote') ? '<button type="button" class="btn btn-primary" id="btnEscLote">Alterar vários</button>' : ''}
+        ${podeExcecao ? '<button type="button" class="btn btn-secondary" id="btnEscNovaExcecao">Nova data especial</button>' : ''}
+      </div>` : ''}
+      <section class="bento-tile bento-2" aria-labelledby="escCalTit">
+        <div class="bento-topo"><h3 class="bento-tit" id="escCalTit">Calendário</h3><span class="bento-dica">${podeExcecao ? 'toque num dia para marcar' : ''}</span></div>
+        <div id="escCal"></div>
+      </section>
+      <section class="bento-tile bento-2" aria-labelledby="escSemanaTit">
+        <div class="bento-topo"><h3 class="bento-tit" id="escSemanaTit">Semana padrão</h3></div>
+        ${unidade}${profs}
+      </section>
+      <div class="bento-tile bento-num" data-bento="aceites"><b>${pendentes}</b><span>aguardando aceite${semRegistro ? ` · ${semRegistro} sem registro` : ''}</span></div>
+      <div class="bento-tile bento-num" data-bento="datas"><b>${dados.excecoes.length}</b><span>datas especiais à frente</span></div>
+      <section class="bento-tile bento-2" aria-labelledby="escDatasTit">
+        <div class="bento-topo"><h3 class="bento-tit" id="escDatasTit">Datas especiais</h3></div>
+        <div id="escExcecoes">${excecoes}</div>
+      </section>
+      <section class="bento-tile bento-2" aria-labelledby="escHistTit">
+        <div class="bento-topo"><h3 class="bento-tit" id="escHistTit">Histórico de bloqueios</h3>
+          <button type="button" class="esc-mini" id="btnEscHistorico">Ver</button></div>
+        <p class="bento-dica">Marcado e removido, com data, hora e quem fez. Não pode ser apagado.</p>
+        <div id="escHistorico"></div>
+      </section>
+      ${listaModelos}
+    </div>`;
+  // Calendário de gestão: tocar num dia abre "Nova data especial" já na data; escolher datas
+  // avulsas abre o lote (com prévia dos agendamentos afetados).
+  calEsc = montarCalendario(el('escCal'), {
+    selecionado: () => calEscSel,
+    podeEscolher: sessionPode('escala:lote'),
+    textoAplicar: 'Aplicar às datas…',
+    aoTocarDia: d => { calEscSel = d; if (podeExcecao) abrirExcecao(d); },
+    aoAplicarDatas: datas => abrirLote(datas)
+  });
+  calEsc.paraMesDe(calEscMes ? calEscMes + '-01' : todayStr());
 }
 
 export async function carregarEscalas() {
   if (!sessionPode('escala:ver')) return;
+  if (calEsc) calEscMes = calEsc.mesAtual();
   try {
     [dados, modelos] = await Promise.all([
       api('/disponibilidade'),
@@ -230,7 +284,7 @@ function atualizarPeriodosExc() {
   if (!semHora && !el('escExcPeriodos').children.length && tipo !== 'fechamento') el('escExcPeriodos').innerHTML = linhaPeriodo(0);
 }
 
-function abrirExcecao() {
+function abrirExcecao(data = null) {
   pendente = null;
   clearModalError('escExcErro');
   const alvos = [];
@@ -240,7 +294,7 @@ function abrirExcecao() {
     .filter(p => podeTodos || p.id === proprioId())
     .forEach(p => alvos.push([p.id, p.nome]));
   el('escExcAlvo').innerHTML = alvos.map(([v, t]) => `<option value="${escapeHtml(v)}">${escapeHtml(t)}</option>`).join('');
-  const hoje = todayStr();
+  const hoje = data || todayStr();
   el('escExcDe').value = hoje;
   el('escExcAte').value = hoje;
   el('escExcMotivo').value = '';

@@ -155,20 +155,7 @@
             <b id="dayOccupancyLabel">0% Ocupação</b>
           </div>
         </div>
-        <section class="ag-mes hidden" id="agMes" aria-label="Calendário do mês">
-          <div class="agm-topo">
-            <button class="week-nav-btn" id="btnAgMesAnt" type="button" aria-label="Mês anterior">‹</button>
-            <b id="agMesTitulo" aria-live="polite">—</b>
-            <button class="week-nav-btn" id="btnAgMesProx" type="button" aria-label="Próximo mês">›</button>
-          </div>
-          <div class="agm-grade" id="agMesDias"></div>
-          <p class="agm-legenda body-sm">★ horário especial · ✕ fechado · – sem expediente · ⚠ conflito (agendamento fora da escala) · número = agendamentos</p>
-          <button class="btn btn-secondary agm-escolher hidden" type="button" id="btnAgMesEscolher" aria-pressed="false">Escolher datas</button>
-          <div class="agm-escolha hidden" id="agMesEscolha">
-            <span class="body-sm" id="agMesEscolhaTxt" aria-live="polite"></span>
-            <button class="btn btn-primary" type="button" id="btnAgMesAplicar" disabled>Aplicar às datas…</button>
-          </div>
-        </section>
+        <section class="ag-mes hidden" id="agMes" aria-label="Calendário do mês"></section>
         <button class="btn btn-secondary" id="btnAbrirListaEspera" style="margin:0 12px 10px;width:calc(100% - 24px);">+ Lista de espera</button>
         <div class="ag-filtro-profs" id="agFiltroProfs" role="group" aria-label="Profissionais na agenda"></div>
         <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span></div>
@@ -841,7 +828,7 @@
     <div class="subtab-content hidden" id="subtab-escalas">
       <section class="card" aria-labelledby="escTitulo">
         <h2 class="m-0" id="escTitulo" style="margin-bottom:4px;">Horários e escalas</h2>
-        <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda só oferece horários dentro do horário da unidade e da escala de cada profissional, descontando datas especiais e bloqueios.</p>
+        <p class="body-sm text-tertiary" style="margin-bottom:8px;">A agenda oferece só o que cabe no horário da unidade e na escala de cada um, sem as datas especiais e os bloqueios.</p>
         <div id="escConteudo"><p class="body-sm text-tertiary">Carregando…</p></div>
         <div class="field hidden" id="esperaBox" style="margin-top:12px;">
           <label for="esperaMax">Espera máxima entre etapas (atendimento com vários serviços)</label>

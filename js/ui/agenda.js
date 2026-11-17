@@ -1,6 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { initAgendaMes, desenharFiltro, recarregarMesSeAberto } from './agendaMes.js';
-import { abrirLoteComDatas } from './escalas.js';
 import { htmlCampos, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
@@ -1155,7 +1154,7 @@ function onTimelineClick(ev) {
 export function initAgenda() {
   initAgendaBloqueio();
   initCardAgendamento();
-  initAgendaMes({ aoFiltrar: renderTimeline, abrirLote: abrirLoteComDatas });
+  initAgendaMes({ aoFiltrar: renderTimeline });
   initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));

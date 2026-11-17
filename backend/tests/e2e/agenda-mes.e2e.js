@@ -23,11 +23,12 @@ async function login(email) {
   const s = await (await fetch(`${API}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'dev12345' }) })).json();
   return { 'content-type': 'application/json', authorization: `Bearer ${s.data.access_token || s.data.session.access_token}` };
 }
-const celula = (p, d) => p.locator(`[data-agm-dia="${d}"]`);
-async function mostrarMes(p, mes) {
-  for (let i = 0; i < 3; i++) {
-    if (await p.locator(`[data-agm-dia^="${mes}-"]`).count()) return;
-    await p.click('#btnAgMesProx'); await p.waitForTimeout(500);
+// raiz: '#agMes' (agenda, navegação) ou '#escCal' (Escalas, gestão).
+const celula = (p, d, raiz = '#agMes') => p.locator(`${raiz} [data-agm-dia="${d}"]`);
+async function mostrarMes(p, mes, raiz = '#agMes') {
+  for (let i = 0; i < 4; i++) {
+    if (await p.locator(`${raiz} [data-agm-dia^="${mes}-"]`).count()) return;
+    await p.click(`${raiz} [data-cal="${mes > (await p.locator(`${raiz} [data-agm-dia]`).first().getAttribute('data-agm-dia')).slice(0, 7) ? 'prox' : 'ant'}"]`); await p.waitForTimeout(500);
   }
 }
 
@@ -65,11 +66,36 @@ async function mostrarMes(p, mes) {
   confere('dia especial: ★ e "horário especial, Inventário"', (await celula(p, dia(6)).innerText()).includes('★') && /horário especial.*Inventário/.test(r6), r6);
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-agenda-mes.png') });
 
-  // 4) Datas não consecutivas → lote.
-  await p.click('#btnAgMesEscolher');
-  await celula(p, dia(10)).click(); await celula(p, dia(12)).click();
-  confere('duas datas marcadas (aria-pressed)', await celula(p, dia(10)).getAttribute('aria-pressed') === 'true' && /2 data/.test(await p.textContent('#agMesEscolhaTxt')));
-  await p.click('#btnAgMesAplicar');
+  // 2) Tocar no dia leva a agenda; conflito marcado na grade.
+  await mostrarMes(p, amanha.slice(0, 7));
+  await celula(p, amanha).click(); await p.waitForTimeout(1200);
+  const bloco = p.locator(`[data-id="${fora.data.id}"]`);
+  confere('dia escolhido no mês abre na agenda', await p.locator(`.day-pill.selected[data-day="${amanha}"]`).count() === 1);
+  await bloco.first().waitFor({ timeout: 8000 }).catch(() => {});
+  confere('agendamento em conflito marcado na grade (⚠ fora da escala)', await bloco.count() === 1 && /⚠ fora da escala/.test(await bloco.first().innerText()) && /ag-conflito/.test(await bloco.first().getAttribute('class')));
+  confere('na agenda o calendário só navega (sem escolher datas)', await p.locator('#agMes [data-cal="escolher"]').count() === 0);
+
+  // 3) Filtro de vários profissionais.
+  await p.click(`#agFiltroProfs [data-agf="${BRUNO}"]`); await p.waitForTimeout(400);
+  const cols = await p.$$eval('.agenda-grid-col', cs => cs.map(c => c.dataset.profId));
+  confere('filtro: só a coluna do Bruno', JSON.stringify(cols) === JSON.stringify([BRUNO]), JSON.stringify(cols));
+  await p.click(`#agFiltroProfs [data-agf="${ANA}"]`); await p.waitForTimeout(400);
+  confere('filtro com dois: Ana e Bruno', (await p.$$eval('.agenda-grid-col', cs => cs.length)) === 2);
+  await p.click('#agFiltroProfs [data-agf=""]'); await p.waitForTimeout(300);
+
+  // 4) Escalas (bento): tocar no dia abre a data especial já na data; datas avulsas → lote.
+  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
+  await p.click('#subtabBtnEscalas'); await p.waitForSelector('#escCal [data-agm-dia]', { timeout: 8000 });
+  confere('Escalas em blocos com calendário, semana em pontos e pendências', await p.locator('#escConteudo .bento .bento-tile').count() >= 5 && await p.locator('#escConteudo .esc-semana .esc-d.on').count() > 0);
+  await mostrarMes(p, proxMes, '#escCal');
+  await celula(p, dia(15), '#escCal').click();
+  await p.waitForSelector('#modalEscExcecao:not(.hidden)');
+  confere('tocar no dia abre "Nova data especial" já na data', await p.inputValue('#escExcDe') === dia(15) && await p.inputValue('#escExcAte') === dia(15));
+  await p.click('#btnEscExcCancelar');
+  await p.click('#escCal [data-cal="escolher"]');
+  await celula(p, dia(10), '#escCal').click(); await celula(p, dia(12), '#escCal').click();
+  confere('duas datas marcadas (aria-pressed)', await celula(p, dia(10), '#escCal').getAttribute('aria-pressed') === 'true' && /2 data/.test(await p.textContent('#escCal .agm-escolha-txt')));
+  await p.click('#escCal [data-cal="aplicar"]');
   await p.waitForSelector('#modalEscLote:not(.hidden)');
   const datasTxt = await p.textContent('#escLoteDatasAvulsas');
   confere('lote mostra as datas escolhidas e esconde De/Até', /10\/.*12\//.test(datasTxt) && await p.isHidden('#escLoteDatasBox'), datasTxt);
@@ -83,25 +109,7 @@ async function mostrarMes(p, mes) {
   await p.waitForTimeout(600);
   const aus = (await db('disponibilidade_excecoes')).filter(e => e.profissional_id === ANA && e.motivo === 'Congresso').map(e => e.data_inicio).sort();
   confere('ausência criada só no dia 10 e no 12 (o 11 intacto)', JSON.stringify(aus) === JSON.stringify([dia(10), dia(12)]), JSON.stringify(aus));
-
-  // 2) Tocar no dia leva a agenda; conflito marcado na grade.
-  await p.click('#btnAgMesEscolher').catch(() => {});
-  await p.waitForTimeout(300);
-  if (await p.getAttribute('#btnAgMesEscolher', 'aria-pressed') === 'true') await p.click('#btnAgMesEscolher');
-  for (let i = 0; i < 3 && !(await p.locator(`[data-agm-dia^="${amanha.slice(0, 7)}-"]`).count()); i++) { await p.click('#btnAgMesAnt'); await p.waitForTimeout(500); }
-  await celula(p, amanha).click(); await p.waitForTimeout(1200);
-  const bloco = p.locator(`[data-id="${fora.data.id}"]`);
-  confere('dia escolhido no mês abre na agenda', await p.locator(`.day-pill.selected[data-day="${amanha}"]`).count() === 1);
-  await bloco.first().waitFor({ timeout: 8000 }).catch(() => {});
-  confere('agendamento em conflito marcado na grade (⚠ fora da escala)', await bloco.count() === 1 && /⚠ fora da escala/.test(await bloco.first().innerText()) && /ag-conflito/.test(await bloco.first().getAttribute('class')));
-
-  // 3) Filtro de vários profissionais.
-  await p.click(`#agFiltroProfs [data-agf="${BRUNO}"]`); await p.waitForTimeout(400);
-  const cols = await p.$$eval('.agenda-grid-col', cs => cs.map(c => c.dataset.profId));
-  confere('filtro: só a coluna do Bruno', JSON.stringify(cols) === JSON.stringify([BRUNO]), JSON.stringify(cols));
-  await p.click(`#agFiltroProfs [data-agf="${ANA}"]`); await p.waitForTimeout(400);
-  confere('filtro com dois: Ana e Bruno', (await p.$$eval('.agenda-grid-col', cs => cs.length)) === 2);
-  await p.click('#agFiltroProfs [data-agf=""]'); await p.waitForTimeout(300);
+  await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-escalas-bento.png'), fullPage: true });
 
   const viol = await p.evaluate(() => window.__csp);
   console.log('VIOLAÇÕES CSP:', JSON.stringify(viol)); falhas.push(...viol);
