@@ -40,17 +40,27 @@ function renderExtras() {
 
 const etapaLinha = e => `<li>${escapeHtml(e.inicio)}–${escapeHtml(e.fim)} · ${escapeHtml(e.servicoNome)} com ${escapeHtml(e.profissionalNome)} · ${escapeHtml(centsToBRL(e.precoCentavos))}${e.esperaAntesMin ? ` <span class="at-espera">(espera de ${e.esperaAntesMin} min antes)</span>` : ''}</li>`;
 
+const ordemEscolhida = () => (el('atendimentoOrdem') && el('atendimentoOrdem').value) || 'padrao';
+const consultar = body => api('/agenda/combinacoes', { method: 'POST', body: { ...body, ordem: ordemEscolhida() } });
+
 function renderOpcoes(r) {
   opcoes = r.opcoes;
+  // D-055: alternativas quando o escolhido não cabe, e o motivo quando nada cabe.
+  const aviso = el('atendimentoAviso');
+  if (aviso) {
+    const busca = r.busca && r.busca.truncada ? ` A busca parou em ${r.busca.limite} tentativas; pode haver outras opções.` : '';
+    aviso.textContent = (r.semOpcaoComEscolhido && r.opcoes.length ? r.motivo : '') + busca;
+    aviso.classList.toggle('hidden', !aviso.textContent);
+  }
   el('atendimentoResumo').textContent = `${formatDDMM(pedido.data)} · ${pedido.itens.length} serviços · espera máxima entre etapas: ${r.esperaMaxMin} min`;
   el('atendimentoOpcoes').innerHTML = opcoes.length
     ? opcoes.map((o, i) => `
       <button type="button" class="at-opcao" data-opcao="${i}">
         <span class="at-topo"><b>${escapeHtml(o.inicio)}–${escapeHtml(o.fim)}</b><span class="at-tipo" data-tipo="${escapeHtml(o.tipo)}">${escapeHtml(TIPO[o.tipo] || o.tipo)}</span></span>
         <ul class="at-etapas">${o.etapas.map(etapaLinha).join('')}</ul>
-        <span class="at-total">Total ${escapeHtml(centsToBRL(o.precoCentavos))} · ${o.duracaoMin} min de serviço${o.esperaMin ? ` · ${o.esperaMin} min de espera` : ' · sem espera'}</span>
+        <span class="at-total">Total ${escapeHtml(centsToBRL(o.precoCentavos))} · ${o.duracaoMin} min de serviço${o.esperaMin ? ` · ${o.esperaMin} min de espera` : ' · sem espera'} · ${o.tempoTotalMin} min no salão${o.sobraMin ? ` · deixa ${o.sobraMin} min sem uso` : ''}${o.mantemPreferencia !== null && o.mantemPreferencia !== undefined ? ` · ${o.mantemPreferencia} de ${o.etapas.length} com quem foi escolhido` : ''}</span>
       </button>`).join('')
-    : `<p class="body-sm text-tertiary">Nenhuma combinação nesse dia${r.semProfissional && r.semProfissional.length ? ' (há serviço sem profissional habilitado)' : ''}. Tente outra data ou mude os profissionais.</p>`;
+    : `<p class="body-sm text-tertiary">${escapeHtml(r.motivo || 'Nenhuma combinação nesse dia.')} Tente outra data ou mude os profissionais.</p>`;
 }
 
 // Chamado pelo "Agendar" quando há mais de um serviço.
@@ -62,8 +72,8 @@ export async function abrirOpcoes({ clienteId, data, itens, horario }, aoGravar)
   el('atendimentoDialog').showModal();
   try {
     // Com horário escolhido, tenta primeiro as opções que começam nele; sem nenhuma, mostra o dia.
-    let r = horario ? await api('/agenda/combinacoes', { method: 'POST', body: { data, itens, horario } }) : null;
-    if (!r || !r.opcoes.length) r = await api('/agenda/combinacoes', { method: 'POST', body: { data, itens } });
+    let r = horario ? await consultar({ data, itens, horario }) : null;
+    if (!r || !r.opcoes.length) r = await consultar({ data, itens });
     renderOpcoes(r);
   } catch (err) {
     el('atendimentoOpcoes').innerHTML = '';
@@ -90,7 +100,7 @@ async function escolher(i) {
   } catch (err) {
     // Algo mudou (conflito ou etapa que não cabe mais): nada foi reservado; recalcula.
     el('atendimentoMsg').textContent = err.message;
-    try { renderOpcoes(await api('/agenda/combinacoes', { method: 'POST', body: { data: pedido.data, itens: pedido.itens } })); } catch { /* mantém a mensagem */ }
+    try { renderOpcoes(await consultar({ data: pedido.data, itens: pedido.itens })); } catch { /* mantém a mensagem */ }
   }
 }
 
@@ -153,6 +163,11 @@ async function initEspera() {
 }
 
 export function initAtendimento() {
+  el('atendimentoOrdem')?.addEventListener('change', async () => {
+    if (!pedido) return;
+    el('atendimentoOpcoes').innerHTML = '<p class="body-sm text-tertiary">Reordenando…</p>';
+    try { renderOpcoes(await consultar({ data: pedido.data, itens: pedido.itens })); } catch (err) { el('atendimentoMsg').textContent = err.message; }
+  });
   el('btnAgAddServico')?.addEventListener('click', () => {
     if (extras.length >= 5) return showBanner('No máximo 6 serviços por atendimento.', 'error');
     extras.push({ servicoId: '', profissionalId: '' });

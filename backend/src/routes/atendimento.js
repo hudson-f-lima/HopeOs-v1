@@ -17,7 +17,7 @@ const clock = require('../config/clock');
 const { validateUUID } = require('../validators/cadastros.validator');
 const { agoraNoFuso } = require('../engines/SlotEngine');
 const { timeToMinutes } = require('../engines/ScheduleEngine');
-const { combinar, validarEtapas, livresDoProfissional, precoDe, duracaoDe, minutesToTime, MAX_SERVICOS, ESPERA_MAX_PADRAO_MIN } = require('../engines/AtendimentoEngine');
+const { combinar, validarEtapas, livresDoProfissional, precoDe, duracaoDe, minutesToTime, MAX_SERVICOS, ESPERA_MAX_PADRAO_MIN, ORDENS } = require('../engines/AtendimentoEngine');
 
 const router = express.Router();
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -49,7 +49,8 @@ async function contextoDoDia(repo, data, { ignorarIds = [] } = {}) {
 
 function validarPedido(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 422);
-  const { data, itens, horario, escolha } = body;
+  const { data, itens, horario, escolha, ordem } = body;
+  if (ordem !== undefined && ordem !== null && !ORDENS.includes(ordem)) throw invalido('ordem', `ordem deve ser uma de: ${ORDENS.join(', ')}.`);
   if (typeof data !== 'string' || !DATA_RE.test(data) || Number.isNaN(Date.parse(`${data}T00:00:00Z`))) throw invalido('data', 'data deve ser AAAA-MM-DD.');
   if (!Array.isArray(itens) || !itens.length || itens.length > MAX_SERVICOS) throw invalido('itens', `Informe de 1 a ${MAX_SERVICOS} serviços.`);
   for (const it of itens) {
@@ -65,7 +66,19 @@ function validarPedido(body) {
       if (typeof e.horario !== 'string' || !HORA_RE.test(e.horario)) throw invalido('escolha.horario', 'horario deve ser HH:MM.');
     }
   }
-  return { data, itens, horario: horario || null, escolha: escolha || null };
+  return { data, itens, horario: horario || null, escolha: escolha || null, ordem: ordem || 'padrao' };
+}
+
+// Por que não há opção (D-055): explica em vez de só mostrar a lista vazia.
+function motivoSemOpcao(ctx, r, itens) {
+  if (ctx.passado) return 'Data no passado.';
+  if (r.semCandidato && r.semCandidato.length) {
+    const nomes = itens.filter(it => r.semCandidato.includes(it.servico.id)).map(it => it.servico.nome);
+    return `Nenhum profissional habilitado (ou disponível na escolha) para: ${nomes.join(', ')}.`;
+  }
+  if (r.opcoes.length) return r.semOpcaoComEscolhido ? 'O profissional escolhido não tem como fazer tudo neste dia; veja as alternativas.' : null;
+  if (r.busca && r.busca.truncada) return `A busca parou no limite de ${r.busca.limite} tentativas sem achar opção. Fixe um profissional ou um horário para reduzir.`;
+  return `Nenhuma combinação cabe neste dia: confira escala, bloqueios, agendamentos e a espera máxima entre etapas (${ctx.esperaMaxMin} min).`;
 }
 
 const etapaPublica = e => ({
@@ -90,7 +103,9 @@ router.post('/agenda/combinacoes', authorize('agenda:ver'), async (req, res, nex
     });
     const r = ctx.passado ? { opcoes: [], totaisPorProfissional: [], semCandidato: [] } : combinar({
       itens, profissionais, vinculos: ctx.vinculos, livresPor: ctx.livresPor, esperaMaxMin: ctx.esperaMaxMin,
-      inicioMinimoMin: ctx.inicioMinimoMin, horario: pedido.horario
+      inicioMinimoMin: ctx.inicioMinimoMin, horario: pedido.horario, ordem: pedido.ordem,
+      // Menor serviço ativo = menor bloco vendável (sobra menor que isso é tempo perdido).
+      minUtilMin: Math.min(...ctx.servicos.map(sv => Number(sv.duracao_min) || 30).filter(n => n > 0), 30)
     });
     let escolha = null;
     if (pedido.escolha) {
@@ -114,9 +129,15 @@ router.post('/agenda/combinacoes', authorize('agenda:ver'), async (req, res, nex
         data: pedido.data, esperaMaxMin: ctx.esperaMaxMin,
         totaisPorProfissional: r.totaisPorProfissional.map(t => ({ ...t, profissionalNome: (profissionais.find(p => p.id === t.profissionalId) || {}).nome || null })),
         semProfissional: r.semCandidato,
+        // D-055: ordem usada, busca medida (limitada), alternativas quando o escolhido não cabe e o
+        // motivo quando nada cabe. Sugestão não é reserva: o servidor revalida ao gravar.
+        ordem: r.ordem || pedido.ordem, busca: r.busca || null, totalEncontradas: r.totalEncontradas ?? r.opcoes.length,
+        alternativas: Boolean(r.alternativas), semOpcaoComEscolhido: Boolean(r.semOpcaoComEscolhido),
+        motivo: motivoSemOpcao(ctx, r, itens),
         opcoes: r.opcoes.map(o => ({
           tipo: o.tipo, inicio: minutesToTime(o.inicioMin), fim: minutesToTime(o.fimMin), esperaMin: o.esperaMin,
-          tempoTotalMin: o.tempoTotalMin, duracaoMin: o.duracaoMin, precoCentavos: o.precoCentavos, etapas: o.etapas.map(etapaPublica)
+          tempoTotalMin: o.tempoTotalMin, duracaoMin: o.duracaoMin, precoCentavos: o.precoCentavos, etapas: o.etapas.map(etapaPublica),
+          sobraMin: o.sobraMin ?? 0, mantemPreferencia: o.mantemPreferencia ?? null
         })),
         escolha
       }

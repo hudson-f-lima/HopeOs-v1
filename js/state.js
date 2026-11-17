@@ -114,18 +114,36 @@ export async function loadCatalog() {
   stateBus.dispatchEvent(new CustomEvent('catalog:updated', { detail: state.catalog }));
 }
 
+// Semana da agenda (D-055): só a resposta do pedido mais recente vale. Navegar rápido dispara
+// vários pedidos; um mais antigo que chegue depois é descartado (não pinta outra semana na tela).
+// `semanaCarregada` diz de que semana são os dados em weekAgenda; a tela compara com a pedida.
+let seqSemana = 0;
+export function semanaPronta() { return state.semanaCarregada === state.currentWeekStart; }
 export async function loadWeekAgenda() {
-  const dates = weekDates(state.currentWeekStart);
-  let falhas = 0;
+  const meu = ++seqSemana;
+  const inicio = state.currentWeekStart;
+  const dates = weekDates(inicio);
+  state.agendaCarregando = true;
+  stateBus.dispatchEvent(new CustomEvent('agenda:carregando'));
+  const falhasDias = [];
   // Bloqueios e ausências da semana (D-046): a grade mostra e não oferece o horário bloqueado.
   const excecoes = sessionPode('escala:ver')
-    ? api('/disponibilidade?de=' + encodeURIComponent(dates[0])).then(d => (d && d.excecoes) || []).catch(() => [])
+    ? api('/disponibilidade?de=' + encodeURIComponent(dates[0])).then(d => (d && d.excecoes) || []).catch(() => null)
     : Promise.resolve([]);
-  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhas += 1; return []; })));
-  state.weekExcecoes = await excecoes;
+  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhasDias.push(d); return []; })));
+  const exc = await excecoes;
+  if (meu !== seqSemana) return false; // resposta antiga: outra semana já foi pedida
+  state.agendaCarregando = false;
+  state.weekExcecoes = exc || [];
+  state.excecoesFalharam = exc === null; // sem os bloqueios, a grade não pode afirmar que está livre
   state.gradeDia = {}; // horário de trabalho do dia: recarrega junto com a agenda
+  state.gradeFalha = {};
   state.weekAgenda = {};
-  state.agendaFalhas = falhas; // a tela avisa: dia vazio por falha não é dia sem horários
+  state.agendaFalhas = falhasDias.length; // a tela avisa: dia vazio por falha não é dia sem horários
+  state.agendaFalhasDias = new Set(falhasDias);
   dates.forEach((d, i) => { state.weekAgenda[d] = results[i]; });
+  state.semanaCarregada = inicio;
+  if (falhasDias.length < dates.length) state.agendaAtualizadaEm = new Date();
   stateBus.dispatchEvent(new CustomEvent('agenda:updated', { detail: state.weekAgenda }));
+  return true;
 }

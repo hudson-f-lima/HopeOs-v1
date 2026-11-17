@@ -48,6 +48,7 @@ const CASOS = [
   { nome: 'agenda-mes' },
   { nome: 'agenda-inteligente' },
   { nome: 'agenda-politica-espera' },
+  { nome: 'agenda-confiavel' },
   { nome: 'link-online' },
   { nome: 'link-pessoal', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'series' },

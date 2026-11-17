@@ -147,7 +147,7 @@
         </section>
         <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais e lista de espera">
           <p class="agx-escopo" id="weekCountLabel">—</p>
-          <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span></div>
+          <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span><span><i class="lg lg-incerto"></i>Não confirmado</span></div>
           <p class="agx-escopo">Contam os agendamentos ativos (sem cancelados e remarcados) dos profissionais selecionados. Nenhum número aqui é estimado.</p>
           <button class="btn btn-secondary" id="btnAbrirListaEspera" type="button">+ Lista de espera</button>
         </section>
@@ -156,6 +156,7 @@
           <span class="agx-total" id="dayCountLabel">—</span>
         </div>
         <div class="ag-filtro-profs hidden" id="agFiltroProfs" role="group" aria-label="Profissionais na agenda (vários)"></div>
+        <p class="agx-status hidden" id="agStatus" role="status" aria-live="polite"></p>
         <div class="agenda-scroll-container" id="timelineContainer">
           <div class="agenda-grid" id="agendaGrid"></div>
         </div>
@@ -1201,6 +1202,17 @@
     <button class="btn" type="button" id="btnAtendimentoFechar" aria-label="Fechar">✕</button>
   </div>
   <p class="body-sm text-tertiary" id="atendimentoResumo"></p>
+  <label class="at-ordem body-sm">Ordenar por
+    <select id="atendimentoOrdem">
+      <option value="padrao">Sem espera primeiro</option>
+      <option value="preferencia">Profissional escolhido</option>
+      <option value="espera">Menor espera</option>
+      <option value="tempo_total">Menor tempo total</option>
+      <option value="aproveitamento">Melhor aproveitamento da agenda</option>
+      <option value="inicio">Mais cedo</option>
+    </select>
+  </label>
+  <p class="body-sm at-aviso hidden" id="atendimentoAviso" role="status"></p>
   <p class="body-sm" id="atendimentoMsg" role="alert"></p>
   <div id="atendimentoOpcoes" class="at-opcoes"></div>
 </dialog>

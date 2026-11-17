@@ -53,6 +53,10 @@ function installMemoryBackend(seed = {}) {
     return Object.assign(row, p);
   };
   P.update = P.updateScoped;
+  P.atualizarStatusSe = async function (t, id, deStatus, p) {
+    const row = rows(t).find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
+    return row ? Object.assign(row, p) : null;
+  };
   P.atualizarStatusAgendamentoSe = async function (id, deStatus, p) {
     const row = rows('agendamentos').find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
     return row ? Object.assign(row, p) : null;

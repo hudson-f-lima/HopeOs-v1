@@ -4,7 +4,9 @@
 // Este motor calcula, a partir dos espaços livres de cada profissional:
 // - duração e preço de cada serviço com cada profissional (override > serviço);
 // - a grade de inícios: do começo de cada espaço livre, andando pela duração TOTAL do
-//   atendimento, mais o início que termina exatamente no fim do espaço;
+//   atendimento, mais o início que termina exatamente no fim do espaço; e (D-055) as âncoras
+//   das etapas com outro profissional, que antes ficavam de fora (falso negativo). Busca limitada
+//   e medida;
 // - as combinações: tudo com um profissional; serviços em sequência com profissionais
 //   diferentes, sem espera; e fracionado, com espera entre etapas até o limite da unidade;
 // - a validação de uma escolha (as mesmas regras, usadas de novo no servidor ao gravar).
@@ -16,6 +18,8 @@ const { resolveDuracaoMin, periodosDoDia, janelasLivres } = require('./SlotEngin
 const MAX_SERVICOS = 6;
 const MAX_OPCOES = 40;
 const ESPERA_MAX_PADRAO_MIN = 30;
+const LIMITE_AVALIACOES = 20000; // montagens testadas por consulta (busca limitada e medida)
+const ORDENS = ['padrao', 'preferencia', 'espera', 'tempo_total', 'aproveitamento', 'inicio'];
 
 function overrideDe(servico, profissional) {
   let ov = profissional && profissional.overrides;
@@ -74,6 +78,41 @@ function gradeDeInicios(livres, primeiro, passo, minimo = null) {
   return [...out].sort((a, b) => a - b);
 }
 
+// Inícios candidatos de uma sequência (D-055). A grade documentada (D-040: do começo de cada
+// espaço do primeiro profissional, andando pela duração TOTAL, mais o início que termina no fim do
+// espaço) continua; somam-se as âncoras que fazem uma etapa feita por OUTRO profissional começar
+// ou terminar exatamente na borda de um espaço dele. Sem elas, uma sequência sem espera que não
+// caía na grade sumia (falso negativo).
+function iniciosCandidatos(seq, livresPor, minimo, umSo) {
+  const livres1 = livresPor.get(seq[0].profissional.id) || [];
+  const total = seq.reduce((t, e) => t + e.duracaoMin, 0);
+  const out = new Set(gradeDeInicios(livres1, umSo ? total : seq[0].duracaoMin, total, minimo));
+  if (!umSo) {
+    let antes = 0;
+    for (const e of seq) {
+      const depois = antes + e.duracaoMin;
+      if (e.profissional.id !== seq[0].profissional.id) {
+        for (const w of livresPor.get(e.profissional.id) || []) { out.add(w.start - antes); out.add(w.end - depois); }
+      }
+      antes = depois;
+    }
+  }
+  // Só o que cabe num espaço do primeiro profissional (o resto o montar recusaria de qualquer forma).
+  return [...out].filter(t => (minimo === null || t >= minimo) && livres1.some(w => t >= w.start && t + seq[0].duracaoMin <= w.end)).sort((a, b) => a - b);
+}
+
+// Sobra inútil (aproveitamento): pedaços livres menores que `minUtil` deixados antes ou depois
+// de cada etapa no espaço do seu profissional.
+function sobraDe(etapas, livresPor, minUtil) {
+  let sobra = 0;
+  for (const e of etapas) {
+    const w = (livresPor.get(e.profissional.id) || []).find(x => e.inicioMin >= x.start && e.fimMin <= x.end);
+    if (!w) continue;
+    for (const pedaco of [e.inicioMin - w.start, w.end - e.fimMin]) if (pedaco > 0 && pedaco < minUtil) sobra += pedaco;
+  }
+  return sobra;
+}
+
 function permutacoes(lista) {
   if (lista.length <= 1) return [lista];
   const out = [];
@@ -115,12 +154,31 @@ function montar(ordem, inicio, livresPor, esperaMaxMin, exato = false) {
  * @param {number|null} [p.inicioMinimoMin] não oferecer antes deste minuto (hoje)
  * @param {string|null} [p.horario] só opções que começam neste horário
  */
-function combinar({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ESPERA_MAX_PADRAO_MIN, inicioMinimoMin = null, horario = null, maxOpcoes = MAX_OPCOES }) {
-  if (!Array.isArray(itens) || !itens.length || itens.length > MAX_SERVICOS) throw new Error('itens fora da faixa');
-  const habilitado = (profId, servicoId) => {
-    const doProf = (vinculos || []).filter(v => v.profissional_id === profId);
-    return !doProf.length ? !(vinculos || []).length : doProf.some(v => v.servico_id === servicoId);
+function combinar(p) {
+  const r = combinarFixo(p);
+  // Preferência (D-055): sem opção com o profissional escolhido, oferece alternativas habilitadas
+  // (outro profissional ou divisão), marcando quantas etapas mantêm a escolha. Nada é trocado sem
+  // a pessoa ver e escolher.
+  const fixados = (p.itens || []).filter(it => it.profissionalId).length;
+  if (r.opcoes.length || !fixados || r.semCandidato.length && r.semCandidato.length === p.itens.length) return { ...r, alternativas: false };
+  const livre = combinarFixo({ ...p, itens: p.itens.map(it => ({ ...it, profissionalId: null, preferidoId: it.profissionalId || it.preferidoId || null })) });
+  return { ...livre, alternativas: livre.opcoes.length > 0, semOpcaoComEscolhido: true, totaisPorProfissional: r.totaisPorProfissional };
+}
+
+// Habilitação (regra única, D-040/D-055): o profissional faz o serviço se tiver o vínculo; quem
+// não tem nenhum vínculo só é habilitado quando o salão ainda não cadastrou vínculo algum.
+function habilitadoPor(vinculos) {
+  const lista = vinculos || [];
+  return (profId, servicoId) => {
+    const doProf = lista.filter(v => v.profissional_id === profId);
+    return !doProf.length ? !lista.length : doProf.some(v => v.servico_id === servicoId);
   };
+}
+
+function combinarFixo({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ESPERA_MAX_PADRAO_MIN, inicioMinimoMin = null, horario = null, maxOpcoes = MAX_OPCOES,
+  minUtilMin = 30, ordem = 'padrao', limiteAvaliacoes = LIMITE_AVALIACOES }) {
+  if (!Array.isArray(itens) || !itens.length || itens.length > MAX_SERVICOS) throw new Error('itens fora da faixa');
+  const habilitado = habilitadoPor(vinculos);
   const porId = new Map(profissionais.map(pr => [pr.id, pr]));
   // Candidatos de cada serviço: o fixado (se habilitado) ou todos os habilitados.
   const candidatos = itens.map(it => {
@@ -140,7 +198,8 @@ function combinar({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ES
       duracaoMin: itens.reduce((s, it) => s + duracaoDe(it.servico, pr), 0),
       precoCentavos: itens.reduce((s, it) => s + precoDe(it.servico, pr), 0)
     }));
-  if (semCandidato.length) return { opcoes: [], totaisPorProfissional, semCandidato };
+  const busca = { avaliadas: 0, limite: limiteAvaliacoes, truncada: false };
+  if (semCandidato.length) return { opcoes: [], totaisPorProfissional, semCandidato, busca };
 
   const pedido = horario ? timeToMinutes(horario) : null;
   const indices = itens.map((_, i) => i);
@@ -148,8 +207,13 @@ function combinar({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ES
   const vistas = new Set();
   const opcoes = [];
 
-  // Atribuições: produto cartesiano dos candidatos (fixados têm um só).
-  const atribuicoes = candidatos.reduce((acc, cs) => acc.flatMap(a => cs.map(c => [...a, c])), [[]]);
+  // Atribuições: produto cartesiano dos candidatos (fixados têm um só). As que mantêm mais
+  // preferências vêm primeiro: se a busca bater no limite, corta as menos preferidas.
+  const prefs = itens.map(it => it.preferidoId || null);
+  const mantem = atrib => atrib.filter((pr, i) => prefs[i] && pr.id === prefs[i]).length;
+  const atribuicoes = candidatos.reduce((acc, cs) => acc.flatMap(a => cs.map(c => [...a, c])), [[]])
+    .sort((a, b) => mantem(b) - mantem(a));
+  externo:
   for (const atrib of atribuicoes) {
     const umSo = atrib.every(pr => pr.id === atrib[0].id);
     for (const ordem of (umSo ? [indices] : ordens)) {
@@ -158,10 +222,11 @@ function combinar({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ES
         duracaoMin: duracaoDe(itens[i].servico, atrib[i]), precoCentavos: precoDe(itens[i].servico, atrib[i])
       }));
       const total = seq.reduce((s, e) => s + e.duracaoMin, 0);
-      const livres1 = livresPor.get(seq[0].profissional.id) || [];
-      const inicios = pedido !== null ? [pedido] : gradeDeInicios(livres1, umSo ? total : seq[0].duracaoMin, total, inicioMinimoMin);
+      const inicios = pedido !== null ? [pedido] : iniciosCandidatos(seq, livresPor, inicioMinimoMin, umSo);
       for (const ini of inicios) {
         if (inicioMinimoMin !== null && ini < inicioMinimoMin) continue;
+        if (busca.avaliadas >= limiteAvaliacoes) { busca.truncada = true; break externo; }
+        busca.avaliadas += 1;
         const m = montar(seq, ini, livresPor, umSo ? 0 : esperaMaxMin);
         if (!m) continue;
         const fim = m.etapas[m.etapas.length - 1].fimMin;
@@ -171,18 +236,34 @@ function combinar({ itens, profissionais, vinculos, livresPor, esperaMaxMin = ES
         vistas.add(chave);
         opcoes.push({
           tipo, inicioMin: ini, fimMin: fim, esperaMin: m.esperaMin, tempoTotalMin: fim - ini,
-          duracaoMin: total, precoCentavos: m.etapas.reduce((s, e) => s + e.precoCentavos, 0), etapas: m.etapas
+          duracaoMin: total, precoCentavos: m.etapas.reduce((s, e) => s + e.precoCentavos, 0), etapas: m.etapas,
+          sobraMin: sobraDe(m.etapas, livresPor, minUtilMin),
+          mantemPreferencia: prefs.some(Boolean) ? m.etapas.filter(e => { const i = itens.findIndex(it => it.servico.id === e.servico.id); return prefs[i] && e.profissional.id === prefs[i]; }).length : null
         });
       }
     }
   }
 
-  // Sem espera primeiro (um profissional, depois sequência), por início; as demais pelo tempo
-  // total do cliente.
+  opcoes.sort(comparador(ordem));
+  return { opcoes: opcoes.slice(0, maxOpcoes), totaisPorProfissional, semCandidato: [], busca, ordem: ORDENS.includes(ordem) ? ordem : 'padrao', totalEncontradas: opcoes.length };
+}
+
+// Ordenação configurável (D-055). Padrão (como antes): sem espera primeiro (um profissional, depois
+// sequência) por início; as com espera pelo tempo total. Preferência põe à frente quem mantém mais
+// escolhas da pessoa; as outras ordens desempatam pelo início.
+function comparador(ordem) {
   const rank = { mesmo_profissional: 0, sequencia: 1, fracionado: 2 };
-  opcoes.sort((a, b) => (a.esperaMin > 0) - (b.esperaMin > 0)
-    || (a.esperaMin === 0 ? rank[a.tipo] - rank[b.tipo] || a.inicioMin - b.inicioMin : a.tempoTotalMin - b.tempoTotalMin || a.inicioMin - b.inicioMin));
-  return { opcoes: opcoes.slice(0, maxOpcoes), totaisPorProfissional, semCandidato: [] };
+  const padrao = (a, b) => (a.esperaMin > 0) - (b.esperaMin > 0)
+    || (a.esperaMin === 0 ? rank[a.tipo] - rank[b.tipo] || a.inicioMin - b.inicioMin : a.tempoTotalMin - b.tempoTotalMin || a.inicioMin - b.inicioMin);
+  const pref = (a, b) => (b.mantemPreferencia || 0) - (a.mantemPreferencia || 0);
+  switch (ordem) {
+    case 'espera': return (a, b) => a.esperaMin - b.esperaMin || a.tempoTotalMin - b.tempoTotalMin || a.inicioMin - b.inicioMin;
+    case 'tempo_total': return (a, b) => a.tempoTotalMin - b.tempoTotalMin || a.esperaMin - b.esperaMin || a.inicioMin - b.inicioMin;
+    case 'aproveitamento': return (a, b) => a.sobraMin - b.sobraMin || a.esperaMin - b.esperaMin || a.inicioMin - b.inicioMin;
+    case 'inicio': return (a, b) => a.inicioMin - b.inicioMin || a.tempoTotalMin - b.tempoTotalMin;
+    case 'preferencia': return (a, b) => pref(a, b) || padrao(a, b);
+    default: return (a, b) => pref(a, b) || padrao(a, b);
+  }
 }
 
 // Confere uma escolha já feita (cenário 7 e a revalidação do servidor ao gravar): cada etapa cabe
@@ -210,6 +291,6 @@ function validarEtapas({ etapas, livresPor, esperaMaxMin = ESPERA_MAX_PADRAO_MIN
 }
 
 module.exports = {
-  combinar, validarEtapas, livresDoProfissional, gradeDeInicios, primeiroEncaixe, precoDe, duracaoDe,
+  combinar, validarEtapas, habilitadoPor, iniciosCandidatos, ORDENS, LIMITE_AVALIACOES, livresDoProfissional, gradeDeInicios, primeiroEncaixe, precoDe, duracaoDe,
   minutesToTime, MAX_SERVICOS, MAX_OPCOES, ESPERA_MAX_PADRAO_MIN
 };

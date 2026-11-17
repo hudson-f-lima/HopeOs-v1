@@ -149,6 +149,20 @@ class SupabaseRepository {
     return (data && data[0]) || null;
   }
 
+  // Compare-and-set genérico (D-055): só atualiza se o status atual ainda estiver em `deStatus`.
+  // Dois pedidos ao mesmo tempo: só um recebe a linha; o outro recebe null.
+  async atualizarStatusSe(table, id, deStatus, patch) {
+    const { data, error } = await this.supabase
+      .from(table)
+      .update(patch)
+      .eq('id', id)
+      .eq('empresa_id', this.empresaId)
+      .in('status', deStatus)
+      .select('*');
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
   async upsert(table, rows, conflict = 'id') {
     const { data, error } = await this.supabase.from(table).upsert(rows, { onConflict: conflict }).select('*');
     if (error) throw error;

@@ -207,7 +207,7 @@ test('PE08 agendar com listaEsperaId: grava e marca "agendado"; outro cliente é
   assert.strictEqual(ok.status, 201, ok.raw.slice(0, 160));
   assert.strictEqual(db.lista_espera.find(x => x.id === W(2)).status, 'agendado');
   const de_novo = await request('POST', '/api/agenda', { body: { clienteId: CLI[1], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '16:00', listaEsperaId: W(2), aceitarAvisos: true } });
-  assert.strictEqual(de_novo.status, 422, 'item já resolvido');
+  assert.strictEqual(de_novo.status, 409, 'item já resolvido'); assert.strictEqual(code(de_novo), 'WAITLIST_ALREADY_USED');
 });
 
 test('PE09 faixa: as duas pontas ou nenhuma; null limpa', async () => {

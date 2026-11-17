@@ -775,3 +775,48 @@
   - Na agenda, tocar no horário livre mostra "Na lista de espera, combinam (N)"; escolher abre o agendar já preenchido; ao gravar, `listaEsperaId` vai junto e o servidor marca o item "agendado" (mesmo cliente e item ativo, senão `WAITLIST_MISMATCH` antes de gravar; exige `espera:gerir`).
   - Quem não pode bloquear e não tem ninguém compatível continua indo direto para o agendar.
 - **Verificação:** gate offline `agenda-politica-gate` (9 testes; o PE04 tem controle negativo: o mesmo pedido no link dentro da política grava, provando que a recusa é da política); E2E `agenda-politica-espera` (política pela tela, faixa pela tela com recusa de só um lado, vaga mostra só quem combina, agendar marca "agendado", o outro item continua aguardando). Cache `hope-os-shell-v1-57-0-politica-espera`.
+
+## D-055 — Agenda confiável: reauditoria do b00a904, correções P0 e proposta da 026 (sem migration)
+- **Pedido (Platform Owner, 2026-11-17):** "AGENDA CONFIÁVEL E INTELIGENTE" — auditar a versão atual (b00a904) e corrigir na ordem confiabilidade → clareza → velocidade → inteligência. Sem migration nova, sem deploy, merge só por ordem.
+- **Achados confirmados no b00a904 e corrigidos** (cada um reproduzido antes e depois, ver Verificação):
+  1. **Semana com resposta antiga — REAL (CRÍTICO).** `loadWeekAgenda` não descartava respostas velhas: navegar rápido fazia a resposta da semana anterior chegar por último e sobrescrever a atual. A tela mostrava os dias certos, mas a grade e os contadores eram de outra semana: um agendamento sumiu e o contador mostrou 0. Correção: só o pedido mais recente vale (`seqSemana`); `semanaCarregada` diz de que semana são os dados; até chegar, a grade mostra "Carregando a semana…" e os contadores "…".
+  2. **Arraste com horário errado — REAL.** A posição era medida a partir do topo do contêiner, que inclui o cabeçalho fixo dos profissionais, e não da coluna. Soltar com o topo do bloco na linha das 12:00 gravava 12:20. Correção: a conta parte da coluna e do ponto onde o bloco foi pego; a prévia mostra o horário e tem a altura da duração. Prévia, régua e gravação coincidem (12:00 / 12:00).
+  3. **Vários serviços com falso negativo — REAL.** Os inícios só andavam pela duração total a partir do espaço do primeiro profissional, então a sequência sem espera alinhada ao espaço do segundo profissional sumia: com o B livre às 09:45, o primeiro início sem espera era 09:45 em vez de 09:15. Correção: a grade documentada (D-040) continua e ganha as âncoras das etapas feitas por outro profissional. A busca é limitada (20 000 montagens) e medida (`busca.avaliadas`, `truncada`).
+  4. **Lista de espera usada duas vezes — REAL.** O pedido era conferido antes e baixado depois de gravar. Dois agendamentos ao mesmo tempo gravavam os dois (reproduzido: 201 e 201). Correção: baixa atômica (`atualizarStatusSe`, compare-and-set) **antes** de gravar; o segundo recebe 409 `WAITLIST_ALREADY_USED`. Se a gravação falhar, o pedido volta ao status anterior; se nem isso der, o erro diz `listaEspera: nao_devolvida` (nada silencioso). A baixa que falhava depois de gravar não existe mais.
+  5. **Escala alterada durante a reserva — REAL (PARCIAL após a correção).** A disponibilidade é lida no Node antes de gravar, e o banco não tem trava comum entre escala e agendamento. Correção possível sem migration: depois de gravar, a disponibilidade é conferida de novo; se mudou (ex.: entrou um bloqueio), a reserva recém-criada é cancelada com o motivo `escala_mudou_durante_reserva` no histórico, e quem agendava recebe 409 `ESCALA_MUDOU`. Isso **reduz a janela, não a fecha**: existe um encaixe residual em que a escala lê a agenda antes da reserva entrar. A garantia completa precisa da 026 (abaixo).
+  6. **Disponibilidade desconhecida parecendo livre — REAL (CRÍTICO).** Sem a escala do dia, sem os agendamentos do dia ou sem os bloqueios, os horários vazios apareciam como livres. Correção: ficam hachurados, com legenda "Não confirmado" e o motivo; o aviso traz "Tentar de novo" e diz de quando são os dados. Tocar ainda leva a agendar, e o servidor confere ao gravar.
+- **Regras confirmadas (preservadas, sem decisão diferente):**
+  - **Faixa da espera:** vale o **início** dentro da faixa (D-054).
+  - **Profissional sem vínculos:** só é habilitado quando o salão não tem nenhum vínculo cadastrado (D-040). O link público e o motor de vários serviços já seguiam essa regra; a lista de espera (D-054) liberava tudo e foi alinhada.
+  - **Troca de serviço com pedido da espera:** é regra nova (não havia decisão). O pedido **não** é baixado se o serviço (ou o cliente) mudou no formulário: o servidor recusa o vínculo (`WAITLIST_MISMATCH`), a tela grava sem ele e avisa que o pedido continua na espera. **Decisão a confirmar pelo Platform Owner.**
+- **Clareza (P1):**
+  - Colunas no celular se ajustam ao espaço (até 3 profissionais sem rolar de lado).
+  - Profissional desativado sai da seleção do filtro (a grade nunca fica vazia por seleção antiga).
+  - Linha de estado: carregando, falha e dados de quando.
+  - Gestão de datas avulsas, consecutivas e da unidade, e a decisão explícita antes de fechar ou alterar escalas com agendamentos afetados, já existiam (D-033/D-035/D-050, `CONFLITOS_PENDENTES`): conferidas, **REAL**.
+- **Inteligência (P2):**
+  - **Ordenação escolhível nas combinações:** sem espera primeiro (padrão), profissional escolhido, menor espera, menor tempo total, melhor aproveitamento (sobra menor que o menor serviço) e mais cedo.
+  - **Alternativas:** quando o escolhido não cabe, são oferecidas outras opções marcadas com quantas etapas mantêm a escolha. Nada é trocado sem a pessoa escolher.
+  - **Explicações:** motivo quando nada cabe. Cada opção mostra tempo no salão, sobra e preferência.
+  - Sugestão continua não sendo reserva; a gravação de vários serviços é tudo ou nada (019).
+- **Proposta da migration 026 (NÃO criada; precisa de autorização). DRAFT ONLY:**
+  ```sql
+  -- DRAFT ONLY — não executar. Trava comum entre escala e reserva, por profissional e dia.
+  -- Em agendamento_criar, atendimento_criar e nas funções de disponibilidade (semanal_definir,
+  -- excecoes_criar, excecao_remover/encurtar, lote), antes de ler ou gravar:
+  --   perform pg_advisory_xact_lock(hashtextextended(p_empresa_id::text || ':' || p_profissional_id::text || ':' || p_data::text, 0));
+  -- e mover a conferência "cabe na disponibilidade" para dentro de agendamento_criar (hoje no Node).
+  -- Mudanças da unidade inteira travam por empresa e dia. Com isso, escala e reserva do mesmo
+  -- profissional e dia passam a acontecer uma de cada vez: some a corrida descrita no item 5.
+  ```
+- **Verificação:**
+  - **Gate offline `agenda-confiavel` (9 testes):**
+    - contra o código antigo (b00a904): 8 falham; o C06 passava porque a baixa antiga nem acontecia antes de gravar;
+    - no código novo: 9/9;
+    - inclui dupla confirmação simultânea da espera, falha ao gravar com devolução do pedido, troca de serviço, regra de vínculo e escala mudando entre a conferência e a gravação (com controle negativo).
+  - **E2E `agenda-confiavel`:**
+    - respostas fora de ordem: antes falhava (agendamento sumia, "0 agend."), agora passa;
+    - escala sem resposta: antes 0 horários marcados e 72 parecendo livres, agora 72 marcados e "Tentar de novo";
+    - também cobre dia sem resposta, filtro com profissional desativado e 3 colunas no celular.
+  - **Arraste com a grade rolada:** roteiro antes/depois (12:20 → 12:00).
+  - Cache `hope-os-shell-v1-58-0-agenda-confiavel`.
