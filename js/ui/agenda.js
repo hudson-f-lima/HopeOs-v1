@@ -1,6 +1,6 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { initAgendaMes, desenharFiltro, recarregarMesSeAberto } from './agendaMes.js';
-import { htmlCampos, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
+import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
@@ -570,7 +570,7 @@ function openActionSheet(item) {
   if (atraso) actionsHtml = actionsHtml.replace('class="btn danger" data-sheet-action="noshow"', 'class="btn danger agc-destaque" data-sheet-action="noshow"');
   document.getElementById('actionSheetContent').innerHTML = `
     <div class="agc-head">
-      <h2 class="agc-cliente">${escapeHtml(findClienteNome(item.cliente_id))}</h2>
+      <h2 class="agc-cliente">${htmlCliente(item)}</h2>
       <span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span>
     </div>
     <div class="agc-sub"><span class="agc-hora">${horario}–${computeEndTime(item)}${atraso ? ` <span class="agc-atraso" role="status">⏱ atrasado ${atraso} min</span>` : ''}</span>
@@ -612,7 +612,7 @@ async function carregarSeloPlano(item) {
 }
 
 // Trilha de status (GET /agenda/:id/historico). Só leitura; carrega ao abrir.
-const HISTORICO_ORIGEM = { checkout: 'checkout', reagendamento: 'reagendamento' };
+const HISTORICO_ORIGEM = { troca_cliente: 'troca de cliente', checkout: 'checkout', reagendamento: 'reagendamento' };
 function statusLabel(s) {
   if (s === null || s === undefined) return '—';
   return (AGENDA_STATUS_META[s] && AGENDA_STATUS_META[s].label) || String(s);
@@ -628,6 +628,8 @@ function historicoLinha(ev) {
   if (ev.tipo === 'duracao') texto = `Duração ${ev.de ?? '—'} → ${ev.para ?? '—'} min`;
   else if (ev.tipo === 'criado') texto = `Criado · ${statusLabel(ev.para)}`;
   else if (ev.tipo === 'reagendado' && ev.reagendadoDe) texto = `Criado por reagendamento · ${statusLabel(ev.para)}`;
+  else if (ev.tipo === 'cliente_corrigido') texto = 'Cliente corrigido (engano de cadastro)';
+  else if (ev.tipo === 'vaga_repassada') texto = 'Vaga repassada a outro cliente (não conta como falta)';
   else texto = `${statusLabel(ev.de)} → ${statusLabel(ev.para)}`;
   const origem = HISTORICO_ORIGEM[ev.origem] ? ` (${HISTORICO_ORIGEM[ev.origem]})` : '';
   const quem = ev.ator && ev.ator.nome ? ev.ator.nome : (ev.ator && ev.ator.tipo === 'integration' ? 'Integração' : '');

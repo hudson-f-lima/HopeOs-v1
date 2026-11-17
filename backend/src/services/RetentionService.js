@@ -200,7 +200,10 @@ class RetentionService {
     // D-049: tardio pelo prazo do serviço ou do salão (o mesmo que o cliente vê no link).
     const servicos = await this.repo.list('servicos', { empresa_id: this.repo.empresaId });
     const porId = new Map(servicos.map(sv => [sv.id, sv]));
-    const result = retention.computeReliability(agendamentos, hoje, { prazoMinDe: a => prazoCancelamentoMin(empresa, porId.get(a.servico_id)) });
+    // D-051: cancelamentos com a vaga repassada a outro cliente não contam.
+    const repassadas = await this.repo.list('agendamento_eventos', { empresa_id: this.repo.empresaId, tipo: 'vaga_repassada' }).catch(() => []);
+    const vagasRepassadas = new Set(repassadas.map(e => e.agendamento_id));
+    const result = retention.computeReliability(agendamentos, hoje, { prazoMinDe: a => prazoCancelamentoMin(empresa, porId.get(a.servico_id)), vagasRepassadas });
     const faltasCadastro = Number(cliente.faltas || 0);
     return {
       clienteId,

@@ -5,8 +5,8 @@
 //   dia e a hora não mudam, a confirmação do cliente continua);
 //   duração → PATCH /agenda/:id/duracao.
 // Fora da escala e horário ocupado: quem pode encaixar decide, como no resto da agenda.
-import { api, getAgendaSlots } from '../api.js';
-import { state, sessionPode, loadWeekAgenda, findServicoNome, findProfissionalNome, findAgendaItemById } from '../state.js';
+import { api, getAgendaSlots, getListaEspera } from '../api.js';
+import { state, sessionPode, loadWeekAgenda, findServicoNome, findProfissionalNome, findAgendaItemById, findClienteNome } from '../state.js';
 import { escapeHtml, showBanner, closeModal, confirmAction } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -65,6 +65,8 @@ export function atrasoMin(item) {
 
 export function podeEditarCampo(item, campo) {
   if (!EDITAVEL.includes(item.status) || !sessionPode('agenda:editar')) return false;
+  // Troca de cliente (D-051): só quem edita a agenda de todos, e só horário que ainda não começou.
+  if (campo === 'cliente') return sessionPode('agenda:editar', true) && minutosAte(item) > 0;
   if (campo === 'profissional') return sessionPode('agenda:editar', true); // quem só mexe no próprio não troca de profissional
   return true;
 }
@@ -74,6 +76,14 @@ function campo(item, chave, rotulo, valor) {
   return pode
     ? '<button type="button" class="agc-campo" data-editar="' + chave + '" aria-label="Alterar ' + escapeHtml(rotulo.toLowerCase()) + '"><span>' + escapeHtml(rotulo) + '</span><b>' + escapeHtml(valor) + '</b><i aria-hidden="true">✎</i></button>'
     : '<div class="agc-campo"><span>' + escapeHtml(rotulo) + '</span><b>' + escapeHtml(valor) + '</b></div>';
+}
+
+// Nome do cliente no topo do card: tocável (✎) quando dá para trocar.
+export function htmlCliente(item) {
+  const nome = escapeHtml(findClienteNome(item.cliente_id));
+  return podeEditarCampo(item, 'cliente')
+    ? '<button type="button" class="agc-cliente-btn" data-editar="cliente" aria-label="Trocar o cliente">' + nome + ' <i aria-hidden="true">✎</i></button>'
+    : nome;
 }
 
 export function htmlCampos(item) {
@@ -111,6 +121,14 @@ export function abrirEditor(item, campoNome) {
       + '<div><label for="agcHora">Hora</label><input id="agcHora" type="time" step="300" value="' + escapeHtml(hhmm(item.horario)) + '"/></div></div>'
       + '<div class="agc-livres" id="agcLivres"></div>'
       + (item.status === 'confirmado' ? '<p class="agc-dica">Mudando dia ou hora, o cliente precisa confirmar de novo.</p>' : '');
+  } else if (campoNome === 'cliente') {
+    corpo = '<fieldset class="agc-motivo"><legend>Por que trocar?</legend>'
+      + '<label><input type="radio" name="agcMotivo" value="correcao" checked/> Corrigir o cliente</label>'
+      + '<label><input type="radio" name="agcMotivo" value="vaga_repassada"/> Passar a vaga</label></fieldset>'
+      + '<p class="agc-dica" id="agcMotivoDica"></p>'
+      + '<label for="agcClienteBusca">Novo cliente</label><input id="agcClienteBusca" type="search" autocomplete="off" placeholder="Buscar pelo nome"/>'
+      + '<div class="agc-clientes" id="agcClientes" role="listbox" aria-label="Clientes sugeridos"></div>'
+      + '<p class="agc-dica">Quem entra nasce "Agendado" (confirma depois). O link do cliente anterior deixa de valer para este horário.</p>';
   } else if (campoNome === 'duracao') {
     corpo = '<label for="agcDuracao">Duração (min)</label><div class="agc-linha agc-dur">'
       + '<button type="button" class="btn" data-agc-dur="-15">−15</button><input id="agcDuracao" type="number" min="10" max="480" step="5" value="' + (item.duracao_min || 30) + '"/>'
@@ -121,6 +139,7 @@ export function abrirEditor(item, campoNome) {
   box.classList.remove('hidden');
   document.querySelectorAll('.agc-campo[data-editar]').forEach(b => b.classList.toggle('ativo', b.dataset.editar === campoNome));
   if (campoNome === 'quando') { sugerirLivres(); el('agcData').addEventListener('change', sugerirLivres); }
+  if (campoNome === 'cliente') { clienteEscolhido = null; dicaMotivo(); sugerirClientes(''); el('agcClienteBusca').addEventListener('input', ev => sugerirClientes(ev.target.value)); }
   box.querySelector('select, input')?.focus();
 }
 
@@ -139,6 +158,58 @@ async function sugerirLivres() {
       ? livres.map(s => '<button type="button" class="chip' + (s.recomendado ? ' agc-ideal' : '') + '" data-agc-hora="' + escapeHtml(s.horario) + '">' + escapeHtml(s.horario) + '</button>').join('')
       : '<span class="agc-dica">Sem horário livre neste dia.</span>';
   } catch (_) { if (seq === livresSeq) box.innerHTML = ''; }
+}
+
+// ---------- Troca de cliente (D-051) ----------
+let clienteEscolhido = null;
+let esperaCache = null;
+const semAcento = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const sobrenome = n => semAcento(n).trim().split(/\s+/).slice(1).pop() || '';
+const digitos = t => String(t || '').replace(/\D/g, '').slice(-8);
+function dicaMotivo() {
+  const m = (document.querySelector('input[name="agcMotivo"]:checked') || {}).value;
+  const atual = findClienteNome(alvo.item.cliente_id);
+  el('agcMotivoDica').textContent = m === 'vaga_repassada'
+    ? atual + ' desistiu e outra pessoa assume: não conta como falta nem como cancelamento tardio para ' + atual + '.'
+    : 'O cliente estava errado (engano de cadastro): nada conta contra ' + atual + '.';
+  el('agcSalvar').textContent = m === 'vaga_repassada' ? 'Passar a vaga' : 'Corrigir cliente';
+}
+// Sugestões: lista de espera do serviço, mesma família (sobrenome ou telefone), recentes do
+// profissional na semana; e a busca pelo nome.
+async function sugerirClientes(busca) {
+  const { item } = alvo;
+  const todos = (state.catalog.clientes || []).filter(c => c.ativo !== false && c.id !== item.cliente_id);
+  const atual = (state.catalog.clientes || []).find(c => c.id === item.cliente_id) || {};
+  const grupos = [];
+  const termo = semAcento(busca).trim();
+  if (termo.length >= 2) grupos.push(['Busca', todos.filter(c => semAcento(c.nome).includes(termo)).slice(0, 8)]);
+  else {
+    if (sessionPode('espera:ver')) {
+      if (!esperaCache || esperaCache.servico !== item.servico_id) {
+        esperaCache = { servico: item.servico_id, lista: await getListaEspera({ servicoId: item.servico_id, status: 'aguardando' }).catch(() => []) };
+      }
+      const ids = esperaCache.lista.map(x => x.cliente_id);
+      grupos.push(['Lista de espera deste serviço', todos.filter(c => ids.includes(c.id))]);
+    }
+    const sob = sobrenome(atual.nome); const tel = digitos(atual.whatsapp || atual.telefone);
+    grupos.push(['Mesma família', todos.filter(c => (sob && sobrenome(c.nome) === sob) || (tel.length === 8 && digitos(c.whatsapp || c.telefone) === tel)).slice(0, 5)]);
+    const daSemana = new Set(Object.values(state.weekAgenda || {}).flat().filter(a => a.profissional_id === item.profissional_id).map(a => a.cliente_id));
+    grupos.push(['Recentes com ' + findProfissionalNome(item.profissional_id), todos.filter(c => daSemana.has(c.id)).slice(0, 5)]);
+  }
+  const html = grupos.filter(([, l]) => l.length).map(([t, l]) => '<p class="agc-grupo-tit">' + escapeHtml(t) + '</p>'
+    + l.map(c => '<button type="button" class="chip' + (clienteEscolhido === c.id ? ' selected' : '') + '" role="option" aria-selected="' + (clienteEscolhido === c.id) + '" data-agc-cliente="' + escapeHtml(c.id) + '">' + escapeHtml(c.nome) + '</button>').join('')).join('');
+  el('agcClientes').innerHTML = html || '<p class="agc-dica">' + (termo.length >= 2 ? 'Nenhum cliente com esse nome. Cadastre em Clientes e volte aqui.' : 'Digite o nome para buscar.') + '</p>';
+}
+
+async function trocarCliente(item, extra = {}) {
+  const motivo = (document.querySelector('input[name="agcMotivo"]:checked') || {}).value;
+  if (!clienteEscolhido) throw new Error('Escolha o novo cliente.');
+  try {
+    return await api('/agenda/' + encodeURIComponent(item.id) + '/trocar-cliente', { method: 'POST', body: { clienteId: clienteEscolhido, motivo, ...extra } });
+  } catch (err) {
+    if (!extra.aceitarAvisos && await confirmarRegras(err)) return trocarCliente(item, { ...extra, aceitarAvisos: true });
+    throw err;
+  }
 }
 
 function fecharEditor() {
@@ -178,7 +249,9 @@ async function salvar() {
   const { item, campo: c } = alvo;
   const botao = el('agcSalvar'); botao.disabled = true;
   try {
-    if (c === 'duracao') {
+    if (c === 'cliente') {
+      await trocarCliente(item);
+    } else if (c === 'duracao') {
       const d = Number(el('agcDuracao').value);
       if (!Number.isInteger(d) || d < 10 || d > 480) throw new Error('Duração entre 10 e 480 minutos.');
       if (d === (item.duracao_min || 30)) return fecharEditor();
@@ -216,6 +289,9 @@ export function initCardAgendamento() {
     }
     if (ev.target.closest('#agcCancelar')) return fecharEditor();
     if (ev.target.closest('#agcSalvar')) return salvar();
+    const cl = ev.target.closest('[data-agc-cliente]');
+    if (cl) { clienteEscolhido = cl.dataset.agcCliente; el('agcClientes').querySelectorAll('[data-agc-cliente]').forEach(x => { const on = x === cl; x.classList.toggle('selected', on); x.setAttribute('aria-selected', String(on)); }); return; }
+    if (ev.target.matches && ev.target.matches('input[name="agcMotivo"]')) return dicaMotivo();
     const h = ev.target.closest('[data-agc-hora]');
     if (h) { el('agcHora').value = h.dataset.agcHora; el('agcLivres').querySelectorAll('.chip').forEach(x => x.classList.toggle('selected', x === h)); return; }
     const d = ev.target.closest('[data-agc-dur]');

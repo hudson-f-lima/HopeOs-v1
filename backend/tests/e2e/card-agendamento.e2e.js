@@ -111,6 +111,25 @@ const topoEm = (p, sel) => p.evaluate(s => {
   const dur = (await db('agendamentos')).find(a => a.id === movido.id).duracao_min;
   confere('duração +15 pelo card', dur === antes + 15, `${antes} → ${dur}`);
 
+  // 6) Troca de cliente (D-051): passar a vaga pela busca; o original fica cancelado com vaga repassada.
+  const outro = (await (await fetch(`${API}/api/clientes`, { method: 'POST', headers: adm, body: JSON.stringify({ nome: 'Joana Vaga', whatsapp: '11 95555-1234' }) })).json()).data;
+  await r.goto(APP); await r.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await r.waitForTimeout(800);
+  await irPara(r, depois);
+  await abrirCard(r, movido.id);
+  await r.click('[data-editar="cliente"]'); await r.waitForSelector('#agcClienteBusca');
+  await r.check('input[name="agcMotivo"][value="vaga_repassada"]');
+  const dica = limpo(await r.textContent('#agcMotivoDica'));
+  confere('passar a vaga explica que não conta contra quem desistiu', /não conta como falta nem como cancelamento tardio/.test(dica) && (await r.textContent('#agcSalvar')).trim() === 'Passar a vaga', dica);
+  await r.fill('#agcClienteBusca', 'Joana');
+  await r.click(`[data-agc-cliente="${outro.id}"]`);
+  await r.click('#agcSalvar');
+  await r.waitForSelector('#actionSheet', { state: 'hidden', timeout: 8000 }); await r.waitForTimeout(600);
+  const agsT = await db('agendamentos');
+  const novoT = agsT.find(a => a.cliente_id === outro.id && a.data === depois);
+  const evT = (await db('agendamento_eventos')).find(e => e.agendamento_id === movido.id && e.tipo === 'vaga_repassada');
+  confere('vaga passada: novo cliente no mesmo horário "agendado"; anterior cancelado com vaga_repassada', novoT && novoT.status === 'agendado' && String(novoT.horario).startsWith('10:00')
+    && agsT.find(a => a.id === movido.id).status === 'cancelado' && Boolean(evT));
+
   // 5) Camadas: Conta → Clientes → + Novo por cima; Esc fecha só o de cima.
   await r.click('#navAvatar'); await r.waitForSelector('#sheetGestao:not(.hidden)');
   await r.click('[data-subtab="clientes"]'); await r.waitForTimeout(400);
@@ -132,7 +151,7 @@ const topoEm = (p, sel) => p.evaluate(s => {
   if (doDia) {
     await irPara(p, hoje);
     await abrirCard(p, doDia.id);
-    confere('profissional: Profissional não editável, Serviço e Quando editáveis', await p.locator('[data-editar="profissional"]').count() === 0 && await p.locator('[data-editar="servico"]').count() === 1);
+    confere('profissional: Profissional e Cliente não editáveis, Serviço e Quando editáveis', await p.locator('[data-editar="profissional"]').count() === 0 && await p.locator('[data-editar="cliente"]').count() === 0 && await p.locator('[data-editar="servico"]').count() === 1);
   }
   const viol = [...await r.evaluate(() => window.__csp), ...await p.evaluate(() => window.__csp)];
   console.log('VIOLAÇÕES CSP:', JSON.stringify(viol)); falhas.push(...viol);

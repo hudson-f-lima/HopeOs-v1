@@ -33,19 +33,22 @@ const CLI2 = 'd0000000-0000-4000-8000-0000000000a2';
 const UNIT = 'f0000000-0000-4000-8000-0000000000a1';
 const ADMIN = 'c0000000-0000-4000-8000-0000000000a1';
 const RECEP = 'c0000000-0000-4000-8000-0000000000a2';
+const PROF = 'c0000000-0000-4000-8000-0000000000a3';
+const CLI3 = 'd0000000-0000-4000-8000-0000000000a3';
 
 const dia = { ativo: true, inicio: '09:00', fim: '18:00' };
 const semana = { dom: dia, seg: dia, ter: dia, qua: dia, qui: dia, sex: dia, sab: dia };
 setIdentityStore(createMemoryIdentityStore({
-  app_users: [ADMIN, RECEP].map(id => ({ id, email: `${id}@t`, nome: id, ativo: true })),
+  app_users: [ADMIN, RECEP, PROF].map(id => ({ id, email: `${id}@t`, nome: id, ativo: true })),
   unidades: [{ id: UNIT, empresa_id: A, nome: 'U', ativo: true }],
   empresa_memberships: [
     { id: 'm1', empresa_id: A, user_id: ADMIN, role: 'admin', status: 'ativo' },
-    { id: 'm2', empresa_id: A, user_id: RECEP, role: 'recepcao', status: 'ativo' }
+    { id: 'm2', empresa_id: A, user_id: RECEP, role: 'recepcao', status: 'ativo' },
+    { id: 'm3', empresa_id: A, user_id: PROF, role: 'profissional', status: 'ativo', profissional_id: ANA }
   ],
   membership_units: [{ membership_id: 'm2', unit_id: UNIT }]
 }));
-const tokens = { 'h.admin.s': ADMIN, 'h.recep.s': RECEP };
+const tokens = { 'h.admin.s': ADMIN, 'h.recep.s': RECEP, 'h.prof.s': PROF };
 setAuthProvider({ async getUser(t) { if (!tokens[t]) throw createAppError('UNAUTHENTICATED', 'x', 401); return { id: tokens[t] }; } });
 
 const db = installMemoryBackend({
@@ -56,8 +59,8 @@ const db = installMemoryBackend({
   ],
   profissionais: [{ id: ANA, empresa_id: A, nome: 'Ana', ativo: true, horario: semana, overrides: {} }],
   profissional_servicos: [{ empresa_id: A, profissional_id: ANA, servico_id: CORTE }, { empresa_id: A, profissional_id: ANA, servico_id: QUIMICA }],
-  clientes: [{ id: CLI, empresa_id: A, nome: 'Cliente Um', ativo: true }, { id: CLI2, empresa_id: A, nome: 'Cliente Dois', ativo: true }],
-  agendamentos: [], agendamento_eventos: [], comandos: [], comando_itens: [], produtos: [], formas_pagamento: []
+  clientes: [{ id: CLI, empresa_id: A, nome: 'Cliente Um', ativo: true }, { id: CLI2, empresa_id: A, nome: 'Cliente Dois', ativo: true }, { id: CLI3, empresa_id: A, nome: 'Cliente Três', ativo: true }],
+  agendamentos: [], agendamento_eventos: [], lista_espera: [], comandos: [], comando_itens: [], produtos: [], formas_pagamento: []
 });
 clock.definirRelogio(() => AGORA);
 
@@ -191,6 +194,55 @@ test('R08 confiabilidade pela rota usa o prazo do salão e o do serviço', async
   assert.strictEqual(await conf(), 1, 'só a Química (prazo próprio de 48 h) continua tardia');
   await request('PATCH', `/api/servicos/${QUIMICA}`, { token: 'h.admin.s', body: { cancelamentoPrazoMin: null } });
   assert.strictEqual(await conf(), 0, 'com 2 h para tudo, 5 h antes é em tempo');
+});
+
+// ---------- D-051: troca de cliente no card ----------
+test('R09 corrigir cliente: original "reagendado" (neutro), novo no mesmo horário "agendado", histórico', async () => {
+  await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaMaxFuturosRecepcao: null, agendaIntervaloMinDias: null, agendaJanelaDiasRecepcao: null } });
+  const c = await agendar({ clienteId: CLI, data: '2026-11-20', horario: '15:00', aceitarAvisos: true });
+  await request('PATCH', `/api/agenda/${c.data.data.id}/status`, { body: { novoStatus: 'confirmado' } });
+  const t = await request('POST', `/api/agenda/${c.data.data.id}/trocar-cliente`, { body: { clienteId: CLI3, motivo: 'correcao' } });
+  assert.strictEqual(t.status, 200, t.raw);
+  const novo = t.data.data.novo;
+  assert.deepStrictEqual([novo.cliente_id, novo.status, novo.horario.slice(0, 5), novo.data], [CLI3, 'agendado', '15:00', '2026-11-20'], 'mesmo horário; quem vem confirma');
+  assert.strictEqual(db.agendamentos.find(a => a.id === c.data.data.id).status, 'reagendado');
+  const ev = db.agendamento_eventos.find(e => e.agendamento_id === c.data.data.id && e.tipo === 'cliente_corrigido');
+  assert.ok(ev && ev.payload.cliente_de === CLI && ev.payload.cliente_para === CLI3 && ev.payload.para === novo.id, JSON.stringify(ev));
+});
+
+test('R10 passar a vaga: original "cancelado" com vaga_repassada; a confiabilidade de quem desistiu não perde; lista de espera vira agendado', async () => {
+  // Cancelamento tardio de verdade (5 h antes com prazo de 12 h) e uma vaga repassada também tardia.
+  await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { cancelamentoPrazoMin: 720 } });
+  const base = (await request('GET', `/api/insights/clients/${CLI3}/reliability`, { token: 'h.admin.s' })).data.data.fatores.cancelTardios365d;
+  const ag = await agendar({ clienteId: CLI3, data: '2026-11-10', horario: '17:00', aceitarAvisos: true }); // hoje 17:00, agora 09:00
+  db.lista_espera.push({ id: '60000000-0000-4000-8000-0000000000e1', empresa_id: A, cliente_id: CLI2, servico_id: CORTE, status: 'aguardando' });
+  const t = await request('POST', `/api/agenda/${ag.data.data.id}/trocar-cliente`, { body: { clienteId: CLI2, motivo: 'vaga_repassada', aceitarAvisos: true } });
+  assert.strictEqual(t.status, 200, t.raw);
+  const orig = db.agendamentos.find(a => a.id === ag.data.data.id);
+  orig.updated_at = '2026-11-10T12:00:00Z'; // 5 h antes do horário
+  assert.strictEqual(orig.status, 'cancelado');
+  assert.ok(db.agendamento_eventos.some(e => e.agendamento_id === orig.id && e.tipo === 'vaga_repassada'));
+  const depois = (await request('GET', `/api/insights/clients/${CLI3}/reliability`, { token: 'h.admin.s' })).data.data.fatores.cancelTardios365d;
+  assert.strictEqual(depois, base, 'vaga repassada não é cancelamento tardio');
+  assert.strictEqual(db.lista_espera.find(x => x.id === '60000000-0000-4000-8000-0000000000e1').status, 'agendado', 'quem estava na lista e ganhou a vaga');
+  // Controle: o mesmo cancelamento sem a vaga repassada conta.
+  db.agendamento_eventos = db.agendamento_eventos.filter(e => !(e.agendamento_id === orig.id && e.tipo === 'vaga_repassada'));
+  const sem = (await request('GET', `/api/insights/clients/${CLI3}/reliability`, { token: 'h.admin.s' })).data.data.fatores.cancelTardios365d;
+  assert.strictEqual(sem, base + 1, 'controle negativo: sem o evento, é tardio');
+});
+
+test('R11 troca recusada: mesmo cliente, horário passado, status errado, motivo inválido, profissional', async () => {
+  const ag = await agendar({ clienteId: CLI, data: '2026-11-21', horario: '16:00', aceitarAvisos: true });
+  const id = ag.data.data.id;
+  const troca = (body, token) => request('POST', `/api/agenda/${id}/trocar-cliente`, { token, body });
+  assert.strictEqual((await troca({ clienteId: CLI, motivo: 'correcao' })).status, 422, 'mesmo cliente');
+  assert.strictEqual((await troca({ clienteId: CLI2, motivo: 'outro' })).status, 422, 'motivo');
+  assert.strictEqual((await troca({ clienteId: 'x', motivo: 'correcao' })).status, 422);
+  assert.strictEqual((await troca({ clienteId: CLI2, motivo: 'correcao' }, 'h.prof.s')).status, 403, 'profissional não troca');
+  const passado = await agendar({ clienteId: CLI, data: '2026-11-09', horario: '16:00', aceitarAvisos: true });
+  assert.strictEqual((await request('POST', `/api/agenda/${passado.data.data.id}/trocar-cliente`, { body: { clienteId: CLI2, motivo: 'correcao' } })).status, 422, 'passado');
+  await request('PATCH', `/api/agenda/${id}/status`, { body: { novoStatus: 'cancelado' } });
+  assert.strictEqual((await troca({ clienteId: CLI2, motivo: 'correcao' })).status, 422, 'cancelado não troca');
 });
 
 (async () => {
