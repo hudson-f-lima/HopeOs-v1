@@ -4,7 +4,7 @@
 // alguém com permissão confirmar que ficam mantidos (remarcar ou cancelar é feito na agenda).
 import { api } from '../api.js';
 import { abrirBloqueio } from './agendaBloqueio.js';
-import { state, sessionPode } from '../state.js';
+import { state, sessionPode, loadWeekAgenda } from '../state.js';
 import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr, baixarArquivo } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -344,7 +344,16 @@ const ACOES_LOTE = [
 // Texto fixo (sem dado de cadastro): fica fora da interpolação.
 const ALVO_UNIDADE = '<label class="perm-item"><input type="checkbox" data-lote-alvo=""/><span>Unidade</span></label>';
 
-function abrirLote() {
+// Datas não consecutivas escolhidas no calendário do mês da agenda (D-050). null = De/Até.
+let loteDatas = null;
+export async function abrirLoteComDatas(datas) {
+  if (!dados) await carregarEscalas();
+  if (!dados) return;
+  abrirLote(datas);
+}
+
+function abrirLote(datas = null) {
+  loteDatas = Array.isArray(datas) && datas.length ? datas : null;
   pendente = null; loteOk = null;
   clearModalError('escLoteErro');
   el('escLotePrevia').innerHTML = '';
@@ -353,7 +362,7 @@ function abrirLote() {
     <label class="perm-item"><input type="checkbox" data-lote-todos/><span><b>Todos os profissionais</b></span></label>
     ${sessionPode('unidade:horario') ? ALVO_UNIDADE : ''}
     ${dados.profissionais.map(p => `<label class="perm-item"><input type="checkbox" data-lote-alvo="${escapeHtml(p.id)}"/><span>${escapeHtml(p.nome)}</span></label>`).join('')}`;
-  el('escLoteAcao').innerHTML = ACOES_LOTE.filter(([v]) => !v.startsWith('modelo') || modelos.length).map(([v, t]) => `<option value="${v}">${escapeHtml(t)}</option>`).join('');
+  el('escLoteAcao').innerHTML = ACOES_LOTE.filter(([v]) => (!v.startsWith('modelo') || modelos.length) && (!loteDatas || !['semanal', 'modelo_semanal', 'modelo_periodo'].includes(v))).map(([v, t]) => `<option value="${v}">${escapeHtml(t)}</option>`).join('');
   el('escLoteModelo').innerHTML = modelos.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.nome)}</option>`).join('');
   const hoje = todayStr();
   el('escLoteDe').value = hoje; el('escLoteAte').value = hoje; el('escLoteMotivo').value = '';
@@ -367,7 +376,10 @@ function atualizarLote() {
   const a = el('escLoteAcao').value;
   loteOk = null; el('btnEscLoteAplicar').disabled = true; el('escLotePrevia').innerHTML = '';
   el('escLoteModeloBox').classList.toggle('hidden', !a.startsWith('modelo'));
-  el('escLoteDatasBox').classList.toggle('hidden', a === 'semanal' || a === 'modelo_semanal');
+  el('escLoteDatasBox').classList.toggle('hidden', Boolean(loteDatas) || a === 'semanal' || a === 'modelo_semanal');
+  const avulsas = el('escLoteDatasAvulsas');
+  avulsas.classList.toggle('hidden', !loteDatas);
+  avulsas.textContent = loteDatas ? 'Datas: ' + loteDatas.map(dataBR).join(', ') : '';
   el('escLotePeriodosBox').classList.toggle('hidden', !['horario', 'bloqueio', 'fechamento'].includes(a));
   el('escLoteSemanaBox').classList.toggle('hidden', a !== 'semanal');
   if (['horario', 'bloqueio'].includes(a) && !el('escLotePeriodos').children.length) el('escLotePeriodos').innerHTML = linhaPeriodo(0);
@@ -376,7 +388,7 @@ function atualizarLote() {
 function corpoLote() {
   const marcados = [...el('escLoteAlvos').querySelectorAll('input[data-lote-alvo]:checked')].map(i => i.dataset.loteAlvo);
   const a = el('escLoteAcao').value;
-  const datas = { dataInicio: el('escLoteDe').value, dataFim: el('escLoteAte').value || el('escLoteDe').value };
+  const datas = loteDatas ? { datas: loteDatas } : { dataInicio: el('escLoteDe').value, dataFim: el('escLoteAte').value || el('escLoteDe').value };
   let operacao;
   if (a === 'modelo_semanal') operacao = { modeloId: el('escLoteModelo').value, modo: 'semanal' };
   else if (a === 'modelo_periodo') operacao = { modeloId: el('escLoteModelo').value, modo: 'periodo', ...datas };
@@ -418,7 +430,7 @@ async function aplicarLote() {
   const botao = el('btnEscLoteAplicar');
   botao.disabled = true;
   const ok = await enviarComConflitos('escLoteErro', decisoes => api('/disponibilidade/lote', { method: 'POST', body: { ...loteOk, decisoes } }), pendente ? pendente.decisoes : undefined);
-  if (ok) { closeModal('modalEscLote'); showBanner('Alteração aplicada a todos os escolhidos.', 'ok'); carregarEscalas(); }
+  if (ok) { closeModal('modalEscLote'); showBanner('Alteração aplicada a todos os escolhidos.', 'ok'); carregarEscalas(); loadWeekAgenda().catch(() => {}); document.dispatchEvent(new CustomEvent('escala:mudou')); }
   else botao.disabled = false;
 }
 

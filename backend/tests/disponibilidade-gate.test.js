@@ -475,6 +475,47 @@ test('D26 grade do dia: horário de trabalho de cada um sem tirar bloqueios; fol
   assert.strictEqual((await request('GET', '/api/disponibilidade/grade?data=x')).status, 422);
 });
 
+// ---------- D-050: calendário do mês e datas não consecutivas ----------
+test('D27 calendário do mês: unidade especial e fechada por dia; conflito mantido aparece; profissional vê só o seu', async () => {
+  const mes = D.slice(0, 7);
+  const r = await request('GET', `/api/disponibilidade/mes?mes=${mes}`);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const dia = d => r.data.data.dias.find(x => x.data === d);
+  assert.strictEqual(r.data.data.dias.length, new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).getUTCDate(), 'todos os dias do mês');
+  assert.strictEqual(dia(D).unidade, 'especial', 'domingo D com horário excepcional');
+  assert.ok(dia(D).conflitos >= 1, `agendamento mantido fora da escala no D08 aparece: ${JSON.stringify(dia(D))}`);
+  const outroDomingo = r.data.data.dias.find(x => x.data !== D && new Date(`${x.data}T12:00:00Z`).getUTCDay() === 0 && !db.disponibilidade_excecoes.some(e => !e.profissional_id && e.data_inicio <= x.data && x.data <= e.data_fim));
+  if (outroDomingo) assert.strictEqual(outroDomingo.unidade, 'sem_horario', 'domingo comum: unidade sem horário');
+  const feriado = add(D7, 14);
+  const f = await request('GET', `/api/disponibilidade/mes?mes=${feriado.slice(0, 7)}`);
+  assert.strictEqual(f.data.data.dias.find(x => x.data === feriado).unidade, 'fechada', 'feriado fechado');
+  const prof = await request('GET', `/api/disponibilidade/mes?mes=${mes}&profissionalIds=${P.a}`, { token: 'h.edu.s' });
+  const somaProf = prof.data.data.dias.reduce((n, x) => n + x.agendamentos, 0);
+  const doEdu = db.agendamentos.filter(a => a.profissional_id === P.edu && String(a.data).startsWith(mes) && ['agendado', 'confirmado', 'aguardando', 'em_atendimento'].includes(a.status)).length;
+  assert.strictEqual(somaProf, doEdu, 'profissional: só os próprios, mesmo pedindo outro');
+  assert.strictEqual((await request('GET', '/api/disponibilidade/mes?mes=2026-13')).status, 422);
+});
+
+test('D28 lote em datas não consecutivas: cria só nas datas escolhidas, prévia diz quais; limites', async () => {
+  const d1 = add(SEG, 14); const d2 = add(SEG, 16); const meio = add(SEG, 15);
+  const corpo = { profissionalIds: [P.a, P.b], operacao: { tipo: 'ausencia', datas: [d2, d1, d1], motivo: 'Curso' } };
+  const prev = await request('POST', '/api/disponibilidade/lote', { token: 'h.gestor.s', body: { ...corpo, simular: true } });
+  assert.strictEqual(prev.status, 200, JSON.stringify(prev.data));
+  assert.ok(/em 2 data\(s\)/.test(prev.data.data.alteracao) && prev.data.data.operacoes.excecoes === 4, JSON.stringify(prev.data.data));
+  const ap = await request('POST', '/api/disponibilidade/lote', { token: 'h.gestor.s', body: corpo });
+  assert.strictEqual(ap.status, 200, JSON.stringify(ap.data));
+  const criadas = db.disponibilidade_excecoes.filter(e => [P.a, P.b].includes(e.profissional_id) && e.motivo === 'Curso');
+  assert.deepStrictEqual([...new Set(criadas.map(e => e.data_inicio))].sort(), [d1, d2]);
+  assert.ok(criadas.every(e => e.data_inicio === e.data_fim) && !criadas.some(e => e.data_inicio === meio), 'o dia do meio não foi tocado');
+  const bloq = await request('POST', '/api/disponibilidade/lote', { token: 'h.gestor.s', body: { profissionalIds: [P.a], operacao: { tipo: 'bloqueio', datas: [d1, d2], periodos: [{ inicio: '12:00', fim: '13:00' }] }, simular: true } });
+  assert.strictEqual(bloq.data.data.operacoes.excecoes, 2, 'bloqueio: um por data');
+  const muitas = Array.from({ length: 63 }, (_, i) => add(SEG, 30 + i));
+  for (const datas of [[], muitas, ['2026-02-30'], 'x']) {
+    const r = await request('POST', '/api/disponibilidade/lote', { token: 'h.gestor.s', body: { profissionalIds: [P.a], operacao: { tipo: 'ausencia', datas }, simular: true } });
+    assert.strictEqual(r.status, 422, JSON.stringify(datas).slice(0, 40));
+  }
+});
+
 (async () => {
   const server = http.createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));

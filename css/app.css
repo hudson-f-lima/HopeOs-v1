@@ -1217,3 +1217,34 @@ body{font-variant-numeric:tabular-nums;}
 .at-etapas li.at-atual{font-weight:700;}
 .at-espera{color:var(--warning,#8a5a00);}
 .at-total{font-size:12px;font-weight:700;}
+
+/* Calendário do mês e filtro de profissionais (D-050) */
+.agm-btn{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 6px;border-radius:10px;background:transparent;color:inherit;font:inherit;}
+.agm-btn:hover{background:var(--md-surface-variant);}
+.agm-seta{font-size:10px;color:var(--md-neutral);}
+.ag-mes{margin:0 12px 10px;padding:10px;border:1px solid var(--md-surface-variant);border-radius:14px;background:var(--md-surface);}
+.agm-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.agm-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.agm-sem{font-size:10px;font-weight:700;text-align:center;color:var(--md-neutral);}
+.agm-dia{position:relative;min-height:44px;border-radius:10px;border:1px solid var(--md-surface-variant);background:var(--md-surface);color:var(--md-on-surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px;}
+.agm-num{font-size:13px;font-weight:700;line-height:1;}
+.agm-est{font-size:11px;line-height:1;min-height:11px;}
+.agm-qtd{position:absolute;top:2px;right:4px;font-size:9px;font-weight:700;color:var(--md-primary);}
+.agm-conf{font-size:9px;font-weight:800;color:var(--md-error);line-height:1;}
+.agm-fechada,.agm-sem_horario{background:color-mix(in srgb,var(--md-surface-variant) 55%,transparent);background-image:radial-gradient(circle,var(--md-outline) 0.8px,transparent 1.1px);background-size:6px 6px;}
+.agm-fechada .agm-num{text-decoration:line-through;}
+.agm-especial{border-color:var(--md-primary);border-style:dashed;}
+.agm-tem-conflito{box-shadow:inset 0 0 0 2px var(--md-error);}
+.agm-sel{outline:2px solid var(--md-primary);outline-offset:1px;}
+.agm-hoje .agm-num{text-decoration:underline;}
+.agm-marcado{background:var(--md-primary);color:var(--md-on-primary);}
+.agm-marcado .agm-qtd{color:var(--md-on-primary);}
+.agm-legenda{margin:6px 0;color:var(--md-neutral);font-size:11px;}
+.agm-escolher{margin-top:4px;}
+.agm-escolha{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;}
+.agm-escolha .btn{width:auto;}
+.ag-filtro-profs{display:flex;gap:6px;overflow-x:auto;margin:0 12px 8px;padding-bottom:2px;}
+.ag-filtro-profs .chip{flex:0 0 auto;}
+.ag-block.ag-conflito{outline:2px dashed var(--md-error);outline-offset:-2px;}
+.ag-conf-tag{display:inline-block;padding:0 4px;border-radius:4px;background:var(--md-surface);color:var(--md-error);font-size:10px;font-weight:800;}
+.lg-conf{border-color:var(--md-error);border-style:dashed;color:var(--md-error);font-style:normal;font-size:10px;line-height:12px;text-align:center;}
