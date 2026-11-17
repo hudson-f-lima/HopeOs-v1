@@ -1,4 +1,5 @@
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
+import { htmlCampos, initCardAgendamento, resetarEditor } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
@@ -529,41 +530,40 @@ function openActionSheet(item) {
   const horario = String(item.horario || '').slice(0, 5);
   let actionsHtml = '';
   // Transições permitidas espelham a máquina de estados do backend (agenda.validator.js).
+  // A ação principal (checkout) vem primeiro e larga; as outras em grade de botões menores.
+  const checkout = '<button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>';
   if (item.status === 'agendado') {
-    actionsHtml = `
+    actionsHtml = checkout + `
       <button class="btn" data-sheet-action="confirmar">Confirmar</button>
       <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
-      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
-      <button class="btn" data-sheet-action="reagendar">Reagendar</button>
-      <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>`;
   } else if (item.status === 'confirmado') {
-    actionsHtml = `
+    actionsHtml = checkout + `
       <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
-      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
-      <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+      <button class="btn danger agc-largo" data-sheet-action="cancelar">Cancelar</button>`;
   } else if (item.status === 'aguardando') {
-    actionsHtml = `
+    actionsHtml = checkout + `
       <button class="btn" data-sheet-action="cadeira">Iniciar atendimento</button>
-      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>
-      <button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+      <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>`;
   } else if (item.status === 'em_atendimento') {
-    actionsHtml = `<button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>`;
+    actionsHtml = checkout;
   } else if (item.status === 'concluido') {
-    actionsHtml = `<p style="font-size:13px;color:var(--md-success);font-weight:700;margin-top:8px;">✓ Checkout feito</p>`;
+    actionsHtml = `<p class="agc-feito">✓ Checkout feito</p>`;
   }
 
+  resetarEditor();
   document.getElementById('actionSheetContent').innerHTML = `
-    <h2>${horario} — ${escapeHtml(findClienteNome(item.cliente_id))}</h2>
-    <div class="row"><span>Serviço</span><b>${escapeHtml(findServicoNome(item.servico_id))}</b></div>
-    <div class="row"><span>Profissional</span><b>${escapeHtml(findProfissionalNome(item.profissional_id))}</b></div>
-    <div class="row"><span>Hora início</span><b>${horario}</b></div>
-    <div class="row"><span>Hora fim</span><b>${computeEndTime(item)}</b></div>
-    <div class="row"><span>Status</span><span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span></div>
-    <div class="row" id="reliabilityRow"><span>Confiabilidade</span><b id="reliabilityValue">…</b></div>
-    <p class="body-sm hidden" id="sheetPlano" role="status"></p>
-    <div class="sheet-actions">${actionsHtml}${acoesDaSerie(item)}${acoesDoAtendimento(item)}</div>
+    <div class="agc-head">
+      <h2 class="agc-cliente">${escapeHtml(findClienteNome(item.cliente_id))}</h2>
+      <span class="${escapeHtml(meta.cls)}">${escapeHtml(meta.label)}</span>
+    </div>
+    <div class="agc-sub"><span class="agc-hora">${horario}–${computeEndTime(item)}</span>
+      <span class="agc-conf" id="reliabilityRow">Confiabilidade <b id="reliabilityValue">…</b></span></div>
+    ${htmlCampos(item)}
+    <p class="body-sm hidden agc-plano" id="sheetPlano" role="status"></p>
+    <div class="sheet-actions agc-acoes">${actionsHtml}${acoesDaSerie(item)}${acoesDoAtendimento(item)}</div>
     <details class="sheet-historico" id="historicoDetails">
       <summary>Histórico</summary>
       <div id="historicoBody" class="sheet-historico-body">Carregando…</div>
@@ -1137,6 +1137,7 @@ function onTimelineClick(ev) {
 
 export function initAgenda() {
   initAgendaBloqueio();
+  initCardAgendamento();
   initClienteRapido();
   document.getElementById('btnPrevWeek').addEventListener('click', () => shiftWeek(-1));
   document.getElementById('btnNextWeek').addEventListener('click', () => shiftWeek(1));

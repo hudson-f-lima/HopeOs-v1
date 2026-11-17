@@ -307,6 +307,19 @@ test('S16 permissões: o profissional só vê a série dos próprios horários; 
 });
 
 // --- Controle negativo -------------------------------------------------------
+test('S17 editar pelo card: trocar só o profissional mantém "Confirmado"; mudar a hora volta para "agendado"', async () => {
+  const c = await request('POST', '/api/agenda', { token: 'h.recep.s', body: { clienteId: CLI, servicoId: CORTE, profissionalId: ANA, data: '2027-04-07', horario: '10:00' } });
+  assert.strictEqual(c.status, 201, c.raw);
+  const id = c.data.data.id;
+  assert.strictEqual((await request('PATCH', `/api/agenda/${id}/status`, { token: 'h.recep.s', body: { novoStatus: 'confirmado' } })).status, 200);
+  const troca = await request('PATCH', `/api/agenda/${id}/status`, { token: 'h.recep.s', body: { novoStatus: 'reagendado', novaData: '2027-04-07', novoHorario: '10:00', novoProfissionalId: BETO } });
+  assert.strictEqual(troca.status, 200, troca.raw);
+  assert.deepStrictEqual([troca.data.data.novo.status, troca.data.data.novo.profissional_id], ['confirmado', BETO], 'mesmo dia e hora: a confirmação continua');
+  const hora = await request('PATCH', `/api/agenda/${troca.data.data.novo.id}/status`, { token: 'h.recep.s', body: { novoStatus: 'reagendado', novaData: '2027-04-07', novoHorario: '11:00', novoProfissionalId: BETO } });
+  assert.strictEqual(hora.status, 200, hora.raw);
+  assert.strictEqual(hora.data.data.novo.status, 'agendado', 'outra hora: o cliente reconfirma');
+});
+
 test('NC1 controle negativo: com "este e os próximos" pegando a série inteira, o S04 alteraria as anteriores', () => {
   const arquivo = path.join(__dirname, '../src/routes/series.js');
   const src = fs.readFileSync(arquivo, 'utf8');

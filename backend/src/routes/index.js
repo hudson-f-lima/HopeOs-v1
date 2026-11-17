@@ -606,7 +606,10 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
         horario: reagendamento.novoHorario,
         duracao_min: duracaoMinNovo,
         valor_centavos: servico ? (servico.valor_centavos ?? original.valor_centavos) : original.valor_centavos,
-        status: 'agendado'
+        // Editar pelo card (trocar só serviço ou profissional, mesmo dia e hora) não desfaz a
+        // confirmação do cliente; mudar dia ou hora volta para "agendado" (o cliente reconfirma).
+        status: statusAnterior === 'confirmado' && reagendamento.novaData === String(original.data).slice(0, 10)
+          && String(reagendamento.novoHorario).slice(0, 5) === String(original.horario).slice(0, 5) ? 'confirmado' : 'agendado'
       },
       permitirConflito: reagendamento.permitirConflito,
       ignorarId: original.id,

@@ -61,7 +61,7 @@ export function acoesDaSerie(item) {
     if (sessionPode('agenda:cancelar')) botoes.push('<button class="btn danger" data-sheet-action="serie-cancelar">Cancelar na série…</button>');
     if (sessionPode('agenda:editar')) botoes.push('<button class="btn" data-sheet-action="serie-alterar">Alterar na série…</button>');
   }
-  return '<p class="body-sm text-tertiary" style="margin:8px 0 4px;">Este horário faz parte de uma série.</p>' + botoes.join('');
+  return '<p class="agc-grupo">Este horário faz parte de uma série.</p>' + botoes.join('');
 }
 
 // Datas da série (GET /agenda/series/:id): cada data prevista com a situação; as que não viraram

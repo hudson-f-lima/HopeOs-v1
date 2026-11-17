@@ -97,7 +97,7 @@ async function escolher(i) {
 // --- Card de uma etapa --------------------------------------------------------
 export function acoesDoAtendimento(item) {
   if (!item || !item.grupo_id) return '';
-  return `<p class="body-sm text-tertiary" style="margin:8px 0 4px;">Etapa ${escapeHtml(String(item.grupo_seq || ''))} de um atendimento com vários serviços</p>
+  return `<p class="agc-grupo">Etapa ${escapeHtml(String(item.grupo_seq || ''))} de um atendimento com vários serviços</p>
     <button class="btn" data-sheet-action="atendimento-etapas">Ver etapas do atendimento…</button>`;
 }
 

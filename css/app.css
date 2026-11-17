@@ -582,11 +582,57 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .timeline-redline-abs::before{content:'';position:absolute;left:-6px;top:-6px;width:14px;height:14px;border-radius:50% 50% 50% 0;background:var(--md-error);transform:rotate(-45deg);box-shadow:0 0 8px rgba(239,68,68,0.6);}
 
 /* Modais e bottom sheet */
+/* z-index base; a ordem real é a de abertura (utils.js: pilha de camadas). */
 .modal-backdrop{position:fixed;inset:0;background:rgba(28,27,31,.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;}
-.modal-box{background:var(--md-surface);border-radius:16px;padding:20px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;box-shadow:var(--elevation-2);}
+.modal-box{position:relative;background:var(--md-surface);border-radius:16px;padding:0 18px 18px;width:100%;max-width:440px;max-height:88vh;max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;box-shadow:var(--elevation-2);}
+.modal-topo{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;margin:0 -18px 10px;padding:14px 10px 10px 18px;background:var(--md-surface);border-bottom:1px solid var(--md-surface-variant);}
+.modal-topo h2{flex:1;margin:0;font-size:17px;line-height:1.25;}
+.modal-fechar{flex:0 0 auto;width:44px;height:44px;margin:-4px -4px -4px 0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:16px;color:var(--md-neutral);background:transparent;}
+.modal-fechar:hover{background:var(--md-surface-variant);}
+.modal-box .field{margin-bottom:10px;}
+.modal-box .btn{min-height:44px;padding:10px 14px;}
+.modal-box .btn-primary{min-height:46px;}
 .sheet-backdrop{position:fixed;inset:0;background:rgba(28,27,31,.5);z-index:300;display:flex;align-items:flex-end;justify-content:center;}
-.sheet-box{background:var(--md-surface);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;max-height:75vh;overflow-y:auto;box-shadow:var(--elevation-2);}
-.sheet-handle{width:40px;height:4px;background:var(--md-surface-variant);border-radius:2px;margin:0 auto 14px;}
+.sheet-box{background:var(--md-surface);border-radius:18px 18px 0 0;padding:10px 16px calc(14px + env(safe-area-inset-bottom));width:100%;max-width:480px;max-height:88vh;max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;box-shadow:var(--elevation-2);}
+.sheet-handle{width:40px;height:4px;background:var(--md-surface-variant);border-radius:2px;margin:0 auto 10px;}
+/* Celular: modal vira folha que sobe de baixo (alcance do polegar), como o card da agenda. */
+@media (max-width:599px){
+  .modal-backdrop{align-items:flex-end;padding:0;}
+  .modal-box{max-width:none;border-radius:18px 18px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom));}
+}
+/* Card do agendamento (compacto e editável) */
+.agc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.agc-cliente{margin:0;font-size:18px;font-weight:800;line-height:1.2;}
+.agc-sub{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px;font-size:12px;color:var(--md-neutral);}
+.agc-hora{font-weight:700;color:var(--md-on-surface);font-variant-numeric:tabular-nums;}
+.agc-conf{font-size:11px;}
+.agc-campos{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.agc-campo{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:48px;padding:7px 22px 7px 10px;border-radius:10px;border:1px solid transparent;background:color-mix(in srgb,var(--md-surface-variant) 60%,transparent);text-align:left;color:var(--md-on-surface);}
+.agc-campo span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--md-neutral);}
+.agc-campo b{font-size:13px;font-weight:700;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.agc-campo i{position:absolute;top:6px;right:8px;font-style:normal;font-size:11px;color:var(--md-primary);}
+button.agc-campo{cursor:pointer;}
+button.agc-campo.ativo{border-color:var(--md-primary);}
+.agc-editor{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:10px;border:1px solid var(--md-primary);border-radius:12px;}
+.agc-editor label{font-size:12px;font-weight:700;}
+.agc-editor select,.agc-editor input{width:100%;min-height:40px;padding:6px 10px;border-radius:10px;border:1px solid var(--md-outline);background:var(--md-surface);color:var(--md-on-surface);}
+.agc-linha{display:flex;gap:8px;}
+.agc-linha>div{flex:1;}
+.agc-dur .btn{flex:0 0 64px;width:auto;min-height:40px;padding:6px;}
+.agc-botoes .btn{flex:1;min-height:40px;padding:8px;}
+.agc-botoes .btn.primary{background:var(--md-primary);color:var(--md-on-primary);}
+.agc-livres{display:flex;flex-wrap:wrap;gap:6px;}
+.agc-livres .chip{min-height:32px;padding:4px 10px;}
+.agc-ideal{box-shadow:inset 0 0 0 1px var(--md-success);}
+.agc-dica{margin:0;font-size:11px;color:var(--md-neutral);}
+.agc-erro{margin:0;font-size:12px;color:var(--md-error);}
+.agc-plano{margin:8px 0 0;padding:6px 8px;border-radius:8px;font-size:12px;background:var(--primary-soft);}
+.sheet-actions.agc-acoes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;}
+.agc-acoes .btn{min-height:40px;padding:8px 10px;font-size:13px;border-radius:10px;}
+.agc-acoes .btn.primary{min-height:46px;font-size:14px;}
+.agc-acoes .btn.primary,.agc-acoes .agc-largo,.agc-acoes .agc-grupo,.agc-acoes .agc-feito,.agc-acoes [data-sheet-action="serie-ver"],.agc-acoes [data-sheet-action="atendimento-etapas"]{grid-column:1/-1;}
+.agc-grupo{margin:6px 0 0;font-size:11px;color:var(--md-neutral);}
+.agc-feito{margin:0;font-size:13px;font-weight:700;color:var(--md-success);}
 .sheet-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
 .sheet-actions .btn{background:var(--md-surface-variant);color:var(--md-on-surface);}
 .sheet-actions .btn.danger{background:var(--error-light);color:var(--md-error);}
@@ -844,6 +890,9 @@ dialog::backdrop {
   background: rgba(28,27,31,.5);
 }
 dialog {
+  max-height: 88dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg-surface);
   color: var(--text-primary);
   border: none;
