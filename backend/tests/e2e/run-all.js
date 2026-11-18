@@ -18,13 +18,35 @@ const amanha = new Date(Date.now() + 864e5).toLocaleDateString('en-CA', { timeZo
 // calcula "hoje" pelo relógio do aparelho; num runner em UTC, entre 21h e meia-noite de
 // Brasília, "hoje" do navegador já era o dia seguinte e os roteiros de agenda falhavam.
 const FUSO_DO_SALAO = 'America/Sao_Paulo';
+const API_ENV = {
+  NODE_ENV: 'test',
+  PORT: '3399',
+  APP_TIMEZONE: FUSO_DO_SALAO,
+  DEFAULT_EMPRESA_ID: '00000000-0000-0000-0000-000000000001',
+  APP_PUBLIC_URL: 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api',
+  API_ACCESS_TOKEN: 'dev',
+  LEGACY_TOKEN_AUTH_ENABLED: 'true',
+  SUPABASE_URL: 'http://127.0.0.1:3399',
+  SUPABASE_SECRET_KEY: 'dev-memory',
+  SUPABASE_PUBLISHABLE_KEY: '',
+  SUPABASE_ANON_KEY: '',
+  AUTH_LINK_IDENTITY_ENABLED: 'false'
+};
 
 const CASOS = [
   { nome: 'csp' },
   { nome: 'seguranca-pwa' },
-  { nome: 'login' },
+  { nome: 'login', env: { LEGACY_TOKEN_AUTH_ENABLED: 'false' } },
   { nome: 'equipe' },
   { nome: 'convite' },
+  { nome: 'auth-social', env: {
+    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_e2e',
+    AUTH_GOOGLE_ENABLED: 'true',
+    AUTH_APPLE_ENABLED: 'true',
+    AUTH_MAGIC_LINK_ENABLED: 'true',
+    AUTH_OTP_ENABLED: 'true',
+    LEGACY_TOKEN_AUTH_ENABLED: 'false'
+  } },
   { nome: 'onboarding', env: { DEV_EMPRESA_VAZIA: '1' } },
   { nome: 'onda-b' },
   { nome: 'slots', env: { E2E_DATE: amanha } },
@@ -37,6 +59,7 @@ const CASOS = [
   { nome: 'finops' },
   { nome: 'metas' },
   { nome: 'comanda' },
+  { nome: 'checkout-retomada' },
   { nome: 'agora' },
   { nome: 'dashboard' },
   { nome: 'split' },
@@ -99,6 +122,8 @@ async function portaLivre(porta) {
   // Os E2E têm 5599/3399 fixos: com outro servidor nessas portas o resultado seria de outro processo.
   for (const porta of [5599, 3399]) if (!(await portaLivre(porta))) throw new Error(`porta ${porta} já está em uso; pare o servidor antigo antes`);
   const filtro = process.argv.slice(2);
+  const desconhecidos = filtro.filter(nome => !CASOS.some(caso => caso.nome === nome));
+  if (desconhecidos.length) throw new Error(`E2E desconhecidos: ${desconhecidos.join(', ')}`);
   const casos = filtro.length ? CASOS.filter(c => filtro.includes(c.nome)) : CASOS;
   const estatico = rodar('python3', ['-I', 'backend/tests/e2e/static-server.py', '--port', '5599', '--connect-extra', 'http://127.0.0.1:3399'], {}, '[static]');
   const resultados = [];
@@ -106,12 +131,15 @@ async function portaLivre(porta) {
     await esperar('http://127.0.0.1:5599/index.html');
     for (const caso of casos) {
       console.log(`\n=== ${caso.nome}.e2e.js ${caso.env ? JSON.stringify(caso.env) : ''}`);
-      const api = rodar('node', [API_SCRIPT], { env: { ...process.env, ...caso.env } }, null);
+      const api = rodar(process.execPath, [API_SCRIPT], { env: { ...process.env, ...API_ENV, ...caso.env } }, null);
       let codigo; let motivo = '';
       try {
         await esperar('http://127.0.0.1:3399/api/health');
-        const e2e = rodar('node', [path.join('backend/tests/e2e', `${caso.nome}.e2e.js`)], { env: { ...process.env, ...caso.env, NODE_PATH, TZ: FUSO_DO_SALAO } }, `[${caso.nome}]`);
-        codigo = await new Promise(r => e2e.on('exit', c => r(c)));
+        const e2e = rodar(process.execPath, [path.join('backend/tests/e2e', `${caso.nome}.e2e.js`)], { env: { ...process.env, ...caso.env, NODE_PATH, TZ: FUSO_DO_SALAO } }, `[${caso.nome}]`);
+        codigo = await new Promise((resolve, reject) => {
+          e2e.once('error', reject);
+          e2e.once('close', resolve); // lê stdout/stderr até o fim antes de procurar falhas
+        });
         if (codigo !== 0) motivo = `saiu com código ${codigo}`;
         const linha = e2e.saida.split('\n').find(l => LISTA_NAO_VAZIA.test(l));
         if (linha) motivo = motivo || `lista de erros não vazia: ${linha.trim().slice(0, 200)}`;

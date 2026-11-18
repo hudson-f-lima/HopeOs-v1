@@ -1,0 +1,2 @@
+# Distribuição oficial preservada byte a byte; integridade conferida nos gates.
+js/vendor/*.js -whitespace linguist-vendored

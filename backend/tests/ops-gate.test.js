@@ -1,17 +1,12 @@
 // Ops Gate: ferramentas de operação (backend/scripts/ops: doctor, bootstrap-admin, smoke).
 // Tudo offline: app real em memória (listen 0), PostgREST/Auth falsos em 127.0.0.1 e
 // store em memória para o bootstrap. Nenhuma chamada sai da máquina.
-process.env.API_ACCESS_TOKEN = process.env.API_ACCESS_TOKEN || 'ops-gate-token';
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.invalid';
-process.env.SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || 'ops-gate';
-
 const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { spawnSync, execFile } = require('child_process');
 const { env } = require('../src/config/env');
-const { app } = require('../src/app');
 const { createMemoryIdentityStore } = require('../src/auth/identityStore');
 const lib = require('../scripts/ops/lib');
 const doctor = require('../scripts/ops/doctor');
@@ -62,13 +57,14 @@ function listen(handler) {
 }
 
 // PostgREST + Auth falsos. Registra método de toda requisição (prova de read-only).
-function fakeSupabase({ key = KEY, missing = [] } = {}) {
-  const methods = [];
+function fakeSupabase({ key = KEY, missing = [], bookingCompanies = [] } = {}) {
+  const requests = [];
   const tables = Object.values(doctor.TABLES).flat().filter(t => !missing.includes(t));
   return listen((req, res) => {
-    methods.push(req.method);
     const u = new URL(req.url, 'http://x');
+    requests.push({ method: req.method, path: u.pathname, query: u.searchParams });
     if (req.headers.apikey !== key) { res.writeHead(401); return res.end('{"message":"Invalid API key"}'); }
+    if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405); return res.end(); }
     if (u.pathname === '/auth/v1/settings') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"disable_signup":true,"mailer_autoconfirm":false}'); }
     if (u.pathname === '/rest/v1/') {
       res.writeHead(200, { 'content-type': 'application/openapi+json' });
@@ -76,9 +72,14 @@ function fakeSupabase({ key = KEY, missing = [] } = {}) {
     }
     const t = u.pathname.replace('/rest/v1/', '');
     if (!tables.includes(t)) { res.writeHead(404); return res.end(); }
+    if (t === 'empresas' && u.searchParams.has('online_slug')) {
+      const rows = bookingCompanies.filter(row => u.searchParams.get('online_slug') === `eq.${row.online_slug}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(rows.map(({ id, online_ativo }) => ({ id, online_ativo }))));
+    }
     res.writeHead(200, { 'content-range': `*/${t === 'empresas' ? 1 : 0}` });
     res.end(req.method === 'HEAD' ? undefined : '[]');
-  }).then(s => ({ ...s, methods }));
+  }).then(s => ({ ...s, requests }));
 }
 
 // Site estático falso com os headers do render.yaml (connect-src → API local).
@@ -123,6 +124,7 @@ const storeProibido = new Proxy({}, { get() { throw new Error('store tocado apes
 const tests = [];
 function test(name, fn) { tests.push({ name, fn }); }
 let apiBase;
+let apiSupabase;
 
 test('01 --help das três ferramentas (código 0) e opção desconhecida = 2', () => {
   for (const s of ['doctor.js', 'bootstrap-admin.js', 'smoke.js']) {
@@ -207,7 +209,8 @@ test('06 doctor online contra API local + PostgREST falso: 0; só GET/HEAD', asy
       assert.ok(j.checks.some(c => c.id === id && c.level === 'OK'), `${id} OK`);
     }
     assert.ok(j.checks.some(c => c.id === 'db.contagens' && /empresas=1/.test(c.message)));
-    assert.ok(sb.methods.length > 10 && sb.methods.every(m => m === 'GET' || m === 'HEAD'), `métodos: ${[...new Set(sb.methods)]}`);
+    const methods = sb.requests.map(r => r.method);
+    assert.ok(methods.length > 10 && methods.every(m => m === 'GET' || m === 'HEAD'), `métodos: ${[...new Set(methods)]}`);
   } finally { sb.server.close(); }
 });
 
@@ -315,6 +318,7 @@ test('13 smoke contra o app local + PWA falsa = 0', async () => {
     }
     // Achado conhecido (app.js libera localhost/LAN em qualquer ambiente): WARN, não FAIL.
     assert.ok(j.checks.some(c => c.id === 'api.cors.localhost' && c.level === 'WARN'));
+    assert.ok(apiSupabase.requests.some(r => r.method === 'GET' && r.path === '/rest/v1/empresas' && r.query.get('online_slug') === 'eq.smoke-sonda'));
     // Pela CLI real também (assíncrono: o app roda neste mesmo processo).
     const c = await new Promise(resolve => execFile(process.execPath, [path.join(OPS, 'smoke.js'), '--api', apiBase, '--pwa', pwa.base],
       { encoding: 'utf8', timeout: 30000 }, (err, stdout, stderr) => resolve({ code: err ? err.code : 0, out: stdout + stderr })));
@@ -324,33 +328,46 @@ test('13 smoke contra o app local + PWA falsa = 0', async () => {
 });
 
 test('14 smoke reprova (controles negativos): sem CSP, CORS aberto, agendamento ligado, apiBase errado', async () => {
+  const { resetRateLimitPublico } = require('../src/routes/publicBooking');
+  const probe = async args => {
+    resetRateLimitPublico(); // cada cenário faz uma execução isolada do smoke pelo mesmo IP local
+    return smoke.main(['--json', '--api', apiBase, ...args]);
+  };
   const semCsp = await fakePwa(apiBase, { csp: false });
   const apiErrada = await fakePwa(apiBase, { apiBaseNoConfig: 'https://outra-api.example/api' });
   const corsAntes = env.CORS_ORIGIN;
   const linksAntes = env.PUBLIC_BOOKING_LINKS;
   const falha = (r, id) => JSON.parse(r.stdout).checks.some(c => c.id === id && c.level === 'FAIL');
   try {
-    const r1 = await smoke.main(['--json', '--api', apiBase, '--pwa', semCsp.base]);
+    const r1 = await probe(['--pwa', semCsp.base]);
     assert.strictEqual(r1.code, 1);
     assert.ok(falha(r1, 'pwa.csp'));
 
-    const r2 = await smoke.main(['--json', '--api', apiBase, '--pwa', apiErrada.base]);
+    const r2 = await probe(['--pwa', apiErrada.base]);
     assert.strictEqual(r2.code, 1);
     assert.ok(falha(r2, 'pwa.config'));
 
     env.CORS_ORIGIN = ['*'];
-    const r3 = await smoke.main(['--json', '--api', apiBase]);
+    const r3 = await probe([]);
     assert.strictEqual(r3.code, 1);
     assert.ok(falha(r3, 'api.cors.estranha') && falha(r3, 'api.cors.sufixo'));
     env.CORS_ORIGIN = corsAntes;
 
-    env.PUBLIC_BOOKING_LINKS = JSON.stringify({ 'salao-x': EMPRESA });
-    const r4 = await smoke.main(['--json', '--api', apiBase, '--public-slug', 'salao-x']);
+    env.PUBLIC_BOOKING_LINKS = JSON.stringify({ 'salao-desligado': EMPRESA, 'salao-env': EMPRESA });
+    const r4 = await probe(['--public-slug', 'salao-x']);
     assert.strictEqual(r4.code, 1);
     assert.ok(falha(r4, 'api.public'), 'salão ligado e esperado desligado falha');
-    const r5 = await smoke.main(['--json', '--api', apiBase, '--public-booking', 'on', '--public-slug', 'salao-x']);
-    assert.ok(!falha(r5, 'api.public'), 'ligado e esperado ligado passa');
-    env.PUBLIC_BOOKING_LINKS = linksAntes;
+    assert.match(r4.stdout, /link salao-x LIGADO; esperado desligado/);
+    const r5 = await probe(['--public-booking', 'on', '--public-slug', 'salao-x']);
+    assert.strictEqual(r5.code, 0, r5.stdout);
+    assert.match(r5.stdout, /link salao-x LIGADO, como esperado/);
+    const desligado = await probe(['--public-slug', 'salao-desligado']);
+    assert.strictEqual(desligado.code, 0, desligado.stdout);
+    assert.match(desligado.stdout, /link salao-desligado desligado, como esperado/);
+    const fallback = await probe(['--public-booking', 'on', '--public-slug', 'salao-env']);
+    assert.strictEqual(fallback.code, 0, fallback.stdout);
+    assert.match(fallback.stdout, /link salao-env LIGADO, como esperado/);
+    assert.ok(apiSupabase.requests.every(r => r.method === 'GET' || r.method === 'HEAD'), 'smoke não escreve no PostgREST');
 
     const r6 = await smoke.main(['--api', 'http://127.0.0.1:1/api', '--timeout', '2000']);
     assert.strictEqual(r6.code, 1);
@@ -408,17 +425,36 @@ test('17 backup: recusa o projeto de staging e exige URL, chave e --out', async 
 });
 
 (async () => {
-  const server = http.createServer(app);
-  await new Promise(r => server.listen(0, '127.0.0.1', r));
-  apiBase = `http://127.0.0.1:${server.address().port}/api`;
-  const log = console.error;
-  let passed = 0;
-  for (const t of tests) {
-    console.error = () => {}; // o app loga erros esperados (401/404) via mapErrorForResponse
-    try { await t.fn(); passed += 1; console.log(`✓ ${t.name}`); } catch (err) { console.error = log; console.error(`✕ ${t.name}`); console.error(err); }
-    console.error = log;
+  apiSupabase = await fakeSupabase({ bookingCompanies: [
+    { id: EMPRESA, online_slug: 'salao-x', online_ativo: true },
+    { id: '44444444-4444-4444-8444-444444444444', online_slug: 'salao-desligado', online_ativo: false }
+  ] });
+  let api;
+  try {
+    Object.assign(env, {
+      API_ACCESS_TOKEN: TOKEN,
+      SUPABASE_URL: apiSupabase.base,
+      SUPABASE_SECRET_KEY: KEY,
+      SUPABASE_SERVICE_ROLE_KEY: KEY,
+      CORS_ORIGIN: [],
+      PUBLIC_BOOKING_LINKS: '',
+      PUBLIC_BOOKING_RATE_GET_MAX: 60,
+      PUBLIC_BOOKING_RATE_POST_IP_MAX: 10
+    });
+    const { app } = require('../src/app');
+    api = await listen(app);
+    apiBase = `${api.base}/api`;
+    const log = console.error;
+    let passed = 0;
+    for (const t of tests) {
+      console.error = () => {}; // o app loga erros esperados (401/404) via mapErrorForResponse
+      try { await t.fn(); passed += 1; console.log(`✓ ${t.name}`); } catch (err) { console.error = log; console.error(`✕ ${t.name}`); console.error(err); }
+      console.error = log;
+    }
+    console.log(`\nOps Gate: ${passed}/${tests.length} testes verdes.`);
+    if (passed !== tests.length) process.exitCode = 1;
+  } finally {
+    if (api) await new Promise(r => api.server.close(r));
+    await new Promise(r => apiSupabase.server.close(r));
   }
-  await new Promise(r => server.close(r));
-  console.log(`\nOps Gate: ${passed}/${tests.length} testes verdes.`);
-  if (passed !== tests.length) process.exit(1);
 })();

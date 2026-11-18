@@ -1,6 +1,6 @@
 # PROJECT STATE — KortexOS
 
-**Atualizado:** 2026-11-10  
+**Atualizado:** 2026-11-17 (D-056 em branch; produção não revalidada nesta entrega)
 **Fonte canônica do estado operacional atual.**
 
 ## Identificação
@@ -38,6 +38,7 @@
 | Rotação de segredos / histórico Git limpo | REAL | ciclos anteriores |
 
 ## Trabalho atual
+- D-056 (2026-11-17): plano de correção Auth/PWA aprovado pelo proprietário; implementação em `fix/auth-pwa-approved-plan-20261117`, sem migration nem alteração de produção. Estado, configuração e provas: [`planning/AUTH_PWA_IMPLEMENTACAO.md`](planning/AUTH_PWA_IMPLEMENTACAO.md). Novos métodos dependem de configuração e testes externos; nenhuma aprovação de produção/multi-tenant decorre desta branch. PR revisável: [#51](https://github.com/hudson-f-lima/HopeOs-v1/pull/51). Verificado: 43 suítes locais, C01/C08 em Postgres/PostgREST locais, 39/39 E2E Chromium no CI e gates SQL com concorrência/backup/rollback. Provedores/SMTP reais não validados. Referência de código atual contém migrations 001–025; contagens antigas abaixo são históricas, não verificação recente do banco.
 - Produção (2026-11-15): migrations 012 e 013 aplicadas pela integração no merge do PR #29 (a do PR #28 falhou antes de executar SQL por timeout da API do Supabase). Conferido: histórico 001–013, unidade ter–sex 09–12/13–19 e sáb 08–12/13–18, 3 profissionais com escala publicada, tabelas e funções sem acesso de anon/authenticated. Advisor: INFO de RLS sem policy (deny-all esperado); WARN de search_path em duas funções auxiliares da 013 corrigido pela 014 (D-034); proteção contra senha vazada no Auth desligada (decisão do dono: ainda não).
 - D-041 (2026-11-16): C5 — lembretes por push no celular do cliente (1 dia e 2 h antes), WhatsApp/SMS pré-configurados e desligados. REAL no código, migration 020; aplica em produção só no merge. Para ligar: variáveis VAPID no Render (o dono gera as chaves).
 - D-040 (2026-11-16): agendamento inteligente — atendimento com vários serviços: combinações calculadas no servidor (um profissional, sequência, fracionado com limite de espera), reserva tudo ou nada, etapas no card. REAL no código, migration 019; aplica em produção só no merge. Limitações em D-040.

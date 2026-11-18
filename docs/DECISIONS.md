@@ -820,3 +820,12 @@
     - também cobre dia sem resposta, filtro com profissional desativado e 3 colunas no celular.
   - **Arraste com a grade rolada:** roteiro antes/depois (12:20 → 12:00).
   - Cache `hope-os-shell-v1-58-0-agenda-confiavel`.
+
+
+## D-056 — Correção de identidade, sessão e evolução do login (sem migration)
+- **Autorização (Platform Owner, 2026-11-17):** “Plano aprovado aplicar. Autorizo desenvolver habilidades necessárias e criar múltiplos agentes, com as capacidades necessárias para efetuar cada tarefa, prioridade baixo consumo de token, máximo eficiência e desempenho”. Plano-base: `Plano_Correcao_KortexOS_Login_PWA_2026-11-17.md`, Library `libfile_8aa83bbb412881919ef199970b7c3ee8`.
+- **Escopo:** F0/F1, código de Google/Apple/Magic Link/código e vinculação, segurança do callback/PWA, melhorias de inicialização e contexto local demonstráveis. Manter Supabase Auth e Express, autorização por identidade no backend e um único dono de sessão no navegador. Código e provas em branch isolado, sem publicar automaticamente.
+- **Mudanças operacionais:** novos provedores e vinculação desligados por padrão até configurar credenciais públicas/privadas, SMTP, redirects e políticas do provedor e comprovar recuperação individual. O código/blueprint desliga legado por padrão em produção; isso não prova que o ambiente de produção foi alterado.
+- **Limites:** nenhuma migration nova, edição de 001–025 ou mudança em dados/serviços de produção é autorizada por esta decisão. A corrida do último administrador e agenda x escala exigem solução transacional específica para reabilitar operações com garantia completa. A redução de admin ativo fica contida por recusa explícita enquanto não houver essa garantia.
+- **Aceite:** testes reais por camada; doubles não aprovam fornecedor nem produção. E-mail exato, UUID, sessão/abas, callback, permissões e idempotência preservados. Limitação de credencial nativa do provedor deve constar no runbook antes de habilitar social.
+- **Execução, evidências e pendências:** `planning/AUTH_PWA_IMPLEMENTACAO.md` e `PROJECT_STATE.md`. Não declarar multi-tenant ou produção aprovados por esta entrega.

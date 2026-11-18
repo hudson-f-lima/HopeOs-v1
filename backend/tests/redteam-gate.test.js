@@ -373,13 +373,19 @@ test('RT-10 logs: erro interno do agendamento não grava WhatsApp/nome; morgan n
     try { r = await post(pedido({ horario: '17:00', nome: 'Fulana Logada', whatsapp: '21 94321-8765' })); } finally { P.insert = insertOriginal; }
     await request('GET', '/api/agenda?data=2026-11-11', { token: 'h.admin.s' });
     await request('GET', '/api/agenda', { token: env.API_ACCESS_TOKEN });
+    const malformed = await request('POST', '/api/auth/login?apiToken=marcador-query', {
+      raw: '{"password":marcador-corpo}',
+      headers: { 'content-type': 'application/json' }
+    });
+    assert.strictEqual(malformed.status, 400); assert.strictEqual(code(malformed), 'INVALID_JSON');
   });
   assert.strictEqual(r.status, 500); assert.strictEqual(code(r), 'INDISPONIVEL_AGORA');
   assert.ok(!/Key \(|duplicate key/.test(r.raw), 'detalhe do banco na resposta');
-  for (const proibido of ['94321', '5521943218765', 'Fulana', 'h.admin.s', env.API_ACCESS_TOKEN]) {
+  for (const proibido of ['94321', '5521943218765', 'Fulana', 'h.admin.s', env.API_ACCESS_TOKEN, 'marcador-query', 'marcador-corpo']) {
     assert.ok(!saida.includes(proibido), `log contém "${proibido}":\n${saida}`);
   }
   assert.ok(/\[agendar\] erro interno/.test(saida), 'o erro continua registrado (sem PII)');
+  assert.ok(/POST \/api\/auth\/login 400/.test(saida), 'o log ainda informa caminho e status');
 });
 
 test('RT-11 página pública: ?apiBase= só vale em host local; agendar.html tem CSP própria e aviso completo', async () => {
@@ -611,7 +617,7 @@ test('RT-19 prazo na virada do fuso: 30º dia às 23:59 de Brasília (02:59 UTC 
 // outra rota sob /api precisa de authorize() antes do handler.
 const ROTAS_SEM_RBAC = new Set([
   'GET /', 'GET /api/health',
-  'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
+  'GET /api/auth/config', 'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
   'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug',
   // Link pessoal do agendamento (017, D-038): a credencial é o código do link, no corpo.
   'POST /api/public/meu-agendamento', 'POST /api/public/meu-agendamento/confirmar', 'POST /api/public/meu-agendamento/cancelar',
@@ -673,7 +679,7 @@ test('RT-21 login: girar e-mails pelo mesmo IP não zera o limite da conta-alvo 
   } finally { env.LOGIN_RATE_LIMIT_MAX = maxAntes; resetRateLimitLogin(); }
 });
 
-test('RT-22 CORS da API: origem parecida não passa; nada de credenciais; token legado em ?apiToken= sai da barra', async () => {
+test('RT-22 CORS da API: origem parecida não passa e credenciais de cookie ficam desabilitadas', async () => {
   for (const origem of ['https://hudson-f-lima.github.io.evil.example', 'https://evil-hudson-f-lima.github.io', 'http://localhost.evil.example', 'http://10.0.0.1.nip.io']) {
     const r = await request('OPTIONS', '/api/agenda', { headers: { origin: origem, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } });
     assert.ok(!r.headers['access-control-allow-origin'], `${origem} aceito`);
@@ -681,7 +687,6 @@ test('RT-22 CORS da API: origem parecida não passa; nada de credenciais; token 
   const ok = await request('OPTIONS', '/api/agenda', { headers: { origin: 'https://hudson-f-lima.github.io', 'access-control-request-method': 'GET' } });
   assert.strictEqual(ok.headers['access-control-allow-origin'], 'https://hudson-f-lima.github.io');
   assert.ok(!ok.headers['access-control-allow-credentials'], 'credenciais de cookie não liberadas');
-  // A PWA aceita ?apiToken= (modo legado), mas tira o token da URL (histórico, print, log do host).
   const api = ler('js/api.js');
   assert.ok(/history\.replaceState/.test(api) && /searchParams\.delete\('apiToken'\)/.test(api), 'apiToken fica na barra de endereço');
 });

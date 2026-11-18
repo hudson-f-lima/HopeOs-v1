@@ -247,7 +247,14 @@ function installMemoryBackend(seed = {}) {
       total_comissao_centavos: t.totalComissaoCentavos || 0,
       total_gorjeta_liquida_centavos: t.totalGorjetaLiquidaCentavos || 0,
       receita_empresa_centavos: t.receitaEmpresaCentavos || 0,
-      actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null
+      actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null,
+      snapshot: structuredClone({ request: { raw: {
+        clienteId: payload.clienteId || payload.cliente_id || null,
+        agendamentoId: payload.agendamentoId || null,
+        itens: payload.itens, payments: payload.payments,
+        descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0,
+        gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0
+      } }, preview })
     });
     for (const it of (preview && preview.itens) || []) {
       const item = await this.insert('comando_itens', {

@@ -2,34 +2,37 @@
 // restart e não é compartilhado entre instâncias — a garantia real exige um store
 // compartilhado (Red Team 2026-11, RT-21/RT-01).
 //
-// Duas correções do Red Team:
-// - Teto de memória NÃO zera tudo. Antes, ao passar de 10 000 chaves o mapa era
-//   limpo: girando e-mails (login) ou IPs (público) o atacante "resetava" o limite da
-//   conta-alvo. Agora descarta, nesta ordem: chaves expiradas; chaves que NÃO estão
-//   bloqueadas (menos recentes primeiro); só por último as bloqueadas. Um spray de
-//   chaves novas (1 tentativa cada) nunca expulsa a chave que está bloqueada.
-// - Chave de IP: IPv6 agrupado por /64 (o bloco que um provedor entrega a UM cliente)
-//   e IPv4-mapeado (::ffff:a.b.c.d) igual ao IPv4.
+// Cada chave guarda até max tentativas admitidas. Quando falta espaço, prioriza
+// remover chaves expiradas ou abaixo do limite. Chaves saturadas ficam protegidas
+// contra a rotação de e-mails e IPs.
 
 const MAX_CHAVES_PADRAO = 10000;
 
 function criarLimitador({ maxChaves = MAX_CHAVES_PADRAO } = {}) {
   const mapa = new Map(); // chave → { hits: number[], janelaMs, max }
   function compactar(agora) {
-    for (const [k, v] of mapa) if (!v.hits.some(t => agora - t < v.janelaMs)) mapa.delete(k);
-    for (const [k, v] of mapa) { if (mapa.size <= maxChaves) break; if (v.hits.length <= v.max) mapa.delete(k); }
-    while (mapa.size > maxChaves) mapa.delete(mapa.keys().next().value);
+    for (const [chave, { hits, janelaMs, max }] of mapa) {
+      if (hits.length < max || agora - hits[hits.length - max] >= janelaMs) {
+        mapa.delete(chave);
+        return;
+      }
+    }
   }
   return {
-    // Registra a tentativa e diz se passou de `max` na janela.
+    // Tentativas recusadas não ocupam memória nem prolongam a janela.
     excedeu(chave, max, janelaMs, agora = Date.now()) {
       const atual = mapa.get(chave);
-      const hits = (atual ? atual.hits : []).filter(t => agora - t < janelaMs);
+      if (max <= 0) return true;
+      if (atual && atual.hits.length >= max && agora - atual.hits[atual.hits.length - max] < janelaMs) return true;
+      if (!atual && mapa.size >= maxChaves) {
+        compactar(agora);
+        if (mapa.size >= maxChaves) return true;
+      }
+      const hits = (atual?.hits || []).filter(t => agora - t < janelaMs);
       hits.push(agora);
       mapa.delete(chave); // reinsere no fim: ordem do Map = menos recente primeiro
       mapa.set(chave, { hits, janelaMs, max });
-      if (mapa.size > maxChaves) compactar(agora);
-      return hits.length > max;
+      return false;
     },
     limpar() { mapa.clear(); },
     get tamanho() { return mapa.size; }

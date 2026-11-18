@@ -1,6 +1,6 @@
-// Sessão do principal user. O backend repassa ao provedor (Supabase Auth): a PWA
-// não precisa de SDK nem de chave do Supabase. Montado ANTES do requireAuth.
+// Sessão do principal user e configuração pública do SDK. Montado antes de requireAuth.
 const express = require('express');
+const { createHash } = require('node:crypto');
 const { permissoesEfetivas } = require('../auth/permissoes');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
@@ -8,30 +8,61 @@ const { getAuthProvider } = require('../auth/provider');
 const { getIdentityStore } = require('../auth/identityStore');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { requireAuth, extractBearer, resolveUserIdentity, looksLikeJwt, safeEquals } = require('../middleware/auth');
+const { criarLimitador, chaveIp } = require('../security/rateLimit');
 
 const router = express.Router();
 
-// Rate limit em memória por IP+e-mail: todas as tentativas saem do IP do backend
-// para o provedor, então a proteção por IP do Supabase não distingue clientes.
-// Red Team 2026-11 (RT-21): também por IP (girar e-mails do mesmo IP não cria chaves
-// sem fim) e o teto de memória descarta as chaves menos recentes em vez de zerar tudo.
-const { criarLimitador, chaveIp } = require('../security/rateLimit');
 const attempts = criarLimitador();
-function rateLimited(req, key) {
+const digest = value => createHash('sha256').update(value).digest('base64url');
+function limitarTentativas(req, operacao, credencial) {
   const windowMs = env.LOGIN_RATE_LIMIT_WINDOW_MIN * 60 * 1000;
-  const ip = chaveIp(req.ip);
-  const porIp = attempts.excedeu(`ip|${ip}`, env.LOGIN_RATE_LIMIT_IP_MAX, windowMs);
-  const porChave = attempts.excedeu(`${ip}|${key}`, env.LOGIN_RATE_LIMIT_MAX, windowMs);
-  return porIp || porChave;
+  const ip = digest(chaveIp(req.ip));
+  const email = operacao === 'login' || operacao === 'recover';
+  const grupo = email ? 'email' : operacao;
+  const maxIp = operacao === 'refresh' ? env.AUTH_REFRESH_RATE_LIMIT_IP_MAX : env.LOGIN_RATE_LIMIT_IP_MAX;
+  const porIp = attempts.excedeu(`ip|${grupo}|${ip}`, maxIp, windowMs);
+  // E-mails compartilham o limite por IP anterior. Tokens usam chave global e ficam
+  // no limitador em formato derivado, com tamanho fixo.
+  const porChave = !porIp && credencial && attempts.excedeu(
+    `credencial|${operacao}|${email ? ip : ''}|${digest(credencial)}`, env.LOGIN_RATE_LIMIT_MAX, windowMs
+  );
+  if (porIp || porChave) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
 }
 function resetRateLimit() { attempts.limpar(); }
 
+function sdkConfig() {
+  const key = env.SUPABASE_PUBLISHABLE_KEY.trim();
+  let url = null;
+  try {
+    const candidate = new URL(env.SUPABASE_URL);
+    const secure = candidate.protocol === 'https:' ||
+      (env.NODE_ENV !== 'production' && candidate.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(candidate.hostname));
+    if (secure && candidate.pathname === '/' && !candidate.username && !candidate.password && !candidate.search && !candidate.hash) {
+      url = candidate.origin;
+    }
+  } catch (_) { /* configuração ausente ou inválida */ }
+  const configured = Boolean(url && /^sb_publishable_[A-Za-z0-9_-]+$/.test(key));
+  return {
+    supabaseUrl: configured ? url : null,
+    publishableKey: configured ? key : null,
+    providers: {
+      google: configured && env.AUTH_GOOGLE_ENABLED,
+      apple: configured && env.AUTH_APPLE_ENABLED,
+      magicLink: configured && env.AUTH_MAGIC_LINK_ENABLED,
+      otp: configured && env.AUTH_OTP_ENABLED,
+      linkIdentity: configured && env.AUTH_LINK_IDENTITY_ENABLED
+    }
+  };
+}
+
+router.get('/auth/config', (req, res) => res.json({ ok: true, data: sdkConfig() }));
+
 router.post('/auth/login', async (req, res, next) => {
   try {
-    const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-    const password = String((req.body && req.body.password) || '');
-    if (!email || !password) throw createAppError('CREDENTIALS_REQUIRED', 'Informe e-mail e senha.', 422);
-    if (rateLimited(req, email)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
+    const { email: entrada, password } = req.body || {};
+    const email = typeof entrada === 'string' ? entrada.trim().toLowerCase() : '';
+    limitarTentativas(req, 'login', email);
+    if (!email || typeof password !== 'string' || !password) throw createAppError('CREDENTIALS_REQUIRED', 'Informe e-mail e senha.', 422);
     const session = await getAuthProvider().signIn(email, password);
     res.json({ ok: true, data: session });
   } catch (err) { next(err); }
@@ -39,7 +70,8 @@ router.post('/auth/login', async (req, res, next) => {
 
 router.post('/auth/refresh', async (req, res, next) => {
   try {
-    const refreshToken = String((req.body && req.body.refresh_token) || '');
+    const refreshToken = typeof req.body?.refresh_token === 'string' ? req.body.refresh_token : '';
+    limitarTentativas(req, 'refresh', refreshToken);
     if (!refreshToken) throw createAppError('REFRESH_TOKEN_REQUIRED', 'refresh_token obrigatório.', 422);
     res.json({ ok: true, data: await getAuthProvider().refresh(refreshToken) });
   } catch (err) { next(err); }
@@ -53,24 +85,28 @@ router.post('/auth/logout', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Recuperação de senha: sempre 200, para não revelar quais e-mails têm conta.
+// A resposta não revela quais e-mails têm conta.
 router.post('/auth/recover', async (req, res, next) => {
   try {
-    const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+    const entrada = req.body?.email;
+    const email = typeof entrada === 'string' ? entrada.trim().toLowerCase() : '';
+    limitarTentativas(req, 'recover', email);
     if (!email) throw createAppError('EMAIL_REQUIRED', 'Informe o e-mail.', 422);
-    if (rateLimited(req, `recover|${email}`)) throw createAppError('TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde alguns minutos.', 429);
     await getAuthProvider().recoverPassword(email, env.APP_PUBLIC_URL || undefined);
     res.json({ ok: true, data: { message: 'Se houver conta com este e-mail, enviamos um link para definir a senha.' } });
   } catch (err) { next(err); }
 });
 
-// Define a senha com o token do link de convite/recuperação (Bearer).
+// Define a senha apenas com prova recente da identidade no provedor.
 router.post('/auth/password', async (req, res, next) => {
   try {
     const token = extractBearer(req);
-    if (!token || !looksLikeJwt(token)) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
-    const password = String((req.body && req.body.password) || '');
-    if (password.length < 8) throw createAppError('WEAK_PASSWORD', 'Senha fraca: use ao menos 8 caracteres.', 422);
+    limitarTentativas(req, 'password', token);
+    if (!token || !looksLikeJwt(token) || (env.API_ACCESS_TOKEN && safeEquals(token, env.API_ACCESS_TOKEN))) {
+      throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+    }
+    const password = req.body?.password;
+    if (typeof password !== 'string' || password.length < 8) throw createAppError('WEAK_PASSWORD', 'Senha fraca: use ao menos 8 caracteres.', 422);
     await getAuthProvider().setPassword(token, password);
     res.json({ ok: true, data: null });
   } catch (err) { next(err); }

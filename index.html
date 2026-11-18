@@ -6,7 +6,7 @@
 <!-- Segurança (checklist de lançamento, D-052): o GitHub Pages não envia os headers do render.yaml,
      então a política vai aqui. Mesma CSP do render.yaml + a API local (dev/E2E). frame-ancestors não
      vale em <meta>: o bloqueio de iframe está em js/app.js. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com http://127.0.0.1:* http://localhost:*; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; style-src-elem 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'self' https://hopeos-v1.onrender.com https://gsttjozcmdvgstcpadiq.supabase.co http://127.0.0.1:* http://localhost:*; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"/>
 <meta name="referrer" content="no-referrer"/>
 <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)"/>
 <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)"/>
@@ -32,29 +32,52 @@
 </div>
 
 <div id="fatalError" class="card hidden" style="margin:16px;border:1px solid #f3c6c6;">
-  <h2 class="text-error">Conexão indisponível</h2>
-  <p class="body-lg">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
+  <h2 class="text-error" id="fatalTitulo">Acesso indisponível</h2>
+  <p class="body-lg" id="fatalMensagem">Não foi possível conectar ao servidor agora. Tente novamente em instantes.</p>
+  <button id="btnTentarNovamente" class="btn btn-primary" type="button">Tentar novamente</button>
 </div>
 
 <div id="loginScreen" class="login-screen hidden">
   <form id="loginForm" class="card login-card" novalidate>
     <h1 class="login-title">HOPE OS</h1>
-    <p class="login-sub">Entre com seu e-mail e senha.</p>
+    <p class="login-sub">Acesse sua conta.</p>
+    <div id="loginSocial" class="login-actions hidden">
+      <button id="btnGoogle" class="btn btn-secondary hidden" type="button">Continuar com Google</button>
+      <button id="btnApple" class="btn btn-secondary hidden" type="button">Continuar com Apple</button>
+    </div>
     <div class="field">
       <label for="loginEmail">E-mail</label>
       <input id="loginEmail" type="email" autocomplete="username" inputmode="email" required/>
     </div>
-    <div class="field">
-      <label for="loginSenha">Senha</label>
-      <input id="loginSenha" type="password" autocomplete="current-password" required/>
+    <div id="loginSenhaCampos">
+      <div class="field">
+        <label for="loginSenha">Senha</label>
+        <input id="loginSenha" type="password" autocomplete="current-password"/>
+      </div>
+      <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
+      <button id="btnEsqueciSenha" class="login-link" type="button">Esqueci minha senha</button>
     </div>
+    <button id="btnLinkAcesso" class="btn btn-primary hidden" type="button">Receber link de acesso</button>
+    <button id="btnMostrarCodigo" class="login-link hidden" type="button">Digitar código</button>
+    <div id="loginCodigoCampos" class="hidden">
+      <div class="field">
+        <label for="loginCodigo">Código por e-mail</label>
+        <input id="loginCodigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10"/>
+      </div>
+      <button id="btnValidarCodigo" class="btn btn-primary" type="button">Verificar código</button>
+    </div>
+    <button id="btnMostrarSenha" class="login-link hidden" type="button" aria-expanded="false" aria-controls="loginSenhaCampos">Entrar com senha</button>
+    <button id="btnVoltarAcesso" class="login-link hidden" type="button">Outras formas de entrar</button>
+    <p id="loginStatus" class="login-status hidden" role="status"></p>
     <p id="loginErro" class="login-erro" role="alert"></p>
-    <button id="btnLogin" class="btn btn-primary" type="submit">Entrar</button>
-    <div id="loginEmpresas" class="login-empresas hidden" aria-live="polite"></div>
-    <p class="login-aviso">Ao criar a conta e entrar, você declara ter lido o aviso de privacidade. Ele é mostrado no primeiro acesso e sempre que mudar.</p>
-    <button id="btnEsqueciSenha" class="login-link" type="button">Esqueci minha senha</button>
-    <button id="btnTokenLegado" class="login-link" type="button">Usar token de acesso (modo antigo)</button>
   </form>
+  <section id="empresaCard" class="card login-card hidden" aria-labelledby="empresaTitulo">
+    <h1 id="empresaTitulo" class="login-title">Escolha a empresa</h1>
+    <p id="empresaMensagem" class="login-sub hidden"></p>
+    <div id="loginEmpresas" class="login-empresas"></div>
+    <button id="btnVoltarEmpresa" class="login-link hidden" type="button">Voltar</button>
+    <button id="btnTrocarConta" class="login-link" type="button">Trocar de conta</button>
+  </section>
   <section id="privacyCard" class="card login-card hidden" aria-labelledby="privacyTitulo">
     <h1 class="login-title" id="privacyTitulo">Aviso de privacidade</h1>
     <p class="login-sub">Leia antes de continuar. Versão <span id="privacyVersao"></span>.</p>
@@ -65,14 +88,14 @@
       <p><b>Com quem compartilhamos.</b> Com os provedores de nuvem que hospedam o sistema, apenas para o funcionamento. Não vendemos dados.</p>
       <p><b>Por quanto tempo.</b> Enquanto durar o seu vínculo com o salão. Registros financeiros e de autoria são mantidos pelo prazo que a lei exigir e não podem ser apagados.</p>
       <p><b>Seus direitos.</b> Você pode pedir acesso, correção ou informação sobre o uso dos seus dados ao responsável pelo salão, e reclamar à Autoridade Nacional de Proteção de Dados (ANPD).</p>
-      <p><b>Segurança.</b> Acesso por login individual, conexão criptografada e registro de autoria. Não compartilhe sua senha.</p>
+      <p><b>Segurança.</b> Acesso por login individual, conexão criptografada e registro de autoria. Proteja suas credenciais de acesso.</p>
     </div>
     <p id="privacyErro" class="login-erro" role="alert"></p>
     <button id="btnAceitarPrivacidade" class="btn btn-primary" type="button">Li e aceito</button>
     <button id="btnRecusarPrivacidade" class="login-link" type="button">Não aceito (sair)</button>
   </section>
   <form id="senhaForm" class="card login-card hidden" novalidate>
-    <h1 class="login-title">Defina sua senha</h1>
+    <h1 class="login-title" id="senhaTitulo">Defina sua senha</h1>
     <p class="login-sub">Use ao menos 8 caracteres.</p>
     <div class="field">
       <label for="novaSenha">Nova senha</label>
@@ -83,7 +106,8 @@
       <input id="novaSenha2" type="password" autocomplete="new-password" minlength="8" required/>
     </div>
     <p id="senhaErro" class="login-erro" role="alert"></p>
-    <button id="btnSalvarSenha" class="btn btn-primary" type="submit">Salvar e entrar</button>
+    <button id="btnSalvarSenha" class="btn btn-primary" type="submit">Salvar senha</button>
+    <button id="btnReiniciarSenha" class="login-link" type="button">Solicitar outro link de recuperação</button>
   </form>
 </div>
 
@@ -766,7 +790,13 @@
     <div id="sessionChip" class="session-chip gestao-conta hidden">
       <span id="sessionLabel"></span>
       <span id="appVersao" class="body-sm text-tertiary" title="Versão do app neste aparelho"></span>
+      <button id="btnTrocarEmpresa" type="button" class="session-sair hidden">Trocar empresa</button>
       <button id="btnLogout" type="button" class="session-sair">Sair</button>
+    </div>
+    <div id="vincularProvedores" class="login-actions hidden">
+      <button id="btnVincularGoogle" type="button" class="btn btn-secondary hidden">Vincular Google</button>
+      <button id="btnVincularApple" type="button" class="btn btn-secondary hidden">Vincular Apple</button>
+      <p id="vincularErro" class="login-erro" role="alert"></p>
     </div>
 
     <fieldset class="tema-escolha" id="temaEscolha">

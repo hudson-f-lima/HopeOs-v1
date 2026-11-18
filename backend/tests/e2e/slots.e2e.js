@@ -1,10 +1,12 @@
-// E2E manual: sugestão de horários no modal (modo token legado). E2E_DATE=YYYY-MM-DD (use amanhã: o expediente do seed é 09–13h).
+// E2E manual: sugestão de horários no modal. E2E_DATE=YYYY-MM-DD (use amanhã: o expediente do seed é 09–13h).
 const { chromium } = require('playwright');
 (async()=>{
  const b=await chromium.launch(); const p=await b.newPage({viewport:{width:390,height:844}});
  const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error'&&!/40[13]|Failed to load/.test(m.text()))errs.push(m.text())});
- await p.goto('http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api&apiToken=dev');
- await p.waitForTimeout(2500);
+ await p.goto('http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api');
+ await p.waitForSelector('#loginScreen:not(.hidden)');
+ await p.fill('#loginEmail','admin@dev.local'); await p.fill('#loginSenha','dev12345'); await p.click('#btnLogin');
+ await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
  await p.click('#fab'); await p.waitForTimeout(500);
  await p.fill('#agData', process.env.E2E_DATE);
  await p.dispatchEvent('#agData','change');

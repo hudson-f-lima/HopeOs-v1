@@ -20,8 +20,8 @@
     "test:identity": "node tests/identity-gate.test.js",
     "test:onboarding": "node tests/onboarding-gate.test.js",
     "test:onda-b": "node tests/onda-b-gate.test.js",
-    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:online && npm run test:link && npm run test:series && npm run test:agenda-regras && npm run test:agenda-politica && npm run test:agenda-confiavel && npm run test:assinatura-planos && npm run test:assinantes && npm run test:assinatura-comissao && npm run test:service-worker && npm run test:atendimento && npm run test:lembretes-push && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam",
-    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam",
+    "test:offline": "npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:online && npm run test:link && npm run test:series && npm run test:agenda-regras && npm run test:agenda-politica && npm run test:agenda-confiavel && npm run test:assinatura-planos && npm run test:assinantes && npm run test:assinatura-comissao && npm run test:service-worker && npm run test:atendimento && npm run test:lembretes-push && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam && npm run test:identity-exact && npm run test:auth-hardening && npm run test:context-local && npm run test:session-lifecycle && npm run test:checkout-recovery && npm run test:checkout-replay",
+    "test:gate": "npm run test:finance && npm run test:product && npm run test:schema && npm run test:rpc-lock && npm run test:cadastros && npm run test:insights && npm run test:auth && npm run test:tenant-boundary && npm run test:slots && npm run test:identity && npm run test:onboarding && npm run test:onda-b && npm run test:lembretes && npm run test:caixa && npm run test:piloto && npm run test:historico && npm run test:estorno && npm run test:security && npm run test:publico && npm run test:ops && npm run test:correcoes && npm run test:ganhos && npm run test:finops && npm run test:privacidade && npm run test:gamificacao && npm run test:permissoes && npm run test:disponibilidade && npm run test:redteam && npm run test:identity-exact && npm run test:auth-hardening && npm run test:context-local && npm run test:session-lifecycle && npm run test:checkout-recovery && npm run test:checkout-replay",
     "test:product": "node tests/product-foundation-gate.test.js",
     "test:schema": "node tests/schema-polymorphic-gate.test.js",
     "test:lembretes": "node tests/lembretes-gate.test.js",
@@ -51,7 +51,13 @@
     "test:gamificacao": "node tests/gamificacao-gate.test.js",
     "test:permissoes": "node tests/permissoes-gate.test.js",
     "test:disponibilidade": "node tests/disponibilidade-gate.test.js",
-    "test:redteam": "node tests/redteam-gate.test.js"
+    "test:redteam": "node tests/redteam-gate.test.js",
+    "test:identity-exact": "node --test tests/identity-exact-gate.test.js",
+    "test:auth-hardening": "node --test tests/auth-hardening-gate.test.js",
+    "test:context-local": "node --test tests/context-local-gate.test.js",
+    "test:session-lifecycle": "node --test tests/session-lifecycle-gate.test.js",
+    "test:checkout-recovery": "node --test tests/checkout-recovery-gate.test.js",
+    "test:checkout-replay": "node --test tests/checkout-replay-gate.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

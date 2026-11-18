@@ -8,7 +8,7 @@
 //
 // Logins (senha dev12345): admin@dev.local, recepcao@dev.local, profissional@dev.local,
 // novo@dev.local (conta sem vínculo: testa Gestão > Equipe)
-// Token legado (modo antigo): ?apiToken=dev
+// Token legado das fixtures de API: Authorization: Bearer dev
 // DEV_EMPRESA_VAZIA=1 começa com o salão sem configuração (assistente de onboarding).
 // GET /__db/:tabela devolve o estado em memória (para asserts de E2E).
 // DEV_PUBLIC_SLUG=salao-dev liga o agendamento online para o salão do seed
@@ -98,16 +98,22 @@ setIdentityStore(store);
 
 // Provedor fake: tokens opacos no formato JWT, expiram em 1h.
 const sessoes = new Map();
-const novaSessao = conta => {
+const novaSessao = (conta, { sessionId = randomUUID(), provaSenhaAte = 0 } = {}) => {
   const access = `dev.${randomBytes(18).toString('base64url')}.sig`;
   const refresh = randomBytes(24).toString('base64url');
-  sessoes.set(access, { userId: conta.id, exp: Date.now() + 3600e3 });
-  sessoes.set(`r:${refresh}`, { userId: conta.id });
+  const sessao = { userId: conta.id, sessionId, provaSenhaAte };
+  sessoes.set(access, { ...sessao, exp: Date.now() + 3600e3 });
+  sessoes.set(`r:${refresh}`, sessao);
   return { access_token: access, refresh_token: refresh, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: conta.id, email: conta.email } };
 };
+function revogarSessoes(userId, sessionId) {
+  for (const [key, sessao] of sessoes) {
+    if (sessao.userId === userId && (!sessionId || sessao.sessionId === sessionId)) sessoes.delete(key);
+  }
+}
 const links = [];
 function registrarLink(conta, type, redirectTo) {
-  const sess = novaSessao(conta);
+  const sess = novaSessao(conta, { provaSenhaAte: Date.now() + 5 * 60e3 });
   const base = redirectTo || 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api';
   const link = `${base}#access_token=${sess.access_token}&refresh_token=${sess.refresh_token}&expires_in=3600&type=${type}`;
   links.push({ email: conta.email, type, link });
@@ -148,15 +154,24 @@ setAuthProvider({
   },
   async setPassword(token, password) {
     const u = await this.getUser(token);
+    const prova = sessoes.get(token);
+    if (!(prova?.provaSenhaAte > Date.now())) {
+      throw createAppError('PASSWORD_PROOF_REQUIRED', 'Solicite e abra um novo link para definir a senha.', 403);
+    }
     contas.find(c => c.id === u.id).password = password;
+    revogarSessoes(u.id);
   },
   async refresh(rt) {
     const s = sessoes.get(`r:${rt}`);
     if (!s) throw invalida();
     sessoes.delete(`r:${rt}`);
-    return novaSessao(contas.find(x => x.id === s.userId));
+    return novaSessao(contas.find(x => x.id === s.userId), s);
   },
-  async signOut(token) { sessoes.delete(token); }
+  async signOut(token) {
+    const user = await this.getUser(token);
+    const sessionId = sessoes.get(token)?.sessionId;
+    if (sessionId) revogarSessoes(user.id, sessionId);
+  }
 });
 
 const { app } = require('../src/app');

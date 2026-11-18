@@ -4,8 +4,13 @@ if (window.top !== window.self) {
   document.documentElement.style.display = 'none';
   try { window.top.location = window.location.href; } catch (_) { /* outro domínio: fica oculto */ }
 }
-import { loadConfig, getSession, getToken, setToken, login, logout, fetchMe, aceitarPrivacidade, selectEmpresa, consumeAuthLink, definirSenha, recuperarSenha } from './api.js';
-import { state, stateBus, loadCatalog, loadWeekAgenda, sessionRoleIn, sessionPode } from './state.js';
+import {
+  authFeatures, AuthError, StaleContextError, loadConfig, getSession, login, logout, fetchMe,
+  aceitarPrivacidade, selectEmpresa, consumeAuthLink, pendingPassword, definirSenha, recuperarSenha,
+  onAuthContextChanged, openOAuth, requestEmailAccess, verifyEmailCode
+} from './api.js';
+import { readAuthStorage, writeAuthStorage } from './auth-storage.js';
+import { state, stateBus, loadCatalog, loadWeekAgenda, sessionPode } from './state.js';
 import { 
   centsToBRL, 
   openModal, 
@@ -78,68 +83,190 @@ const ROLE_LABEL = { admin: 'Admin', gestor: 'Gestão', recepcao: 'Recepção', 
 function hide(id) { document.getElementById(id)?.classList.add('hidden'); }
 function show(id) { document.getElementById(id)?.classList.remove('hidden'); }
 
-// Tela de login: resolve quando o login dá certo (ou quando o usuário opta pelo token legado).
+const NOTICE_KEY = 'hopeos.auth.notice';
+const noAccess = 'Sua conta ainda não tem acesso a nenhuma empresa. Peça ao administrador.';
+
+function setAuthNotice(message) {
+  if (message) writeAuthStorage(NOTICE_KEY, message, true);
+}
+
+function getAuthNotice() {
+  const message = readAuthStorage(NOTICE_KEY, true);
+  writeAuthStorage(NOTICE_KEY, null, true);
+  return message;
+}
+
 function runLogin(mensagem) {
-  hide('loadingScreen'); hide('appRoot'); hide('fatalError'); show('loginScreen');
-  const form = document.getElementById('loginForm');
-  const erro = document.getElementById('loginErro');
-  const btn = document.getElementById('btnLogin');
+  hide('loadingScreen'); hide('appRoot'); hide('fatalError'); hide('senhaForm'); hide('empresaCard'); show('loginScreen'); show('loginForm');
+  const get = id => document.getElementById(id);
+  const form = get('loginForm');
+  const erro = get('loginErro');
+  const status = get('loginStatus');
+  const emailInput = get('loginEmail');
+  const senhaInput = get('loginSenha');
+  const codeInput = get('loginCodigo');
+  const emailAccess = authFeatures.magicLink || authFeatures.otp;
+  const alternate = Boolean(emailAccess || authFeatures.google || authFeatures.apple);
+  const social = { google: get('btnGoogle'), apple: get('btnApple') };
+  const buttons = [...form.querySelectorAll('button')];
+  let mode = alternate ? 'email' : 'password';
+  let reenable;
+  let busy = false;
+
+  function render() {
+    get('loginSocial').classList.toggle('hidden', !(authFeatures.google || authFeatures.apple));
+    for (const [provider, element] of Object.entries(social)) element.classList.toggle('hidden', !authFeatures[provider]);
+    get('loginSenhaCampos').classList.toggle('hidden', mode !== 'password');
+    get('btnLinkAcesso').classList.toggle('hidden', !emailAccess || mode === 'password');
+    get('btnMostrarCodigo').classList.toggle('hidden', !authFeatures.otp || mode !== 'email');
+    get('loginCodigoCampos').classList.toggle('hidden', mode !== 'code');
+    get('btnMostrarSenha').classList.toggle('hidden', !alternate || mode === 'password');
+    get('btnVoltarAcesso').classList.toggle('hidden', !alternate || mode === 'email');
+    get('btnLinkAcesso').textContent = authFeatures.magicLink ? 'Receber link de acesso' : 'Receber código por e-mail';
+  }
+
+  function address() {
+    if (!emailInput.value.trim() || !emailInput.validity.valid) {
+      erro.textContent = 'Informe um e-mail válido.';
+      emailInput.focus();
+      return null;
+    }
+    return emailInput.value.trim();
+  }
+
+  function report(message) {
+    status.textContent = message;
+    status.classList.toggle('hidden', !message);
+  }
+
+  async function perform(operation) {
+    if (busy) return;
+    busy = true;
+    for (const button of buttons) button.disabled = true;
+    erro.textContent = '';
+    report('');
+    try {
+      await operation();
+    } catch (error) {
+      erro.textContent = error.message || 'Não foi possível continuar. Tente novamente.';
+    } finally {
+      busy = false;
+      for (const button of buttons) button.disabled = false;
+      if (reenable > Date.now()) get('btnLinkAcesso').disabled = true;
+    }
+  }
+
   erro.textContent = mensagem || '';
+  report('');
+  render();
   return new Promise(resolve => {
-    form.onsubmit = async (ev) => {
-      ev.preventDefault();
-      const email = document.getElementById('loginEmail').value.trim();
-      const senha = document.getElementById('loginSenha').value;
-      if (!email || !senha) { erro.textContent = 'Informe e-mail e senha.'; return; }
-      btn.disabled = true; btn.textContent = 'Entrando…'; erro.textContent = '';
-      try {
-        await login(email, senha);
-        document.getElementById('loginSenha').value = '';
-        resolve('user');
-      } catch (err) {
-        erro.textContent = err.status === 401 ? 'E-mail ou senha incorretos.' : (err.message || 'Não foi possível entrar.');
-      } finally {
-        btn.disabled = false; btn.textContent = 'Entrar';
+    for (const [provider, button] of Object.entries(social)) button.onclick = () => perform(() => openOAuth(provider));
+    get('btnMostrarSenha').onclick = () => {
+      mode = 'password';
+      render();
+      senhaInput.focus();
+    };
+    get('btnVoltarAcesso').onclick = () => {
+      mode = 'email';
+      senhaInput.value = '';
+      codeInput.value = '';
+      render();
+      emailInput.focus();
+    };
+    get('btnMostrarCodigo').onclick = () => {
+      mode = 'code';
+      render();
+      codeInput.focus();
+    };
+    get('btnLinkAcesso').onclick = () => {
+      const email = address();
+      if (!email || reenable > Date.now()) return;
+      perform(async () => {
+        await requestEmailAccess(email);
+        if (authFeatures.otp) mode = 'code';
+        const method = authFeatures.otp && authFeatures.magicLink
+          ? 'o link ou o código' : authFeatures.otp ? 'o código' : 'o link';
+        report('Se houver uma conta com esse e-mail, você receberá ' + method + ' de acesso.');
+        reenable = Date.now() + 60000;
+        setTimeout(() => { if (!busy) get('btnLinkAcesso').disabled = false; }, 60000);
+        render();
+      });
+    };
+    const verify = () => {
+      const email = address();
+      if (!email) return;
+      const code = codeInput.value.trim();
+      if (!/^\d{6,10}$/.test(code)) {
+        erro.textContent = 'Informe o código recebido por e-mail.';
+        codeInput.focus();
+        return;
       }
+      perform(async () => {
+        await verifyEmailCode(email, code);
+        codeInput.value = '';
+        resolve();
+      });
     };
-    document.getElementById('btnEsqueciSenha').onclick = async () => {
-      const email = document.getElementById('loginEmail').value.trim() || window.prompt('Seu e-mail:') || '';
-      if (!email.trim()) return;
-      try {
-        const r = await recuperarSenha(email.trim());
-        erro.textContent = r.message;
-      } catch (err) { erro.textContent = err.message; }
+    get('btnValidarCodigo').onclick = verify;
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      if (mode === 'code') { verify(); return; }
+      if (mode !== 'password') { get('btnLinkAcesso').click(); return; }
+      const email = address();
+      if (!email) return;
+      const password = senhaInput.value;
+      if (!password) { erro.textContent = 'Informe sua senha.'; senhaInput.focus(); return; }
+      perform(async () => {
+        try {
+          await login(email, password);
+          senhaInput.value = '';
+          resolve();
+        } catch (error) {
+          if (error.status === 401 && !(error instanceof AuthError)) throw new Error('E-mail ou senha incorretos.');
+          throw error;
+        }
+      });
     };
-    document.getElementById('btnTokenLegado').onclick = () => {
-      const token = window.prompt('Token de acesso da API:');
-      if (token && token.trim()) { setToken(token.trim()); resolve('legacy'); }
+    get('btnEsqueciSenha').onclick = () => {
+      const email = address();
+      if (!email) return;
+      perform(async () => {
+        const result = await recuperarSenha(email);
+        erro.textContent = result.message;
+      });
     };
   });
 }
 
-// Chegou pelo link de convite/recuperação: define a senha antes de entrar.
-function runDefinirSenha() {
-  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
-  hide('loginForm'); show('senhaForm');
-  const erro = document.getElementById('senhaErro');
-  const btn = document.getElementById('btnSalvarSenha');
-  return new Promise(resolve => {
-    document.getElementById('senhaForm').onsubmit = async (ev) => {
-      ev.preventDefault();
-      const a = document.getElementById('novaSenha').value;
-      const b = document.getElementById('novaSenha2').value;
-      if (a.length < 8) { erro.textContent = 'Use ao menos 8 caracteres.'; return; }
-      if (a !== b) { erro.textContent = 'As senhas não conferem.'; return; }
-      btn.disabled = true; erro.textContent = '';
-      try {
-        await definirSenha(a);
-        hide('senhaForm'); show('loginForm');
-        resolve();
-      } catch (err) {
-        erro.textContent = err.message || 'Não foi possível salvar a senha.';
-      } finally { btn.disabled = false; }
-    };
-  });
+function runDefinirSenha(tipo) {
+  hide('loadingScreen'); hide('appRoot'); hide('loginForm'); show('loginScreen'); show('senhaForm');
+  const get = id => document.getElementById(id);
+  const erro = get('senhaErro');
+  const btn = get('btnSalvarSenha');
+  const a = get('novaSenha');
+  const b = get('novaSenha2');
+  get('senhaTitulo').textContent = tipo === 'invite' ? 'Defina sua senha' : 'Redefina sua senha';
+  erro.textContent = '';
+  get('btnReiniciarSenha').onclick = () => {
+    setAuthNotice('Informe seu e-mail e selecione Esqueci minha senha para solicitar outro link.');
+    logout();
+  };
+  get('senhaForm').onsubmit = async (event) => {
+    event.preventDefault();
+    if (a.value.length < 8) { erro.textContent = 'Use ao menos 8 caracteres.'; return; }
+    if (a.value !== b.value) { erro.textContent = 'As senhas não conferem.'; return; }
+    btn.disabled = true; erro.textContent = '';
+    try {
+      await definirSenha(a.value);
+      a.value = ''; b.value = '';
+      setAuthNotice('Senha salva. Entre com a nova senha.');
+      await logout();
+    } catch (error) {
+      erro.textContent = error.code === 'PASSWORD_PROOF_REQUIRED'
+        ? 'Este link perdeu a validade. Solicite outro link de recuperação.'
+        : error.message || 'Não foi possível salvar a senha.';
+    } finally { btn.disabled = false; }
+  };
 }
 
 function pedirAceitePrivacidade(versao) {
@@ -150,7 +277,7 @@ function pedirAceitePrivacidade(versao) {
   const btn = document.getElementById('btnAceitarPrivacidade');
   erro.textContent = '';
   return new Promise(resolve => {
-    document.getElementById('btnRecusarPrivacidade').onclick = async () => { await logout(); window.location.reload(); };
+    document.getElementById('btnRecusarPrivacidade').onclick = () => logout();
     btn.onclick = async () => {
       btn.disabled = true; erro.textContent = '';
       try {
@@ -164,17 +291,26 @@ function pedirAceitePrivacidade(versao) {
   });
 }
 
-function escolherEmpresa(empresas) {
+function escolherEmpresa(empresas, selecionada = null, mensagem = '') {
   const box = document.getElementById('loginEmpresas');
-  hide('loadingScreen'); hide('appRoot'); show('loginScreen');
-  document.getElementById('loginErro').textContent = 'Escolha a empresa:';
+  hide('loadingScreen'); hide('appRoot'); hide('loginForm'); show('loginScreen'); show('empresaCard');
+  document.getElementById('btnTrocarConta').onclick = () => logout();
+  const hint = document.getElementById('empresaMensagem');
+  hint.textContent = mensagem;
+  hint.classList.toggle('hidden', !mensagem);
+  document.getElementById('empresaTitulo').textContent = empresas.length ? 'Escolha a empresa' : 'Acesso à unidade';
+  const cancel = document.getElementById('btnVoltarEmpresa');
+  cancel.classList.toggle('hidden', !selecionada);
   box.innerHTML = empresas.map(e => `<button type="button" class="btn" data-empresa="${escapeHtml(e.empresa_id)}">${escapeHtml(e.nome || e.empresa_id)} · ${escapeHtml(ROLE_LABEL[e.role] || e.role)}</button>`).join('');
-  show('loginEmpresas');
   return new Promise(resolve => {
+    cancel.onclick = () => {
+      hide('empresaCard');
+      resolve(selecionada);
+    };
     box.onclick = (ev) => {
       const b = ev.target.closest('[data-empresa]');
       if (!b) return;
-      hide('loginEmpresas');
+      hide('empresaCard');
       resolve(empresas.find(e => e.empresa_id === b.dataset.empresa));
     };
   });
@@ -182,22 +318,18 @@ function escolherEmpresa(empresas) {
 
 // Contexto da sessão: quem é, em qual empresa e com qual papel (só para a UI).
 async function carregarSessao() {
-  if (!getSession()) {
-    state.session = { principal: 'legacy', role: null };
-    return;
-  }
   const me = await fetchMe();
-  // Aviso de privacidade (D-018): aceito ao criar a conta e entrar; volta a aparecer se a versão mudar.
-  if (me.privacidade && me.privacidade.pendente) await pedirAceitePrivacidade(me.privacidade.versaoAtual);
   const empresas = me.empresas || [];
-  if (!empresas.length) {
-    await logout();
-    throw Object.assign(new Error('Sua conta ainda não tem acesso a nenhuma empresa. Peça ao administrador.'), { name: 'NoAccessError' });
-  }
-  let atual = empresas.find(e => e.empresa_id === getSession().empresa_id);
+  if (!empresas.length) throw Object.assign(new Error(noAccess), { code: 'NO_ACTIVE_MEMBERSHIP' });
+  // Aviso de privacidade (D-018): volta a aparecer se a versão mudar.
+  if (me.privacidade?.pendente) await pedirAceitePrivacidade(me.privacidade.versaoAtual);
+  let atual = empresas.find(e => e.empresa_id === getSession()?.empresa_id);
   if (!atual) atual = empresas.length === 1 ? empresas[0] : await escolherEmpresa(empresas);
   selectEmpresa(atual.empresa_id);
-  state.session = { principal: 'user', nome: me.user.nome, email: me.user.email, role: atual.role, empresa_id: atual.empresa_id, empresas, permissoes: atual.permissoes || null, profissional_id: atual.profissional_id || null };
+  state.session = {
+    principal: 'user', user_id: me.user.id, nome: me.user.nome, email: me.user.email, role: atual.role,
+    empresa_id: atual.empresa_id, empresas, permissoes: atual.permissoes || null, profissional_id: atual.profissional_id || null
+  };
   hide('loginScreen');
 }
 
@@ -206,6 +338,38 @@ function aplicarSessaoNaUI() {
   if (s && s.principal === 'user') {
     document.getElementById('sessionLabel').textContent = `${s.nome} · ${ROLE_LABEL[s.role] || s.role}`;
     show('sessionChip');
+    if (s.empresas.length > 1) {
+      const switcher = document.getElementById('btnTrocarEmpresa');
+      switcher.classList.remove('hidden');
+      switcher.onclick = async () => {
+        closeModal('sheetGestao');
+        const empresa = await escolherEmpresa(s.empresas, s.empresas.find(e => e.empresa_id === s.empresa_id));
+        if (empresa.empresa_id === s.empresa_id) { hide('loginScreen'); show('appRoot'); return; }
+        selectEmpresa(empresa.empresa_id);
+      };
+    }
+    if (authFeatures.linkIdentity) {
+      const providers = { google: 'btnVincularGoogle', apple: 'btnVincularApple' };
+      for (const [provider, id] of Object.entries(providers)) {
+        if (!authFeatures[provider]) continue;
+        const button = document.getElementById(id);
+        show('vincularProvedores');
+        show(id);
+        button.onclick = async () => {
+          const error = document.getElementById('vincularErro');
+          button.disabled = true;
+          error.textContent = '';
+          try {
+            const me = await fetchMe();
+            if (me.user.id !== s.user_id || !me.empresas.some(e => e.empresa_id === s.empresa_id)) throw new AuthError();
+            await openOAuth(provider, s.user_id);
+          } catch (err) {
+            error.textContent = err.message;
+            button.disabled = false;
+          }
+        };
+      }
+    }
   }
   // Painel e lista de espera seguem a permissão efetiva (D-032): um profissional com o
   // pacote Recepção passa a ver os dois; sem ele, não vê.
@@ -221,16 +385,67 @@ function aplicarSessaoNaUI() {
   }
 }
 
-function showFatalError() {
+function showFatalError(error, retry = () => window.location.reload()) {
   const loading = document.getElementById('loadingScreen');
   const app = document.getElementById('appRoot');
   const fatal = document.getElementById('fatalError');
   if (loading) loading.classList.add('hidden');
   if (app) app.classList.add('hidden');
   if (fatal) fatal.classList.remove('hidden');
+  const title = document.getElementById('fatalTitulo');
+  const message = document.getElementById('fatalMensagem');
+  if (title) title.textContent = error?.status === 429 ? 'Aguarde antes de tentar' : 'Acesso indisponível';
+  if (message) message.textContent = error?.status === 429
+    ? 'Muitas tentativas. Aguarde e tente novamente.'
+    : 'Não foi possível conectar ao servidor agora. Tente novamente em instantes.';
+  document.getElementById('btnTentarNovamente').onclick = retry;
+}
+
+async function prepararAcesso() {
+  for (;;) {
+    try {
+      await loadConfig();
+      return;
+    } catch (error) {
+      // Enquanto a confirmação do callback não começou, é seguro repetir a configuração
+      // nesta página. A URL já foi saneada; recarregar descartaria o retorno capturado.
+      await new Promise(resolve => showFatalError(error, resolve));
+      hide('fatalError');
+      show('loadingScreen');
+    }
+  }
+}
+
+function watchOperationalContext() {
+  const initialState = structuredClone(state);
+  const appRoot = document.getElementById('appRoot');
+  const operational = [...document.body.children].filter(node =>
+    node.id === 'onboardingScreen' ||
+    (appRoot.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING && node.tagName !== 'SCRIPT') ||
+    node === appRoot);
+  const templates = operational.map(node => node.cloneNode(true));
+  let leaving = false;
+  onAuthContextChanged(reason => {
+    if (leaving) return;
+    leaving = true;
+    for (const key of Object.keys(state)) delete state[key];
+    Object.assign(state, structuredClone(initialState));
+    operational.forEach((element, index) => element.replaceWith(templates[index]));
+    hide('senhaForm'); hide('privacyCard'); hide('empresaCard'); hide('loginScreen');
+    document.getElementById('loginSenha').value = '';
+    document.getElementById('loginCodigo').value = '';
+    document.getElementById('novaSenha').value = '';
+    document.getElementById('novaSenha2').value = '';
+    show('loadingScreen');
+    if (reason === 'account') setAuthNotice('A conta deste navegador mudou.');
+    // A navegação descarta também os dados privados nos módulos já inicializados.
+    window.location.reload();
+  });
+  return () => leaving;
 }
 
 async function init() {
+  const contextChanged = watchOperationalContext();
   const loadingMessage = document.getElementById('loadingMessage') || document.querySelector('#loadingScreen div:last-child');
   const slowBootTimer = setTimeout(() => {
     if (loadingMessage) loadingMessage.textContent = 'Conectando ao servidor... isso pode levar alguns segundos.';
@@ -283,21 +498,35 @@ async function init() {
   initDashboard();
   initCadastros();
 
-  document.getElementById('btnLogout')?.addEventListener('click', async () => {
-    await logout();
-    window.location.reload();
-  });
+  document.getElementById('btnLogout')?.addEventListener('click', () => logout());
 
   try {
-    await loadConfig();
-    if (consumeAuthLink()) await runDefinirSenha();
-    if (!getSession() && !getToken()) await runLogin();
+    await prepararAcesso();
+    let notice = getAuthNotice();
+    try {
+      if (await consumeAuthLink() === 'link') notice = 'Conta vinculada.';
+    } catch (error) {
+      if (contextChanged() || error instanceof StaleContextError) return;
+      notice = error.message;
+    }
+    const passwordType = pendingPassword();
+    if (passwordType) {
+      clearTimeout(slowBootTimer);
+      runDefinirSenha(passwordType);
+      return;
+    }
+    if (!getSession()) await runLogin(notice);
+    else if (notice) showBanner(notice);
+    if (contextChanged()) return;
     await carregarSessao();
+    if (contextChanged()) return;
     aplicarSessaoNaUI();
     // Salão sem configuração mínima: assistente antes das telas vazias.
     await talvezAbrirOnboarding();
+    if (contextChanged()) return;
     document.getElementById('loadingScreen')?.classList.remove('hidden');
     await loadCatalog();
+    if (contextChanged()) return;
 
     renderClientesList();
     renderServicosList();
@@ -434,36 +663,46 @@ async function init() {
       });
     }
 
-    // Parallel loading of week agenda and dashboard update (Vercel Best Practice)
-    await Promise.all([
-      loadWeekAgenda(),
-      carregarAtalhos(),
-      sessionPode('painel:operacional') ? atualizarDashboard() : Promise.resolve(),
-      sessionPode('caixa:conferir') ? atualizarCaixa() : Promise.resolve(),
-      podeEstornar() ? atualizarComandasEstorno() : Promise.resolve()
-    ]);
+    await loadWeekAgenda();
   } catch (err) {
-    console.error('Falha ao inicializar:', err);
     clearTimeout(slowBootTimer);
-    
-    // Credencial inválida/expirada ou conta sem acesso: volta para o login.
-    if (err.name === 'AuthError' || err.name === 'NoAccessError') {
-      setToken(null);
-      await runLogin(err.name === 'NoAccessError' ? err.message : 'Sua sessão expirou. Entre novamente.');
+    if (contextChanged() || err instanceof StaleContextError) return;
+    if (['USER_INACTIVE', 'NO_ACTIVE_MEMBERSHIP'].includes(err.code)) {
+      setAuthNotice(noAccess);
+      await logout({ revoke: false });
+      return;
+    }
+    if (err.code === 'NO_UNIT_ACCESS' && state.session) {
+      const { empresa_id: bloqueada, empresas } = state.session;
+      const alternativas = empresas.filter(empresa => empresa.empresa_id !== bloqueada);
+      const outra = await escolherEmpresa(alternativas, null, 'Você não tem uma unidade ativa vinculada nesta empresa. Peça acesso ao administrador.');
+      if (!contextChanged() && outra) selectEmpresa(outra.empresa_id);
+      return;
+    }
+    if (err instanceof AuthError) {
+      await runLogin('Sua sessão expirou. Entre novamente.');
       window.location.reload();
       return;
     }
-    
-    showFatalError();
+
+    showFatalError(err);
     return;
   }
 
   clearTimeout(slowBootTimer);
+  if (contextChanged()) return;
 
   const loading = document.getElementById('loadingScreen');
   const root = document.getElementById('appRoot');
   if (loading) loading.classList.add('hidden');
   if (root) root.classList.remove('hidden');
+  // A operação pode iniciar na agenda enquanto os resumos e atalhos carregam.
+  Promise.allSettled([
+    carregarAtalhos(),
+    sessionPode('painel:operacional') ? atualizarDashboard() : null,
+    sessionPode('caixa:conferir') ? atualizarCaixa() : null,
+    podeEstornar() ? atualizarComandasEstorno() : null
+  ]);
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
@@ -490,7 +729,7 @@ async function init() {
 // Link de convite/recuperação aberto numa aba onde o app já está: só o fragmento
 // muda e a página não recarrega. Recarrega para o boot consumir o token.
 window.addEventListener('hashchange', () => {
-  if (/(^|[#&])access_token=/.test(window.location.hash)) window.location.reload();
+  if (/(^|[#&])(access_token|error|error_code)=/.test(window.location.hash)) window.location.reload();
 });
 
 // Comanda fechada: o fechamento do dia muda.
