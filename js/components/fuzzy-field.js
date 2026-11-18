@@ -29,7 +29,14 @@ export class FuzzyField {
     // Texto editado à mão deixa de ser a opção escolhida: o que vale é o que aparece.
     // Sem isso, apagar o campo mantinha a escolha anterior escondida. Só no evento de
     // digitação: o foco reabre a lista e não pode desfazer a escolha.
-    this.input.addEventListener('input', (e) => { cancelarFechamento(); this.selectedValue = null; this.onInput(e); });
+    this.input.addEventListener('input', e => {
+      cancelarFechamento();
+      this.selectedValue = null;
+      this.closeDropdown();
+      if (this.items.length >= 500 && this.input.value.trim()) {
+        this.searchTimer = setTimeout(() => this.onInput({ target: this.input }), 100);
+      } else this.onInput(e);
+    });
   }
 
   fuzzyMatch(q, t) {
@@ -43,6 +50,7 @@ export class FuzzyField {
   }
 
   onInput(e) {
+    clearTimeout(this.searchTimer);
     const query = normalizeSearchText(e.target.value.trim());
     if (!query) {
       this.showDropdown(this.items.slice(0, 8));
@@ -146,6 +154,7 @@ export class FuzzyField {
   }
 
   closeDropdown() {
+    clearTimeout(this.searchTimer);
     this.activeIndex = -1;
     this.input.setAttribute('aria-expanded', 'false');
     this.input.removeAttribute('aria-activedescendant');

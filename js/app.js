@@ -28,12 +28,6 @@ import { initComandas, abrirComandas } from './ui/comandas.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
   initCadastros,
-  renderClientesList,
-  renderServicosList,
-  renderProfissionaisList,
-  renderProdutosList,
-  renderFormasList,
-  renderListaEsperaList,
   openListaEsperaModal
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
@@ -650,12 +644,6 @@ async function init() {
     await loadCatalog();
     if (contextChanged()) return;
 
-    renderClientesList();
-    renderServicosList();
-    renderProfissionaisList();
-    renderProdutosList();
-    renderFormasList();
-    renderListaEsperaList();
 
     // Instantiate Fuzzy Fields and store them in the global state
     state.fuzzyCliente = new FuzzyField('coCliente', state.catalog.clientes, {

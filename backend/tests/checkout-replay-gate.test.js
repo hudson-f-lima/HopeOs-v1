@@ -253,3 +253,13 @@ test('mudança de taxa com mesmo total exige nova revisão antes de gravar', asy
     assert.equal(aceito.status, 201, JSON.stringify(aceito.body));
   } finally { forma.taxa_fixa_centavos = taxaOriginal; }
 });
+
+test('cliente alterado na agenda exige reabrir o atendimento antes do fechamento', async () => {
+  const ag = novoAgendamento();
+  const anterior = randomUUID();
+  ag.cliente_id = randomUUID();
+  const pedido = { ...linked, agendamentoId: ag.id, clienteId: anterior, idempotencyKey: randomUUID() };
+  const total = db.comandos.length;
+  assert.equal((await post(pedido)).body.error.code, 'AGENDAMENTO_CLIENTE_ALTERADO');
+  assert.equal(db.comandos.length, total);
+});

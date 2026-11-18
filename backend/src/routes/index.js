@@ -904,6 +904,11 @@ async function validarVinculoAgendamento(req, repo) {
     err.message = `Agendamento ${ag.status} não pode ser concluído pelo checkout. Feche a comanda sem vínculo com a agenda.`;
     throw err;
   }
+  const clienteSolicitado = req.body.clienteId ?? req.body.cliente_id ?? null;
+  const informouCliente = Object.hasOwn(req.body, 'clienteId') || Object.hasOwn(req.body, 'cliente_id');
+  if (informouCliente && clienteSolicitado !== (ag.cliente_id ?? null)) {
+    throw createAppError('AGENDAMENTO_CLIENTE_ALTERADO', 'O cliente do atendimento mudou. Abra o atendimento atualizado para conferir a comanda.', 409);
+  }
   return { ag };
 }
 

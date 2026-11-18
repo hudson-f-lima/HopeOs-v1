@@ -273,6 +273,8 @@ function limparCobertura(item) {
   item.planoTexto = item.semPlano ? 'sem o plano' : undefined;
 }
 
+const COBERTURA_INDISPONIVEL = 'Não foi possível consultar a cobertura do plano. Tente simular novamente.';
+
 async function atualizarCobertura(itens, clienteId, agendamentoId, continua) {
   const usadosNaComanda = new Map();
   const ag = agendamentoId ? findAgendaItemById(agendamentoId) || agendamentoDoRascunho : null;
@@ -286,9 +288,11 @@ async function atualizarCobertura(itens, clienteId, agendamentoId, continua) {
       data: ag && ag.data ? String(ag.data).slice(0, 10) : agora.toLocaleDateString('en-CA'),
       horario: ag && ag.horario ? String(ag.horario).slice(0, 5) : agora.toTimeString().slice(0, 5) });
     let cob;
-    try { cob = await api('/assinaturas/cobertura?' + q.toString()); } catch (_) { /* cobertura indisponível */ }
+    try { cob = await api('/assinaturas/cobertura?' + q.toString()); }
+    catch (err) { throw new Error(COBERTURA_INDISPONIVEL, { cause: err }); }
     if (!continua()) return;
-    const m = cob && cob.melhor;
+    if (!cob || !Object.hasOwn(cob, 'melhor')) throw new Error(COBERTURA_INDISPONIVEL);
+    const m = cob.melhor;
     if (!m) continue;
     const chave = m.assinaturaId + ':' + item.servicoId;
     const ja = usadosNaComanda.get(chave) || 0;
@@ -313,11 +317,15 @@ async function atualizarCobertura(itens, clienteId, agendamentoId, continua) {
 
 function pagamentosDoRascunho(totalCentavos, itens) {
   // Tudo coberto pelo plano (total R$ 0): fecha sem forma de pagamento.
-  if (totalCentavos === 0 && itens.some(i => i.assinaturaId)) return [];
+  if (semCobranca(totalCentavos, itens)) return [];
   if (state.splitEnabled) return buildSplitPayments(totalCentavos);
   const formaCode = state.fuzzyForma.getValue();
   if (!formaCode) throw new Error('Selecione uma forma de pagamento.');
   return [{ formaCode, valorCentavos: totalCentavos }];
+}
+
+function semCobranca(totalCentavos, itens) {
+  return totalCentavos === 0 && itens.some(i => i.assinaturaId);
 }
 
 function buildPayload() {
@@ -503,7 +511,13 @@ export async function simular() {
   } catch (err) {
     if (continua()) {
       limparResumo();
-      showBanner(desvincularSeAgendaInvalida(err), 'error');
+      if (err.message === COBERTURA_INDISPONIVEL) {
+        const aviso = document.getElementById('coPlanoAviso');
+        aviso.textContent = err.message;
+        aviso.classList.remove('hidden');
+      } else {
+        showBanner(desvincularSeAgendaInvalida(err), 'error');
+      }
     }
   }
 }
@@ -863,18 +877,22 @@ export function toggleSplitPayment() {
 }
 
 // Restante da última linha (não digitável) = total confirmado no preview - soma das outras linhas
-function lastSplitRemainderCentavos() {
+function lastSplitRemainderCentavos(total = totalParaDividir()) {
   const outrasCentavos = state.splits.slice(0, -1).reduce((sum, s) => sum + valorDaLinha(s.amount), 0);
-  return totalParaDividir() - outrasCentavos;
+  return total - outrasCentavos;
 }
 
 function updateLastSplitRowDisplay() {
   const lastIdx = state.splits.length - 1;
   const el = document.querySelector(`.split-row-amount[data-split-idx="${lastIdx}"]`);
-  const restante = lastSplitRemainderCentavos();
-  if (el) el.textContent = restante > 0 ? centsToBRL(restante) : 'sem restante';
   const dica = document.getElementById('splitDica');
-  if (dica) dica.textContent = restante > 0 ? 'A última forma recebe o restante. Depois, toque em "Simular comanda".' : 'Os valores já cobrem o total. Diminua um valor ou remova uma forma.';
+  const total = totalParaDividir();
+  const semPagar = semCobranca(total, state.comandaItens);
+  const restante = lastSplitRemainderCentavos(total);
+  if (el) el.textContent = semPagar ? 'sem cobrança' : restante > 0 ? centsToBRL(restante) : 'sem restante';
+  if (dica) dica.textContent = semPagar ? 'Esta comanda está coberta pelo plano.'
+    : restante > 0 ? 'A última forma recebe o restante. Depois, toque em "Simular comanda".'
+    : 'Os valores já cobrem o total. Diminua um valor ou remova uma forma.';
 }
 
 export function renderSplitRows() {
@@ -948,12 +966,14 @@ export function addSplitRow() {
 
 export function validateSplitPayment() {
   if (!state.splitEnabled) return true; // Sem split, sempre válido
+  const total = totalParaDividir();
+  if (semCobranca(total, state.comandaItens)) return true;
   if (state.splits.length < 2 || state.splits.some(split => !split.method)) return false;
 
   const outras = state.splits.slice(0, -1);
   if (outras.some(split => valorDaLinha(split.amount) <= 0)) return false;
 
-  return lastSplitRemainderCentavos() > 0;
+  return lastSplitRemainderCentavos(total) > 0;
 }
 
 export function updateSubmitButtonState() {
@@ -1059,7 +1079,8 @@ export function initCheckout() {
     versaoDosAtalhos++;
     consultaDosAtalhos = null;
     atalhosProntos = false;
-    if (state.activeTab === 'checkout' && !document.getElementById('comandasCheckout')?.classList.contains('hidden')) carregarAtalhos();
+    const editor = document.getElementById('comandasCheckout');
+    if (state.activeTab === 'checkout' && editor && !editor.classList.contains('hidden')) carregarAtalhos();
   });
   document.getElementById('coTaxaAviso').addEventListener('click', ev => {
     const btn = ev.target.closest('#btnTrocarForma');

@@ -96,7 +96,7 @@ function criaTela() {
       setAttribute() {},
       querySelectorAll: () => [],
       addEventListener: (nome, callback) => listeners.set(nome, callback),
-      click: () => listeners.get('click')?.(),
+      click: event => listeners.get('click')?.(event),
       input: () => listeners.get('input')?.(),
       dataset: {}
     };
@@ -514,4 +514,47 @@ test('ao reconciliar o total do servidor, conserva cada valor fixo do pagamento 
   fixture.mod.onCheckoutFieldChanged('forma');
   await fixture.mod.simular();
   assert.deepEqual(valores.at(-1), [400, 800], 'a base confirmada se mantém quando só muda o pagamento');
+});
+
+test('falha na cobertura bloqueia a cobrança, com nova consulta e opção explícita de não usar plano conhecido', async () => {
+  const storage = armazenamentoEmMemoria();
+  let falha = true;
+  let consultas = 0;
+  const fixture = await montarCheckout(sessao, storage.transacao, () => assert.fail('ninguém confirmou o fechamento'), {
+    vazia: true,
+    cobertura() {
+      consultas++;
+      if (falha) throw new Error('Conexão indisponível');
+      return { melhor: { assinaturaId: 'plano-a', situacaoUso: 'coberto', planoNome: 'Plano A', cobrarCentavos: 0 } };
+    }
+  });
+  await fixture.mod.prefillCheckoutFromAgendamento(agendaA);
+  fixture.state.fuzzyForma.setValue('pix');
+  await fixture.mod.simular();
+  assert.equal(fixture.chamadas.filter(c => c.rota === '/checkout/preview').length, 0);
+  assert.equal(fixture.state.comandaItens.length, 1);
+  assert.equal(visivel(fixture, 'coPlanoAviso'), true);
+  assert.match(fixture.document.getElementById('coPlanoAviso').textContent, /consultar a cobertura/);
+  await fixture.mod.fechar();
+  assert.equal(chamadasClose(fixture).length, 0);
+  assert.equal(storage.valores.size, 0);
+
+  falha = false;
+  fixture.mod.toggleSplitPayment();
+  await fixture.mod.simular();
+  assert.equal(fixture.state.currentPayload.itens[0].assinaturaId, 'plano-a');
+  assert.deepEqual(fixture.state.currentPayload.payments, []);
+  assert.equal(visivel(fixture, 'cardPreview'), true);
+  assert.equal(fixture.document.getElementById('btnFechar').disabled, false);
+  assert.match(fixture.document.getElementById('splitDica').textContent, /coberta pelo plano/);
+
+  falha = true;
+  fixture.mod.toggleSplitPayment();
+  fixture.document.getElementById('coItensLista').click({
+    target: { closest: seletor => seletor === '[data-sem-plano]' ? { dataset: { semPlano: '0' } } : null }
+  });
+  await fixture.mod.simular();
+  assert.equal(consultas, 2, 'a opção explícita de não usar o plano dispensa a consulta');
+  assert.equal(fixture.state.currentPayload.itens[0].assinaturaId, undefined);
+  assert.deepEqual(fixture.state.currentPayload.payments, [{ formaCode: 'pix', valorCentavos: 1000 }]);
 });
