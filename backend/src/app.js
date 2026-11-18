@@ -64,7 +64,7 @@ app.set('trust proxy', 1); // Render: req.ip do cliente real (rate limit de logi
 const JSON_BODY_LIMIT = '100kb';
 // A query pode conter dados pessoais ou credenciais. Mantém o caminho para diagnóstico.
 morgan.token('url', req => (req.originalUrl || req.url).split('?')[0]);
-app.use(morgan('dev'));
+app.use(morgan(':method :url :status :response-time ms - :res[content-length]'));
 // Agendamento online (público, sem login): antes do parser global (tem o seu, de
 // 10 kB) e do requireAuth. Tenant só pelo mapa slug → empresa do servidor; sem o
 // mapa (PUBLIC_BOOKING_LINKS) responde 404 em tudo. Nunca cria req.auth.
