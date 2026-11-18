@@ -39,7 +39,8 @@ async function entrar(b, email) {
 
   // Profissional: vê a aba, não vê seletor de colega, total = só o dela.
   const prof = await entrar(b, 'profissional@dev.local');
-  confere('profissional: aba "Meu mês" visível na barra', await prof.isVisible('#navMetas') && await prof.textContent('#navMetasLabel') === 'Meu mês');
+  await prof.click('#navAvatar');
+  confere('profissional: "Meu mês" visível em Minha conta', await prof.isVisible('#navMetas') && await prof.textContent('#navMetasLabel') === 'Meu mês');
   await prof.click('#navMetas'); await prof.waitForSelector('#ganhosTotal');
   confere('profissional: sem seletor de profissional', !(await prof.isVisible('#ganhosProfissional')));
   const totalProf = Number(await prof.getAttribute('#ganhosTotal', 'data-total'));
@@ -50,12 +51,15 @@ async function entrar(b, email) {
 
   // Recepção: sem a aba.
   const recep = await entrar(b, 'recepcao@dev.local');
-  confere('recepção: sem a aba Metas na barra', !(await recep.isVisible('#navMetas')));
+  await recep.click('#navGestao');
+  confere('recepção: sem Metas e ganhos em Gestão', !(await recep.isVisible('#navMetas')));
+  await recep.click('#navAvatar');
+  confere('recepção: sem Meu mês em Minha conta', !(await recep.isVisible('#sheetConta #navMetas')));
   console.log('RECEPCAO erros:', JSON.stringify(recep.erros));
 
   // Admin: escolhe o profissional; exporta o CSV.
   const admin = await entrar(b, 'admin@dev.local');
-  await admin.click('#navMetas'); await admin.waitForSelector('#ganhosProfissional');
+  await admin.click('#navGestao'); await admin.click('#navMetas'); await admin.waitForSelector('#ganhosProfissional');
   await admin.selectOption('#ganhosProfissional', outro.id); await admin.waitForSelector('#ganhosTotal');
   const totalOutro = Number(await admin.getAttribute('#ganhosTotal', 'data-total'));
   confere('admin: ganhos do profissional escolhido', totalOutro === esperadoOutro && esperadoOutro > 0 && esperadoOutro !== esperadoAna, `tela ${totalOutro} × banco ${esperadoOutro}`);

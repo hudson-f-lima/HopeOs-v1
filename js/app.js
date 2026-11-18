@@ -16,25 +16,23 @@ import {
   openModal, 
   closeModal,
   escapeHtml,
+  getInitials,
+  normalizeSearchText,
+  overlayDoTopo,
   showBanner
 } from './utils.js';
 import { FuzzyField } from './components/fuzzy-field.js';
 import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots, avisarReguaCliente } from './ui/agenda.js';
-import { initCheckout, onServicoSelected, carregarAtalhos } from './ui/checkout.js';
+import { initCheckout, onServicoSelected, onCheckoutFieldChanged } from './ui/checkout.js';
+import { initComandas, abrirComandas } from './ui/comandas.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import {
   initCadastros,
-  renderClientesList,
-  renderServicosList,
-  renderProfissionaisList,
-  renderProdutosList,
-  renderFormasList,
-  renderListaEsperaList,
   openListaEsperaModal
 } from './ui/cadastros.js';
 import { initEquipe } from './ui/equipe.js';
 import { initComissoes } from './ui/comissoes.js';
-import { initGanhos, abrirMetas } from './ui/ganhos.js';
+import { initGanhos, abrirMetas, podeVerMetasGanhos } from './ui/ganhos.js';
 import { initTema } from './ui/tema.js';
 import { initPermissoes } from './ui/permissoes.js';
 import { initEscalas } from './ui/escalas.js';
@@ -51,31 +49,143 @@ import { initCaixa, atualizarCaixa } from './ui/caixa.js';
 import { initEstorno, atualizarComandasEstorno, podeEstornar } from './ui/estorno.js';
 import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
-export function showTab(name) {
+const tabScroll = new Map();
+
+export function showTab(name, { abrirLista = true } = {}) {
+  const target = document.getElementById('tab-' + name);
+  if (!target) return;
   const anterior = state.activeTab;
+  if (anterior !== name) tabScroll.set(anterior, window.scrollY);
   state.activeTab = name;
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el !== target));
   // Abrir o Dashboard busca os números de novo: outra pessoa pode ter fechado comanda
   // ou caixa em outro aparelho, e as pendências do topo precisam estar em dia.
-  if (name === 'metas' && anterior !== 'metas' && state.session && sessionPode('metas:ver')) abrirMetas();
+  if (name === 'metas' && anterior !== 'metas' && state.session && podeVerMetasGanhos()) abrirMetas();
   if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionPode('painel:operacional')) {
     atualizarDashboard();
-    atualizarCaixa();
+    if (sessionPode('caixa:conferir')) atualizarCaixa();
+    if (document.getElementById('dobraComandas').open && podeEstornar()) atualizarComandasEstorno();
   }
-  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-  const target = document.getElementById('tab-' + name);
-  if (target) target.classList.remove('hidden');
-  
-  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
+  if (name === 'checkout' && anterior !== 'checkout' && abrirLista) abrirComandas();
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
+    const current = btn.dataset.tab === name;
+    btn.classList.toggle('active', current);
+    if (current) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
+  if (name !== 'dashboard') hide('btnVoltarGestao');
   const fab = document.getElementById('fab');
   if (fab) fab.classList.toggle('hidden', name !== 'agenda');
+  if (anterior !== name) window.scrollTo(0, tabScroll.get(name) || 0);
 }
 
-export function showSubtab(name) {
-  document.querySelectorAll('.subtab-content').forEach(el => el.classList.add('hidden'));
-  const target = document.getElementById('subtab-' + name);
-  if (target) target.classList.remove('hidden');
-  
-  document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.subtab === name));
+function filtrarGestao() {
+  const input = document.getElementById('buscaGestao');
+  const termos = normalizeSearchText(input.value).trim().split(/\s+/).filter(Boolean);
+  let total = 0;
+  for (const grupo of document.querySelectorAll('.gestao-grupo')) {
+    const titulo = grupo.querySelector('h3').textContent;
+    let resultados = 0;
+    for (const botao of grupo.querySelectorAll('.gestao-atalho')) {
+      const texto = normalizeSearchText(`${titulo} ${botao.textContent} ${botao.dataset.termos || ''}`);
+      botao.hidden = !termos.every(termo => texto.includes(termo));
+      if (!botao.hidden && !botao.classList.contains('hidden')) resultados++;
+    }
+    grupo.hidden = !resultados;
+    total += resultados;
+  }
+  document.getElementById('gestaoSemResultados').classList.toggle('hidden', total > 0);
+  if (!termos.length) document.getElementById('navGestao').classList.toggle('hidden', total === 0);
+}
+
+function initNavegacao() {
+  const conta = document.getElementById('sheetConta');
+  const avatar = document.getElementById('navAvatar');
+  const gestao = document.getElementById('sheetGestao');
+  const caixaGestao = gestao.querySelector('.sheet-box');
+  const app = document.getElementById('appRoot');
+  const tituloDetalhe = document.getElementById('gestaoDetalheTitulo');
+  const fecharGestao = document.getElementById('btnFecharGestao');
+  const voltarMetas = document.getElementById('btnVoltarMetas');
+  const metas = document.getElementById('navMetas');
+  const caixa = document.getElementById('gestaoCaixa');
+  const gestaoScroll = new Map();
+  let atalhoDetalhe;
+  let retornoMetas;
+
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.tab === 'checkout' && state.activeTab === 'checkout') abrirComandas();
+      hide('btnVoltarGestao');
+      showTab(btn.dataset.tab);
+    });
+  });
+
+  avatar.addEventListener('click', () => conta.showModal());
+  document.getElementById('btnFecharConta').addEventListener('click', () => conta.close());
+  metas.addEventListener('click', () => {
+    const pessoal = conta.open;
+    if (pessoal) conta.close();
+    if (state.activeTab !== 'metas') retornoMetas = { tab: state.activeTab, atalho: pessoal ? avatar : metas };
+    voltarMetas.classList.toggle('hidden', !retornoMetas);
+    showTab('metas');
+    document.getElementById('metasTitulo').focus();
+  });
+  voltarMetas.addEventListener('click', () => {
+    if (!retornoMetas) return;
+    showTab(retornoMetas.tab);
+    retornoMetas.atalho.focus({ preventScroll: true });
+    retornoMetas = null;
+  });
+  caixa.addEventListener('click', () => {
+    showTab('dashboard');
+    show('btnVoltarGestao');
+    const dobra = document.getElementById('dobraCaixa');
+    dobra.open = true;
+    dobra.querySelector('summary').focus();
+  });
+  document.getElementById('btnVoltarGestao').addEventListener('click', () => {
+    showTab('gestao');
+    caixa.focus({ preventScroll: true });
+  });
+
+  document.getElementById('buscaGestao').addEventListener('input', filtrarGestao);
+  caixaGestao.addEventListener('scroll', () => {
+    if (atalhoDetalhe && !gestao.classList.contains('hidden')) gestaoScroll.set(atalhoDetalhe.dataset.subtab, caixaGestao.scrollTop);
+  });
+  document.getElementById('subtabRow').addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-subtab]');
+    if (!btn || btn.hidden || btn.classList.contains('hidden')) return;
+    const alvo = document.getElementById('subtab-' + btn.dataset.subtab);
+    document.querySelectorAll('.subtab-content').forEach(el => el.classList.toggle('hidden', el !== alvo));
+    atalhoDetalhe = btn;
+    tituloDetalhe.textContent = btn.textContent;
+    openModal('sheetGestao');
+    app.inert = true;
+    caixaGestao.scrollTop = gestaoScroll.get(btn.dataset.subtab) || 0;
+    tituloDetalhe.focus({ preventScroll: true });
+  });
+  const fechar = () => closeModal('sheetGestao');
+  fecharGestao.addEventListener('click', fechar);
+  gestao.addEventListener('click', ev => { if (ev.target === gestao) fechar(); });
+  new MutationObserver(() => {
+    if (!gestao.classList.contains('hidden') || !atalhoDetalhe) return;
+    app.inert = false;
+    atalhoDetalhe.focus({ preventScroll: true });
+    atalhoDetalhe = null;
+  }).observe(gestao, { attributes: true, attributeFilter: ['class'] });
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Tab' || gestao.classList.contains('hidden') || overlayDoTopo() !== gestao || document.querySelector('dialog[open]')) return;
+    const focaveis = [...gestao.querySelectorAll('button, input, select, textarea, a[href], summary')]
+      .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+    const primeiro = focaveis[0];
+    const ultimo = focaveis.at(-1);
+    const atual = document.activeElement;
+    if (ev.shiftKey ? atual === primeiro || !focaveis.includes(atual) : atual === ultimo || !gestao.contains(atual)) {
+      ev.preventDefault();
+      (ev.shiftKey ? ultimo : primeiro)?.focus();
+    }
+  });
 }
 
 const ROLE_LABEL = { admin: 'Admin', gestor: 'Gestão', recepcao: 'Recepção', profissional: 'Profissional' };
@@ -337,12 +447,13 @@ function aplicarSessaoNaUI() {
   const s = state.session;
   if (s && s.principal === 'user') {
     document.getElementById('sessionLabel').textContent = `${s.nome} · ${ROLE_LABEL[s.role] || s.role}`;
+    document.getElementById('navAvatarIniciais').textContent = getInitials(s.nome);
     show('sessionChip');
     if (s.empresas.length > 1) {
       const switcher = document.getElementById('btnTrocarEmpresa');
       switcher.classList.remove('hidden');
       switcher.onclick = async () => {
-        closeModal('sheetGestao');
+        document.getElementById('sheetConta').close();
         const empresa = await escolherEmpresa(s.empresas, s.empresas.find(e => e.empresa_id === s.empresa_id));
         if (empresa.empresa_id === s.empresa_id) { hide('loginScreen'); show('appRoot'); return; }
         selectEmpresa(empresa.empresa_id);
@@ -374,6 +485,17 @@ function aplicarSessaoNaUI() {
   // Painel e lista de espera seguem a permissão efetiva (D-032): um profissional com o
   // pacote Recepção passa a ver os dois; sem ele, não vê.
   if (!sessionPode('painel:operacional')) hide('navDashboard');
+  if (s?.permissoes && !['comanda:fechar', 'agenda:ver', 'comanda:historico'].some(codigo => sessionPode(codigo))) hide('navCheckout');
+  if (sessionPode('painel:operacional') && sessionPode('caixa:conferir')) show('gestaoCaixa');
+  if (s?.permissoes) {
+    for (const [codigo, secoes] of [
+      ['cadastros:ver', ['profissionais', 'servicos', 'produtos', 'formas']],
+      ['clientes:ver', ['clientes']]
+    ]) {
+      if (sessionPode(codigo)) continue;
+      secoes.forEach(secao => document.querySelector(`[data-subtab="${secao}"]`).classList.add('hidden'));
+    }
+  }
   if (!sessionPode('espera:ver')) {
     document.getElementById('btnAbrirListaEspera')?.classList.add('hidden');
     document.querySelector('.subtab-btn[data-subtab="espera"]')?.classList.add('hidden');
@@ -382,6 +504,9 @@ function aplicarSessaoNaUI() {
   if (s && s.principal === 'user' && s.role === 'profissional' && !sessionPode('agenda:ver', true)) {
     const rotuloAgenda = document.getElementById('navAgendaLabel');
     if (rotuloAgenda) rotuloAgenda.textContent = 'Hoje';
+  }
+  if (podeVerMetasGanhos() && !podeVerMetasGanhos(true)) {
+    document.getElementById('contaAcoes').before(document.getElementById('navMetas'));
   }
 }
 
@@ -451,15 +576,12 @@ async function init() {
     if (loadingMessage) loadingMessage.textContent = 'Conectando ao servidor... isso pode levar alguns segundos.';
   }, 3500);
 
-  // Navigation tabs
-  document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
-    btn.addEventListener('click', () => showTab(btn.dataset.tab));
-  });
-  
+  initNavegacao();
   initTema();
-  document.getElementById('navAvatar').addEventListener('click', () => openModal('sheetGestao'));
-  document.getElementById('btnFecharGestao').addEventListener('click', () => closeModal('sheetGestao'));
   document.getElementById('btnAbrirListaEspera')?.addEventListener('click', openListaEsperaModal);
+  document.getElementById('dobraComandas').addEventListener('toggle', ev => {
+    if (ev.target.open && state.activeTab === 'dashboard' && podeEstornar()) atualizarComandasEstorno();
+  });
   
   // FAB (New Appointment)
   const fab = document.getElementById('fab');
@@ -484,17 +606,11 @@ async function init() {
     });
   }
 
-  // Gestao subtabs
-  document.getElementById('subtabRow').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-subtab]');
-    if (!btn) return;
-    showSubtab(btn.dataset.subtab);
-  });
-
   // Initialize UI sub-modules
   initAgenda();
   initLembretes();
   initCheckout();
+  initComandas(() => showTab('checkout', { abrirLista: false }));
   initDashboard();
   initCadastros();
 
@@ -528,42 +644,39 @@ async function init() {
     await loadCatalog();
     if (contextChanged()) return;
 
-    renderClientesList();
-    renderServicosList();
-    renderProfissionaisList();
-    renderProdutosList();
-    renderFormasList();
-    renderListaEsperaList();
 
     // Instantiate Fuzzy Fields and store them in the global state
     state.fuzzyCliente = new FuzzyField('coCliente', state.catalog.clientes, {
       labelFn: c => c.nome,
       valueFn: c => c.id,
-      onSelect: () => { state.agendamentoIdParaCheckout = null; }
+      onSelect: () => onCheckoutFieldChanged('cliente')
     });
 
     state.fuzzyServico = new FuzzyField('coServico', state.catalog.servicos.filter(s => s.ativo !== false), {
       labelFn: s => `${s.nome} (${centsToBRL(s.valor_centavos)})`,
       valueFn: s => s.id,
-      onSelect: (servicoId) => { onServicoSelected(servicoId); }
+      onSelect: servicoId => {
+        onCheckoutFieldChanged('servico');
+        onServicoSelected(servicoId);
+      }
     });
 
     state.fuzzyProduto = new FuzzyField('coProduto', (state.catalog.produtos || []).filter(p => p.ativo !== false), {
       labelFn: p => `${p.nome} (${centsToBRL(p.preco_venda_centavos)})`,
       valueFn: p => p.id,
-      onSelect: () => {}
+      onSelect: () => onCheckoutFieldChanged('produto')
     });
 
     state.fuzzyProfissional = new FuzzyField('coProfissional', state.catalog.profissionais.filter(p => p.ativo !== false), {
       labelFn: p => p.nome,
       valueFn: p => p.id,
-      onSelect: () => {}
+      onSelect: () => onCheckoutFieldChanged('profissional')
     });
 
     state.fuzzyForma = new FuzzyField('coForma', state.catalog.formas_pagamento.filter(f => f.ativo !== false), {
       labelFn: f => f.label,
       valueFn: f => f.code,
-      onSelect: () => {}
+      onSelect: () => onCheckoutFieldChanged('forma')
     });
 
     // Fuzzy search fields (modal novo agendamento) with cross-filtering
@@ -656,12 +769,12 @@ async function init() {
       const btnAssistente = document.getElementById('btnAbrirAssistente');
       btnAssistente.classList.remove('hidden');
       btnAssistente.addEventListener('click', async () => {
-        closeModal('sheetGestao');
         document.getElementById('appRoot').classList.add('hidden');
         await abrirOnboarding();
         window.location.reload();
       });
     }
+    filtrarGestao();
 
     await loadWeekAgenda();
   } catch (err) {
@@ -696,14 +809,6 @@ async function init() {
   const root = document.getElementById('appRoot');
   if (loading) loading.classList.add('hidden');
   if (root) root.classList.remove('hidden');
-  // A operação pode iniciar na agenda enquanto os resumos e atalhos carregam.
-  Promise.allSettled([
-    carregarAtalhos(),
-    sessionPode('painel:operacional') ? atualizarDashboard() : null,
-    sessionPode('caixa:conferir') ? atualizarCaixa() : null,
-    podeEstornar() ? atualizarComandasEstorno() : null
-  ]);
-
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});
     // Versão nova instalada: a página aberta ainda roda o código antigo até recarregar.
@@ -734,13 +839,15 @@ window.addEventListener('hashchange', () => {
 
 // Comanda fechada: o fechamento do dia muda.
 stateBus.addEventListener('checkout:closed', () => {
+  if (state.activeTab !== 'dashboard') return;
   if (sessionPode('caixa:conferir')) atualizarCaixa();
-  if (podeEstornar()) atualizarComandasEstorno();
+  if (document.getElementById('dobraComandas').open && podeEstornar()) atualizarComandasEstorno();
 });
 // Estorno feito: caixa do dia e dashboard mudam (linha negativa, relatórios).
 stateBus.addEventListener('estorno:feito', () => {
-  atualizarCaixa();
-  atualizarDashboard();
+  if (state.activeTab !== 'dashboard') return;
+  if (sessionPode('caixa:conferir')) atualizarCaixa();
+  if (sessionPode('painel:operacional')) atualizarDashboard();
 });
 
 // Listen to Tab Change event from event bus

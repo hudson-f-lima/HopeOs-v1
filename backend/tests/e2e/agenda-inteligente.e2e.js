@@ -79,9 +79,9 @@ const pequenos = p => p.evaluate(() => [...document.querySelectorAll('#btnAgBusc
   const lay = await r.evaluate(() => ({ topo: Math.round(document.getElementById('timelineContainer').getBoundingClientRect().top), larg: document.documentElement.scrollWidth, conta: Boolean(document.getElementById('btnLogout').offsetParent) }));
   confere('grade começa cedo (≤ 300px) e sem rolagem lateral', lay.topo <= 300 && lay.larg <= 390, JSON.stringify(lay));
   confere('conta e versão fora da agenda', !lay.conta);
-  await r.click('#navAvatar'); await r.waitForSelector('#sheetGestao:not(.hidden)');
+  await r.click('#navAvatar'); await r.waitForSelector('#sheetConta[open]');
   confere('conta, versão e Sair em Conta', await r.isVisible('#btnLogout') && /Recepção/.test(await txt(r, '#sessionLabel')));
-  await r.click('#btnFecharGestao'); await r.waitForTimeout(300);
+  await r.click('#btnFecharConta'); await r.waitForSelector('#sheetConta', { state: 'hidden' }); await r.waitForTimeout(300);
 
   // 2) Controles honestos.
   confere('setas dizem que mudam a semana', await r.getAttribute('#btnPrevWeekMobile', 'aria-label') === 'Semana anterior' && await r.getAttribute('#btnNextWeekMobile', 'aria-label') === 'Próxima semana');

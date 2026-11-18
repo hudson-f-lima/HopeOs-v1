@@ -21,7 +21,7 @@ async function entrar(b, email, esperados = []) {
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   return p;
 }
-const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSelector('#tab-metas:not(.hidden)'); await p.waitForTimeout(500); };
+const abrirGanhos = async (p, origem) => { await p.click(origem); await p.click('#navMetas'); await p.waitForSelector('#tab-metas:not(.hidden)'); await p.waitForTimeout(500); };
 
 (async () => {
   const servicos = await db('servicos'); const profs = await db('profissionais');
@@ -45,18 +45,18 @@ const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSele
 
   // ---- Profissional antes: sem meta e sem ranking ----
   const antes = await entrar(b, 'profissional@dev.local');
-  await abrirGanhos(antes); await antes.waitForSelector('#metasBloco:not(.hidden)');
+  await abrirGanhos(antes, '#navAvatar'); await antes.waitForSelector('#metasBloco:not(.hidden)');
   confere('profissional (antes): aviso de que não há meta', /não definiu meta/.test(await antes.textContent('#metasLista')));
   confere('profissional (antes): ranking escondido e sem formulário de meta', !(await antes.isVisible('#rankingBloco')) && !(await antes.isVisible('#metasForm')));
   console.log('PROFISSIONAL ANTES erros:', JSON.stringify(antes.erros));
 
   // ---- Admin: define metas e liga o ranking ----
   const a = await entrar(b, 'admin@dev.local');
-  await abrirGanhos(a); await a.waitForSelector('#rankingBloco:not(.hidden)');
+  await abrirGanhos(a, '#navGestao'); await a.waitForSelector('#rankingBloco:not(.hidden)');
   confere('admin: ranking com valores em reais', (await a.textContent('#rankingLista')).includes('R$') && await a.getAttribute('#rankingLista [data-posicao="1"]', 'data-voce') === '0');
   // Navegação nova (D-030): a equipe aparece sem escolher ninguém; tocar na pessoa abre o detalhe.
   await a.waitForSelector('#metasEquipe:not(.hidden) [data-equipe-prof]');
-  confere('gestão: lista da equipe à vista na aba Metas', await a.locator('#metasEquipe [data-equipe-prof]').count() >= 2 && await a.textContent('#navMetasLabel') === 'Metas');
+  confere('gestão: lista da equipe à vista na aba Metas', await a.locator('#metasEquipe [data-equipe-prof]').count() >= 2 && await a.textContent('#navMetasLabel') === 'Metas e ganhos');
   await a.click(`#metasEquipe [data-equipe-prof="${ana.id}"]`); await a.waitForSelector('#metasForm:not(.hidden)');
   confere('gestão: tocar na pessoa escolhe o profissional', await a.inputValue('#ganhosProfissional') === ana.id);
   await a.fill('#metaFaturamento', '80,00'); await a.fill('#metaProdutos', '60,00'); await a.fill('#metaAtendimentos', '1'); await a.click('#btnSalvarMetas');
@@ -90,7 +90,7 @@ const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSele
   await a.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });
 
   // Calculadora da taxa do parcelado: 6x, MDR 3,5%, antecipação 1,8% a.m. → 9,5795%.
-  await a.click('#navAvatar'); await a.waitForSelector('#sheetGestao:not(.hidden)');
+  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
   await a.click('.subtab-btn[data-subtab="formas"]'); await a.click('#btnNovaForma'); await a.waitForSelector('#fmCode');
   await a.click('#fmCalc > summary');
   await a.fill('#fmCalcMdr', '3,5'); await a.fill('#fmCalcAnt', '1,8'); await a.selectOption('#fmCalcParcelas', '6'); await a.click('#btnFmCalc');
@@ -123,8 +123,8 @@ const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSele
 
   // ---- Profissional depois: própria meta e ranking sem o valor do colega ----
   const p = await entrar(b, 'profissional@dev.local');
-  await abrirGanhos(p); await p.waitForSelector('#rankingBloco:not(.hidden)');
-  confere('profissional: aba "Meu mês" na barra e agenda como "Hoje"', await p.textContent('#navMetasLabel') === 'Meu mês' && await p.textContent('#navAgendaLabel') === 'Hoje' && !(await p.isVisible('#metasEquipe')));
+  await abrirGanhos(p, '#navAvatar'); await p.waitForSelector('#rankingBloco:not(.hidden)');
+  confere('profissional: "Meu mês" em Minha conta e agenda como "Hoje"', await p.textContent('#navMetasLabel') === 'Meu mês' && await p.textContent('#navAgendaLabel') === 'Hoje' && !(await p.isVisible('#metasEquipe')));
   confere('profissional: vê a própria meta em 50%', await p.getAttribute('[data-meta="faturamento"]', 'data-percentual') === '50');
   const linhas = await p.$$eval('#rankingLista [data-posicao]', ns => ns.map(n => [n.dataset.posicao, n.dataset.voce, n.textContent.replace(/\s+/g, ' ').trim()]));
   confere('profissional: está em 2º e marcado como "você"', linhas.length === 2 && linhas[1][0] === '2' && linhas[1][1] === '1' && linhas[1][2].includes('(você)'), JSON.stringify(linhas));
@@ -141,7 +141,7 @@ const abrirGanhos = async p => { await p.click('#navMetas'); await p.waitForSele
   // Baixa a meta da Ana para o que ela já fez no mês: o salão passa a ter a meta batida.
   const meta = await a.evaluate(async ({ id, mes }) => { const { api } = await import('/js/api.js'); try { await api('/metas', { method: 'PUT', body: { profissionalId: id, mes, tipo: 'faturamento', valorAlvo: 4000 } }); return { ok: true }; } catch (e) { return { ok: false, erro: e.message }; } }, { id: ana.id, mes: mesAtual });
   confere('meta de teste baixada para o realizado da Ana', meta.ok === true, JSON.stringify(meta.erro));
-  await abrirGanhos(a); await a.waitForSelector('[data-meta-salao-equipe] .meta-salao-selo', { timeout: 8000 }).catch(() => {});
+  await abrirGanhos(a, '#navGestao'); await a.waitForSelector('[data-meta-salao-equipe] .meta-salao-selo', { timeout: 8000 }).catch(() => {});
   confere('gestão: meta do salão atingida aparece como reconhecimento no topo da equipe', await a.isVisible('[data-meta-salao-equipe] .meta-salao-selo') && !(await a.isVisible('#metaSalaoBloco')));
   await aberto(p);
   await p.waitForSelector('#metaSalaoBloco .meta-salao-selo', { timeout: 8000 }).catch(() => {});

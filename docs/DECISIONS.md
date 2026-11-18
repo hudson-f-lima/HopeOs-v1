@@ -829,3 +829,6 @@
 - **Limites:** nenhuma migration nova, edição de 001–025 ou mudança em dados/serviços de produção é autorizada por esta decisão. A corrida do último administrador e agenda x escala exigem solução transacional específica para reabilitar operações com garantia completa. A redução de admin ativo fica contida por recusa explícita enquanto não houver essa garantia.
 - **Aceite:** testes reais por camada; doubles não aprovam fornecedor nem produção. E-mail exato, UUID, sessão/abas, callback, permissões e idempotência preservados. Limitação de credencial nativa do provedor deve constar no runbook antes de habilitar social.
 - **Execução, evidências e pendências:** `planning/AUTH_PWA_IMPLEMENTACAO.md` e `PROJECT_STATE.md`. Não declarar multi-tenant ou produção aprovados por esta entrega.
+
+## D-057 — Navegação por tarefas e integridade do checkout
+O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no avatar e tratamento distinto do comprador na venda interna, com execução em branch revisável. Base 7cfc5a1. Mantidos os limites para migrations e publicação. Nesta etapa, Comandas apresenta atendimentos reais e histórico autorizado. O contrato de abertura persistente e de comprador profissional está proposto no estado do projeto.

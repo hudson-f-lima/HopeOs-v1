@@ -7,6 +7,7 @@ const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
 const { validateCheckoutPayload } = require('../validators/checkout.validator');
+const { checkoutAnterior, revisaoFinanceira, comandoIdDoAgendamento, agendamentoDoCheckout, conflitoComandaDoAgendamento, AGENDAMENTO_COMANDA_JA_FECHADA } = require('../services/CheckoutReplay');
 const { validateCreateAgendamentoPayload, validateStatusChangePayload, validateReagendamentoPayload, validateSlotsQuery, assertTransicaoStatus, TRANSICOES } = require('../validators/agenda.validator');
 const {
   validateUUID,
@@ -105,11 +106,9 @@ async function coberturaDaComanda(req, repo, payload, resolved, vinculo = null) 
   return aplicarAssinaturas({ repo, auth: req.auth, actorId: autoriaDe(req.auth).actorId || null, payload, resolved, dia, horario });
 }
 
-async function buildServerResolvedCheckout(repo, rawBody) {
-  const payload = validateCheckoutPayload(rawBody);
+async function buildServerResolvedCheckout(repo, payload) {
   const context = await repo.loadCheckoutContext();
-  const resolved = resolveCheckoutInput({ payload, ...context });
-  return { payload, resolved };
+  return resolveCheckoutInput({ payload, ...context });
 }
 
 async function requireActiveEntity(repo, table, id, label, notFoundCode) {
@@ -887,9 +886,12 @@ router.get('/catalog', authorize('clientes:ver'), authorize('cadastros:ver'), as
 // Vínculo opcional checkout → agenda, validado ANTES de gravar a comanda: o
 // checkout é a fonte de verdade financeira e não pode fechar dizendo que concluiu
 // um agendamento que a máquina de estados (TRANSICOES) não deixa concluir
-// (cancelado, no_show, reagendado). Já concluido/fechado = repetição do mesmo
-// checkout (retry com a mesma idempotencyKey): aceito sem mudar status nem trilha.
+// (cancelado, no_show, reagendado). A retomada autenticada do mesmo fechamento
+// acontece antes desta validação, sem abrir outro lançamento financeiro.
 const STATUS_JA_PAGOS = ['concluido', 'fechado'];
+function clienteDoCheckout(pedido) {
+  return pedido.clienteId ?? pedido.cliente_id ?? null;
+}
 async function validarVinculoAgendamento(req, repo) {
   const bruto = req.body && req.body.agendamentoId;
   if (bruto === undefined || bruto === null || bruto === '') return null;
@@ -897,14 +899,18 @@ async function validarVinculoAgendamento(req, repo) {
   const ag = await repo.getByIdScoped('agendamentos', agendamentoId);
   if (!ag) throw createAppError('AGENDAMENTO_NOT_FOUND', `Agendamento não encontrado: ${agendamentoId}`, 404, { id: agendamentoId });
   assertOwn(req, ag.profissional_id);
-  if (STATUS_JA_PAGOS.includes(ag.status)) return { ag, jaConcluido: true };
+  if (STATUS_JA_PAGOS.includes(ag.status) || await repo.temComandaDoAgendamento(agendamentoId)) throw conflitoComandaDoAgendamento();
   try {
     assertTransicaoStatus(ag.status, 'concluido');
   } catch (err) {
     err.message = `Agendamento ${ag.status} não pode ser concluído pelo checkout. Feche a comanda sem vínculo com a agenda.`;
     throw err;
   }
-  return { ag, jaConcluido: false };
+  const informouCliente = Object.hasOwn(req.body, 'clienteId') || Object.hasOwn(req.body, 'cliente_id');
+  if (informouCliente && clienteDoCheckout(req.body) !== (ag.cliente_id ?? null)) {
+    throw createAppError('AGENDAMENTO_CLIENTE_ALTERADO', 'O cliente do atendimento mudou. Abra o atendimento atualizado para conferir a comanda.', 409);
+  }
+  return { ag };
 }
 
 router.post('/checkout/preview', authorize('comanda:fechar'), async (req, res, next) => {
@@ -912,14 +918,15 @@ router.post('/checkout/preview', authorize('comanda:fechar'), async (req, res, n
     assertOwnCheckout(req, req.body);
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const vinculo = await validarVinculoAgendamento(req, repo);
-    const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
+    const payload = validateCheckoutPayload(req.body);
+    const resolved = await buildServerResolvedCheckout(repo, payload);
     const cobertura = await coberturaDaComanda(req, repo, payload, resolved, vinculo);
     const preview = previewCheckout(resolved);
     // Comparativo para o balcão: a taxa de cada forma sobre o total desta comanda.
     // Fica só na resposta do preview; o fechamento recalcula tudo e não lê este campo.
     const { custoPorForma } = require('../engines/PaymentEngine');
     const comparativoFormas = custoPorForma({ totalCentavos: preview.totals.totalRecebidoCentavos, formasPagamento: resolved.formasPagamento });
-    res.json({ ok: true, data: { ...preview, comparativoFormas, assinaturas: cobertura.itens } });
+    res.json({ ok: true, data: { ...preview, revisaoFinanceira: revisaoFinanceira(preview, cobertura), comparativoFormas, assinaturas: cobertura.itens } });
   } catch (err) { next(err); }
 });
 
@@ -940,43 +947,78 @@ router.get('/checkout/mais-vendidos', authorize('comanda:fechar'), async (req, r
 
 // O financeiro confirmado não é refeito para reconciliar a agenda. O mesmo CAS
 // atende a resposta original e a retomada depois de uma interrupção.
-async function reconciliarAgendaCheckout(req, repo, autoria, agendamentoId) {
+async function reconciliarAgendaCheckout(req, repo, autoria, agendamentoId, clienteEsperado, reparoExplicito = false) {
   if (!agendamentoId) return { agendamentoConcluido: null, vinculoAgenda: null };
   try {
     const atual = await repo.getByIdScoped('agendamentos', agendamentoId);
     if (!atual) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'AGENDAMENTO_NOT_FOUND' } };
     assertOwn(req, atual.profissional_id);
+    if (clienteEsperado !== (atual.cliente_id ?? null)) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'AGENDAMENTO_CLIENTE_ALTERADO' } };
     const anterior = atual.status;
     if (STATUS_JA_PAGOS.includes(anterior)) return { agendamentoConcluido: atual, vinculoAgenda: { aplicado: true, jaConcluido: true } };
     if (!TRANSICOES.concluido.includes(anterior)) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'INVALID_STATUS_TRANSITION', statusAtual: anterior } };
     const concluido = await repo.atualizarStatusAgendamentoSe(agendamentoId, [anterior], {
       status: 'concluido', updated_at: new Date().toISOString(), updated_by: autoria.actorId
-    });
+    }, { cliente_id: atual.cliente_id ?? null, profissional_id: atual.profissional_id });
     if (!concluido) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'STATUS_ALTERADO_DURANTE_FECHAMENTO' } };
     await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: anterior, para: 'concluido', origem: 'checkout' });
     return { agendamentoConcluido: concluido, vinculoAgenda: { aplicado: true, jaConcluido: false } };
   } catch (error) {
+    if (reparoExplicito && error.statusCode === 403) throw error;
     console.error('[checkout] falha ao reconciliar agenda', error.code || 'INTERNAL_ERROR');
     return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'FALHA_ATUALIZACAO' } };
   }
 }
 
+// O reparo opera somente sobre o comprovante gravado. Nenhum caminho chama a RPC financeira.
+router.post('/checkout/comandas/:id/reconciliar-agenda', authorize('comanda:fechar'), async (req, res, next) => {
+  try {
+    const id = validateUUID(req.params.id, 'comandoId');
+    const pedido = validateCheckoutPayload(req.body);
+    assertOwnCheckout(req, pedido);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const anterior = await checkoutAnterior(repo, req.auth, pedido);
+    const agendamentoId = agendamentoDoCheckout(pedido);
+    if (!agendamentoId || anterior?.saved.comandoId !== id) {
+      throw createAppError('CHECKOUT_RECEIPT_NOT_FOUND', 'Confira o comprovante da comanda vinculada a este atendimento.', 409);
+    }
+    const agenda = await reconciliarAgendaCheckout(req, repo, autoriaDe(req.auth), agendamentoId, clienteDoCheckout(pedido), true);
+    res.json({ ok: true, data: { saved: anterior.saved, vinculoAgenda: agenda.vinculoAgenda } });
+  } catch (err) { next(err); }
+});
+
 router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, next) => {
+  let autoria;
+  let repo;
+  let pedido;
+  let vinculo;
   let verificouAusencia = false;
   let enviouRpc = false;
+
+  async function confirmarFechamentoAnterior() {
+    const anterior = await checkoutAnterior(repo, req.auth, pedido);
+    if (!anterior) return false;
+    const agenda = await reconciliarAgendaCheckout(req, repo, autoria, agendamentoDoCheckout(pedido), clienteDoCheckout(pedido));
+    res.status(201).json({ ok: true, data: { ...anterior, ...agenda } });
+    return true;
+  }
+
   try {
     assertOwnCheckout(req, req.body);
-    const autoria = autoriaDe(req.auth);
-    const repo = new SupabaseRepository(req.auth.empresa_id);
-    const { checkoutAnterior } = require('../services/CheckoutReplay');
-    const anterior = await checkoutAnterior(repo, req.auth, validateCheckoutPayload(req.body));
-    if (anterior) {
-      const agenda = await reconciliarAgendaCheckout(req, repo, autoria, req.body.agendamentoId);
-      return res.status(201).json({ ok: true, data: { ...anterior, ...agenda } });
-    }
+    autoria = autoriaDe(req.auth);
+    repo = new SupabaseRepository(req.auth.empresa_id);
+    pedido = validateCheckoutPayload(req.body);
+    if (await confirmarFechamentoAnterior()) return;
     verificouAusencia = true;
-    const vinculo = await validarVinculoAgendamento(req, repo);
-    const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
+    vinculo = await validarVinculoAgendamento(req, repo);
+    const payload = { ...pedido };
+    if (vinculo) {
+      payload.agendamentoId = vinculo.ag.id;
+      payload.id = comandoIdDoAgendamento(repo.empresaId, vinculo.ag.id);
+    } else if (payload.id) {
+      payload.id = validateUUID(payload.id, 'id');
+      if (payload.id[14] === '8') throw createAppError('FORBIDDEN_FIELD', 'ID reservado ao fechamento de agendamento.', 422, { field: 'id' });
+    }
     // Data/hora da comanda = agora no fuso da empresa, sempre definidas pelo
     // servidor (D-012). Antes: sem data, o RPC usava current_date do Postgres
     // (UTC) e a venda das 21h–24h de Brasília caía no dia seguinte; com data,
@@ -984,9 +1026,12 @@ router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, nex
     const agora = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
     const hora = `${String(Math.floor(agora.minuto / 60)).padStart(2, '0')}:${String(agora.minuto % 60).padStart(2, '0')}`;
     payload.data = agora.data; payload.hora = hora;
-    resolved.data = agora.data; resolved.hora = hora;
+    const resolved = await buildServerResolvedCheckout(repo, payload);
     const cobertura = await coberturaDaComanda(req, repo, payload, resolved, vinculo);
     const preview = previewCheckout(resolved);
+    if (pedido.revisaoFinanceira !== undefined && pedido.revisaoFinanceira !== revisaoFinanceira(preview, cobertura)) {
+      throw createAppError('CHECKOUT_REVISAO_ALTERADA', 'O cálculo da comanda mudou. Simule novamente para conferir antes de fechar.', 409);
+    }
     // Com uso de plano: fechamento e usos na mesma transação (D-043). Sem: o fechamento de sempre.
     enviouRpc = true;
     const saved = cobertura.usos.length
@@ -996,18 +1041,24 @@ router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, nex
     // A leitura inicial não é lock: a RPC pode ter encontrado outro vencedor.
     // Reler autoria/intenção antes de responder ou concluir qualquer agendamento.
     if (saved.idempotent) {
-      const confirmado = await checkoutAnterior(repo, req.auth, payload);
-      if (!confirmado) throw createAppError('CHECKOUT_CONFIRMATION_PENDING', 'O fechamento precisa de conferência. Retome com a mesma chave.', 503);
-      const agenda = await reconciliarAgendaCheckout(req, repo, autoria, payload.agendamentoId);
-      return res.status(201).json({ ok: true, data: { ...confirmado, ...agenda } });
+      if (await confirmarFechamentoAnterior()) return;
+      if (vinculo && saved.comandoId === payload.id && await repo.temComandaDoAgendamento(vinculo.ag.id)) throw conflitoComandaDoAgendamento();
+      throw createAppError('CHECKOUT_CONFIRMATION_PENDING', 'O fechamento precisa de conferência. Retome com a mesma chave.', 503);
     }
-    const agenda = await reconciliarAgendaCheckout(req, repo, autoria, vinculo && vinculo.ag.id);
+    const agenda = await reconciliarAgendaCheckout(req, repo, autoria, vinculo?.ag.id, vinculo?.ag.cliente_id ?? null);
     res.status(201).json({ ok: true, data: { preview, saved, ...agenda } });
   } catch (err) {
     // Apenas uma recusa comprovada anterior à RPC pode liberar uma tentativa nova
     // no journal. Retomadas com resposta anterior desconhecida seguem ambíguas.
     if (verificouAusencia && !enviouRpc && err.statusCode >= 400 && err.statusCode < 500) {
-      err.details = { ...(err.details || {}), checkoutNotCommitted: true };
+      try {
+        // A tentativa anterior pode ter confirmado enquanto esta lia agenda ou estoque.
+        if (await confirmarFechamentoAnterior()) return;
+        if (vinculo && await repo.temComandaDoAgendamento(vinculo.ag.id)) err = conflitoComandaDoAgendamento();
+      } catch (erroConfirmacao) {
+        return next(erroConfirmacao);
+      }
+      if (err.code !== AGENDAMENTO_COMANDA_JA_FECHADA) err.details = { ...(err.details || {}), checkoutNotCommitted: true };
     }
     next(err);
   }

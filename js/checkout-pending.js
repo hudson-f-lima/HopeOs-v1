@@ -8,6 +8,7 @@ export function dadosDoFechamento(body) {
   return {
     clienteId: clienteId || null,
     idempotencyKey,
+    ...(body.revisaoFinanceira ? { revisaoFinanceira: body.revisaoFinanceira } : {}),
     itens: itens.map(({ tipo, servicoId, produtoId, quantidade, profissionalId, assinaturaId }) => (
       tipo === 'servico' ? { tipo, servicoId, profissionalId, assinaturaId } : { tipo, produtoId, quantidade, profissionalId }
     )),

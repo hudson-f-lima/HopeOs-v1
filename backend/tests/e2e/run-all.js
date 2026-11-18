@@ -59,6 +59,8 @@ const CASOS = [
   { nome: 'finops' },
   { nome: 'metas' },
   { nome: 'comanda' },
+  { nome: 'comandas-navegacao' },
+  { nome: 'gestao-navegacao' },
   { nome: 'checkout-retomada' },
   { nome: 'agora' },
   { nome: 'dashboard' },

@@ -6,7 +6,7 @@
 //   3) Duração +15 pelo card.
 //   4) Recepção sem permissão de trocar profissional de outro? (recepção pode); profissional não
 //      vê "Profissional" editável.
-//   5) Camadas: Conta → Clientes → "+ Novo" abre o modal por cima do painel; Esc fecha só o de cima.
+//   5) Camadas: Gestão → Clientes → "+ Novo" abre o modal por cima do painel; Esc fecha só o de cima.
 const { chromium } = require('playwright');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
@@ -130,15 +130,15 @@ const topoEm = (p, sel) => p.evaluate(s => {
   confere('vaga passada: novo cliente no mesmo horário "agendado"; anterior cancelado com vaga_repassada', novoT && novoT.status === 'agendado' && String(novoT.horario).startsWith('10:00')
     && agsT.find(a => a.id === movido.id).status === 'cancelado' && Boolean(evT));
 
-  // 5) Camadas: Conta → Clientes → + Novo por cima; Esc fecha só o de cima.
-  await r.click('#navAvatar'); await r.waitForSelector('#sheetGestao:not(.hidden)');
+  // 5) Camadas: Gestão → Clientes → + Novo por cima; Esc fecha só o de cima.
+  await r.click('#navGestao'); await r.waitForSelector('#tab-gestao:not(.hidden)');
   await r.click('[data-subtab="clientes"]'); await r.waitForTimeout(400);
   await r.click('#btnNovoCliente');
   await r.waitForSelector('#modalCliente:not(.hidden)');
-  confere('Conta → Novo cliente: o modal abre por cima do painel', await topoEm(r, '#modalCliente .modal-box'));
+  confere('Gestão → Novo cliente: o modal abre por cima do painel', await topoEm(r, '#modalCliente .modal-box'));
   confere('modal com cabeçalho fixo e ✕', await r.locator('#modalCliente .modal-topo .modal-fechar').count() === 1);
   await r.keyboard.press('Escape'); await r.waitForTimeout(200);
-  confere('Esc fecha só o de cima (o painel Conta continua aberto)', await r.isHidden('#modalCliente') && await r.isVisible('#sheetGestao'));
+  confere('Esc fecha só o de cima (o detalhe Clientes continua aberto)', await r.isHidden('#modalCliente') && await r.isVisible('#sheetGestao'));
   await r.click('#btnNovoCliente'); await r.waitForSelector('#modalCliente:not(.hidden)');
   await r.click('#modalCliente .modal-fechar');
   confere('✕ fecha o modal', await r.isHidden('#modalCliente'));

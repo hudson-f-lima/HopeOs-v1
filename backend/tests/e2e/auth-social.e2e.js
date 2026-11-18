@@ -127,7 +127,7 @@ async function conferirAdmin(page) {
   await page.waitForSelector(APP);
   await page.click('#navAvatar');
   await page.locator('#sessionLabel').filter({ hasText: 'Admin Dev · Admin' }).waitFor({ state: 'visible' });
-  await page.click('#btnFecharGestao');
+  await page.click('#btnFecharConta'); await page.waitForSelector('#sheetConta', { state: 'hidden' });
   assert.equal(await page.isVisible('#senhaForm'), false, 'acesso por login social/link/código não exige senha');
   conferirUrlLimpa(page);
 }

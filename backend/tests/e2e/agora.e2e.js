@@ -34,7 +34,7 @@ const statusDe = async id => (await db('agendamentos')).find(a => a.id === id).s
   await p.click('#btnAgoraAcao'); await p.waitForSelector('#agoraEstado[data-status="aguardando"]');
   confere('chegou: gravado e o botão vira "Iniciar atendimento"', await statusDe(id) === 'aguardando' && (await p.textContent('#btnAgoraAcao')).trim() === 'Iniciar atendimento');
   await p.click('#btnAgoraAcao'); await p.waitForSelector('#agoraEstado[data-status="em_atendimento"]');
-  confere('na cadeira: gravado, rótulo e botão da comanda', await statusDe(id) === 'em_atendimento' && (await p.textContent('#agoraEstado')).trim() === 'Na cadeira agora' && (await p.textContent('#btnAgoraAcao')).trim() === 'Concluir e abrir comanda');
+  confere('na cadeira: gravado, rótulo e botão da comanda', await statusDe(id) === 'em_atendimento' && (await p.textContent('#agoraEstado')).trim() === 'Na cadeira agora' && (await p.textContent('#btnAgoraAcao')).trim() === 'Abrir checkout');
   await p.click('#btnAgoraAcao'); await p.waitForSelector('#tab-checkout:not(.hidden)');
   confere('abre a comanda já com o serviço do atendimento', (await p.inputValue('#coServico')).startsWith('Barba'), await p.inputValue('#coServico'));
   await p.screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-agora-escuro.png') });

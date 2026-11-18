@@ -21,7 +21,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
 
   // Comissões: cria cargo, liga Ana a ele e muda o Corte para herdar do cargo
-  await p.click('#navAvatar'); await p.waitForTimeout(300);
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   await p.click('#subtabBtnComissoes'); await p.waitForTimeout(800);
   const formCargo = p.locator('form[data-novo="cargo"]');
   await formCargo.locator('[name=nome]').fill('Barbeiro'); await formCargo.locator('[name=comissaoPct]').fill('50');
@@ -42,6 +42,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await p.click('#btnFecharGestao'); await p.waitForTimeout(300);
 
   // Régua: cliente com 2 faltas seguidas gera alerta ao ser escolhido
+  await p.click('#navAgenda');
   await p.click('#fab'); await p.waitForTimeout(400);
   await p.click('#agCliente'); await p.fill('#agCliente', 'Cliente'); await p.waitForTimeout(300);
   await p.locator('#agCliente ~ div [data-value]').first().click(); await p.waitForTimeout(900);

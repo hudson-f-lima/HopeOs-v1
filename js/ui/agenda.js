@@ -5,7 +5,7 @@ import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAg
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
-import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode, semanaPronta } from '../state.js';
+import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode, podeFecharAtendimento, semanaPronta } from '../state.js';
 import {
   todayStr,
   addDays,
@@ -551,7 +551,8 @@ function openActionSheet(item) {
   let actionsHtml = '';
   // Transições permitidas espelham a máquina de estados do backend (agenda.validator.js).
   // A ação principal (checkout) vem primeiro e larga; as outras em grade de botões menores.
-  const checkout = '<button class="btn primary" data-sheet-action="checkout">Fazer checkout</button>';
+  const checkout = podeFecharAtendimento(state.session, item)
+    ? '<button class="btn primary" data-sheet-action="checkout">Abrir checkout</button>' : '';
   if (item.status === 'agendado') {
     actionsHtml = checkout + `
       <button class="btn" data-sheet-action="confirmar">Confirmar</button>
@@ -679,7 +680,7 @@ async function loadReliabilityBadge(clienteId) {
   const valueEl = document.getElementById('reliabilityValue');
   const rowEl = document.getElementById('reliabilityRow');
   if (!valueEl || !rowEl) return;
-  if (!clienteId) { rowEl.classList.add('hidden'); return; }
+  if (!clienteId || !sessionPode('painel:operacional')) { rowEl.classList.add('hidden'); return; }
   try {
     const r = await getClientReliability(clienteId);
     if (document.getElementById('reliabilityValue') !== valueEl) return; // sheet trocou de item enquanto carregava
@@ -742,7 +743,7 @@ async function onActionSheetClick(ev) {
   if (action === 'atendimento-etapas') { closeActionSheet(); abrirEtapas(item); return; }
   if (action === 'serie-ver') { closeActionSheet(); verSerie(item); return; }
   if (action === 'serie-cancelar' || action === 'serie-alterar') { closeActionSheet(); abrirSerie(item, action === 'serie-cancelar' ? 'cancelar' : 'alterar'); return; }
-  if (action === 'checkout') { 
+  if (action === 'checkout' && podeFecharAtendimento(state.session, item)) {
     closeActionSheet(); 
     stateBus.dispatchEvent(new CustomEvent('checkout:prefill', { detail: item }));
     return; 
@@ -1363,7 +1364,6 @@ export function initAgenda() {
   });
 
   // Event Bus listeners
-  stateBus.addEventListener('checkout:closed', () => {
-    loadWeekAgenda();
-  });
+  stateBus.addEventListener('checkout:closed', loadWeekAgenda);
+  stateBus.addEventListener('agenda:recarregar', loadWeekAgenda);
 }

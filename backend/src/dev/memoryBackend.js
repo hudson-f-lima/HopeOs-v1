@@ -30,7 +30,7 @@ function installMemoryBackend(seed = {}) {
     return rows(t).filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
   };
   P.getByIdScoped =async function (t, id) { return rows(t).find(r => r.id === id && r.empresa_id === this.empresaId) || null; };
-  P.insert = async function (t, p) {
+  function insert(t, p) {
     if (!this.empresaId) throw createAppError('TENANT_CONTEXT_MISSING', 'Contexto de tenant ausente.', 500);
     const { empresa_id, empresaId, ...rest } = p;
     const row = { id: p.id || randomUUID(), ...rest, empresa_id: this.empresaId };
@@ -41,7 +41,8 @@ function installMemoryBackend(seed = {}) {
     }
     rows(t).push(row);
     return row;
-  };
+  }
+  P.insert = async function (t, p) { return insert.call(this, t, p); };
   P.insertScoped = P.insert;
   P.deleteScoped = async function (t, id) {
     const i = rows(t).findIndex(r => r.id === id && r.empresa_id === this.empresaId);
@@ -57,8 +58,9 @@ function installMemoryBackend(seed = {}) {
     const row = rows(t).find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
     return row ? Object.assign(row, p) : null;
   };
-  P.atualizarStatusAgendamentoSe = async function (id, deStatus, p) {
+  P.atualizarStatusAgendamentoSe = async function (id, deStatus, p, atendimento) {
     const row = rows('agendamentos').find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
+    if (atendimento && row && (row.profissional_id !== atendimento.profissional_id || (row.cliente_id ?? null) !== atendimento.cliente_id)) return null;
     return row ? Object.assign(row, p) : null;
   };
 
@@ -191,24 +193,42 @@ function installMemoryBackend(seed = {}) {
   // Como no RPC: idempotencyKey (ou id) já usada devolve a comanda existente sem
   // gravar nada; estoque é conferido ANTES de gravar (o RPC é uma transação: falha
   // de estoque não deixa comanda pela metade); o retorno tem o mesmo formato.
+  // As escritas financeiras abaixo são síncronas para simular a visibilidade
+  // atômica da transação, inclusive quando duas requisições chegam à RPC.
+  P.temComandaDoAgendamento = async function (agendamentoId) {
+    return rows('comandos').some(c => c.empresa_id === this.empresaId &&
+      String(c.snapshot?.request?.raw?.agendamentoId || '').toLowerCase().includes(agendamentoId));
+  };
+
+  function checkoutExistente(payload, empresaId) {
+    const chave = payload.idempotencyKey || payload.idempotency_key || null;
+    const comandos = rows('comandos').filter(c => c.empresa_id === empresaId);
+    const porChave = chave && comandos.find(c => c.idempotency_key === chave);
+    const existente = porChave || (payload.id && comandos.find(c => c.id === payload.id));
+    if (!existente) return null;
+    return { idempotent: true, comandoId: existente.id, status: existente.status,
+      message: porChave ? 'Checkout já fechado para esta idempotencyKey.' : 'Checkout já fechado para este id.' };
+  }
+
   // Espelho do checkout_close_assinatura (022): confere antes de gravar que cada uso tem um item
   // (tudo ou nada), fecha como sempre e grava os usos presos aos itens.
   P.saveCheckoutCloseAssinatura = async function ({ payload = {}, resolved = {}, preview, autoria = {}, usos = [] }) {
+    const existente = checkoutExistente(payload, this.empresaId);
+    if (existente) return existente;
     const livres = ((preview && preview.itens) || []).filter(it => (it.tipo || 'servico') === 'servico').map(it => ({ ...it }));
     for (const u of usos) {
       const k = livres.findIndex(it => it.servicoId === u.servicoId && it.profissionalId === u.profissionalId && Number(it.precoUnitarioCentavos) === Number(u.precoUnitarioCentavos));
       if (k < 0) throw createAppError('ASSINATURA_USO_SEM_ITEM', 'Não foi possível ligar o uso do plano ao item da comanda; nada foi gravado.', 409);
       livres.splice(k, 1);
     }
-    const r = await this.saveCheckoutClose({ payload, resolved, preview, autoria });
-    if (r.idempotent) return r;
+    const r = salvarNovoCheckout.call(this, { payload, resolved, preview, autoria });
     const comando = rows('comandos').find(c => c.id === r.comandoId);
     const usados = new Set();
     for (const u of usos) {
       const item = rows('comando_itens').find(i => i.comando_id === r.comandoId && i.tipo === 'servico' && !usados.has(i.id) &&
         i.servico_id === u.servicoId && i.profissional_id === u.profissionalId && Number(i.preco_unitario_centavos) === Number(u.precoUnitarioCentavos));
       usados.add(item.id);
-      await this.insert('assinatura_usos', { assinatura_id: u.assinaturaId, ciclo_inicio: u.cicloInicio, comando_id: r.comandoId, comando_item_id: item.id,
+      insert.call(this, 'assinatura_usos', { assinatura_id: u.assinaturaId, ciclo_inicio: u.cicloInicio, comando_id: r.comandoId, comando_item_id: item.id,
         servico_id: u.servicoId, profissional_id: u.profissionalId, data: comando.data, tipo: u.tipo, consome_uso: u.consomeUso,
         valor_tabela_centavos: u.valorTabelaCentavos, valor_cobrado_centavos: u.valorCobradoCentavos, acao: u.acao, motivos: u.motivos || [],
         aprovado_por: u.aprovadoPor || null, created_by: autoria.actorId || null });
@@ -216,12 +236,17 @@ function installMemoryBackend(seed = {}) {
     return r;
   };
   P.saveCheckoutClose = async function ({ payload = {}, resolved = {}, preview, autoria = {} }) {
+    return checkoutExistente(payload, this.empresaId) || salvarNovoCheckout.call(this, { payload, resolved, preview, autoria });
+  };
+
+  function salvarNovoCheckout({ payload, resolved, preview, autoria }) {
     const t = (preview && preview.totals) || {};
     const data = payload.data || resolved.data || new Date().toISOString().slice(0, 10);
     const chave = payload.idempotencyKey || payload.idempotency_key || null;
-    const existente = rows('comandos').find(c => c.empresa_id === this.empresaId && ((chave && c.idempotency_key === chave) || (payload.id && c.id === payload.id)));
-    if (existente) {
-      return { idempotent: true, comandoId: existente.id, status: existente.status, message: chave && existente.idempotency_key === chave ? 'Checkout já fechado para esta idempotencyKey.' : 'Checkout já fechado para este id.' };
+    if (payload.id && rows('comandos').some(c => c.id === payload.id)) {
+      const erro = new Error('duplicate key value violates unique constraint on comandos');
+      erro.code = '23505';
+      throw erro;
     }
     const precisa = new Map();
     for (const it of (preview && preview.itens) || []) {
@@ -235,7 +260,7 @@ function installMemoryBackend(seed = {}) {
       if (prod.controla_estoque !== false && Number(prod.estoque_atual || 0) < qtd) throw createAppError('BUSINESS_RULE_VIOLATION', `estoque insuficiente para produto ${produtoId}`, 422);
     }
     const contagem = { itens: 0, pagamentos: 0, gorjetas: 0, caixaMovimentos: 0, estoqueMovimentos: 0 };
-    const comando = await this.insert('comandos', {
+    const comando = insert.call(this, 'comandos', {
       ...(payload.id ? { id: payload.id } : {}), idempotency_key: chave,
       status: 'fechado', data, hora: payload.hora || resolved.hora || null, cliente_id: payload.clienteId || null,
       servicos_liquidos_centavos: t.servicosLiquidosCentavos || 0,
@@ -251,13 +276,14 @@ function installMemoryBackend(seed = {}) {
       snapshot: structuredClone({ request: { raw: {
         clienteId: payload.clienteId || payload.cliente_id || null,
         agendamentoId: payload.agendamentoId || null,
+        revisaoFinanceira: payload.revisaoFinanceira ?? null,
         itens: payload.itens, payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0,
         gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0
       } }, preview })
     });
     for (const it of (preview && preview.itens) || []) {
-      const item = await this.insert('comando_itens', {
+      const item = insert.call(this, 'comando_itens', {
         comando_id: comando.id, tipo: it.tipo || 'servico', servico_id: it.servicoId || null, produto_id: it.produtoId || null,
         profissional_id: it.profissionalId || null, quantidade: it.quantidade || 1, descricao: it.descricao || null,
         preco_unitario_centavos: it.precoUnitarioCentavos || 0, custo_unitario_centavos: it.custoUnitarioCentavos || 0,
@@ -273,31 +299,31 @@ function installMemoryBackend(seed = {}) {
         const antes = Number(prod.estoque_atual || 0);
         if (antes < item.quantidade) throw createAppError('BUSINESS_RULE_VIOLATION', `estoque insuficiente para produto ${prod.id}`, 422);
         prod.estoque_atual = antes - item.quantidade;
-        await this.insert('produto_estoque_movimentos', { produto_id: prod.id, comando_id: comando.id, comando_item_id: item.id, tipo: 'venda', quantidade: item.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, actor_id: autoria.actorId || null });
+        insert.call(this, 'produto_estoque_movimentos', { produto_id: prod.id, comando_id: comando.id, comando_item_id: item.id, tipo: 'venda', quantidade: item.quantidade, saldo_anterior: antes, saldo_posterior: prod.estoque_atual, actor_id: autoria.actorId || null });
         contagem.estoqueMovimentos += 1;
       }
     }
     for (const g of (preview && preview.gorjetas) || []) {
-      await this.insert('comando_gorjetas', {
+      insert.call(this, 'comando_gorjetas', {
         comando_id: comando.id, profissional_id: g.profissionalId || null, valor_bruto_centavos: g.gorjetaBrutaCentavos || 0,
         taxa_centavos: g.taxaGorjetaCentavos || 0, valor_liquido_centavos: g.gorjetaLiquidaCentavos || 0, regra: g.regra || 'automatic'
       });
       contagem.gorjetas += 1;
     }
     for (const p of (preview && preview.payments) || []) {
-      await this.insert('comando_pagamentos', {
+      insert.call(this, 'comando_pagamentos', {
         comando_id: comando.id, forma_code: p.formaCode, valor_centavos: p.valorCentavos || 0,
         taxa_pct: p.taxaPct || 0, taxa_fixa_centavos: p.taxaFixaCentavos || 0, taxa_total_centavos: p.taxaTotalCentavos || 0,
         taxa_servico_centavos: p.taxaServicoCentavos || 0, taxa_gorjeta_centavos: p.taxaGorjetaCentavos || 0
       });
-      await this.insert('caixa_movimentos', {
+      insert.call(this, 'caixa_movimentos', {
         comando_id: comando.id, data, tipo: 'entrada_pagamento', forma_code: p.formaCode,
         valor_centavos: p.valorCentavos || 0, descricao: 'Entrada de checkout fechado'
       });
       contagem.pagamentos += 1; contagem.caixaMovimentos += 1;
     }
     return { idempotent: false, comandoId: comando.id, status: 'fechado', ...contagem };
-  };
+  }
 
   // Espelho da RPC comanda_estornar (migration 009): mesma ordem de checagens e os
   // mesmos códigos. O pg_advisory_xact_lock da RPC vira uma fila por empresa+comanda:

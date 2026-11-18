@@ -22,6 +22,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`../CLAUDE.md`](../CLAUDE.md) — contexto permanente e limites operacionais
 
 ## Auditoria
+- [`audit/COMANDAS_D057.md`](audit/COMANDAS_D057.md) — evidências de revisão financeira, retomada, concorrência e navegação do checkout.
 - [`audit_global/00_STATUS_EXECUCAO.md`](audit_global/00_STATUS_EXECUCAO.md) — auditoria histórica; validar contra `PROJECT_STATE.md`
 - [`audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md`](audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md) — checklist histórico de produção
 - [`audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md`](audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md) — checklist histórico de segredos e PII

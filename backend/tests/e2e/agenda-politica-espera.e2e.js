@@ -52,7 +52,7 @@ async function irPara(p, dia) {
 
   // 1) Política pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navAvatar'); await g.waitForSelector('#sheetGestao:not(.hidden)');
+  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#rgPolitica');
   await g.selectOption('#rgPolitica', 'compacta');
   confere('a dica explica a regra escolhida', /Só os encaixes ideais/.test(await g.textContent('#rgPoliticaDica')));
@@ -60,6 +60,7 @@ async function irPara(p, dia) {
   confere('política gravada', (await db('empresas'))[0].agenda_politica === 'compacta', String((await db('empresas'))[0].agenda_politica));
 
   // 2) Lista de espera com faixa pela tela.
+  await g.click('#btnFecharGestao');
   await g.click('[data-subtab="espera"]'); await g.waitForTimeout(400);
   await g.click('#btnNovaListaEspera'); await g.waitForSelector('#modalListaEspera:not(.hidden)');
   await g.click('#leCliente'); await g.fill('#leCliente', 'Paula'); await g.waitForTimeout(300);

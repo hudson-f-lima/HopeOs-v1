@@ -35,7 +35,7 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'admin@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   await p.click('#subtabBtnOnline'); await p.waitForSelector('#formOnline');
   console.log('PENDÊNCIAS:', (await p.textContent('#onlinePendencias')).trim());
   await p.fill('#onlineSlug', SLUG);
@@ -97,7 +97,7 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   // 3) Admin desliga: o link volta a ser indisponível na hora.
   await p.goto(APP);
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   await p.click('#subtabBtnOnline'); await p.waitForSelector('#formOnline');
   await p.uncheck('#onlineAtivo');
   await p.click('#btnOnlineSalvar');
