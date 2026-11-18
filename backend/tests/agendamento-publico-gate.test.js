@@ -164,7 +164,7 @@ test('P04 slots: só horários; antecedência de 2 h hoje; ocupado some; passado
   const slots = async (data, prof = ANA, serv = CORTE) => request('GET', `/api/public/agendar/salao-alfa/slots?servicoId=${serv}&profissionalId=${prof}&data=${data}`);
   const hoje = await slots(HOJE);
   assert.strictEqual(hoje.status, 200);
-  assert.deepStrictEqual(Object.keys(hoje.data.data).sort(), ['data', 'duracaoMin', 'slots']);
+  assert.deepStrictEqual(Object.keys(hoje.data.data).sort(), ['data', 'duracaoMin', 'ofertas', 'slots']);
   assert.ok(hoje.data.data.slots.every(h => typeof h === 'string'));
   assert.strictEqual(hoje.data.data.slots[0], '11:00', 'agora 09:00 + 2 h');
   const amanha = (await slots(AMANHA)).data.data.slots;
@@ -186,7 +186,7 @@ test('P05 POST cria cliente novo + agendamento "agendado" sem autoria + evento d
   const r = await post(pedido());
   assert.strictEqual(r.status, 201, r.raw);
   const { link, calendario, ...resposta } = r.data.data;
-  assert.deepStrictEqual(resposta, { data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
+  assert.deepStrictEqual(resposta, { cancelamentoPrazoMin: 120, data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
   assert.match(link, /^[A-Za-z0-9_-]{43}$/, 'link pessoal (017) devolvido');
   assert.strictEqual(calendario.inicioIso, '2026-11-11T14:00:00.000Z');
   assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
@@ -331,7 +331,7 @@ test('P14 teto diário do salão: atingido → mesma recusa genérica', async ()
     const r = await post(pedido({ horario: '16:30', whatsapp: '21 96666-0004' }));
     assert.strictEqual(r.status, 422); assert.strictEqual(code(r), 'AGENDAMENTO_ONLINE_INDISPONIVEL');
     assert.strictEqual(contar().ag, antes.ag);
-    assert.strictEqual((await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '16:30', whatsapp: '21 96666-0004' }), 'salao-beta')).status, 201, 'teto é por salão');
+    assert.strictEqual((await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '16:00', whatsapp: '21 96666-0004' }), 'salao-beta')).status, 201, 'teto é por salão');
   } finally { limitesAltos(); }
 });
 

@@ -284,6 +284,20 @@ test('C301 aviso de online novo (C3): recepção vê o agendamento feito pelo li
   assert.strictEqual((await request('GET', '/api/agenda/online-novos')).status, 401);
 });
 
+test('M11 intervalo mínimo vale na remarcação e desconsidera a reserva substituída', async () => {
+  const empresa = db.empresas.find(e => e.id === A);
+  empresa.agenda_intervalo_min_dias = 3;
+  try {
+    const { token } = await agendamentoComLink({ data: '2026-12-01' });
+    await agendamentoComLink({ data: '2026-11-23', status: 'concluido' });
+    const perto = await link('/horarios', token, { data: '2026-11-24' });
+    assert.deepStrictEqual(perto.data.data.slots, []);
+    assert.strictEqual((await link('/remarcar', token, { data: '2026-11-24', horario: '11:00' })).status, 422);
+    const permitido = await link('/horarios', token, { data: '2026-12-02' });
+    assert.ok(permitido.data.data.slots.includes('11:00'));
+  } finally { delete empresa.agenda_intervalo_min_dias; }
+});
+
 // --- Controles negativos ----------------------------------------------------
 function routerMutante(trocas) {
   const arquivo = path.join(__dirname, '../src/routes/publicBooking.js');

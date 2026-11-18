@@ -21,7 +21,7 @@ const { buildSlotsDoDia, resolveDuracaoMin, agoraNoFuso, aplicarPolitica } = req
 const { normalizarWhatsapp } = require('../engines/ReminderEngine');
 const { prazoCancelamentoMin, antecedenciaOnlineMin, violaIntervaloOnline } = require('../engines/AgendaPoliticaEngine');
 const { computeReguaFaltas } = require('../engines/NoShowLadder');
-const { timeToMinutes } = require('../engines/ScheduleEngine');
+const { timeToMinutes, minutesToTime } = require('../engines/ScheduleEngine');
 const { criarLimitador, chaveIpPublico } = require('../security/rateLimit');
 const crypto = require('crypto');
 const { TOKEN_RE, gerarToken, hashToken, instanteLocal, criarAcesso, moverAcessos } = require('../services/AcessoAgendamento');
@@ -36,7 +36,7 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NOME_RE = /^[\p{L}\p{M}][\p{L}\p{M}' .-]*$/u;
-const CAMPOS_POST = ['servicoId', 'profissionalId', 'data', 'horario', 'nome', 'whatsapp', 'consentimento', 'website'];
+const CAMPOS_POST = ['servicoId', 'profissionalId', 'data', 'horario', 'nome', 'whatsapp', 'consentimento', 'website', 'versaoOferta'];
 // Valor de profissionalId para "sem preferência": o servidor escolhe quem atende.
 const SEM_PREFERENCIA = 'qualquer';
 // Status que ainda vão acontecer (contam no limite de agendamentos futuros por número).
@@ -307,7 +307,7 @@ async function slotsDoProfissional(repo, cat, servico, profissional, data, lim, 
     .filter(a => a.id !== ignorarId);
   const r = buildSlotsDoDia({
     data, profissional, empresa: cat.empresa, servico, servicosAtivos: cat.servicosAtivos, agendamentos, agora: lim.minimo,
-    duracaoMin: duracaoFixa
+    gradePorDuracao: true, duracaoMin: duracaoFixa
   });
   const piso = data === lim.minimo.data ? lim.minimo.minuto : -1;
   // Política de sugestão (D-054): no link, só o que a política oferece (e a gravação usa a mesma lista).
@@ -343,6 +343,19 @@ async function slotsPublicos(repo, cat, { servicoId, profissionalId, data }, lim
   return { servico, profissional: null, candidatos: oferta.profissionais, duracaoMin: Math.min(...duracoes), slots, escolhido };
 }
 
+function ofertaPublica(cat, servico, escolha, data, horario) {
+  const { profissional, duracaoMin } = escolha;
+  const valor = precoDe(servico, profissional);
+  const prazo = prazoCancelamentoMin(cat.empresa, servico);
+  const condicoes = [cat.empresa.id, servico.id, profissional.id, data, horario, duracaoMin, cat.cfg.mostrarPreco ? valor : null, prazo];
+  return {
+    horario, fim: minutesToTime(timeToMinutes(horario) + duracaoMin),
+    profissional: primeiroNome(profissional.nome), duracaoMin,
+    precoCentavos: cat.cfg.mostrarPreco ? valor : null, cancelamentoPrazoMin: prazo,
+    versaoOferta: crypto.createHash('sha256').update(JSON.stringify(condicoes)).digest('hex')
+  };
+}
+
 function validarEntrada(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw dadosInvalidos();
   // Só os campos do formulário: empresaId, clienteId, status, permitirConflito,
@@ -360,7 +373,8 @@ function validarEntrada(body) {
   const numero = typeof whatsapp === 'string' && whatsapp.length <= 30 ? chaveNumero(normalizarWhatsapp(whatsapp)) : null;
   if (!numero) throw erroPublico('WHATSAPP_INVALIDO', 422, 'Informe o WhatsApp com DDD (10 ou 11 dígitos).');
   if (consentimento !== true) throw erroPublico('CONSENTIMENTO_OBRIGATORIO', 422, 'Confirme que leu o aviso de privacidade.');
-  return { servicoId: servicoId.toLowerCase(), profissionalId: profissionalId.toLowerCase(), data, horario, nome: nomeLimpo, whatsapp: numero, website: (website || '').trim() };
+  if (body.versaoOferta !== undefined && (typeof body.versaoOferta !== 'string' || !/^[0-9a-f]{64}$/.test(body.versaoOferta))) throw dadosInvalidos();
+  return { versaoOferta: body.versaoOferta, servicoId: servicoId.toLowerCase(), profissionalId: profissionalId.toLowerCase(), data, horario, nome: nomeLimpo, whatsapp: numero, website: (website || '').trim() };
 }
 
 // Cliente pelo número normalizado dos dois lados (clientes.whatsapp é texto livre).
@@ -518,7 +532,8 @@ router.get('/agendar/:slug/slots', limitarPorIp('get'), async (req, res, next) =
     const cat = await carregarCatalogo(repo);
     const lim = limitesDoMomento(cat.cfg);
     const r = await slotsPublicos(repo, cat, { servicoId: servicoId.toLowerCase(), profissionalId: profissionalId.toLowerCase(), data }, lim);
-    res.json({ ok: true, data: { data, duracaoMin: r.duracaoMin, slots: r.slots } });
+    const ofertas = r.slots.map(h => ofertaPublica(cat, r.servico, r.escolhido(h), data, h));
+    res.json({ ok: true, data: { data, duracaoMin: r.duracaoMin, slots: r.slots, ofertas } });
   } catch (err) { next(err); }
 });
 
@@ -535,7 +550,7 @@ router.post('/agendar/:slug', limitarPorIp('post'), resolverAntes, lerCorpo, asy
     // Honeypot preenchido (robô): finge sucesso e não grava nada.
     if (entrada.website) {
       const quem = pedido || (escolhido(entrada.horario) || {}).profissional || candidatos[0];
-      const falso = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(quem.nome) };
+      const falso = { cancelamentoPrazoMin: prazoCancelamentoMin(cat.empresa, servico), data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(quem.nome) };
       return res.status(201).json({ ok: true, data: { ...falso, link: gerarToken(), calendario: calendarioDe(cat.empresa, falso, resolveDuracaoMin({ servico, profissional: quem })) } });
     }
     // Revalidação no servidor: expediente, antecedência, janela, ocupação e vínculo.
@@ -543,8 +558,12 @@ router.post('/agendar/:slug', limitarPorIp('post'), resolverAntes, lerCorpo, asy
     // Com profissional pedido, é ele; sem preferência, quem tem o horário livre.
     const { profissional, duracaoMin } = escolhido(entrada.horario) || { profissional: pedido, duracaoMin: resolveDuracaoMin({ servico, profissional: pedido }) };
     if (!profissional) throw horarioIndisponivel();
+    const oferta = ofertaPublica(cat, servico, { profissional, duracaoMin }, entrada.data, entrada.horario);
+    if (entrada.versaoOferta && oferta.versaoOferta !== entrada.versaoOferta) {
+      throw erroPublico('OFERTA_ALTERADA', 409, 'As condições mudaram. Revise o horário antes de confirmar.');
+    }
     const semPreferencia = entrada.profissionalId === SEM_PREFERENCIA;
-    const resposta = { data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(profissional.nome) };
+    const resposta = { cancelamentoPrazoMin: oferta.cancelamentoPrazoMin, data: entrada.data, horario: entrada.horario, servico: servico.nome, profissional: primeiroNome(profissional.nome) };
     const agendamento = await comTrava(`${repo.empresaId}|${entrada.whatsapp}`, () => gravar(repo, cat, { entrada, servico, profissional, duracaoMin, lim, req, semPreferencia }));
     // Link pessoal (017): se falhar, o agendamento já existe; o cliente fica sem o link.
     let link = null;
@@ -727,6 +746,12 @@ async function slotsDaRemarcacao(c, data) {
   const profissional = oferta && oferta.profissionais.find(p => p.id === c.ag.profissional_id);
   if (!profissional) throw foraDoPrazo();
   const lim = limiteDoServico(cat, oferta.servico, limitesDoMomento(cat.cfg));
+  if (c.ag.cliente_id && cat.empresa.agenda_intervalo_min_dias > 0) {
+    const historico = await c.repo.list('agendamentos', { empresa_id: c.repo.empresaId, cliente_id: c.ag.cliente_id });
+    if (violaIntervaloOnline({ empresa: cat.empresa, servicoId: c.ag.servico_id, data, historico: historico.filter(a => a.id !== c.ag.id) })) {
+      return { slots: [], lim };
+    }
+  }
   const r = await slotsDoProfissional(c.repo, cat, oferta.servico, profissional, data, lim, { ignorarId: c.ag.id, duracaoFixa: Number(c.ag.duracao_min) || undefined });
   // O próprio horário não é opção de "remarcar".
   const slots = r.slots.filter(h => !(data === String(c.ag.data) && h === hhmm(c.ag.horario)));

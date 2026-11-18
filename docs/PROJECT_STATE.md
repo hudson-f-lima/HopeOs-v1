@@ -157,3 +157,6 @@
 - Riscos: `DEFAULT_EMPRESA_ID` continua sendo a única fonte de tenant até a ADR-005 ser implementada; ausência de CI remoto é débito P1 separado, não resolvido aqui; Render ainda sem validação remota.
 - Próxima ação: revisão final curta do Platform Owner da ADR-005 corrigida antes de autorizar push adicional ou merge do PR #14.
 - Não fazer: V1.5, migrations 007+, implementação de código de identidade/RBAC/actor_id/integração neste branch; não tocar migrations 001–006.
+
+### D-058 — Oferta pública por duração
+Branch de revisão com grade por duração efetiva, condições por horário, revalidação da oferta e intervalo mínimo na remarcação. Pendentes de entrega transacional a recuperação persistente da intenção e a troca atômica de reserva e acesso. Multisserviços existem na operação interna. O cliente ainda agenda um serviço por vez. Nenhuma migration nesta etapa.

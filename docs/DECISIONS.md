@@ -832,3 +832,8 @@
 
 ## D-057 — Navegação por tarefas e integridade do checkout
 O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no avatar e tratamento distinto do comprador na venda interna, com execução em branch revisável. Base 7cfc5a1. Mantidos os limites para migrations e publicação. Nesta etapa, Comandas apresenta atendimentos reais e histórico autorizado. O contrato de abertura persistente e de comprador profissional está proposto no estado do projeto.
+
+## D-058 — Oferta do serviço no agendamento público
+Em 18/11/2026 o proprietário aprovou o planejamento do aplicativo cliente. Para consulta, criação e remarcação públicas de um serviço, cada espaço livre inicia uma grade com a duração efetiva daquele profissional. A política do salão pode filtrar os candidatos. A recepção conserva a grade interna da D-040.
+
+A primeira entrega apresenta as condições de cada opção e revalida a opção escolhida. A integração pública de vários serviços pertence à onda C. Tocar em outro serviço hoje substitui a escolha. Para corte, barba e sobrancelha, a próxima integração precisa manter a primeira preferência, mostrar as etapas e as esperas e reservar todas as etapas juntas, com um link pessoal que opere o conjunto.
