@@ -11,7 +11,7 @@ const db = async tabela => {
   return r.json();
 };
 
-async function entrar(b, papel, erros, chamadas = []) {
+async function entrar(b, papel, erros, chamadas = [], abrirLista = true) {
   const contexto = await b.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'America/Sao_Paulo' });
   const p = await contexto.newPage();
   p.setDefaultTimeout(12000);
@@ -29,8 +29,10 @@ async function entrar(b, papel, erros, chamadas = []) {
     const { pathname, search } = new URL(req.url());
     chamadas.push(`${req.method()} ${pathname}${search}`);
   });
-  await p.click('#navCheckout');
-  await p.locator('#comandasHome').waitFor();
+  if (abrirLista) {
+    await p.click('#navCheckout');
+    await p.locator('#comandasHome').waitFor();
+  }
   return p;
 }
 
@@ -83,6 +85,32 @@ async function conferirSelecaoPorTeclado(p) {
     assert.equal(await linha(profissional, agBruno.id).isVisible(), false);
     assert.equal(await profissional.isVisible('#btnComandasHistorico'), false);
     await conferirSelecaoPorTeclado(profissional);
+
+    const admin = await entrar(browser, 'admin', erros);
+    // Pode consultar a agenda da equipe, mas continua fechando só os próprios atendimentos.
+    const membro = (await db('empresa_memberships')).find(m => m.role === 'profissional');
+    await admin.evaluate(async id => {
+      const { api } = await import('/js/api.js');
+      await api('/equipe/permissoes/' + id, { method: 'PUT', body: { permissoes: ['agenda:ver'] } });
+    }, membro.id);
+    const leituras = [];
+    const equipe = await entrar(browser, 'profissional', erros, leituras, false);
+    await equipe.locator(`[data-id="${agBruno.id}"]`).first().click();
+    await equipe.locator('#actionSheet:not(.hidden)').waitFor();
+    const checkoutDeColega = await equipe.locator('[data-sheet-action="checkout"]').isVisible();
+    await equipe.keyboard.press('Escape');
+    await equipe.locator(`[data-id="${agAna.id}"]`).first().click();
+    leituras.length = 0;
+    await equipe.click('[data-sheet-action="checkout"]');
+    await equipe.locator('#comandasCheckout').waitFor();
+    assert.match(await equipe.inputValue('#coServico'), /^Barba/);
+    const consultasOcultas = leituras.filter(x => /^GET \/api\/(agenda|comandas)\?/.test(x)).length;
+    await equipe.click('#btnVoltarCheckoutComandas');
+    await linha(equipe, agAna.id).waitFor();
+    const focoRestaurado = await linha(equipe, agAna.id).evaluate(el => el === document.activeElement);
+    const medido = { checkoutDeColega, consultasOcultas, focoRestaurado };
+    console.log('Agenda → checkout próprio → lista:', medido);
+    assert.deepEqual(medido, { checkoutDeColega: false, consultasOcultas: 0, focoRestaurado: true });
 
     const chamadas = [];
     const p = await entrar(browser, 'recepcao', erros, chamadas);
@@ -156,7 +184,6 @@ async function conferirSelecaoPorTeclado(p) {
     await linha(p, agAna.id).waitFor();
     assert.equal(await linha(p, agBruno.id).isVisible(), false, 'o atendimento pago sai da fila');
 
-    const admin = await entrar(browser, 'admin', erros);
     await admin.click('#btnComandasHistorico');
     const data = admin.locator('#comandasData');
     await data.fill('2001-01-02');

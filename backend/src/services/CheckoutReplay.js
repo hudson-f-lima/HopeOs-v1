@@ -1,5 +1,6 @@
 const { isDeepStrictEqual } = require('node:util');
 const { createHash } = require('node:crypto');
+const { previewCheckout } = require('../engines/FinanceEngine');
 const { createAppError } = require('../errors');
 
 function agendamentoDoCheckout(payload) {
@@ -35,6 +36,39 @@ function intent(payload) {
   };
 }
 
+// Vincula a revisão exibida pela PWA ao cálculo financeiro conferido no fechamento.
+function revisaoFinanceira(preview, cobertura) {
+  const { itens, totals, payments, gorjetas } = preview;
+  const dados = JSON.stringify([itens, totals, payments, gorjetas, cobertura.itens, cobertura.usos]);
+  return createHash('sha256').update(dados).digest('hex');
+}
+
+function mesmaRevisao(original, preview, pedido) {
+  const solicitada = pedido.revisaoFinanceira ?? null;
+  if (Object.hasOwn(original, 'revisaoFinanceira')) return original.revisaoFinanceira === solicitada;
+  if (solicitada === null) return true;
+  // A D-057 inicial gravava preview em jsonb (sem ordem de chaves), sem o hash
+  // nem a avaliação da cobertura. Sem plano, todo insumo está no recibo.
+  if (original.itens.some(item => item.assinaturaId)) return false;
+  try {
+    const reconstituido = previewCheckout({
+      itens: preview.itens.map(item => ({ ...item, _trustedSource: 'server_catalog' })),
+      payments: preview.payments,
+      formasPagamento: preview.payments,
+      descontoCentavos: preview.totals.descontoCentavos,
+      gorjetaCentavos: preview.totals.gorjetaBrutaCentavos
+    });
+    // O recibo incompleto ou de outra versão do cálculo exige conferência.
+    const campos = ['itens', 'payments', 'totals', 'gorjetas'];
+    const registrado = campos.map(campo => preview[campo]);
+    const calculado = campos.map(campo => reconstituido[campo]);
+    if (!isDeepStrictEqual(registrado, JSON.parse(JSON.stringify(calculado)))) return false;
+    return solicitada === revisaoFinanceira(reconstituido, { itens: [], usos: [] });
+  } catch {
+    return false;
+  }
+}
+
 async function checkoutAnterior(repo, auth, payload) {
   const key = payload.idempotencyKey || payload.idempotency_key;
   if (!key) return null;
@@ -48,8 +82,8 @@ async function checkoutAnterior(repo, auth, payload) {
       : !command.actor_id && !command.actor_integration_id;
   const original = command.snapshot?.request?.raw;
   const preview = command.snapshot?.preview;
-  if (rows.length !== 1 || !mesmoAtor || !original || !preview || !isDeepStrictEqual(intent(original), intent(payload))) {
-    throw createAppError('IDEMPOTENCY_MISMATCH', 'Este fechamento precisa ser conferido no caixa. A chave não pode ser reutilizada com outra intenção ou autor.', 409);
+  if (rows.length !== 1 || !mesmoAtor || !original || !preview || !isDeepStrictEqual(intent(original), intent(payload)) || !mesmaRevisao(original, preview, payload)) {
+    throw createAppError('IDEMPOTENCY_MISMATCH', 'Confira o fechamento no caixa antes de tentar outra cobrança. A chave, o autor e a revisão precisam corresponder ao comprovante original.', 409);
   }
   return {
     preview,
@@ -59,4 +93,4 @@ async function checkoutAnterior(repo, auth, payload) {
   };
 }
 
-module.exports = { checkoutAnterior, comandoIdDoAgendamento, agendamentoDoCheckout, conflitoComandaDoAgendamento, AGENDAMENTO_COMANDA_JA_FECHADA };
+module.exports = { checkoutAnterior, revisaoFinanceira, comandoIdDoAgendamento, agendamentoDoCheckout, conflitoComandaDoAgendamento, AGENDAMENTO_COMANDA_JA_FECHADA };

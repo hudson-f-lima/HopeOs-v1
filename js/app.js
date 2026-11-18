@@ -51,7 +51,7 @@ import { talvezAbrirOnboarding, abrirOnboarding } from './ui/onboarding.js';
 
 const tabScroll = new Map();
 
-export function showTab(name) {
+export function showTab(name, { abrirLista = true } = {}) {
   const target = document.getElementById('tab-' + name);
   if (!target) return;
   const anterior = state.activeTab;
@@ -66,7 +66,7 @@ export function showTab(name) {
     if (sessionPode('caixa:conferir')) atualizarCaixa();
     if (document.getElementById('dobraComandas').open && podeEstornar()) atualizarComandasEstorno();
   }
-  if (name === 'checkout' && anterior !== 'checkout') abrirComandas();
+  if (name === 'checkout' && anterior !== 'checkout' && abrirLista) abrirComandas();
   document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
     const current = btn.dataset.tab === name;
     btn.classList.toggle('active', current);
@@ -610,7 +610,7 @@ async function init() {
   initAgenda();
   initLembretes();
   initCheckout();
-  initComandas();
+  initComandas(() => showTab('checkout', { abrirLista: false }));
   initDashboard();
   initCadastros();
 

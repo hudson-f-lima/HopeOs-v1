@@ -39,6 +39,7 @@ function elemento(aoFocar) {
 let montagem = 0;
 async function montar(permissoes, responder) {
   const utils = await import(pathToFileURL(resolve(raiz, 'js/utils.js')));
+  const { alcanceDaPermissao, podeFecharAtendimento } = await import(pathToFileURL(resolve(raiz, 'js/state.js')));
   const els = new Map();
   const document = {
     getElementById(id) {
@@ -62,7 +63,7 @@ async function montar(permissoes, responder) {
   };
   const chamadas = [];
   const fixture = {
-    document, window,
+    document, window, alcanceDaPermissao, podeFecharAtendimento,
     state: { session: { principal: 'user', role: 'profissional', profissional_id: 'prof-a', permissoes }, activeTab: 'checkout' },
     stateBus: new EventTarget(),
     findClienteNome: () => '<Nome>',
@@ -83,7 +84,7 @@ async function montar(permissoes, responder) {
   try {
     const script = `const {${Object.keys(fixture).join(', ')} } = globalThis.__comandasListFixture;\n${source}\n// montagem ${++montagem}`;
     mod = await import('data:text/javascript;base64,' + Buffer.from(script).toString('base64'));
-    mod.initComandas();
+    mod.initComandas(() => { fixture.state.activeTab = 'checkout'; });
   } finally {
     delete globalThis.__comandasListFixture;
   }
@@ -205,4 +206,34 @@ test('Voltar atualiza apenas se agenda, caixa ou estorno invalidaram a lista enq
   await el('btnVoltarComandas').click();
   assert.deepEqual(fixture.chamadas.slice(-2), [`/comandas?data=${DATA}`, `/comandas?data=${DATA}`]);
   assert.equal(document.activeElement, el(`linha-${fechada.id}`));
+});
+
+test('voltar da venda avulsa conserva filtro e foco no botão de retomada, sem repetir a consulta', async () => {
+  const fixture = await montar({ 'agenda:ver': 'total', 'comanda:fechar': 'total' }, () => []);
+  const { el, stateBus, document, window } = fixture;
+  stateBus.addEventListener('checkout:new', () => stateBus.dispatchEvent(new Event('checkout:draft-open')));
+  await fixture.abrirComandas();
+  el('comandasData').value = '2026-11-12';
+  await el('comandasData').change();
+  const antes = fixture.chamadas.length;
+  window.scrollTo(0, 117);
+  el('btnNovaComanda').click();
+  window.scrollTo(0, 0);
+  await el('btnVoltarCheckoutComandas').click();
+  assert.equal(fixture.chamadas.length - antes, 0, 'consultas ao voltar ao filtro já carregado');
+  assert.equal(document.activeElement, el('btnNovaComanda'));
+  assert.equal(window.scrollY, 117);
+  assert.equal(el('comandasData').value, '2026-11-12');
+});
+
+test('atalho direto consulta a fila apenas ao exibi-la e retorna ao registro na data do atendimento', async () => {
+  const item = { ...agenda('confirmado', '14:00:00'), data: '2026-11-20' };
+  const fixture = await montar({ 'agenda:ver': 'total', 'comanda:fechar': 'proprio' }, () => [item]);
+  fixture.state.activeTab = 'agenda';
+  fixture.stateBus.dispatchEvent(new CustomEvent('checkout:draft-open', { detail: item }));
+  assert.equal(fixture.state.activeTab, 'checkout');
+  assert.deepEqual(fixture.chamadas, []);
+  await fixture.el('btnVoltarCheckoutComandas').click();
+  assert.deepEqual(fixture.chamadas, ['/agenda?data=2026-11-20']);
+  assert.equal(fixture.document.activeElement, fixture.el('linha-confirmado'));
 });

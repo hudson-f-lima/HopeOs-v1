@@ -155,6 +155,7 @@ async function montarCheckout(contexto, storage, enviar, opcoes = {}) {
     sessionIdentity: s => s?.instance,
     getSession: () => ativa,
     onAuthContextChanged: fn => { fixture.limpar = fn; },
+    podeFecharAtendimento: () => true,
     sessionPode: codigo => codigo === 'assinatura:ver' && Boolean(opcoes.cobertura),
     genIdempotencyKey: () => 'nova-chave-' + (++chaves),
     findAgendaItemById: () => null,
@@ -169,6 +170,7 @@ async function montarCheckout(contexto, storage, enviar, opcoes = {}) {
     api: async (rota, opcoes) => {
       chamadas.push({ rota, opcoes });
       if (rota === '/checkout/close') return enviar(opcoes.body);
+      if (rota.endsWith('/reconciliar-agenda')) return fixture.reparar(rota, opcoes);
       if (rota === '/checkout/preview') return (fixture.preview || previewDe)(opcoes.body);
       if (rota.startsWith('/assinaturas/cobertura?')) return fixture.cobertura(rota);
       return { servicos: [], produtos: [] };
@@ -290,26 +292,75 @@ test('recusa comprovada da retomada preserva o primeiro envio incerto', async ()
   assert.equal(storage.valores.size, 0);
 });
 
-test('comanda salva com vínculo pendente orienta a conferir a Agenda sem reenviar ao caixa', async () => {
+test('comprovante permite reparar a agenda pela mesma intenção e mantém o caixa confirmado durante falhas', async () => {
   const storage = armazenamentoEmMemoria();
-  const fixture = await montarCheckout(sessao, storage.transacao, () => ({
-    saved: { comandoId: 'comanda-registrada', status: 'fechado' },
-    vinculoAgenda: { aplicado: false, motivo: 'FALHA_ATUALIZACAO' }
-  }));
+  const salvo = { saved: { comandoId: 'comanda-registrada', status: 'fechado' } };
+  const pendente = { ...salvo, vinculoAgenda: { aplicado: false, motivo: 'FALHA_ATUALIZACAO' } };
+  const fixture = await montarCheckout(sessao, storage.transacao, () => pendente);
+  fixture.state.agendamentoIdParaCheckout = 'agenda-1';
   await fixture.mod.simular();
   await fixture.mod.fechar();
-
+  const post = fixture.chamadas.find(c => c.rota === '/checkout/close');
+  const btn = fixture.document.getElementById('btnRepararVinculo');
+  const status = fixture.document.getElementById('resVinculoAgenda');
   assert.equal(fixture.document.getElementById('resComandaId').textContent, 'comanda-registrada');
+  assert.equal(btn.classList.contains('hidden'), false);
   assert.equal(fixture.document.getElementById('cardResultado').classList.contains('hidden'), false);
-  assert.deepEqual(fixture.avisos.at(-1), [
-    'Comanda salva. A conclusão do agendamento ficou pendente. Confira na Agenda.',
-    'error'
-  ]);
-  assert.ok(fixture.avisos.every(([mensagem]) => !/Comanda fechada com sucesso/.test(mensagem)));
-  assert.equal(storage.valores.size, 0, 'a comanda já foi confirmada pelo servidor');
+  assert.match(fixture.avisos.at(-1)[0], /conclusão do agendamento ficou pendente/);
+  assert.equal(storage.valores.size, 0);
+  assert.match(status.textContent, /pendente/);
+  let vezes = 0;
+  const resposta = adiar();
+  fixture.reparar = (rota, opcoes) => {
+    assert.equal(rota, '/checkout/comandas/comanda-registrada/reconciliar-agenda');
+    assert.deepEqual(opcoes.body, post.opcoes.body);
+    assert.equal(opcoes.retryOnAuth, false);
+    vezes++;
+    if (vezes === 1) throw Error('sem rede');
+    if (vezes === 2) return pendente;
+    return resposta.promise;
+  };
+  await btn.click();
+  assert.match(status.textContent, /Não foi possível confirmar/);
+  assert.equal(btn.disabled, false);
+  await btn.click();
+  assert.match(status.textContent, /continua pendente/);
+  const tentativa = btn.click();
+  await btn.click();
+  assert.equal(vezes, 3);
+  resposta.resolve({ ...salvo, vinculoAgenda: { aplicado: true } });
+  await tentativa;
+  assert.match(status.textContent, /Agendamento concluído/);
+  assert.equal(btn.classList.contains('hidden'), true);
+  await btn.click();
   await fixture.mod.fechar();
   await fixture.document.getElementById('btnRetomarFechamento').click();
+  assert.equal(storage.valores.size, 0);
   assert.equal(fixture.chamadas.filter(c => c.rota === '/checkout/close').length, 1);
+  assert.equal(vezes, 3);
+});
+
+test('resposta tardia do reparo não altera o rascunho seguinte nem bloqueia nova simulação', async () => {
+  const storage = armazenamentoEmMemoria();
+  const salvo = { saved: { comandoId: 'comanda-anterior' }, vinculoAgenda: { aplicado: false } };
+  const fixture = await montarCheckout(sessao, storage.transacao, () => salvo);
+  fixture.state.agendamentoIdParaCheckout = 'agenda-1';
+  await fixture.mod.simular();
+  await fixture.mod.fechar();
+  const resposta = adiar();
+  fixture.reparar = () => resposta.promise;
+  const btn = fixture.document.getElementById('btnRepararVinculo');
+  const reparo = btn.click();
+  await fixture.mod.prefillCheckoutFromAgendamento(agendaB);
+  fixture.state.fuzzyForma.setValue('pix');
+  await fixture.mod.simular();
+  resposta.resolve({ ...salvo, vinculoAgenda: { aplicado: true } });
+  await reparo;
+  assert.equal(fixture.state.currentPayload.agendamentoId, agendaB.id);
+  assert.equal(fixture.document.getElementById('btnFechar').disabled, false);
+  assert.equal(fixture.document.getElementById('cardResultado').classList.contains('hidden'), true);
+  await btn.click();
+  assert.equal(fixture.chamadas.filter(c => c.rota.endsWith('/reconciliar-agenda')).length, 1);
 });
 
 function adiar() {
@@ -557,4 +608,40 @@ test('falha na cobertura bloqueia a cobrança, com nova consulta e opção expl�
   assert.equal(consultas, 2, 'a opção explícita de não usar o plano dispensa a consulta');
   assert.equal(fixture.state.currentPayload.itens[0].assinaturaId, undefined);
   assert.deepEqual(fixture.state.currentPayload.payments, [{ formaCode: 'pix', valorCentavos: 1000 }]);
+});
+
+test('prévia sem revisão financeira preserva o carrinho e exige uma simulação válida para fechar', async () => {
+  const storage = armazenamentoEmMemoria();
+  const fixture = await montarCheckout(sessao, storage.transacao, () => ({ saved: { comandoId: 'fechada-01' } }));
+  for (const revisao of [undefined, '', '  ', {}]) {
+    fixture.preview = payload => ({ ...previewDe(payload), revisaoFinanceira: revisao });
+    await fixture.mod.simular();
+    assert.equal(fixture.document.getElementById('btnFechar').disabled, true);
+    assert.equal(fixture.state.currentPayload, null);
+    assert.equal(fixture.state.comandaItens.length, 1);
+    assert.match(fixture.avisos.at(-1)[0], /revisão financeira/i);
+    await fixture.mod.fechar();
+  }
+  assert.equal(fixture.chamadas.filter(c => c.rota === '/checkout/close').length, 0);
+  fixture.preview = previewDe;
+  await fixture.mod.simular();
+  await fixture.mod.fechar();
+  const feitos = fixture.chamadas.filter(c => c.rota === '/checkout/close');
+  assert.equal(feitos.length, 1);
+  assert.equal(feitos[0].opcoes.body.revisaoFinanceira, 'revisao-1');
+});
+
+test('pendência de versão anterior sem revisão ainda pode ser retomada pela chave original', async () => {
+  const storage = armazenamentoEmMemoria();
+  const { criarRegistroDeFechamentos } = await import(journalUrl);
+  const registro = criarRegistroDeFechamentos(storage.transacao);
+  const anterior = await registro.iniciar(sessao, comanda);
+  const fixture = await montarCheckout(sessao, storage.transacao, payload => {
+    assert.deepEqual(payload, anterior.payload);
+    return { saved: { comandoId: 'fechada-01', idempotent: true } };
+  });
+  await fixture.mod.simular();
+  await fixture.document.getElementById('btnRetomarFechamento').click();
+  assert.equal(await registro.ler(sessao), null);
+  assert.deepEqual(fixture.chamadas.map(c => c.rota), ['/checkout/close']);
 });

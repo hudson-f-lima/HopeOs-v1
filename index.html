@@ -224,7 +224,7 @@
       <div class="checkout-header">
         <div>
           <h2>Comanda</h2>
-          <p class="checkout-subtitle">Monte o atendimento, simule o resultado e finalize com o backend real.</p>
+          <p class="checkout-subtitle">Confira os itens e o pagamento antes de fechar.</p>
         </div>
       </div>
 
@@ -275,11 +275,11 @@
           <div id="coTaxaAviso" class="taxa-aviso hidden" role="status" aria-live="polite"></div>
           <div id="coPlanoAviso" class="taxa-aviso hidden" role="status" aria-live="polite"></div>
           <div class="field">
-            <label>Gorjeta (R$)</label>
-            <div class="tip-stepper">
-              <button class="stepper-btn" id="tipMinusBtn">−</button>
+            <span id="coGorjetaLabel">Gorjeta</span>
+            <div class="tip-stepper" role="group" aria-labelledby="coGorjetaLabel">
+              <button class="stepper-btn" id="tipMinusBtn" aria-label="Diminuir gorjeta">−</button>
               <div class="stepper-value" id="tipValue">R$ 0,00</div>
-              <button class="stepper-btn" id="tipPlusBtn">+</button>
+              <button class="stepper-btn" id="tipPlusBtn" aria-label="Aumentar gorjeta">+</button>
             </div>
           </div>
           <div class="split-toggle-row">
@@ -313,7 +313,7 @@
             <div class="row"><span>Serviços</span><b id="pvServicos">—</b></div>
             <div class="row"><span>Produtos</span><b id="pvProdutos">—</b></div>
             <div class="row"><span>Gorjeta bruta</span><b id="pvGorjetaBruta">—</b></div>
-            <div class="row"><span>Total recebido</span><b id="pvRecebido">—</b></div>
+            <div class="row"><span>Total a receber</span><b id="pvRecebido">—</b></div>
 
             <div class="preview-section-label">Deduções</div>
             <div class="row"><span>Custo produtos</span><b id="pvCustoProdutos">—</b></div>
@@ -335,6 +335,8 @@
             <div class="row"><span>Status</span><b id="resStatus">—</b></div>
             <div class="row"><span>Itens / Pagamentos / Gorjetas</span><b id="resCounts">—</b></div>
             <div class="row"><span>Movimentos de caixa</span><b id="resCaixa">—</b></div>
+            <p id="resVinculoAgenda" role="status"></p>
+            <button type="button" id="btnRepararVinculo" class="btn btn-secondary hidden">Tentar concluir o agendamento</button>
           </div>
 
           <div class="card checkout-result hidden" id="rebookingCard">

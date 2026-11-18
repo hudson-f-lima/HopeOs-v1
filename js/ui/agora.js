@@ -3,7 +3,7 @@
 // importa: quem está na cadeira, o que fazer e o que vem depois.
 // Só leitura do que a agenda já carregou; as ações usam as mesmas rotas da folha de ações.
 import { api } from '../api.js';
-import { state, stateBus, loadWeekAgenda, findClienteNome, findServicoNome } from '../state.js';
+import { state, stateBus, loadWeekAgenda, findClienteNome, findServicoNome, podeFecharAtendimento } from '../state.js';
 import { escapeHtml, todayStr, showBanner, clearBanner } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -14,7 +14,7 @@ const ACAO = {
   agendado: { texto: 'Cliente chegou', status: 'aguardando' },
   confirmado: { texto: 'Cliente chegou', status: 'aguardando' },
   aguardando: { texto: 'Iniciar atendimento', status: 'em_atendimento' },
-  em_atendimento: { texto: 'Concluir e abrir comanda', comanda: true }
+  em_atendimento: { texto: 'Abrir checkout', comanda: true }
 };
 const hhmm = h => String(h || '').slice(0, 5);
 const ehProfissional = () => Boolean(state.session && state.session.principal === 'user' && state.session.role === 'profissional');
@@ -33,14 +33,14 @@ function render() {
   const card = el('agoraCard');
   if (!card) return;
   if (!ehProfissional()) { card.classList.add('hidden'); return; }
-  const doDia = (state.weekAgenda[todayStr()] || []).filter(i => !ENCERRADOS.includes(i.status)).sort((a, b) => hhmm(a.horario).localeCompare(hhmm(b.horario)));
+  const doDia = (state.weekAgenda[todayStr()] || []).filter(i => i.profissional_id && i.profissional_id === state.session.profissional_id && !ENCERRADOS.includes(i.status)).sort((a, b) => hhmm(a.horario).localeCompare(hhmm(b.horario)));
   const atual = escolherAtual(doDia);
   card.classList.remove('hidden');
   if (!atual) {
     card.innerHTML = '<p class="agora-vazio">Nenhum atendimento pendente hoje.</p>';
     return;
   }
-  const acao = ACAO[atual.status];
+  const acao = acaoDisponivel(atual);
   const naCadeira = atual.status === 'em_atendimento';
   const proximos = doDia.filter(i => i.id !== atual.id).slice(0, 3);
   card.innerHTML = `
@@ -55,9 +55,15 @@ function render() {
       ${proximos.map(i => `<div class="agora-linha"><span class="agora-linha-hora">${hhmm(i.horario)}</span><span class="agora-linha-texto"><b>${escapeHtml(findClienteNome(i.cliente_id))}</b><span>${escapeHtml(findServicoNome(i.servico_id))} · ${escapeHtml(ROTULO[i.status] || i.status)}</span></span></div>`).join('')}` : ''}`;
 }
 
+function acaoDisponivel(item) {
+  if (!item || !item.profissional_id || item.profissional_id !== state.session?.profissional_id) return null;
+  const acao = ACAO[item.status];
+  return acao?.comanda && !podeFecharAtendimento(state.session, item) ? null : acao;
+}
+
 async function executar(id) {
   const item = (state.weekAgenda[todayStr()] || []).find(i => i.id === id);
-  const acao = item && ACAO[item.status];
+  const acao = acaoDisponivel(item);
   if (!acao) return;
   if (acao.comanda) { stateBus.dispatchEvent(new CustomEvent('checkout:prefill', { detail: item })); return; }
   const botao = el('btnAgoraAcao');

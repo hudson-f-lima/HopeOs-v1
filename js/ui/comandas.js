@@ -1,5 +1,5 @@
 import { api, onAuthContextChanged } from '../api.js';
-import { state, stateBus, findClienteNome, findProfissionalNome, findServicoNome } from '../state.js';
+import { state, stateBus, alcanceDaPermissao, podeFecharAtendimento, findClienteNome, findProfissionalNome, findServicoNome } from '../state.js';
 import { centsToBRL, escapeHtml, todayStr } from '../utils.js';
 import { temRascunhoCheckout } from './checkout.js';
 
@@ -21,21 +21,6 @@ let origemLista = null;
 let listaDesatualizada = true;
 let busca = 0;
 let sessao = null;
-
-function escopo(codigo) {
-  const atual = state.session;
-  if (!atual) return null;
-  if (atual.principal !== 'user') return 'total';
-  if (atual.permissoes) return atual.permissoes[codigo] || null;
-  if (codigo === 'comanda:historico') return ['admin', 'gestor'].includes(atual.role) ? 'total' : null;
-  if (atual.role === 'profissional') return 'proprio';
-  return ['admin', 'gestor', 'recepcao'].includes(atual.role) ? 'total' : null;
-}
-
-function podeFecharAtendimento(item) {
-  const alcance = escopo('comanda:fechar');
-  return alcance === 'total' || (alcance === 'proprio' && Boolean(item.profissional_id) && item.profissional_id === state.session.profissional_id);
-}
 
 function atendimentosParaCheckout(itens) {
   return itens.filter(item => Object.hasOwn(ESTADOS_AGENDA, item.status))
@@ -71,9 +56,9 @@ function renderLista() {
 }
 
 function aplicarPermissoes() {
-  const agenda = Boolean(escopo('agenda:ver'));
-  const historico = Boolean(escopo('comanda:historico'));
-  const podeFechar = Boolean(escopo('comanda:fechar'));
+  const agenda = Boolean(alcanceDaPermissao(state.session, 'agenda:ver'));
+  const historico = Boolean(alcanceDaPermissao(state.session, 'comanda:historico'));
+  const podeFechar = Boolean(alcanceDaPermissao(state.session, 'comanda:fechar'));
   if (modo === 'agenda' && !agenda && historico) modo = 'historico';
   if (modo === 'historico' && !historico && agenda) modo = 'agenda';
   const podeListar = agenda || historico;
@@ -160,7 +145,7 @@ function detalheAgenda(item) {
       ${campo('Horário', hhmm(item.horario))}
       ${campo('Status na agenda', ESTADOS_AGENDA[item.status])}
     </dl>
-    ${podeFecharAtendimento(item) ? '<button type="button" id="btnComandaDoAtendimento" class="btn btn-primary">Abrir checkout</button>' : ''}`;
+    ${podeFecharAtendimento(state.session, item) ? '<button type="button" id="btnComandaDoAtendimento" class="btn btn-primary">Abrir checkout</button>' : ''}`;
 }
 
 function detalheHistorico(item) {
@@ -216,6 +201,11 @@ async function voltar() {
         tela !== 'lista' || document.activeElement !== titulo) return;
   }
 
+  if (!origem.id) {
+    el('btnNovaComanda').focus({ preventScroll: true });
+    window.scrollTo(origem.x, origem.y);
+    return;
+  }
   const atributo = `data-comandas-${modo}`;
   const linha = [...el('comandasRegistros').querySelectorAll(`button[${atributo}]`)]
     .find(botao => botao.getAttribute(atributo) === origem.id);
@@ -223,12 +213,15 @@ async function voltar() {
     titulo.focus();
     return;
   }
-  linha.focus({ preventScroll: true });
-  window.scrollTo(origem.x, origem.y);
+  if (origem.y === undefined) linha.focus();
+  else {
+    linha.focus({ preventScroll: true });
+    window.scrollTo(origem.x, origem.y);
+  }
 }
 
 function mudarModo(novo) {
-  if (modo === novo || !escopo(novo === 'agenda' ? 'agenda:ver' : 'comanda:historico')) return;
+  if (modo === novo || !alcanceDaPermissao(state.session, novo === 'agenda' ? 'agenda:ver' : 'comanda:historico')) return;
   modo = novo;
   return carregarLista();
 }
@@ -239,11 +232,11 @@ function invalidarLista(alvo) {
   if (state.activeTab === 'checkout' && tela === 'lista' && sessao && sessao === state.session) carregarLista();
 }
 
-export function initComandas() {
+export function initComandas(mostrarAbaCheckout) {
   const home = el('comandasHome');
   if (!home) return;
   el('btnNovaComanda').addEventListener('click', () => {
-    if (escopo('comanda:fechar')) stateBus.dispatchEvent(new CustomEvent('checkout:new'));
+    if (alcanceDaPermissao(state.session, 'comanda:fechar')) stateBus.dispatchEvent(new CustomEvent('checkout:new'));
   });
   el('btnComandasAgenda').addEventListener('click', () => mudarModo('agenda'));
   el('btnComandasHistorico').addEventListener('click', () => mudarModo('historico'));
@@ -257,12 +250,23 @@ export function initComandas() {
     if (item) abrirDetalhe(item);
   });
   el('comandasDetalhe').addEventListener('click', ev => {
-    if (ev.target.closest('#btnComandaDoAtendimento') && selecao && modo === 'agenda' && podeFecharAtendimento(selecao)) {
+    if (ev.target.closest('#btnComandaDoAtendimento') && selecao && modo === 'agenda' && podeFecharAtendimento(state.session, selecao)) {
       stateBus.dispatchEvent(new CustomEvent('checkout:prefill', { detail: selecao }));
     }
   });
-  stateBus.addEventListener('checkout:draft-open', () => {
-    if (!escopo('comanda:fechar')) return;
+  stateBus.addEventListener('checkout:draft-open', ({ detail: item }) => {
+    if (!alcanceDaPermissao(state.session, 'comanda:fechar')) return;
+    if (state.activeTab !== 'checkout' && item) {
+      sessao = state.session;
+      modo = 'agenda';
+      const data = item.data || todayStr();
+      el('comandasData').value = data;
+      origemLista = { id: item.id, modo, data };
+      listaDesatualizada = true;
+    } else if (tela === 'lista') {
+      origemLista = { modo, data: el('comandasData').value, x: window.scrollX, y: window.scrollY };
+    }
+    mostrarAbaCheckout();
     exibir('checkout');
     el('btnVoltarCheckoutComandas').focus();
   });

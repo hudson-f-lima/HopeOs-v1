@@ -10,6 +10,7 @@ const { setAuthProvider } = require('../src/auth/provider');
 const { SupabaseRepository } = require('../src/repositories/SupabaseRepository');
 const { comandoIdDoAgendamento } = require('../src/services/CheckoutReplay');
 const E = randomUUID(), B = randomUUID(), U = randomUUID(), U2 = randomUUID(), UB = randomUUID(), P = randomUUID(), PROF = randomUUID(), S = randomUUID(), G = randomUUID();
+const usuarioProfissional = randomUUID();
 let server, base, saved, originalPreview;
 const body = { idempotencyKey: randomUUID(), itens: [{ tipo: 'produto', produtoId: P, quantidade: 1 }], payments: [{ formaCode: 'pix', valorCentavos: 1000 }], gorjetaCentavos: 0 };
 const db = installMemoryBackend({
@@ -23,10 +24,15 @@ const db = installMemoryBackend({
 });
 before(async () => {
   setIdentityStore(createMemoryIdentityStore({
-    app_users: [U, U2, UB].map(id => ({ id, email: id+'@example.test', ativo: true })),
-    empresa_memberships: [[U,E],[U2,E],[UB,B]].map(([user_id,empresa_id]) => ({ id: randomUUID(), user_id, empresa_id, role: 'admin', status: 'ativo' }))
+    app_users: [U, U2, UB, usuarioProfissional].map(id => ({ id, email: id+'@example.test', ativo: true })),
+    unidades: [{ id: 'unidade-p', empresa_id: E, ativo: true }],
+    membership_units: [{ membership_id: 'vinculo-p', unit_id: 'unidade-p' }],
+    empresa_memberships: [
+      ...[[U,E],[U2,E],[UB,B]].map(([user_id,empresa_id]) => ({ id: randomUUID(), user_id, empresa_id, role: 'admin', status: 'ativo' })),
+      { id: 'vinculo-p', user_id: usuarioProfissional, empresa_id: E, role: 'profissional', profissional_id: PROF, status: 'ativo' }
+    ]
   }));
-  setAuthProvider({ getUser: async jwt => ({ id: jwt === 'h.other.s' ? U2 : jwt === 'h.b.s' ? UB : U }) });
+  setAuthProvider({ getUser: async jwt => ({ id: jwt === 'h.other.s' ? U2 : jwt === 'h.b.s' ? UB : jwt === 'h.prof.s' ? usuarioProfissional : U }) });
   server=http.createServer(app);server.listen(0,'127.0.0.1');await once(server,'listening');base='http://127.0.0.1:'+server.address().port;
 });
 after(async () => { setIdentityStore();setAuthProvider();server.close();await once(server,'close'); });
@@ -262,4 +268,137 @@ test('cliente alterado na agenda exige reabrir o atendimento antes do fechamento
   const total = db.comandos.length;
   assert.equal((await post(pedido)).body.error.code, 'AGENDAMENTO_CLIENTE_ALTERADO');
   assert.equal(db.comandos.length, total);
+});
+
+test('só a revisão efetivamente fechada confirma a venda e repara a agenda na retomada', async () => {
+  const ag = novoAgendamento();
+  const pedido = { ...linked, agendamentoId: ag.id, idempotencyKey: randomUUID() };
+  const forma = db.formas_pagamento[0];
+  const taxaOriginal = forma.taxa_fixa_centavos;
+  const reconciliar = SupabaseRepository.prototype.atualizarStatusAgendamentoSe;
+  try {
+    const primeira = await post(pedido, 'h.a.s', 'preview');
+    assert.equal(primeira.status, 200);
+    forma.taxa_fixa_centavos = taxaOriginal + 25;
+    const segunda = await post(pedido, 'h.a.s', 'preview');
+    assert.equal(segunda.status, 200);
+    assert.notEqual(primeira.body.data.revisaoFinanceira, segunda.body.data.revisaoFinanceira);
+    const autorizado = { ...pedido, revisaoFinanceira: segunda.body.data.revisaoFinanceira };
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = async () => null;
+    const venda = await post(autorizado);
+    assert.equal(venda.status, 201);
+    assert.equal(venda.body.data.vinculoAgenda.aplicado, false);
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = reconciliar;
+    for (const outra of [{ ...pedido, revisaoFinanceira: primeira.body.data.revisaoFinanceira }, pedido]) {
+      const resposta = await post(outra);
+      assert.equal(resposta.status, 409);
+      assert.equal(resposta.body.error.code, 'IDEMPOTENCY_MISMATCH');
+      assert.equal(ag.status, 'confirmado');
+    }
+    forma.taxa_fixa_centavos = taxaOriginal;
+    const retomada = await post(autorizado);
+    assert.equal(retomada.status, 201);
+    assert.equal(retomada.body.data.saved.comandoId, venda.body.data.saved.comandoId);
+    assert.deepEqual(retomada.body.data.preview, venda.body.data.preview);
+    assert.equal(ag.status, 'concluido');
+    assert.equal(db.caixa_movimentos.filter(m => m.comando_id === venda.body.data.saved.comandoId).length, 1);
+    assert.equal(db.agendamento_eventos.filter(e => e.agendamento_id === ag.id).length, 1);
+  } finally {
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = reconciliar;
+    forma.taxa_fixa_centavos = taxaOriginal;
+  }
+});
+
+test('reconstrói revisão antiga sem plano a partir do comprovante, mesmo após reordenação JSONB', async () => {
+  const ag = novoAgendamento();
+  const pedido = { ...linked, agendamentoId: ag.id, idempotencyKey: randomUUID() };
+  const simulacao = await post(pedido, 'h.a.s', 'preview');
+  assert.equal(simulacao.status, 200);
+  const { revisaoFinanceira, comparativoFormas, assinaturas, ...preview } = simulacao.body.data;
+  const reordenado = JSON.parse(JSON.stringify(preview, (_chave, valor) => {
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return valor;
+    return Object.fromEntries(Object.entries(valor).sort(([a], [b]) => a.localeCompare(b)));
+  }));
+  const comando = { id: randomUUID(), empresa_id: E, actor_id: U, idempotency_key: pedido.idempotencyKey,
+    status: 'fechado', snapshot: { request: { raw: { ...pedido } }, preview: reordenado } };
+  db.comandos.push(comando);
+  const divergente = await post({ ...pedido, revisaoFinanceira: '0'.repeat(64) });
+  assert.equal(divergente.status, 409);
+  assert.equal(ag.status, 'confirmado');
+  const confirmado = await post({ ...pedido, revisaoFinanceira });
+  assert.equal(confirmado.status, 201, JSON.stringify(confirmado.body));
+  assert.equal(confirmado.body.data.saved.comandoId, comando.id);
+  assert.equal(ag.status, 'concluido');
+
+  const comPlano = { ...pedido, agendamentoId: novoAgendamento().id, idempotencyKey: randomUUID(),
+    itens: pedido.itens.map(item => ({ ...item, assinaturaId: randomUUID() })) };
+  db.comandos.push({ ...comando, id: randomUUID(), idempotency_key: comPlano.idempotencyKey,
+    snapshot: { request: { raw: comPlano }, preview: reordenado } });
+  const semProva = await post({ ...comPlano, revisaoFinanceira });
+  assert.equal(semProva.status, 409);
+  assert.equal(semProva.body.error.code, 'IDEMPOTENCY_MISMATCH');
+  assert.notEqual(semProva.body.error.details?.checkoutNotCommitted, true);
+  assert.equal(db.agendamentos.find(a => a.id === comPlano.agendamentoId).status, 'confirmado');
+});
+
+
+test('reparo do comprovante exige venda, revisão, ator e escopo atuais; perda da resposta permite repetir só a agenda', async () => {
+  const ag = novoAgendamento();
+  const pedido = { ...linked, clienteId: null, idempotencyKey: randomUUID(), agendamentoId: ag.id };
+  const token = 'h.prof.s';
+  const previa = await post(pedido, token, 'preview');
+  assert.equal(previa.status, 200);
+  pedido.revisaoFinanceira = previa.body.data.revisaoFinanceira;
+  const id = comandoIdDoAgendamento(E, ag.id);
+  const rota = 'comandas/' + id + '/reconciliar-agenda';
+  const reparar = (body = pedido, credencial = token) => post(body, credencial, rota);
+  const comandosAntes = db.comandos.length;
+  const caixaAntes = db.caixa_movimentos.length;
+  const cas = SupabaseRepository.prototype.atualizarStatusAgendamentoSe;
+  try {
+    assert.equal((await reparar()).status, 409);
+    assert.equal(db.comandos.length, comandosAntes);
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = async () => null;
+    const salvo = await post(pedido, token);
+    assert.equal(salvo.status, 201);
+    assert.equal(salvo.body.data.vinculoAgenda.aplicado, false);
+    assert.equal(salvo.body.data.saved.comandoId, id);
+    assert.equal((await post(pedido, token, 'comandas/' + randomUUID() + '/reconciliar-agenda')).status, 409);
+    assert.equal((await reparar({ ...pedido, revisaoFinanceira: 'outra' })).status, 409);
+    assert.equal((await reparar(pedido, 'h.a.s')).status, 409);
+    assert.equal((await reparar(pedido, 'h.b.s')).status, 409);
+    assert.equal(ag.status, 'confirmado');
+    // Mesmo status; a atribuição muda depois da leitura de escopo e antes do CAS.
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = function (...args) {
+      ag.profissional_id = randomUUID();
+      return cas.apply(this, args);
+    };
+    const corrida = await reparar();
+    assert.equal(corrida.body.data.vinculoAgenda.aplicado, false);
+    assert.equal(ag.status, 'confirmado');
+    assert.equal((await reparar()).status, 403, 'a agenda passou para outro profissional');
+    ag.profissional_id = PROF;
+    ag.cliente_id = randomUUID();
+    assert.equal((await reparar()).body.data.vinculoAgenda.motivo, 'AGENDAMENTO_CLIENTE_ALTERADO');
+    const semCliente = { ...pedido };
+    delete semCliente.clienteId;
+    assert.equal((await reparar(semCliente)).body.data.vinculoAgenda.motivo, 'AGENDAMENTO_CLIENTE_ALTERADO');
+    assert.equal(ag.status, 'confirmado');
+    ag.cliente_id = null;
+  } finally {
+    SupabaseRepository.prototype.atualizarStatusAgendamentoSe = cas;
+  }
+  // O HTTP perde a resposta depois da atualização e do registro do evento.
+  server.prependOnceListener('request', (_req, res) => {
+    res.end = () => res.destroy();
+  });
+  await assert.rejects(reparar(), /fetch failed/);
+  assert.equal(ag.status, 'concluido');
+  const replay = await reparar();
+  assert.equal(replay.status, 200);
+  assert.equal(replay.body.data.saved.comandoId, id);
+  assert.equal(replay.body.data.vinculoAgenda.jaConcluido, true);
+  assert.equal(db.comandos.length, comandosAntes + 1);
+  assert.equal(db.caixa_movimentos.length, caixaAntes + 1);
+  assert.equal(db.agendamento_eventos.filter(e => e.agendamento_id === ag.id).length, 1);
 });

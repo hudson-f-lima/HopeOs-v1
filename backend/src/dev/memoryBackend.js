@@ -58,8 +58,9 @@ function installMemoryBackend(seed = {}) {
     const row = rows(t).find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
     return row ? Object.assign(row, p) : null;
   };
-  P.atualizarStatusAgendamentoSe = async function (id, deStatus, p) {
+  P.atualizarStatusAgendamentoSe = async function (id, deStatus, p, atendimento) {
     const row = rows('agendamentos').find(r => r.id === id && r.empresa_id === this.empresaId && deStatus.includes(r.status));
+    if (atendimento && row && (row.profissional_id !== atendimento.profissional_id || (row.cliente_id ?? null) !== atendimento.cliente_id)) return null;
     return row ? Object.assign(row, p) : null;
   };
 
@@ -275,6 +276,7 @@ function installMemoryBackend(seed = {}) {
       snapshot: structuredClone({ request: { raw: {
         clienteId: payload.clienteId || payload.cliente_id || null,
         agendamentoId: payload.agendamentoId || null,
+        revisaoFinanceira: payload.revisaoFinanceira ?? null,
         itens: payload.itens, payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0,
         gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0

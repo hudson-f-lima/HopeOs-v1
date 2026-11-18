@@ -1,7 +1,7 @@
 import { api, getSession, onAuthContextChanged, getInsightsRebooking, getInsightsAttach } from '../api.js';
 import { criarRegistroDeFechamentos, dadosDoFechamento } from '../checkout-pending.js';
 import { sessionIdentity } from '../auth-storage.js';
-import { state, stateBus, sessionPode, findAgendaItemById } from '../state.js';
+import { state, stateBus, sessionPode, podeFecharAtendimento, findAgendaItemById } from '../state.js';
 import {
   centsToBRL,
   escapeHtml,
@@ -58,6 +58,7 @@ const MAX_ITENS = 50;
 const fechamentos = criarRegistroDeFechamentos();
 let fechamentoEmCurso = false;
 let pendenciaExibida = null;
+let reparoDaAgenda = null;
 let rascunhoDaPendencia = null;
 let resumoExibido = null;
 let totalConfirmado = null;
@@ -433,7 +434,7 @@ export async function simular() {
   const continua = () => pedido === pedidoDeSimulacao && mesmoContexto(sessao, identidade) && versao === versaoDoRascunho();
   clearBanner();
   limparResumo();
-  document.getElementById('cardResultado').classList.add('hidden');
+  ocultarResultado();
   document.getElementById('rebookingCard').classList.add('hidden');
   hideAttachSuggestion();
   try {
@@ -481,6 +482,10 @@ export async function simular() {
       preview = await api('/checkout/preview', { method: 'POST', body: payload });
     }
     if (!continua()) return;
+    if (typeof preview?.revisaoFinanceira !== 'string' || !preview.revisaoFinanceira.trim()) {
+      throw new Error('O servidor não confirmou a revisão financeira. Simule novamente antes de fechar.');
+    }
+    payload.revisaoFinanceira = preview.revisaoFinanceira;
     renderPlanoAviso(preview);
     renderIntencao(preview, payload);
     const t = preview.totals;
@@ -496,7 +501,6 @@ export async function simular() {
     totalConfirmado = Number.isSafeInteger(t.totalRecebidoCentavos)
       ? { base: chaveDoTotal(), centavos: t.totalRecebidoCentavos }
       : null;
-    if (preview.revisaoFinanceira) payload.revisaoFinanceira = preview.revisaoFinanceira;
     payload.itens.forEach(Object.freeze);
     payload.payments.forEach(Object.freeze);
     Object.freeze(payload.itens);
@@ -597,7 +601,10 @@ async function enviarFechamento(retomando) {
     rascunhoDaPendencia = null;
     const trocouRascunho = !podeLimpar && temDadosDoRascunho();
     if (podeLimpar) limparRascunho();
-    if (!trocouRascunho) mostrarResultado(s);
+    if (!trocouRascunho) {
+      const pendente = resultado.vinculoAgenda?.aplicado === false && payload.agendamentoId;
+      mostrarResultado(s, pendente ? { comandoId: s.comandoId, payload, sessao, identidade } : null);
+    }
     if (resultado.vinculoAgenda?.aplicado === false) {
       showBanner('Comanda salva. A conclusão do agendamento ficou pendente. Confira na Agenda.' + (limpo ? '' : ' Confira também a pendência no caixa.'), 'error');
     } else if (!limpo) {
@@ -644,7 +651,47 @@ async function enviarFechamento(retomando) {
   }
 }
 
-function mostrarResultado(s) {
+function ocultarResultado() {
+  reparoDaAgenda = null;
+  document.getElementById('cardResultado').classList.add('hidden');
+}
+
+async function repararVinculo() {
+  const reparo = reparoDaAgenda;
+  const btn = document.getElementById('btnRepararVinculo');
+  const aviso = document.getElementById('resVinculoAgenda');
+  if (!reparo || btn.disabled || !mesmoContexto(reparo.sessao, reparo.identidade)) return;
+  btn.disabled = true;
+  aviso.textContent = 'Consultando a comanda salva e tentando concluir o agendamento…';
+  try {
+    const resultado = await api('/checkout/comandas/' + encodeURIComponent(reparo.comandoId) + '/reconciliar-agenda', {
+      method: 'POST', body: reparo.payload, retryOnAuth: false
+    });
+    if (reparoDaAgenda !== reparo || !mesmoContexto(reparo.sessao, reparo.identidade)) return;
+    if (resultado?.saved?.comandoId !== reparo.comandoId || resultado.vinculoAgenda?.aplicado !== true) {
+      aviso.textContent = 'Comanda salva. A conclusão continua pendente. Confira a situação do agendamento na Agenda.';
+      return;
+    }
+    aviso.textContent = 'Agendamento concluído para esta comanda.';
+    reparoDaAgenda = null;
+    btn.classList.add('hidden');
+    stateBus.dispatchEvent(new Event('agenda:recarregar'));
+  } catch (_) {
+    if (reparoDaAgenda === reparo && mesmoContexto(reparo.sessao, reparo.identidade)) {
+      aviso.textContent = 'Comanda salva. Não foi possível confirmar a conclusão do agendamento. Tente novamente ou confira na Agenda.';
+    }
+  } finally {
+    if (reparoDaAgenda === reparo && mesmoContexto(reparo.sessao, reparo.identidade)) btn.disabled = false;
+  }
+}
+
+function mostrarResultado(s, reparo) {
+  reparoDaAgenda = reparo;
+  const btn = document.getElementById('btnRepararVinculo');
+  btn.disabled = false;
+  btn.classList.toggle('hidden', !reparo);
+  document.getElementById('resVinculoAgenda').textContent = reparo
+    ? 'Comanda salva. A conclusão do agendamento está pendente.' : '';
   limparResumo();
   document.getElementById('resComandaId').textContent = s.comandoId;
   document.getElementById('resStatus').textContent = s.status || (s.idempotent ? 'já fechada (idempotente)' : '—');
@@ -692,7 +739,7 @@ async function confirmRebooking() {
     await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: false } });
     showBanner('Reagendamento criado na agenda.', 'ok');
     card.classList.add('hidden');
-    stateBus.dispatchEvent(new CustomEvent('checkout:closed'));
+    stateBus.dispatchEvent(new Event('agenda:recarregar'));
   } catch (err) {
     showBanner('Não foi possível criar o reagendamento: ' + err.message, 'error');
   } finally {
@@ -747,13 +794,12 @@ async function atualizarPendenciaAoAbrir() {
 }
 
 function abrirRascunho(item) {
-  stateBus.dispatchEvent(new CustomEvent('tab:change', { detail: 'checkout' }));
   stateBus.dispatchEvent(new CustomEvent('checkout:draft-open', { detail: item }));
   return atualizarPendenciaAoAbrir();
 }
 
 export function prefillCheckoutFromAgendamento(item) {
-  if (!item?.id || !state.fuzzyCliente) return;
+  if (!item?.id || !state.fuzzyCliente || !podeFecharAtendimento(state.session, item)) return;
   if (state.agendamentoIdParaCheckout === item.id) return abrirRascunho(item);
   if (temDadosDoRascunho() && chaveDoRascunho() !== rascunhoInicial &&
     !window.confirm('Trocar de atendimento e descartar os dados da comanda atual?')) return;
@@ -836,7 +882,7 @@ function invalidatePreview() {
 function invalidatePayload() {
   revisaoRascunho++;
   limparResumo();
-  document.getElementById('cardResultado').classList.add('hidden');
+  ocultarResultado();
   document.getElementById('rebookingCard').classList.add('hidden');
   if (state.splitEnabled) updateLastSplitRowDisplay();
 }
@@ -1048,12 +1094,14 @@ export function initCheckout() {
     consultaDosAtalhos = null;
     atalhosProntos = false;
     rascunhoDaPendencia = null;
+    reparoDaAgenda = null;
     totalConfirmado = null;
     resumoExibido = null;
     clienteDoRascunho = null;
     agendamentoDoRascunho = null;
     esconderPendencia();
   });
+  document.getElementById('btnRepararVinculo').addEventListener('click', repararVinculo);
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnAddItem').addEventListener('click', adicionarItem);
