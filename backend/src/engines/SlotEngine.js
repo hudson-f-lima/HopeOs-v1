@@ -107,7 +107,7 @@ function desperdicio(sobra, minUtilMin) {
  * @param {number} [p.minUtilMin] menor bloco vendável; sobra menor que isso é tempo perdido
  * @param {number} [p.inicioMinimoMin] não sugerir antes deste minuto (ex.: agora, se hoje)
  */
-function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inicioMinimoMin, bufferMin = 0 }) {
+function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inicioMinimoMin, bufferMin = 0, gradePorDuracao = false }) {
   const dur = Number(duracaoMin);
   const passo = Number(passoMin) > 0 ? Number(passoMin) : 30;
   const minUtil = Number(minUtilMin) > 0 ? Number(minUtilMin) : passo;
@@ -115,11 +115,12 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
 
   const slots = [];
   for (const livre of janelasLivres(janela, ocupados || [])) {
+    const origem = gradePorDuracao ? livre.start : janela.inicio;
     let start = livre.start;
     if (inicioMinimoMin !== undefined && inicioMinimoMin !== null && start < inicioMinimoMin) {
       // O tempo antes de "agora" já passou: começa no próximo ponto da grade.
-      const k = Math.ceil((inicioMinimoMin - janela.inicio) / passo);
-      start = Math.max(start, janela.inicio + k * passo);
+      const k = Math.ceil((inicioMinimoMin - origem) / passo);
+      start = Math.max(start, origem + k * passo);
     }
     const fimUtil = livre.end - (livre.antesDeAtendimento ? Number(bufferMin) || 0 : 0);
     const ultimo = fimUtil - dur;
@@ -127,9 +128,9 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
 
     // Grade + bordas da janela livre: a borda pode estar fora da grade
     // (ex.: atendimento termina 10:45 com passo de 30) e é o melhor encaixe.
-    const candidatos = new Set([start, ultimo]);
-    const k0 = Math.ceil((start - janela.inicio) / passo);
-    for (let t = janela.inicio + k0 * passo; t <= ultimo; t += passo) candidatos.add(t);
+    const candidatos = new Set(gradePorDuracao ? [] : [start, ultimo]);
+    const k0 = Math.ceil((start - origem) / passo);
+    for (let t = origem + k0 * passo; t <= ultimo; t += passo) candidatos.add(t);
 
     const daJanela = [...candidatos].sort((a, b) => a - b).map(t => {
       const antes = t - start;
@@ -215,9 +216,10 @@ function periodosDoDia({ profissional, empresa, data }) {
   };
 }
 
-function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos, agendamentos, duracaoMin, agora }) {
+function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos, agendamentos, duracaoMin, agora, gradePorDuracao = false }) {
   const duracao = resolveDuracaoMin({ servico, profissional, duracaoMin });
-  const passoMin = Number(empresa && empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
+  const passoSalao = Number(empresa && empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
+  const passoMin = gradePorDuracao ? duracao : passoSalao;
   const dia = periodosDoDia({ profissional, empresa, data });
   const primeiro = dia.periodos[0];
   const ultimo = dia.periodos[dia.periodos.length - 1];
@@ -244,6 +246,7 @@ function buildSlotsDoDia({ data, profissional, empresa, servico, servicosAtivos,
     ocupados,
     bufferMin,
     duracaoMin: duracao,
+    gradePorDuracao,
     passoMin,
     minUtilMin,
     inicioMinimoMin: agora && data === agora.data ? agora.minuto : undefined

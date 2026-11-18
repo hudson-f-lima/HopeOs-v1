@@ -152,7 +152,7 @@ test('PE03 equilibrada na recepção: tira 10:45 e 17:15 (sobra de 15 min)', asy
 test('PE04 link: sem política mostra todos; compacta só os ideais e recusa gravar fora', async () => {
   politica(null);
   const todos = await slotsLink();
-  assert.ok(todos.includes('10:45') && todos.includes('11:00'), todos.join(','));
+  assert.ok(todos.includes('10:30') && todos.includes('11:00') && !todos.includes('10:45'), todos.join(','));
   politica('compacta');
   assert.deepStrictEqual(await slotsLink(), ['09:30', '10:30', '17:30']);
   const fora = await request('POST', '/api/public/agendar/salao-p', { token: null, body: { servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '11:00', nome: 'Visitante', whatsapp: '(11) 98765-4321', consentimento: true, website: '' } });

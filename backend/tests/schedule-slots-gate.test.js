@@ -161,6 +161,14 @@ test('18 query não aceita empresa_id: o tenant não faz parte da entrada do mot
   assert.ok(!('empresa_id' in r));
 });
 
+test('19 grade do cliente recomeça após ocupação e mantém a âncora com antecedência', () => {
+  const slots = computeSlots({
+    janela: { inicio: 540, fim: 730 }, ocupados: [{ start: 540, end: 610 }],
+    duracaoMin: 45, passoMin: 45, inicioMinimoMin: 611, gradePorDuracao: true
+  });
+  assert.deepStrictEqual(horarios(slots), ['10:55']);
+});
+
 (async () => {
   let passed = 0;
   for (const t of tests) {

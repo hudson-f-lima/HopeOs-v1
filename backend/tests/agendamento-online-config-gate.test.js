@@ -351,6 +351,35 @@ test('O11 regras da agenda (D-049): antecedência própria do serviço e interva
   } finally { delete emp.agenda_intervalo_min_dias; }
 });
 
+test('O12 grade online segue duração, exclui borda fora da sequência e protege a oferta revisada', async () => {
+  reset();
+  const data = '2026-11-25';
+  const servico = db.servicos.find(s => s.id === CORTE);
+  const duracaoAnterior = servico.duracao_min;
+  const precoAnterior = servico.valor_centavos;
+  try {
+    servico.duracao_min = 15;
+    const curta = (await slots(BETO, data)).data.data;
+    assert.deepStrictEqual(curta.slots.slice(0, 4), ['09:00', '09:15', '09:30', '09:45']);
+    servico.duracao_min = 45;
+    const longa = (await slots(BETO, data)).data.data;
+    assert.deepStrictEqual(longa.slots.slice(0, 4), ['09:00', '09:45', '10:30', '11:15']);
+    const oferta = longa.ofertas[0];
+    assert.strictEqual(oferta.fim, '09:45');
+    assert.strictEqual(oferta.profissional, 'Beto');
+    servico.valor_centavos += 100;
+    const body = pedido({ data, horario: oferta.horario, versaoOferta: oferta.versaoOferta });
+    const mudou = await post(body);
+    assert.strictEqual(code(mudou), 'OFERTA_ALTERADA');
+    const atual = (await slots(BETO, data)).data.data.ofertas[0];
+    const aceita = await post({ ...body, versaoOferta: atual.versaoOferta });
+    assert.strictEqual(aceita.status, 201, aceita.raw);
+  } finally {
+    servico.duracao_min = duracaoAnterior;
+    servico.valor_centavos = precoAnterior;
+  }
+});
+
 test('NC1 controle negativo: sem checar o liga/desliga do banco, o salão desligado (O01) abre', async () => {
   await comServidor(routerMutante([['if (!doBanco.ativo) throw naoEncontrado();', '']]), async url => {
     const r = await request('GET', '/api/public/agendar/salao-beta', { baseUrl: url });
