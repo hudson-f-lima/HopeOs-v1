@@ -52,7 +52,7 @@ async function irPara(p, dia) {
 
   // 1) Política pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navAvatar'); await g.waitForSelector('#sheetGestao:not(.hidden)');
+  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#rgPolitica');
   await g.selectOption('#rgPolitica', 'compacta');
   confere('a dica explica a regra escolhida', /Só os encaixes ideais/.test(await g.textContent('#rgPoliticaDica')));

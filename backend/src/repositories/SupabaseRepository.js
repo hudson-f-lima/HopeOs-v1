@@ -444,6 +444,16 @@ class SupabaseRepository {
     return { servicos, produtos, profissionais, profissionalServicos, formasPagamento, cargos, categorias };
   }
 
+  async temComandaDoAgendamento(agendamentoId) {
+    // Snapshots antigos preservaram maiúsculas e espaços de UUIDs válidos.
+    const { data, error } = await this.supabase.from('comandos').select('id')
+      .eq('empresa_id', this.empresaId)
+      .ilike('snapshot->request->raw->>agendamentoId', `%${agendamentoId}%`)
+      .limit(1);
+    if (error) throw error;
+    return Boolean(data?.length);
+  }
+
   async saveCheckoutClose({ payload, resolved, preview, autoria = {} }) {
     const rpcPayload = {
       id: payload.id || null,

@@ -48,7 +48,7 @@ export async function atualizarMetas(mes, profissionalId) {
   if (!gestao()) atualizarMetaSalao(mes);
   try {
     const r = await api(`/metas?mes=${encodeURIComponent(mes)}`);
-    const lista = gestao() ? r.metas.filter(m => m.profissionalId === profissionalId) : r.metas;
+    const lista = sessionPode('metas:ver', true) ? r.metas.filter(m => m.profissionalId === profissionalId) : r.metas;
     renderMetas(lista);
     if (gestao()) {
       const alvo = tipo => (lista.find(m => m.tipo === tipo) || {}).alvo;

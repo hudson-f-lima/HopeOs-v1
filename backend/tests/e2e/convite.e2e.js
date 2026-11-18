@@ -86,7 +86,7 @@ function verificarUrlLimpa(p) {
     await admin.goto(BASE);
     assert.equal((await login(admin, 'admin@dev.local', 'dev12345')).status(), 200);
     await admin.waitForSelector(LOGGED_IN);
-    await admin.click('#navAvatar');
+    await admin.click('#navGestao');
     await admin.click('#subtabBtnEquipe');
     await admin.locator('#eqUnidades input:checked').waitFor({ state: 'visible' });
     await admin.fill('#eqEmail', MARIA);

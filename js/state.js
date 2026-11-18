@@ -16,6 +16,7 @@ const PADRAO_SEM_LISTA = {
   'caixa:conferir': ['admin', 'gestor', 'recepcao'], 'painel:operacional': ['admin', 'gestor', 'recepcao'],
   'espera:ver': ['admin', 'gestor', 'recepcao'], 'painel:financeiro': ['admin', 'gestor'], 'metas:definir': ['admin', 'gestor'],
   'metas:ver': ['admin', 'gestor', 'profissional'], 'ganhos:ver': ['admin', 'gestor', 'profissional'], 'comissoes:pagar': ['admin', 'gestor'],
+  'ranking:ver': ['admin', 'gestor', 'profissional'], 'desempenho:ver': ['admin', 'gestor', 'profissional'],
   'empresa:configurar': ['admin', 'gestor'], 'catalogo:editar': ['admin', 'gestor'], 'comanda:estornar': ['admin', 'gestor'],
   'comanda:historico': ['admin', 'gestor'], 'equipe:permissoes': [],
   'agenda:lembretes': ['admin', 'gestor', 'recepcao'], 'clientes:contato': ['admin', 'gestor', 'recepcao'],
@@ -26,7 +27,7 @@ export function sessionPode(codigo, precisaTotal = false) {
   if (!s || s.principal !== 'user') return true;
   let alcance;
   if (s.permissoes) alcance = s.permissoes[codigo];
-  else if ((PADRAO_SEM_LISTA[codigo] || []).includes(s.role)) alcance = s.role === 'profissional' && ['metas:ver', 'ganhos:ver'].includes(codigo) ? 'proprio' : 'total';
+  else if ((PADRAO_SEM_LISTA[codigo] || []).includes(s.role)) alcance = s.role === 'profissional' && ['metas:ver', 'ganhos:ver', 'ranking:ver', 'desempenho:ver'].includes(codigo) ? 'proprio' : 'total';
   return precisaTotal ? alcance === 'total' : Boolean(alcance);
 }
 

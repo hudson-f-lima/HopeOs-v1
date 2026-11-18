@@ -67,7 +67,7 @@ async function sair(p) {
 async function conferirPapel(p, texto) {
   await p.click('#navAvatar');
   await esperarTexto(p, '#sessionLabel', texto);
-  await p.click('#btnFecharGestao');
+  await p.click('#btnFecharConta'); await p.waitForSelector('#sheetConta', { state: 'hidden' });
 }
 
 async function db(tabela) {

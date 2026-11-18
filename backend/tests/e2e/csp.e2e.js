@@ -36,13 +36,20 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   await p.fill('#loginEmail', 'admin@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(1200);
   await p.click('#fab'); await p.waitForTimeout(500); await p.click('#btnCancelarNovoAgendamento'); await p.waitForTimeout(300);
-  await p.click('#navCheckout'); await p.waitForTimeout(800);
+  await p.click('#navCheckout'); await p.waitForSelector('#comandasHome');
+  await p.click('#btnNovaComanda'); await p.waitForSelector('#coCliente');
   await p.click('#navDashboard'); await p.waitForTimeout(1200);
-  await p.click('#navAvatar'); await p.waitForTimeout(400);
-  for (const aba of await p.locator('#subtabRow .subtab-btn:visible').all()) { await aba.click(); await p.waitForTimeout(400); }
-  await p.click('#btnFecharGestao'); await p.waitForTimeout(300);
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  for (const entrada of await p.locator('#tab-gestao .subtab-btn:visible').all()) {
+    await entrada.click(); await p.waitForSelector('#sheetGestao:not(.hidden)');
+    await p.click('#btnFecharGestao'); await p.waitForSelector('#sheetGestao', { state: 'hidden' });
+  }
+  await p.click('#navAvatar'); await p.waitForSelector('#sheetConta[open]'); await p.click('#btnFecharConta');
   await p.click('#navAgenda'); await p.waitForTimeout(600);
-  if (await p.isVisible('#btnAgendaLembretes')) { await p.click('#btnAgendaLembretes'); await p.waitForTimeout(800); }
+  if (await p.isVisible('#btnAgendaLembretes')) {
+    await p.click('#btnAgendaLembretes'); await p.waitForSelector('#lembretesDialog[open]');
+    await p.click('#btnFecharLembretes');
+  }
   const sw = await p.evaluate(() => navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(r => r.length) : -1);
   await p.waitForFunction(() => /^v1-/.test((document.getElementById('appVersao') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
   const versaoNaTela = await p.evaluate(() => (document.getElementById('appVersao') || {}).textContent || '');
@@ -52,7 +59,8 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   console.log('SERVICE WORKER registrado:', sw, '| fonte de fonts.gstatic.com requisitada:', fonteBaixada);
   if (!fonteBaixada) process.exitCode = 1;
   const antesDoLogout = await p.evaluate(() => window.__csp);
-  await (async () => { if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar'); return p.click('#btnLogout'); })().catch(() => {}); await p.waitForTimeout(800);
+  await p.click('#navAvatar'); await p.click('#btnLogout');
+  await p.waitForSelector('#loginScreen:not(.hidden)');
   // O logout pode recarregar a página (zera window.__csp): soma as duas leituras.
   const violacoes = [...antesDoLogout, ...await p.evaluate(() => window.__csp), ...cspConsole];
   console.log('VIOLAÇÕES CSP:', JSON.stringify(violacoes)); if (violacoes.length) process.exitCode = 1;

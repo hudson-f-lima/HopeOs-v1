@@ -34,7 +34,7 @@ async function escolher(p, campo, texto) {
   await p.goto(BASE); await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'recepcao@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navCheckout');
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda');
   confere('abas falsas "Serviços/Produtos" removidas', await p.locator('#checkoutTabs').count() === 0);
   confere('sem histórico de vendas, o bloco "Mais vendidos" não aparece', !(await p.isVisible('#coAtalhos')));
 

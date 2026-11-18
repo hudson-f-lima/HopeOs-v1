@@ -85,7 +85,7 @@ async function mostrarMes(p, mes, raiz = '#agMes') {
   await p.click('#agFiltroProfs [data-agf=""]'); await p.waitForTimeout(300);
 
   // 4) Escalas (bento): tocar no dia abre a data especial já na data; datas avulsas → lote.
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   await p.click('#subtabBtnEscalas'); await p.waitForSelector('#escCal [data-agm-dia]', { timeout: 8000 });
   confere('Escalas em blocos com calendário, semana em pontos e pendências', await p.locator('#escConteudo .bento .bento-tile').count() >= 5 && await p.locator('#escConteudo .esc-semana .esc-d.on').count() > 0);
   await mostrarMes(p, proxMes, '#escCal');

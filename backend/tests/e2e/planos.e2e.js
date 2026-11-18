@@ -42,7 +42,7 @@ function proximo(diaSemana) {
     await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   };
   const abrirPlanos = async p => {
-    await p.click('#navAvatar'); await p.waitForTimeout(400);
+    await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
     const aba = p.locator('#subtabBtnPlanos');
     if (!(await aba.isVisible())) return false;
     await aba.click();
@@ -137,7 +137,7 @@ function proximo(diaSemana) {
   // 5) Profissional: sem a aba.
   const pr = await nova();
   await login(pr, 'profissional@dev.local');
-  await pr.click('#navAvatar').catch(() => {}); await pr.waitForTimeout(400);
+  await pr.click('#navGestao'); await pr.waitForSelector('#tab-gestao:not(.hidden)');
   const vePro = await pr.locator('#subtabBtnPlanos').isVisible().catch(() => false);
   console.log('PROFISSIONAL vê Planos:', vePro);
   if (vePro) errs.push('profissional vê Planos');

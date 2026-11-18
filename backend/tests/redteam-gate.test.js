@@ -430,8 +430,8 @@ async function importarPwa(rel) {
 test('RT-12 FuzzyField (busca de cliente/serviço/profissional) escapa o rótulo: nome com HTML não vira DOM', async () => {
   const { FuzzyField } = await importarPwa('js/components/fuzzy-field.js');
   let html = '';
-  const dropdown = { style: {}, addEventListener() {}, querySelectorAll: () => [], set innerHTML(v) { html = v; }, get innerHTML() { return html; } };
-  const input = { value: '', parentElement: { style: {}, appendChild() {} }, addEventListener() {} };
+  const dropdown = { style: {}, setAttribute() {}, addEventListener() {}, querySelectorAll: () => [], set innerHTML(v) { html = v; }, get innerHTML() { return html; } };
+  const input = { value: '', getAttribute() {}, setAttribute() {}, removeAttribute() {}, parentElement: { style: {}, appendChild() {} }, addEventListener() {} };
   const docAnterior = globalThis.document;
   globalThis.document = { getElementById: () => input, createElement: () => dropdown };
   try {

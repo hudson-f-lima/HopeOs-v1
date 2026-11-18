@@ -64,7 +64,7 @@ async function abrirCard(p, id) {
   const b = await chromium.launch();
   // 1) Regras pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navAvatar'); await g.waitForSelector('#sheetGestao:not(.hidden)');
+  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#formRegras');
   await g.selectOption('#rgPrazo', '720');
   await g.selectOption('#rgMaxFuturos', '1');

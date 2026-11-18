@@ -40,7 +40,7 @@ async function escolher(p, campo, texto) {
 }
 
 async function simularProduto(p) {
-  await p.click('#navCheckout');
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda');
   await escolher(p, '#coProduto', PRODUTO);
   await escolher(p, '#coProfissional', 'Ana');
   await escolher(p, '#coForma', 'Pix');
@@ -127,7 +127,7 @@ async function conferirBanco(venda, produto, autor) {
       await sair(p);
 
       await login(p, ADMIN);
-      await p.click('#navCheckout');
+      await p.click('#navCheckout'); await p.click('#btnNovaComanda');
       await p.click('#btnSimular');
       await p.waitForSelector('#checkoutPendente:not(.hidden)');
       const retomar = p.locator('#btnRetomarFechamento');

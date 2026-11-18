@@ -26,7 +26,7 @@ async function entrar(b, email, esperados = []) {
   return p;
 }
 async function abrirEscalas(p) {
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetGestao:not(.hidden)');
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   await p.click('#subtabBtnEscalas'); await p.waitForSelector('#escConteudo .esc-linha');
 }
 const slots = (p, prof, data) => p.evaluate(async ([prof, data, serv]) => {
