@@ -453,6 +453,7 @@ class SupabaseRepository {
       hora: payload.hora || resolved.hora || null,
       raw: {
         clienteId: payload.clienteId || payload.cliente_id || null,
+        agendamentoId: payload.agendamentoId || null,
         itens: payload.itens,
         payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0,
@@ -479,7 +480,7 @@ class SupabaseRepository {
       clienteId: payload.clienteId || payload.cliente_id || null,
       data: payload.data || resolved.data || null,
       hora: payload.hora || resolved.hora || null,
-      raw: { clienteId: payload.clienteId || payload.cliente_id || null, itens: payload.itens, payments: payload.payments,
+      raw: { clienteId: payload.clienteId || payload.cliente_id || null, agendamentoId: payload.agendamentoId || null, itens: payload.itens, payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0, gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0 }
     };
     const { data, error } = await this.supabase.rpc('checkout_close_assinatura', {

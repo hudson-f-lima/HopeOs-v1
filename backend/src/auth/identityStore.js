@@ -15,12 +15,35 @@ async function q(promise) {
   return data;
 }
 
+function sameIdentityEmail(email, other) {
+  return typeof email === 'string' && typeof other === 'string' && email.toLowerCase() === other.toLowerCase();
+}
+
+function assertIdentityEmail(user, email) {
+  if (!sameIdentityEmail(user?.email, email)) {
+    throw createAppError('IDENTITY_EMAIL_MISMATCH', 'Não foi possível confirmar o destinatário pelo e-mail informado.', 503);
+  }
+}
+
+function resolveUniqueAppUser(rows, email) {
+  if (rows.length > 1) {
+    throw createAppError('AMBIGUOUS_IDENTITY', 'Há mais de uma conta com este e-mail. Consulte o suporte.', 409);
+  }
+  const [user] = rows;
+  if (user) assertIdentityEmail(user, email);
+  return user || null;
+}
+
 const supabaseStore = {
   async getAppUser(id) {
     return (await q(getSupabase().from('app_users').select('*').eq('id', id).limit(1)))[0] || null;
   },
   async findAppUserByEmail(email) {
-    return (await q(getSupabase().from('app_users').select('*').ilike('email', email).limit(1)))[0] || null;
+    // imatch (~*) preserva %, _ e * do endereço. As âncoras e o escape
+    // mantêm a comparação literal sem depender da caixa armazenada.
+    const literal = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rows = await q(getSupabase().from('app_users').select('*').filter('email', 'imatch', `^${literal}$`).limit(2));
+    return resolveUniqueAppUser(rows, email);
   },
   async listMembershipsByUser(userId) {
     return q(getSupabase().from('empresa_memberships').select('*').eq('user_id', userId));
@@ -34,8 +57,10 @@ const supabaseStore = {
   async insertMembership(row) {
     return (await q(getSupabase().from('empresa_memberships').insert({ id: randomUUID(), ...row }).select('*')))[0];
   },
-  async updateMembership(id, patch) {
-    return (await q(getSupabase().from('empresa_memberships').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).select('*')))[0];
+  async updateMembership(id, patch, expected) {
+    let query = getSupabase().from('empresa_memberships').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+    if (expected) query = query.eq('role', expected.role).eq('status', expected.status);
+    return (await q(query.select('*')))[0] || null;
   },
   async listMembershipUnits(membershipId) {
     return q(getSupabase().from('membership_units').select('*').eq('membership_id', membershipId));
@@ -116,7 +141,9 @@ function createMemoryIdentityStore(seed = {}) {
   return {
     db,
     async getAppUser(id) { return db.app_users.find(u => u.id === id) || null; },
-    async findAppUserByEmail(email) { return db.app_users.find(u => String(u.email).toLowerCase() === String(email).toLowerCase()) || null; },
+    async findAppUserByEmail(email) {
+      return resolveUniqueAppUser(db.app_users.filter(u => sameIdentityEmail(u.email, email)).slice(0, 2), email);
+    },
     async listMembershipsByUser(userId) { return db.empresa_memberships.filter(m => m.user_id === userId); },
     async listMembershipsByEmpresa(empresaId) { return db.empresa_memberships.filter(m => m.empresa_id === empresaId); },
     async getMembership(id) { return db.empresa_memberships.find(m => m.id === id) || null; },
@@ -127,7 +154,11 @@ function createMemoryIdentityStore(seed = {}) {
       const m = { id: randomUUID(), status: 'ativo', profissional_id: null, created_at: now(), ...row };
       db.empresa_memberships.push(m); return m;
     },
-    async updateMembership(id, patch) { const m = db.empresa_memberships.find(x => x.id === id); if (m) Object.assign(m, patch); return m || null; },
+    async updateMembership(id, patch, expected) {
+      const m = db.empresa_memberships.find(x => x.id === id);
+      if (!m || (expected && (m.role !== expected.role || m.status !== expected.status))) return null;
+      return Object.assign(m, patch);
+    },
     async listMembershipUnits(membershipId) { return db.membership_units.filter(x => x.membership_id === membershipId); },
     async replaceMembershipUnits(membershipId, unitIds) {
       db.membership_units = db.membership_units.filter(x => x.membership_id !== membershipId).concat(unitIds.map(unit_id => ({ membership_id: membershipId, unit_id })));
@@ -180,4 +211,4 @@ let current = supabaseStore;
 function getIdentityStore() { return current; }
 function setIdentityStore(store) { current = store || supabaseStore; }
 
-module.exports = { getIdentityStore, setIdentityStore, createMemoryIdentityStore, supabaseStore };
+module.exports = { getIdentityStore, setIdentityStore, createMemoryIdentityStore, supabaseStore, assertIdentityEmail };

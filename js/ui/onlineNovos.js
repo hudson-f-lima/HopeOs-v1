@@ -3,20 +3,25 @@
 // tela pergunta ao servidor a cada minuto quantos agendamentos chegaram pelo link público desde
 // então; o botão "N novos online" aparece na agenda e abre a lista.
 import { api } from '../api.js';
-import { sessionPode } from '../state.js';
+import { state, sessionPode } from '../state.js';
+import { chaveDoContexto } from '../context-storage.js';
 import { escapeHtml, formatDDMM } from '../utils.js';
 
 const el = id => document.getElementById(id);
 const CHAVE = 'hopeos.onlineVistoAte';
 const INTERVALO_MS = 60e3;
 let ultimo = null;
+let ultimoContexto = null;
 let timer = null;
 
-function vistoAte() {
-  try { return localStorage.getItem(CHAVE) || null; } catch { return null; }
+function contextoAtual() { return chaveDoContexto(CHAVE, state.session); }
+function vistoAte(contexto) {
+  if (!contexto) return null;
+  try { return localStorage.getItem(contexto) || null; } catch { return null; }
 }
-function marcarVisto(iso) {
-  try { localStorage.setItem(CHAVE, iso); } catch { /* aparelho sem armazenamento: só some até recarregar */ }
+function marcarVisto(contexto, iso) {
+  if (!contexto) return;
+  try { localStorage.setItem(contexto, iso); } catch { /* aparelho sem armazenamento: só some até recarregar */ }
 }
 
 function atualizarBotao(r) {
@@ -29,16 +34,22 @@ function atualizarBotao(r) {
 
 async function consultar() {
   if (document.visibilityState !== 'visible') return;
-  const desde = vistoAte();
+  const contexto = contextoAtual();
+  if (!contexto) return;
+  if (contexto !== ultimoContexto) { ultimo = null; atualizarBotao({ total: 0 }); }
+  const desde = vistoAte(contexto);
   try {
-    ultimo = await api(`/agenda/online-novos${desde ? `?desde=${encodeURIComponent(desde)}` : ''}`);
+    const recebido = await api(`/agenda/online-novos${desde ? `?desde=${encodeURIComponent(desde)}` : ''}`);
+    if (contextoAtual() !== contexto) return;
+    ultimoContexto = contexto;
+    ultimo = recebido;
     atualizarBotao(ultimo);
   } catch { /* sem rede ou sem permissão: o aviso só não aparece */ }
 }
 
 const STATUS = { agendado: 'Agendado', confirmado: 'Confirmado', cancelado: 'Cancelado', reagendado: 'Remarcado', concluido: 'Concluído', fechado: 'Concluído', no_show: 'Faltou' };
 function renderLista() {
-  const itens = (ultimo && ultimo.itens) || [];
+  const itens = (contextoAtual() === ultimoContexto && ultimo && ultimo.itens) || [];
   el('onlineNovosConteudo').innerHTML = itens.length
     ? itens.map(i => `
       <div class="eq-row">
@@ -50,11 +61,14 @@ function renderLista() {
 
 export function initOnlineNovos() {
   if (!sessionPode('agenda:ver')) return;
+  ultimo = null;
+  ultimoContexto = null;
+  atualizarBotao({ total: 0 });
   el('btnOnlineNovos')?.addEventListener('click', () => { renderLista(); el('onlineNovosDialog').showModal(); });
   el('btnFecharOnlineNovos')?.addEventListener('click', () => el('onlineNovosDialog').close());
   el('btnOnlineVistos')?.addEventListener('click', () => {
     // O instante do servidor (não o relógio do aparelho) marca até onde foi visto.
-    if (ultimo && ultimo.agora) marcarVisto(ultimo.agora);
+    if (ultimo && ultimo.agora && contextoAtual() === ultimoContexto) marcarVisto(ultimoContexto, ultimo.agora);
     ultimo = { total: 0, itens: [] };
     atualizarBotao(ultimo);
     el('onlineNovosDialog').close();

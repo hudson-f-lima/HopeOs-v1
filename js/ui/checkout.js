@@ -1,4 +1,6 @@
-import { api, getInsightsRebooking, getInsightsAttach } from '../api.js';
+import { api, getSession, onAuthContextChanged, getInsightsRebooking, getInsightsAttach } from '../api.js';
+import { criarRegistroDeFechamentos, dadosDoFechamento } from '../checkout-pending.js';
+import { sessionIdentity } from '../auth-storage.js';
 import { state, stateBus, sessionPode, findAgendaItemById } from '../state.js';
 import {
   centsToBRL,
@@ -60,6 +62,9 @@ function buildSplitPayments() {
 }
 
 const MAX_ITENS = 50;
+const fechamentos = criarRegistroDeFechamentos();
+let fechamentoEmCurso = false;
+let pendenciaExibida = null;
 state.comandaItens = state.comandaItens || [];
 
 function precoDoItem(item) {
@@ -244,15 +249,14 @@ function buildPayload() {
     ? buildSplitPayments()
     : [{ formaCode, valorCentavos: totalCentavos }];
 
-  return {
+  return dadosDoFechamento({
     clienteId: clienteId || null,
     idempotencyKey: genIdempotencyKey(),
-    // Só o que o servidor aceita: os campos de exibição do plano ficam na tela.
-    itens: itens.map(({ precoPlanoCentavos, planoTexto, semPlano, planoNome, ...resto }) => ({ ...resto })),
+    itens,
     payments,
     gorjetaCentavos,
     agendamentoId: state.agendamentoIdParaCheckout || undefined
-  };
+  });
 }
 
 // Aviso no balcão: quanto a forma escolhida custa ao salão nesta comanda e qual seria a
@@ -296,7 +300,37 @@ function renderPlanoAviso(preview) {
     : 'não aplicado (' + ((a.motivos[0] && a.motivos[0].texto) || a.situacao) + '), cobra o valor cheio') + (a.aviso ? ' — ' + a.aviso : '')).join(' · ');
 }
 
+function mesmoContexto(sessao, identidade) {
+  const atual = getSession();
+  return Boolean(identidade && sessao?.principal === 'user' && state.session === sessao &&
+    atual?.empresa_id === sessao.empresa_id && sessionIdentity(atual) === identidade);
+}
+
+function esconderPendencia() {
+  pendenciaExibida = null;
+  const card = document.getElementById('checkoutPendente');
+  if (!card) return;
+  card.classList.add('hidden');
+  document.getElementById('checkoutPendenteItens').textContent = '';
+  document.getElementById('checkoutPendenteTotal').textContent = '';
+}
+
+function mostrarPendencia(payload) {
+  pendenciaExibida = payload;
+  state.currentPayload = null;
+  state.currentPreview = null;
+  document.getElementById('cardPreview').classList.add('hidden');
+  document.getElementById('btnFechar').disabled = true;
+  document.getElementById('checkoutPendenteItens').textContent = payload.itens.map(rotuloDoItem).join(' | ');
+  const total = payload.payments.reduce((soma, pagamento) => soma + pagamento.valorCentavos, 0);
+  document.getElementById('checkoutPendenteTotal').textContent = 'Total informado no fechamento: ' + centsToBRL(total);
+  document.getElementById('checkoutPendente').classList.remove('hidden');
+}
+
 export async function simular() {
+  if (fechamentoEmCurso) return;
+  const sessao = state.session;
+  const identidade = sessionIdentity(getSession());
   clearBanner();
   document.getElementById('cardPreview').classList.add('hidden');
   document.getElementById('cardResultado').classList.add('hidden');
@@ -304,6 +338,13 @@ export async function simular() {
   hideAttachSuggestion();
   document.getElementById('btnFechar').disabled = true;
   try {
+    const pendente = await fechamentos.ler(sessao);
+    if (!mesmoContexto(sessao, identidade)) return;
+    if (pendente) {
+      mostrarPendencia(pendente);
+      return;
+    }
+    esconderPendencia();
     // O que ficou nos campos (sem tocar em "Adicionar à comanda") entra na lista antes da conta:
     // assim passa pela checagem do plano de assinatura como qualquer item. Antes, ia para o
     // fechamento sem a checagem e cobrava o valor cheio sem aviso (achado do dono, 2026-11-16).
@@ -314,6 +355,7 @@ export async function simular() {
       limparCamposDeItem();
     }
     await atualizarCobertura();
+    if (!mesmoContexto(sessao, identidade)) return;
     renderComandaItens();
     const payload = buildPayload();
     let preview;
@@ -330,6 +372,7 @@ export async function simular() {
         preview = await api('/checkout/preview', { method: 'POST', body: payload });
       } else throw err;
     }
+    if (!mesmoContexto(sessao, identidade)) return;
     renderPlanoAviso(preview);
     state.currentPayload = payload;
     state.currentPreview = preview;
@@ -348,7 +391,7 @@ export async function simular() {
     renderSplitRows();
     updateSubmitButtonState();
   } catch (err) {
-    showBanner(desvincularSeAgendaInvalida(err), 'error');
+    if (state.session === sessao) showBanner(desvincularSeAgendaInvalida(err), 'error');
   }
 }
 
@@ -365,23 +408,56 @@ function desvincularSeAgendaInvalida(err) {
 }
 
 export async function fechar() {
-  if (!state.currentPayload) return;
+  return enviarFechamento(false);
+}
+
+async function enviarFechamento(retomando) {
+  const sessao = state.session;
+  const identidade = sessionIdentity(getSession());
+  const candidato = retomando ? pendenciaExibida : state.currentPayload;
+  if (!candidato || fechamentoEmCurso || !mesmoContexto(sessao, identidade)) return;
+  fechamentoEmCurso = true;
   clearBanner();
-  const btn = document.getElementById('btnFechar');
+  const btn = document.getElementById(retomando ? 'btnRetomarFechamento' : 'btnFechar');
+  const simularBtn = document.getElementById('btnSimular');
+  simularBtn.disabled = true;
   btn.disabled = true;
   btn.textContent = 'Fechando…';
+  let tentativa;
+  let payload;
   try {
-    const saved = await api('/checkout/close', { method: 'POST', body: state.currentPayload });
-    const s = saved.saved;
-    const clienteId = state.currentPayload.clienteId;
-    const servicoItem = state.currentPayload.itens.find(i => i.tipo === 'servico');
+    tentativa = await fechamentos.iniciar(sessao, candidato, retomando);
+    if (!mesmoContexto(sessao, identidade)) return;
+    if (!tentativa.iniciou) {
+      if (tentativa.payload) mostrarPendencia(tentativa.payload);
+      else esconderPendencia();
+      if (retomando) showBanner('A pendência mudou neste aparelho. Confira o caixa antes de seguir.', 'error');
+      return;
+    }
+    payload = tentativa.payload;
 
-    document.getElementById('resComandaId').textContent = s.comandoId || '—';
+    const resultado = await api('/checkout/close', { method: 'POST', body: payload, retryOnAuth: false });
+    const s = resultado?.saved;
+    if (!s?.comandoId) throw new Error('O servidor não confirmou qual comanda foi fechada.');
+    let limpo = true;
+    try { await fechamentos.confirmar(sessao, payload); }
+    catch (_) { limpo = false; }
+    if (!mesmoContexto(sessao, identidade)) return;
+    const { clienteId } = payload;
+    const servicoItem = payload.itens.find(i => i.tipo === 'servico');
+
+    esconderPendencia();
+    document.getElementById('cardPreview').classList.add('hidden');
+    document.getElementById('resComandaId').textContent = s.comandoId;
     document.getElementById('resStatus').textContent = s.status || (s.idempotent ? 'já fechada (idempotente)' : '—');
     document.getElementById('resCounts').textContent = `${s.itens ?? '—'} / ${s.pagamentos ?? '—'} / ${s.gorjetas ?? '—'}`;
     document.getElementById('resCaixa').textContent = s.caixaMovimentos ?? '—';
     document.getElementById('cardResultado').classList.remove('hidden');
-    showBanner('Comanda fechada com sucesso.', 'ok');
+    if (resultado.vinculoAgenda?.aplicado === false) {
+      showBanner('Comanda salva. A conclusão do agendamento ficou pendente. Confira na Agenda.' + (limpo ? '' : ' Confira também a pendência no caixa.'), 'error');
+    } else {
+      showBanner(limpo ? 'Comanda fechada com sucesso.' : 'Comanda fechada. O navegador não removeu a pendência. Confira o caixa antes de seguir.', limpo ? 'ok' : 'error');
+    }
     state.currentPayload = null;
     state.currentPreview = null;
     state.agendamentoIdParaCheckout = null;
@@ -395,7 +471,6 @@ export async function fechar() {
     renderTipStepper();
     renderSplitToggle();
     renderSplitRows();
-    btn.textContent = 'Fechar comanda';
 
     // Emit event so other modules (dashboard, agenda) update
     stateBus.dispatchEvent(new CustomEvent('checkout:closed'));
@@ -407,10 +482,27 @@ export async function fechar() {
       document.getElementById('rebookingCard').classList.add('hidden');
     }
   } catch (err) {
-    const msg = desvincularSeAgendaInvalida(err);
-    showBanner(msg, 'error');
-    btn.disabled = !state.currentPayload;
-    btn.textContent = 'Fechar comanda';
+    let recusada = false;
+    if (payload && err.status >= 400 && err.status < 500 && err.status !== 401 && err.details?.checkoutNotCommitted === true) {
+      try { recusada = await tentativa.recusar(); }
+      catch (_) { /* deixa a pendência intacta se o armazenamento falhar */ }
+    }
+    if (!mesmoContexto(sessao, identidade)) return;
+    if (recusada) {
+      esconderPendencia();
+      invalidatePreview();
+      const msg = desvincularSeAgendaInvalida(err);
+      showBanner(msg === err.message ? msg + ' Corrija a comanda e simule novamente.' : msg, 'error');
+      return;
+    }
+    if (payload) mostrarPendencia(payload);
+    showBanner(payload ? err.message + ' Confira o caixa ou retome o mesmo fechamento.' : err.message, 'error');
+  } finally {
+    fechamentoEmCurso = false;
+    simularBtn.disabled = false;
+    btn.textContent = retomando ? 'Retomar fechamento pendente' : 'Fechar comanda';
+    if (retomando) btn.disabled = false;
+    updateSubmitButtonState();
   }
 }
 
@@ -664,7 +756,7 @@ export function updateSubmitButtonState() {
   const btnFechar = document.getElementById('btnFechar');
   if (btnFechar) {
     // Só habilita com preview válido em mãos — nunca habilitar sem simulação
-    btnFechar.disabled = !state.currentPayload || !validateSplitPayment();
+    btnFechar.disabled = fechamentoEmCurso || !state.currentPayload || !validateSplitPayment();
   }
 }
 
@@ -712,6 +804,17 @@ function addAttachSuggestion() {
 }
 
 export function initCheckout() {
+  const pendente = document.createElement('section');
+  pendente.id = 'checkoutPendente';
+  pendente.className = 'card hidden';
+  pendente.innerHTML = `<h2>Fechamento pendente</h2>
+    <p>A comanda pode já ter sido registrada. Para conferir ou concluir, retome a mesma tentativa.</p>
+    <p id="checkoutPendenteItens"></p>
+    <p id="checkoutPendenteTotal"></p>
+    <div class="checkout-actions"><button type="button" class="btn btn-primary" id="btnRetomarFechamento">Retomar fechamento pendente</button></div>`;
+  document.getElementById('cardPreview').before(pendente);
+  document.getElementById('btnRetomarFechamento').addEventListener('click', () => enviarFechamento(true));
+  onAuthContextChanged(esconderPendencia);
   document.getElementById('btnSimular').addEventListener('click', simular);
   document.getElementById('btnFechar').addEventListener('click', fechar);
   document.getElementById('btnAddItem').addEventListener('click', adicionarItem);

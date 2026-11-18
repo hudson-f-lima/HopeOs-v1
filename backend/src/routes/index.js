@@ -938,11 +938,43 @@ router.get('/checkout/mais-vendidos', authorize('comanda:fechar'), async (req, r
   } catch (err) { next(err); }
 });
 
+// O financeiro confirmado não é refeito para reconciliar a agenda. O mesmo CAS
+// atende a resposta original e a retomada depois de uma interrupção.
+async function reconciliarAgendaCheckout(req, repo, autoria, agendamentoId) {
+  if (!agendamentoId) return { agendamentoConcluido: null, vinculoAgenda: null };
+  try {
+    const atual = await repo.getByIdScoped('agendamentos', agendamentoId);
+    if (!atual) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'AGENDAMENTO_NOT_FOUND' } };
+    assertOwn(req, atual.profissional_id);
+    const anterior = atual.status;
+    if (STATUS_JA_PAGOS.includes(anterior)) return { agendamentoConcluido: atual, vinculoAgenda: { aplicado: true, jaConcluido: true } };
+    if (!TRANSICOES.concluido.includes(anterior)) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'INVALID_STATUS_TRANSITION', statusAtual: anterior } };
+    const concluido = await repo.atualizarStatusAgendamentoSe(agendamentoId, [anterior], {
+      status: 'concluido', updated_at: new Date().toISOString(), updated_by: autoria.actorId
+    });
+    if (!concluido) return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'STATUS_ALTERADO_DURANTE_FECHAMENTO' } };
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: anterior, para: 'concluido', origem: 'checkout' });
+    return { agendamentoConcluido: concluido, vinculoAgenda: { aplicado: true, jaConcluido: false } };
+  } catch (error) {
+    console.error('[checkout] falha ao reconciliar agenda', error.code || 'INTERNAL_ERROR');
+    return { agendamentoConcluido: null, vinculoAgenda: { aplicado: false, motivo: 'FALHA_ATUALIZACAO' } };
+  }
+}
+
 router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, next) => {
+  let verificouAusencia = false;
+  let enviouRpc = false;
   try {
     assertOwnCheckout(req, req.body);
     const autoria = autoriaDe(req.auth);
     const repo = new SupabaseRepository(req.auth.empresa_id);
+    const { checkoutAnterior } = require('../services/CheckoutReplay');
+    const anterior = await checkoutAnterior(repo, req.auth, validateCheckoutPayload(req.body));
+    if (anterior) {
+      const agenda = await reconciliarAgendaCheckout(req, repo, autoria, req.body.agendamentoId);
+      return res.status(201).json({ ok: true, data: { ...anterior, ...agenda } });
+    }
+    verificouAusencia = true;
     const vinculo = await validarVinculoAgendamento(req, repo);
     const { payload, resolved } = await buildServerResolvedCheckout(repo, req.body);
     // Data/hora da comanda = agora no fuso da empresa, sempre definidas pelo
@@ -956,50 +988,29 @@ router.post('/checkout/close', authorize('comanda:fechar'), async (req, res, nex
     const cobertura = await coberturaDaComanda(req, repo, payload, resolved, vinculo);
     const preview = previewCheckout(resolved);
     // Com uso de plano: fechamento e usos na mesma transação (D-043). Sem: o fechamento de sempre.
+    enviouRpc = true;
     const saved = cobertura.usos.length
       ? await repo.saveCheckoutCloseAssinatura({ payload, resolved, preview, autoria, usos: cobertura.usos })
       : await repo.saveCheckoutClose({ payload, resolved, preview, autoria });
 
-    // Vínculo checkout → agenda (validado acima, antes de gravar). Não faz parte
-    // da RPC nem do ledger: a atualização de status vem depois do fechamento. Se
-    // o status mudou entre a validação e aqui (corrida), não força a transição:
-    // a comanda já está fechada e vale; o vínculo fica registrado como não aplicado.
-    let agendamentoConcluido = null;
-    let vinculoAgenda = null;
-    if (vinculo) {
-      const agendamentoId = vinculo.ag.id;
-      try {
-        const atual = await repo.getByIdScoped('agendamentos', agendamentoId);
-        const statusAnterior = atual ? atual.status : null;
-        if (STATUS_JA_PAGOS.includes(statusAnterior)) {
-          agendamentoConcluido = atual;
-          vinculoAgenda = { aplicado: true, jaConcluido: true };
-        } else if (atual && TRANSICOES.concluido.includes(statusAnterior)) {
-          // Compare-and-set: só conclui se o status ainda for o lido agora.
-          agendamentoConcluido = await repo.atualizarStatusAgendamentoSe(agendamentoId, [statusAnterior], {
-            status: 'concluido',
-            updated_at: new Date().toISOString(),
-            updated_by: autoria.actorId
-          });
-          if (agendamentoConcluido) {
-            await registrarEventoAgenda(repo, req.auth, { agendamentoId, tipo: 'status', de: statusAnterior, para: 'concluido', origem: 'checkout' });
-            vinculoAgenda = { aplicado: true, jaConcluido: false };
-          } else {
-            vinculoAgenda = { aplicado: false, motivo: 'STATUS_ALTERADO_DURANTE_FECHAMENTO' };
-            console.error(`[checkout] agendamento ${agendamentoId} mudou de status durante o fechamento; status não alterado.`);
-          }
-        } else {
-          vinculoAgenda = { aplicado: false, motivo: 'INVALID_STATUS_TRANSITION', statusAtual: statusAnterior };
-          console.error(`[checkout] agendamento ${agendamentoId} mudou para ${statusAnterior} durante o fechamento; status não alterado.`);
-        }
-      } catch (linkErr) {
-        vinculoAgenda = { aplicado: false, motivo: 'FALHA_ATUALIZACAO' };
-        console.error('Falha ao marcar agendamento como concluído:', linkErr.message || linkErr);
-      }
+    // A leitura inicial não é lock: a RPC pode ter encontrado outro vencedor.
+    // Reler autoria/intenção antes de responder ou concluir qualquer agendamento.
+    if (saved.idempotent) {
+      const confirmado = await checkoutAnterior(repo, req.auth, payload);
+      if (!confirmado) throw createAppError('CHECKOUT_CONFIRMATION_PENDING', 'O fechamento precisa de conferência. Retome com a mesma chave.', 503);
+      const agenda = await reconciliarAgendaCheckout(req, repo, autoria, payload.agendamentoId);
+      return res.status(201).json({ ok: true, data: { ...confirmado, ...agenda } });
     }
-
-    res.status(201).json({ ok: true, data: { preview, saved, agendamentoConcluido, vinculoAgenda } });
-  } catch (err) { next(err); }
+    const agenda = await reconciliarAgendaCheckout(req, repo, autoria, vinculo && vinculo.ag.id);
+    res.status(201).json({ ok: true, data: { preview, saved, ...agenda } });
+  } catch (err) {
+    // Apenas uma recusa comprovada anterior à RPC pode liberar uma tentativa nova
+    // no journal. Retomadas com resposta anterior desconhecida seguem ambíguas.
+    if (verificouAusencia && !enviouRpc && err.statusCode >= 400 && err.statusCode < 500) {
+      err.details = { ...(err.details || {}), checkoutNotCommitted: true };
+    }
+    next(err);
+  }
 });
 
 // ---------- Estorno de comanda (D-013, migration 009) ----------
