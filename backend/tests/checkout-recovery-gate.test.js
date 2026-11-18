@@ -257,3 +257,25 @@ test('recusa comprovada da retomada preserva o primeiro envio incerto', async ()
   await reaberta.document.getElementById('btnRetomarFechamento').click();
   assert.equal(storage.valores.size, 0);
 });
+
+test('comanda salva com vínculo pendente orienta a conferir a Agenda sem reenviar ao caixa', async () => {
+  const storage = armazenamentoEmMemoria();
+  const fixture = await montarCheckout(sessao, storage.transacao, () => ({
+    saved: { comandoId: 'comanda-registrada', status: 'fechado' },
+    vinculoAgenda: { aplicado: false, motivo: 'FALHA_ATUALIZACAO' }
+  }));
+  fixture.state.currentPayload = comanda;
+  await fixture.mod.fechar();
+
+  assert.equal(fixture.document.getElementById('resComandaId').textContent, 'comanda-registrada');
+  assert.equal(fixture.document.getElementById('cardResultado').classList.contains('hidden'), false);
+  assert.deepEqual(fixture.avisos.at(-1), [
+    'Comanda salva. A conclusão do agendamento ficou pendente. Confira na Agenda.',
+    'error'
+  ]);
+  assert.ok(fixture.avisos.every(([mensagem]) => !/Comanda fechada com sucesso/.test(mensagem)));
+  assert.equal(storage.valores.size, 0, 'a comanda já foi confirmada pelo servidor');
+  await fixture.mod.fechar();
+  await fixture.document.getElementById('btnRetomarFechamento').click();
+  assert.equal(fixture.chamadas.filter(c => c.rota === '/checkout/close').length, 1);
+});
