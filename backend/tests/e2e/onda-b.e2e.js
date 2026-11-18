@@ -42,6 +42,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await p.click('#btnFecharGestao'); await p.waitForTimeout(300);
 
   // Régua: cliente com 2 faltas seguidas gera alerta ao ser escolhido
+  await p.click('#navAgenda');
   await p.click('#fab'); await p.waitForTimeout(400);
   await p.click('#agCliente'); await p.fill('#agCliente', 'Cliente'); await p.waitForTimeout(300);
   await p.locator('#agCliente ~ div [data-value]').first().click(); await p.waitForTimeout(900);
