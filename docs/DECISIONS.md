@@ -854,3 +854,15 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - **gate offline `agenda-confiavel` (11 testes):**
     - C10: a escala muda por evento entre a conferência e a gravação → 409, nada gravado nem cancelado. Controle negativo: sem mandar a versão, o C10 falha;
     - C11: reserva entra durante a mudança de escala → `afetadosDepois`.
+
+## D-059 — Saúde do banco para o monitor externo
+- **Pedido (Platform Owner, 2026-11-21):** "Aprovado", sobre a proposta de perceber queda do banco no monitoramento (UptimeRobot conectado: "HOPE OS KeepAlive" na API e "HOPE OS App (PWA)" no GitHub Pages).
+- **Problema:** `/api/health` só diz que o servidor Node está no ar; não consulta o banco. Com o Supabase fora, o monitor continuaria verde e a agenda parada.
+- **Solução (sem migration):** `GET /api/health/banco`, público e sem dados.
+  - Faz uma consulta mínima (`HEAD` com contagem em `empresas`), que não devolve linha nenhuma.
+  - Tem limite de 5 s: banco lento conta como indisponível.
+  - O resultado fica guardado 30 s, para que chamadas repetidas não virem carga.
+  - Responde 200 `{ banco: 'ok' }` ou 503 `{ banco: 'indisponivel' }`, sem o detalhe do erro.
+  - `/api/health` fica como estava (o KeepAlive continua leve e mantém o Render acordado).
+- **Verificação:** gate `saude-banco` (5 testes): ok, falha sem vazar o erro do driver, lentidão, resultado guardado e `/api/health` intacto. A consulta real ao Supabase só é provada em produção, depois do deploy.
+- **Depois do merge:** criar no UptimeRobot o monitor da rota nova, com alerta por e-mail.
