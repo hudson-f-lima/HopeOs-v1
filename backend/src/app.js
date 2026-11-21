@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const { conferirBanco } = require('./services/SaudeBanco');
 const { env } = require('./config/env');
 const routes = require('./routes');
 const { authRouter } = require('./routes/auth');
@@ -77,6 +78,12 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: 'HOPE OS V1 API', time: new Date().toISOString() });
+});
+
+// Saúde do banco (D-059): para o monitor externo perceber queda do Supabase. Público e sem dados.
+app.get('/api/health/banco', async (req, res) => {
+  const r = await conferirBanco();
+  res.status(r.ok ? 200 : 503).json({ ok: r.ok, banco: r.ok ? 'ok' : 'indisponivel', time: new Date().toISOString() });
 });
 
 // Sessão (login/refresh/logout/me) antes do perímetro; o resto exige principal.

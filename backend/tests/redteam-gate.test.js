@@ -617,6 +617,8 @@ test('RT-19 prazo na virada do fuso: 30º dia às 23:59 de Brasília (02:59 UTC 
 // outra rota sob /api precisa de authorize() antes do handler.
 const ROTAS_SEM_RBAC = new Set([
   'GET /', 'GET /api/health',
+  // Saúde do banco (D-059): só 'ok' ou 'indisponivel', sem dados; resultado guardado 30 s (não vira carga).
+  'GET /api/health/banco',
   'GET /api/auth/config', 'POST /api/auth/login', 'POST /api/auth/refresh', 'POST /api/auth/logout', 'POST /api/auth/recover', 'POST /api/auth/password', 'POST /api/auth/privacidade/aceite', 'GET /api/me',
   'GET /api/public/agendar/:slug', 'GET /api/public/agendar/:slug/slots', 'POST /api/public/agendar/:slug',
   // Link pessoal do agendamento (017, D-038): a credencial é o código do link, no corpo.
