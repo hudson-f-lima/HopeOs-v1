@@ -844,10 +844,11 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
     - sem `disp_versao` (encaixe forçado, chamadas antigas), segue como antes.
   - A 026 só redefine `agendamento_criar`, com a mesma assinatura e o mesmo corpo da 008, mais a conferência.
   - **Do lado da escala (Node):** se uma reserva gravou primeiro, entre a leitura dos afetados e a gravação da escala, a rota de escala confere de novo depois de gravar e devolve `afetadosDepois`. A tela avisa e a grade marca ⚠. Nada é mexido sozinho.
-- **Residual:**
-  - a versão é conferida em `POST /agenda`. Remarcação, série, link público e vários serviços (`atendimento_criar`) ainda não mandam a versão;
-  - o lote de escalas e a remoção de data especial ainda não devolvem `afetadosDepois`.
-  - Ficam para a próxima onda.
+- **Residual (fechado em 2026-11-21, sem migration, por ordem do Platform Owner — "faça os itens 1 e 2"):**
+  - **Remarcação, série (criar e alterar) e link público (agendar e remarcar pelo link pessoal)** mandam a versão lida antes da conferência. A série desfaz tudo e responde 409 `ESCALA_MUDOU` (não trata como conflito de uma data); alterar série deixa a ocorrência como está, com o motivo `escala_mudou`.
+  - **Vários serviços (`atendimento_criar`, 019):** a função não confere versão e mudar isso seria migration. O backend lê a versão antes e confere depois de gravar; se mudou e alguma etapa não cabe mais, cancela todas as etapas (motivo no histórico) e responde 409. Se a mudança não pegou as etapas, mantém.
+  - **Lote de escalas e remoção de data especial** devolvem `afetadosDepois`. A tela avisa em todo envio de escala.
+  - **Verificação:** gate `agenda-confiavel` C12–C17. Com o backend anterior, os seis falham; com o novo, 17/17. O C15 tem controle negativo (mudança em outro horário grava).
 - **Verificação:**
   - **gate SQL `gate_026`:** versão em dia grava; sem versão grava; versão velha recusa com HS412 sem gravar. Controle negativo: com a versão nova, o mesmo pedido grava. Conflito de horário continua HS409; função só para service_role; ciclo de rollback verde;
   - **gate offline `agenda-confiavel` (11 testes):**

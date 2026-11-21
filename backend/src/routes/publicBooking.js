@@ -278,6 +278,8 @@ async function resolverSalao(req) {
 // Catálogo público: serviços ativos com pelo menos um profissional ativo vinculado
 // (profissional_servicos). Toda leitura é filtrada pela empresa do slug.
 async function carregarCatalogo(repo) {
+  // D-058: versão da escala lida ANTES da disponibilidade; se mudar até gravar, o banco recusa.
+  const dispVersao = repo.versaoDisponibilidade ? await repo.versaoDisponibilidade().catch(() => null) : null;
   // A empresa vem com a disponibilidade (D-033): o mesmo cálculo da recepção.
   const [empresa, servicos, profissionais, vinculos] = await Promise.all([
     repo.empresaComDisponibilidade(),
@@ -293,7 +295,7 @@ async function carregarCatalogo(repo) {
     const ids = [...new Set(vinculos.filter(v => v.servico_id === servico.id).map(v => v.profissional_id))];
     return { servico, profissionais: ids.filter(id => profAtivos.has(id)).map(id => profAtivos.get(id)).sort(porNome) };
   }).filter(o => o.profissionais.length).sort((a, b) => porNome(a.servico, b.servico));
-  return { empresa, servicosAtivos, ofertas, cfg: configOnline(empresa), aviso: avisoDoSalao(empresa) };
+  return { empresa, servicosAtivos, ofertas, cfg: configOnline(empresa), aviso: avisoDoSalao(empresa), dispVersao };
 }
 
 // Horários livres para o público: mesmo motor do GET /agenda/slots, com "agora"
@@ -420,7 +422,8 @@ async function gravar(repo, cat, ctx) {
         horario: entrada.horario,
         duracao_min: duracaoMin,
         valor_centavos: precoDe(servico, profissional),
-        status: 'agendado'
+        status: 'agendado',
+        ...(cat.dispVersao !== null && cat.dispVersao !== undefined ? { disp_versao: cat.dispVersao } : {})
       },
       permitirConflito: false,
       createdBy: null
@@ -720,6 +723,7 @@ rotaLink('/push', async (req, res) => {
 // Remarcação: mesmo serviço e mesmo profissional, regras do link público do salão (antecedência,
 // janela, disponibilidade), mesma duração e preço já marcados. No máximo MAX_REMARCACOES por link.
 async function slotsDaRemarcacao(c, data) {
+  // (a versão da escala vai junto no retorno: cat.dispVersao, lida antes da disponibilidade)
   if (!dataValida(data)) throw dadosInvalidos();
   if (!c.pode.remarcar) throw foraDoPrazo();
   const cat = await carregarCatalogo(c.repo);
@@ -730,7 +734,7 @@ async function slotsDaRemarcacao(c, data) {
   const r = await slotsDoProfissional(c.repo, cat, oferta.servico, profissional, data, lim, { ignorarId: c.ag.id, duracaoFixa: Number(c.ag.duracao_min) || undefined });
   // O próprio horário não é opção de "remarcar".
   const slots = r.slots.filter(h => !(data === String(c.ag.data) && h === hhmm(c.ag.horario)));
-  return { slots, lim };
+  return { slots, lim, dispVersao: cat.dispVersao };
 }
 
 rotaLink('/horarios', async (req, res) => {
@@ -743,14 +747,15 @@ rotaLink('/remarcar', async (req, res) => {
   const c = await contextoDoAcesso(req, ['data', 'horario']);
   const { data, horario } = req.body;
   if (typeof horario !== 'string' || !HORA_RE.test(horario)) throw dadosInvalidos();
-  const { slots } = await slotsDaRemarcacao(c, data);
+  const { slots, dispVersao } = await slotsDaRemarcacao(c, data);
   if (!slots.includes(horario)) throw horarioIndisponivel();
   let novo;
   try {
     novo = await c.repo.criarAgendamento({
       agendamento: {
         cliente_id: c.ag.cliente_id, servico_id: c.ag.servico_id, profissional_id: c.ag.profissional_id,
-        data, horario, duracao_min: Number(c.ag.duracao_min) || 30, valor_centavos: Number(c.ag.valor_centavos) || 0, status: 'agendado'
+        data, horario, duracao_min: Number(c.ag.duracao_min) || 30, valor_centavos: Number(c.ag.valor_centavos) || 0, status: 'agendado',
+        ...(dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
       },
       permitirConflito: false, ignorarId: c.ag.id, createdBy: null
     });

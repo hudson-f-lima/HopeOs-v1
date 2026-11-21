@@ -172,7 +172,8 @@ function mostrarConflitos(erroId, afetados, enviar) {
 
 async function enviarComConflitos(erroId, enviar, decisoes) {
   try {
-    await enviar(decisoes);
+    // D-058: o aviso de agendamento que entrou no meio vale para todo envio de escala por aqui.
+    avisarAfetadosDepois(await enviar(decisoes));
     return true;
   } catch (err) {
     if (err.code === 'CONFLITOS_PENDENTES' && err.details && err.details.afetados) {
@@ -254,13 +255,12 @@ async function salvarSemanal() {
     return;
   }
   const url = alvoSemanal.profissionalId ? `/disponibilidade/profissionais/${alvoSemanal.profissionalId}/semanal` : '/disponibilidade/unidade/semanal';
-  let resposta = null;
-  const enviar = async decisoes => (resposta = await api(url, { method: 'PUT', body: alvoSemanal.profissionalId ? { periodos, publicar: true, decisoes } : { periodos, decisoes } }));
+  const enviar = decisoes => api(url, { method: 'PUT', body: alvoSemanal.profissionalId ? { periodos, publicar: true, decisoes } : { periodos, decisoes } });
   const botao = el('btnEscSemanalSalvar');
   botao.disabled = true;
   const ok = await enviarComConflitos('escSemanalErro', enviar, undefined);
   botao.disabled = false;
-  if (ok) { closeModal('modalEscSemanal'); showBanner('Horário salvo. Vale para os próximos agendamentos.', 'ok'); avisarAfetadosDepois(resposta); carregarEscalas(); }
+  if (ok) { closeModal('modalEscSemanal'); showBanner('Horário salvo. Vale para os próximos agendamentos.', 'ok'); carregarEscalas(); }
 }
 
 // ---------- Data especial ----------
@@ -314,20 +314,20 @@ async function salvarExcecao() {
   const body = { tipo, dataInicio: el('escExcDe').value, dataFim: el('escExcAte').value || el('escExcDe').value, motivo: el('escExcMotivo').value.trim() || undefined };
   if (profissionalId) body.profissionalId = profissionalId;
   if (periodos && periodos.length) body.periodos = periodos;
-  let resposta = null;
-  const enviar = async decisoes => (resposta = await api('/disponibilidade/excecoes', { method: 'POST', body: { ...body, decisoes } }));
+  const enviar = decisoes => api('/disponibilidade/excecoes', { method: 'POST', body: { ...body, decisoes } });
   const botao = el('btnEscExcSalvar');
   botao.disabled = true;
   const ok = await enviarComConflitos('escExcErro', enviar, undefined);
   botao.disabled = false;
-  if (ok) { closeModal('modalEscExcecao'); showBanner('Data especial salva.', 'ok'); avisarAfetadosDepois(resposta); carregarEscalas(); }
+  if (ok) { closeModal('modalEscExcecao'); showBanner('Data especial salva.', 'ok'); carregarEscalas(); }
 }
 
 async function removerExcecao(id) {
   const enviar = decisoes => api(`/disponibilidade/excecoes/${id}`, { method: 'DELETE', body: { decisoes } });
   try {
-    await enviar(undefined);
+    const r = await enviar(undefined);
     showBanner('Data especial removida.', 'ok');
+    avisarAfetadosDepois(r);
     carregarEscalas();
   } catch (err) {
     if (err.code === 'CONFLITOS_PENDENTES' && err.details) {

@@ -674,6 +674,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     const profNovo = await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
     const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
+    const dispVersaoRe = await repo.versaoDisponibilidade().catch(() => null); // D-058: antes de conferir
     const foraRe = await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
     // Regras da agenda só quando o dia muda (trocar serviço ou hora no mesmo dia não cria horário novo para o cliente).
     const avisosRe = reagendamento.novaData !== String(original.data).slice(0, 10)
@@ -693,7 +694,8 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
         // Editar pelo card (trocar só serviço ou profissional, mesmo dia e hora) não desfaz a
         // confirmação do cliente; mudar dia ou hora volta para "agendado" (o cliente reconfirma).
         status: statusAnterior === 'confirmado' && reagendamento.novaData === String(original.data).slice(0, 10)
-          && String(reagendamento.novoHorario).slice(0, 5) === String(original.horario).slice(0, 5) ? 'confirmado' : 'agendado'
+          && String(reagendamento.novoHorario).slice(0, 5) === String(original.horario).slice(0, 5) ? 'confirmado' : 'agendado',
+        ...(!foraRe.forcado && dispVersaoRe !== null ? { disp_versao: dispVersaoRe } : {})
       },
       permitirConflito: reagendamento.permitirConflito,
       ignorarId: original.id,
