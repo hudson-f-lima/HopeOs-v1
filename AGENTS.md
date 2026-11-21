@@ -15,7 +15,7 @@ O estado atual e o handoff vivem exclusivamente em `docs/PROJECT_STATE.md`. Este
 ## Bloqueios permanentes
 
 - Não avançar para V1.5.
-- Não criar migrations 026+ nem tocar 001–025 sem autorização do Platform Owner registrada em `docs/DECISIONS.md`. A lista completa de qual migration foi autorizada em qual decisão está em `CLAUDE.md` (regras invioláveis); vale a de lá.
+- Não criar migrations 027+ nem tocar 001–026 sem autorização do Platform Owner registrada em `docs/DECISIONS.md`. A lista completa de qual migration foi autorizada em qual decisão está em `CLAUDE.md` (regras invioláveis); vale a de lá.
 - Não implementar escala global, novas features ou regras de negócio sem autorização do Platform Owner registrada em `docs/DECISIONS.md` (ex.: D-016, D-017).
 - Não tratar `API_ACCESS_TOKEN` como autenticação final.
 - Não declarar multi-tenant seguro.
@@ -36,9 +36,9 @@ Todo achado deve ser classificado como `REAL`, `PARCIAL`, `MOCKADO`, `HARDCODED`
 
 ## Migrações e documentação
 
-- Fundação física: `supabase/migrations/001–025` (rollbacks da 007 à 025 em `supabase/rollback/`). Desde a 009 o ledger financeiro é imutável por trigger: limpeza de dados ou exclusão de empresa com histórico exige SQL autorizado (RUNBOOK §4.1).
+- Fundação física: `supabase/migrations/001–026` (rollbacks da 007 à 026 em `supabase/rollback/`). Desde a 009 o ledger financeiro é imutável por trigger: limpeza de dados ou exclusão de empresa com histórico exige SQL autorizado (RUNBOOK §4.1).
 - Merge na `main` aplica migrations em produção (D-010): migration nova só com linha em `supabase/migrations.lock` e decisão em `docs/DECISIONS.md`.
-- Faixa 026+ só com autorização registrada; 046–060 é obsoleta.
+- Faixa 027+ só com autorização registrada; 046–060 é obsoleta.
 - Correções documentais são in-place e entram no índice.
 - SQL draft só em Markdown com `DRAFT ONLY`.
 

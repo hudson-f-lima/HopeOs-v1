@@ -3,7 +3,7 @@
 // decide; se a mudança deixar agendamentos de fora, ele devolve a lista e nada é gravado até
 // alguém com permissão confirmar que ficam mantidos (remarcar ou cancelar é feito na agenda).
 import { api } from '../api.js';
-import { abrirBloqueio } from './agendaBloqueio.js';
+import { abrirBloqueio, avisarAfetadosDepois } from './agendaBloqueio.js';
 import { montarCalendario } from './calendarioMes.js';
 import { state, sessionPode, loadWeekAgenda } from '../state.js';
 import { escapeHtml, showBanner, openModal, closeModal, showModalError, clearModalError, todayStr, baixarArquivo } from '../utils.js';
@@ -254,12 +254,13 @@ async function salvarSemanal() {
     return;
   }
   const url = alvoSemanal.profissionalId ? `/disponibilidade/profissionais/${alvoSemanal.profissionalId}/semanal` : '/disponibilidade/unidade/semanal';
-  const enviar = decisoes => api(url, { method: 'PUT', body: alvoSemanal.profissionalId ? { periodos, publicar: true, decisoes } : { periodos, decisoes } });
+  let resposta = null;
+  const enviar = async decisoes => (resposta = await api(url, { method: 'PUT', body: alvoSemanal.profissionalId ? { periodos, publicar: true, decisoes } : { periodos, decisoes } }));
   const botao = el('btnEscSemanalSalvar');
   botao.disabled = true;
   const ok = await enviarComConflitos('escSemanalErro', enviar, undefined);
   botao.disabled = false;
-  if (ok) { closeModal('modalEscSemanal'); showBanner('Horário salvo. Vale para os próximos agendamentos.', 'ok'); carregarEscalas(); }
+  if (ok) { closeModal('modalEscSemanal'); showBanner('Horário salvo. Vale para os próximos agendamentos.', 'ok'); avisarAfetadosDepois(resposta); carregarEscalas(); }
 }
 
 // ---------- Data especial ----------
@@ -313,12 +314,13 @@ async function salvarExcecao() {
   const body = { tipo, dataInicio: el('escExcDe').value, dataFim: el('escExcAte').value || el('escExcDe').value, motivo: el('escExcMotivo').value.trim() || undefined };
   if (profissionalId) body.profissionalId = profissionalId;
   if (periodos && periodos.length) body.periodos = periodos;
-  const enviar = decisoes => api('/disponibilidade/excecoes', { method: 'POST', body: { ...body, decisoes } });
+  let resposta = null;
+  const enviar = async decisoes => (resposta = await api('/disponibilidade/excecoes', { method: 'POST', body: { ...body, decisoes } }));
   const botao = el('btnEscExcSalvar');
   botao.disabled = true;
   const ok = await enviarComConflitos('escExcErro', enviar, undefined);
   botao.disabled = false;
-  if (ok) { closeModal('modalEscExcecao'); showBanner('Data especial salva.', 'ok'); carregarEscalas(); }
+  if (ok) { closeModal('modalEscExcecao'); showBanner('Data especial salva.', 'ok'); avisarAfetadosDepois(resposta); carregarEscalas(); }
 }
 
 async function removerExcecao(id) {
