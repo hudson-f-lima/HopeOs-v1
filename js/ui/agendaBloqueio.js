@@ -94,6 +94,12 @@ export function htmlFora(profId, data, { horaInicio, horaFim, pxPorMin }) {
     + (i === 0 && rotulo ? '<span class="ag-fora-rotulo">' + escapeHtml(rotulo) + '</span>' : '') + '</div>').join('');
 }
 
+// D-056: agendamento que entrou enquanto a escala mudava (sem decisão): a tela avisa; nada é mexido.
+export function avisarAfetadosDepois(r) {
+  const l = (r && r.afetadosDepois) || [];
+  if (l.length) showBanner(l.length + ' agendamento(s) entraram enquanto a escala mudava e ficaram fora dela (' + l.map(a => a.data.slice(8, 10) + '/' + a.data.slice(5, 7) + ' ' + a.horario).join(', ') + '). Confira na agenda: estão marcados com ⚠.', 'error');
+}
+
 // ---------- Permissões (a tela só esconde; o servidor recusa) ----------
 const podeBloquearPara = profId => sessionPode('escala:bloquear') && (sessionPode('escala:bloquear', true) || profId === proprioId());
 const podeMexer = exc => {
@@ -191,9 +197,10 @@ async function salvarBloqueio() {
   if (!/^\d{2}:\d{2}$/.test(fim) || min(fim) <= min(horario)) return erro('O fim precisa ser depois de ' + horario + '.');
   const botao = el('btnSlotSalvar'); botao.disabled = true;
   try {
-    await api('/disponibilidade/excecoes', { method: 'POST', body: { profissionalId, tipo: 'bloqueio', dataInicio: data, dataFim: data, periodos: [{ inicio: horario, fim }], motivo: el('slotMotivo').value.trim() || undefined } });
+    const r = await api('/disponibilidade/excecoes', { method: 'POST', body: { profissionalId, tipo: 'bloqueio', dataInicio: data, dataFim: data, periodos: [{ inicio: horario, fim }], motivo: el('slotMotivo').value.trim() || undefined } });
     closeModal('modalSlot');
     showBanner('Horário bloqueado: ' + horario + '–' + fim + '.', 'ok');
+    avisarAfetadosDepois(r);
     await loadWeekAgenda();
   } catch (err) {
     erro(err.code === 'CONFLITOS_PENDENTES' && err.details ? 'Há cliente marcado nesse trecho (' + err.details.afetados.map(a => a.horario).join(', ') + '). Escolha um fim antes dele.' : err.message);

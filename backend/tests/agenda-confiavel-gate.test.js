@@ -231,6 +231,36 @@ test('C09 escala muda durante a reserva → 409, nada reservado, motivo no hist�
   assert.strictEqual(ok.status, 201, ok.raw.slice(0, 160));
 });
 
+test('C10 escala muda (evento) entre a conferência e a gravação → banco recusa; nada gravado nem cancelado', async () => {
+  const P = SupabaseRepository.prototype; const original = P.criarAgendamento;
+  P.criarAgendamento = async function (args) {
+    // Um bloqueio entra pela função de escala (gera evento: a versão sobe) antes da gravação.
+    await new SupabaseRepository(A).criarExcecoesDisponibilidade({ excecoes: [{ profissionalId: ANA, tipo: 'bloqueio', dataInicio: DIA, dataFim: DIA, inicio: '15:00', fim: '16:00' }], actorId: ADMIN });
+    return original.call(this, args);
+  };
+  const antes = db.agendamentos.length;
+  let r;
+  try { r = await request('POST', '/api/agenda', { body: { clienteId: CLI[5], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '15:00', aceitarAvisos: true } }); } finally { P.criarAgendamento = original; }
+  assert.strictEqual(r.status, 409, r.raw.slice(0, 200));
+  assert.strictEqual(code(r), 'ESCALA_MUDOU');
+  assert.strictEqual(db.agendamentos.length, antes, 'nada gravado (nem criado e cancelado depois)');
+});
+
+test('C11 reserva entra durante a mudança de escala → resposta devolve afetadosDepois', async () => {
+  const P = SupabaseRepository.prototype; const original = P.criarExcecoesDisponibilidade;
+  const intruso = { id: '91000000-0000-4000-8000-0000000000c1', empresa_id: A, cliente_id: CLI[5], servico_id: CORTE, profissional_id: ANA, data: DIA, horario: '17:00:00', duracao_min: 30, status: 'agendado' };
+  P.criarExcecoesDisponibilidade = async function (args) {
+    db.agendamentos.push(intruso); // gravou entre a leitura dos afetados e a gravação da escala
+    return original.call(this, args);
+  };
+  let r;
+  try { r = await request('POST', '/api/disponibilidade/excecoes', { token: 'h.admin.s', body: { profissionalId: ANA, tipo: 'bloqueio', dataInicio: DIA, dataFim: DIA, periodos: [{ inicio: '17:00', fim: '17:30' }], motivo: 'teste' } }); } finally { P.criarExcecoesDisponibilidade = original; }
+  assert.strictEqual(r.status, 201, r.raw.slice(0, 200));
+  const lista = r.data.data.afetadosDepois || [];
+  assert.deepStrictEqual(lista.map(a => a.agendamentoId), [intruso.id], 'o agendamento que entrou no meio aparece');
+  assert.strictEqual(db.agendamentos.find(a => a.id === intruso.id).status, 'agendado', 'nada é mexido sozinho');
+});
+
 (async () => {
   const origErr = console.error; const origWarn = console.warn;
   console.error = () => {}; console.warn = () => {};

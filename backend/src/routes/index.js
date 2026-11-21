@@ -541,6 +541,8 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
 
     // Mesma regra do GET /agenda/slots: override do profissional > serviço > 30.
     const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: payload.duracaoMin });
+    // Versão da escala ANTES de conferir (D-056): se mudar até a gravação, o banco recusa (026).
+    const dispVersao = await repo.versaoDisponibilidade().catch(() => null);
     const fora = await assertDentroDaDisponibilidade(req, repo, { profissional, data: payload.data, horario: payload.horario, duracaoMin, forcar: payload.foraDaDisponibilidade });
     const avisos = await avisosDaAgenda(repo, { clienteId: payload.clienteId, servico, data: payload.data, horario: payload.horario, aceitar: payload.aceitarAvisos });
     // Vaga dada a alguém da lista de espera (D-054/D-055): o item é da empresa, do mesmo cliente,
@@ -577,7 +579,8 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
         horario: payload.horario,
         duracao_min: duracaoMin,
         valor_centavos: servico.valor_centavos || 0,
-        status: 'agendado'
+        status: 'agendado',
+        ...(!fora.forcado && dispVersao !== null ? { disp_versao: dispVersao } : {})
       },
       permitirConflito: payload.permitirConflito,
       createdBy: actorId

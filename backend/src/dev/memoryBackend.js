@@ -152,7 +152,14 @@ function installMemoryBackend(seed = {}) {
     for (const [i, e] of etapas.entries()) agendamentos.push(await this.insert('agendamentos', { ...e, status: 'agendado', grupo_id: grupoId, grupo_seq: i + 1, created_by: createdBy }));
     return { grupo_id: grupoId, agendamentos };
   };
-  P.criarAgendamento = async function ({ agendamento, permitirConflito, ignorarId, createdBy }) {
+  const versaoDisp = empresaId => rows('disponibilidade_eventos').filter(e => e.empresa_id === empresaId && e.seq).reduce((m, e) => Math.max(m, e.seq), 0);
+  P.versaoDisponibilidade = async function () { return versaoDisp(this.empresaId); };
+  P.criarAgendamento = async function ({ agendamento: comVersao, permitirConflito, ignorarId, createdBy }) {
+    // Espelho da 026: versão da escala lida antes de conferir; mudou → nada é gravado.
+    const { disp_versao: versao, ...agendamento } = comVersao;
+    if (versao !== undefined && versao !== null && Number(versao) !== versaoDisp(this.empresaId)) {
+      throw createAppError('ESCALA_MUDOU', 'A escala mudou enquanto o horário era gravado. Nada ficou reservado: escolha outro horário.', 409);
+    }
     if (!permitirConflito) {
       const empresa = rows('empresas').find(e => e.id === this.empresaId) || {};
       const conflitos = findScheduleConflicts({

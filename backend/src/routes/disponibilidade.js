@@ -93,6 +93,16 @@ async function afetados(repo, { antes, depois, profissionalIds, de, ate }) {
     .map(a => ({ agendamentoId: a.id, data: a.data, horario: hhmm(a.horario), profissional: (prof.get(a.profissional_id) || {}).nome || null, cliente: nomeCliente.get(a.cliente_id) || null, status: a.status }));
 }
 
+// Depois de gravar a escala (D-056): um agendamento que entrou ENTRE a leitura dos afetados e a
+// gravação não teve decisão. A reserva já é recusada pelo banco quando a escala muda antes dela
+// (026); aqui cobre o outro lado — a reserva gravou primeiro. Não mexe nela: devolve a lista para
+// a tela mostrar (e a grade já marca o conflito).
+async function afetadosDepois(repo, args, decisoes) {
+  const decididos = new Set((decisoes || []).map(d => d.agendamentoId));
+  try { return (await afetados(repo, args)).filter(a => !decididos.has(a.agendamentoId)); } catch (_) { return []; }
+}
+const comDepois = lista => (lista.length ? { afetadosDepois: lista } : {});
+
 // Sem decisão para cada agendamento afetado, nada é gravado (409 com a lista).
 function decisoesPara(req, lista, decisoes) {
   if (!lista.length) return [];
@@ -244,7 +254,7 @@ router.put('/disponibilidade/unidade/semanal', authorize('unidade:horario'), asy
     const depois = { semanal: [...disp.semanal.filter(r => r.profissional_id), ...periodos.map(x => ({ profissional_id: null, dia_semana: x.diaSemana, inicio: x.inicio, fim: x.fim, a_cada_semanas: x.aCadaSemanas || 1, semana_ancora: x.semanaAncora || null }))], excecoes: disp.excecoes };
     const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois }), b.decisoes);
     const r = await repo.definirDisponibilidadeSemanal({ profissionalId: null, periodos, actorId: req.auth.actor_id, decisoes });
-    res.json({ ok: true, data: { ...r, decisoes } });
+    res.json({ ok: true, data: { ...r, decisoes, ...comDepois(await afetadosDepois(repo, { antes: disp, depois }, decisoes)) } });
   } catch (err) { next(err); }
 });
 
@@ -266,7 +276,7 @@ router.put('/disponibilidade/profissionais/:id/semanal', authorize('escala:edita
     };
     const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois, profissionalIds: [id] }), b.decisoes);
     const r = await repo.definirDisponibilidadeSemanal({ profissionalId: id, periodos, publicar, actorId: req.auth.actor_id, decisoes });
-    res.json({ ok: true, data: { ...r, publicada: publicar || Boolean(p.escala_publicada_em), decisoes } });
+    res.json({ ok: true, data: { ...r, publicada: publicar || Boolean(p.escala_publicada_em), decisoes, ...comDepois(await afetadosDepois(repo, { antes: disp, depois, profissionalIds: [id] }, decisoes)) } });
   } catch (err) { next(err); }
 });
 
@@ -309,9 +319,10 @@ router.post('/disponibilidade/excecoes', authorizePor(req => permissaoDaExcecao(
     const base = { profissionalId, tipo: b.tipo, dataInicio, dataFim, motivo };
     const excecoes = periodos.length ? periodos.map(x => ({ ...base, inicio: x.inicio, fim: x.fim })) : [{ ...base }];
     const depois = { semanal: disp.semanal, excecoes: [...disp.excecoes, ...excecoes.map(x => ({ profissional_id: x.profissionalId, tipo: x.tipo, data_inicio: x.dataInicio, data_fim: x.dataFim, inicio: x.inicio || null, fim: x.fim || null, motivo }))] };
-    const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois, profissionalIds: profissionalId ? [profissionalId] : null, de: dataInicio, ate: dataFim }), b.decisoes);
+    const alvo = { antes: disp, depois, profissionalIds: profissionalId ? [profissionalId] : null, de: dataInicio, ate: dataFim };
+    const decisoes = decisoesPara(req, await afetados(repo, alvo), b.decisoes);
     const r = await repo.criarExcecoesDisponibilidade({ excecoes, actorId: req.auth.actor_id, decisoes });
-    res.status(201).json({ ok: true, data: { ids: r.ids, decisoes } });
+    res.status(201).json({ ok: true, data: { ids: r.ids, decisoes, ...comDepois(await afetadosDepois(repo, alvo, decisoes)) } });
   } catch (err) { next(err); }
 });
 

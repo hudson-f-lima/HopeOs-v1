@@ -820,3 +820,24 @@
     - também cobre dia sem resposta, filtro com profissional desativado e 3 colunas no celular.
   - **Arraste com a grade rolada:** roteiro antes/depois (12:20 → 12:00).
   - Cache `hope-os-shell-v1-58-0-agenda-confiavel`.
+
+## D-056 — Migration 026: escala e reserva sem corrida
+- **Autorização (Platform Owner, 2026-11-17):** "Migração aprovada, se tudo ok merge", sobre a proposta DRAFT do D-055 (item 5).
+- **Problema (D-055, item 5):** a disponibilidade é conferida no backend antes de gravar, fora da transação. Uma mudança de escala entre a conferência e a gravação deixava a reserva em cima de um bloqueio. A conferência depois de gravar (D-055) só reduzia a janela.
+- **Desenho (sem copiar regra de disponibilidade para o SQL):**
+  - **Versão da escala** = maior `seq` da corrente de eventos de disponibilidade da empresa (023). Toda mudança de escala passa pelas funções que gravam evento (013/015/023), então a versão sobe sempre.
+  - **Na reserva (026):**
+    - o backend lê a versão **antes** de conferir e a manda junto (`disp_versao`);
+    - `agendamento_criar` toma a mesma trava que o gatilho dos eventos já usa e compara a versão. Se mudou, recusa com `HS412 ESCALA_MUDOU` e **nada é gravado**;
+    - sem `disp_versao` (encaixe forçado, chamadas antigas), segue como antes.
+  - A 026 só redefine `agendamento_criar`, com a mesma assinatura e o mesmo corpo da 008, mais a conferência.
+  - **Do lado da escala (Node):** se uma reserva gravou primeiro, entre a leitura dos afetados e a gravação da escala, a rota de escala confere de novo depois de gravar e devolve `afetadosDepois`. A tela avisa e a grade marca ⚠. Nada é mexido sozinho.
+- **Residual:**
+  - a versão é conferida em `POST /agenda`. Remarcação, série, link público e vários serviços (`atendimento_criar`) ainda não mandam a versão;
+  - o lote de escalas e a remoção de data especial ainda não devolvem `afetadosDepois`.
+  - Ficam para a próxima onda.
+- **Verificação:**
+  - **gate SQL `gate_026`:** versão em dia grava; sem versão grava; versão velha recusa com HS412 sem gravar. Controle negativo: com a versão nova, o mesmo pedido grava. Conflito de horário continua HS409; função só para service_role; ciclo de rollback verde;
+  - **gate offline `agenda-confiavel` (11 testes):**
+    - C10: a escala muda por evento entre a conferência e a gravação → 409, nada gravado nem cancelado. Controle negativo: sem mandar a versão, o C10 falha;
+    - C11: reserva entra durante a mudança de escala → `afetadosDepois`.

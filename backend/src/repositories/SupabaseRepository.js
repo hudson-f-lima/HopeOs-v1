@@ -151,6 +151,18 @@ class SupabaseRepository {
 
   // Compare-and-set genérico (D-055): só atualiza se o status atual ainda estiver em `deStatus`.
   // Dois pedidos ao mesmo tempo: só um recebe a linha; o outro recebe null.
+  // Versão da escala (D-056): o maior seq da corrente de eventos de disponibilidade (023). Sobe a
+  // cada mudança de escala; agendamento_criar (026) compara com a lida antes de conferir.
+  async versaoDisponibilidade() {
+    const { data, error } = await this.supabase.from('disponibilidade_eventos').select('seq')
+      .eq('empresa_id', this.empresaId).not('seq', 'is', null).order('seq', { ascending: false }).limit(1);
+    if (error) {
+      if (['42P01', 'PGRST205', '42703'].includes(error.code)) return null; // sem a 013/023: sem versão
+      throw error;
+    }
+    return data && data[0] ? Number(data[0].seq) : 0;
+  }
+
   async atualizarStatusSe(table, id, deStatus, patch) {
     const { data, error } = await this.supabase
       .from(table)
@@ -531,6 +543,10 @@ class SupabaseRepository {
   async criarAtendimento({ etapas, createdBy = null }) {
     const { data, error } = await this.supabase.rpc('atendimento_criar', { p_empresa_id: this.empresaId, p_etapas: etapas, p_created_by: createdBy });
     if (error) {
+      if (error.code === 'HS412') {
+        // 026 (D-056): a escala mudou entre a conferência e a gravação; nada foi gravado.
+        throw createAppError('ESCALA_MUDOU', 'A escala mudou enquanto o horário era gravado. Nada ficou reservado: escolha outro horário.', 409);
+      }
       if (error.code === 'HS409') {
         let conflitos = [];
         try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
