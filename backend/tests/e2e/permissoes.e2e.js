@@ -22,7 +22,7 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }, esperado
 const extrasDaAna = async () => ((await db('empresa_memberships')).find(m => m.role === 'profissional') || {}).permissoes_extras || [];
 
 async function abrirPermissoesDaAna(a) {
-  await a.click('#navAvatar'); await a.waitForSelector('#sheetGestao:not(.hidden)');
+  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
   await a.click('#subtabBtnEquipe'); await a.waitForSelector('#cardPermissoes:not(.hidden) [data-perm-abrir]');
   const linha = a.locator('.perm-pessoa').filter({ hasText: 'Ana' });
   await linha.locator('[data-perm-abrir]').click(); await a.waitForSelector('#modalPermissoes:not(.hidden)');
@@ -69,7 +69,7 @@ async function abrirPermissoesDaAna(a) {
   confere('profissional não recebe contato de clientes', await com.evaluate(async () => { const { api } = await import('/js/api.js'); return (await api('/clientes')).every(c => !('whatsapp' in c) && !('observacoes' in c)); }));
   await com.keyboard.press('Escape').catch(() => {});
   await com.goto(BASE); await com.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await com.waitForTimeout(600);
-  await com.click('#navCheckout');
+  await com.click('#navCheckout'); await com.click('#btnNovaComanda');
   await escolher(com, '#coProfissional', 'Bruno'); await escolher(com, '#coServico', 'Corte'); await escolher(com, '#coForma', 'Pix');
   await com.click('#btnSimular'); await com.waitForSelector('#cardPreview:not(.hidden)'); await com.click('#btnFechar'); await com.waitForSelector('#cardResultado:not(.hidden)');
   confere('com permissão: fecha comanda de outro profissional', (await db('comandos')).length === 1 && com.erros.length === 0, JSON.stringify(com.erros));
@@ -105,7 +105,7 @@ async function abrirPermissoesDaAna(a) {
     const nav = await r.locator('.bottom-nav').boundingBox();
     const navOk = nome === 'computador' ? nav.x === 0 && nav.width <= 120 && nav.height > 600 : nav.y + nav.height >= viewport.height - 1 && nav.width === viewport.width;
     confere(`recepção (${nome}): sem rolagem lateral e navegação no lugar certo`, larguraOk && navOk, JSON.stringify(nav));
-    await r.click('#navCheckout');
+    await r.click('#navCheckout'); await r.click('#btnNovaComanda');
     await escolher(r, '#coProfissional', 'Bruno'); await escolher(r, '#coServico', 'Corte'); await escolher(r, '#coForma', 'Pix');
     await r.click('#btnSimular'); await r.waitForSelector('#cardPreview:not(.hidden)'); await r.click('#btnFechar'); await r.waitForSelector('#cardResultado:not(.hidden)');
     await r.click('#navDashboard'); await r.waitForTimeout(800);

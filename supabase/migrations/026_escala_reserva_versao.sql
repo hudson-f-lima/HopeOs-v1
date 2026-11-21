@@ -1,4 +1,4 @@
--- Migration 026 — Escala e reserva sem corrida (D-056). Autorizada pelo Platform Owner em
+-- Migration 026 — Escala e reserva sem corrida (D-058). Autorizada pelo Platform Owner em
 -- 2026-11-17 ("Migração aprovada, se tudo ok merge"), a partir da proposta DRAFT do D-055.
 -- Aplica em produção só no merge.
 --
@@ -60,7 +60,7 @@ begin
 
   perform pg_advisory_xact_lock(hashtextextended('agenda:' || p_empresa_id || ':' || v_prof || ':' || v_data, 0));
 
-  -- 026 (D-056): a disponibilidade foi conferida no backend antes desta chamada. Se a escala mudou
+  -- 026 (D-058): a disponibilidade foi conferida no backend antes desta chamada. Se a escala mudou
   -- desde então (novo evento em disponibilidade_eventos), recusa sem gravar. A trava é a mesma que
   -- o gatilho de disponibilidade_eventos (023) usa: mudança de escala e reserva acontecem uma de
   -- cada vez. Sem 'disp_versao' (encaixe forçado ou chamadas antigas), segue como antes.

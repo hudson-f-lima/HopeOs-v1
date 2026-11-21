@@ -3,6 +3,7 @@
 Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_STATE.md`](PROJECT_STATE.md).
 
 ## Autoridade e decisões
+- [`planning/AUTH_PWA_IMPLEMENTACAO.md`](planning/AUTH_PWA_IMPLEMENTACAO.md) — D-056: correção de identidade/sessão, login social/passwordless, configuração, provas e rollback.
 - [`PROJECT_STATE.md`](PROJECT_STATE.md) — estado atual, gates, bloqueadores e handoff
 - [`DECISIONS.md`](DECISIONS.md) — decisões arquiteturais
 - [`RUNBOOK_MIGRATION_007.md`](RUNBOOK_MIGRATION_007.md) — aplicar a 007 e ativar login por usuário em produção
@@ -21,6 +22,7 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`../CLAUDE.md`](../CLAUDE.md) — contexto permanente e limites operacionais
 
 ## Auditoria
+- [`audit/COMANDAS_D057.md`](audit/COMANDAS_D057.md) — evidências de revisão financeira, retomada, concorrência e navegação do checkout.
 - [`audit_global/00_STATUS_EXECUCAO.md`](audit_global/00_STATUS_EXECUCAO.md) — auditoria histórica; validar contra `PROJECT_STATE.md`
 - [`audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md`](audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md) — checklist histórico de produção
 - [`audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md`](audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md) — checklist histórico de segredos e PII

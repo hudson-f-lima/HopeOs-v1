@@ -1,6 +1,7 @@
 // E2E (Playwright/Chromium): Dashboard > Comandas do dia > Estornar (D-013).
 // Admin faz um estorno parcial (1 serviço de 2) e um total; o caixa do dia mostra
-// a linha negativa. Recepção, profissional e token legado não veem o card nem o botão.
+// a linha negativa. Recepção e profissional não veem o card nem o botão.
+// A API não permite estornar com o token legado.
 // Requer: node backend/scripts/dev-memory-api.js (seed padrão) + PWA em :5599.
 // Uso: NODE_PATH=$(npm root -g) node backend/tests/e2e/estorno.e2e.js  (portas: E2E_WEB / E2E_API)
 const { chromium } = require('playwright');
@@ -85,13 +86,7 @@ async function entrar(b, email, errs) {
     console.log(`${email}: card escondido =`, escondido, '| botões =', n);
     if (!escondido || n) falha(`${email} vê o estorno`);
   }
-  const leg = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
-  leg.on('pageerror', e => errs.push(`legado: ${e.message}`));
-  await leg.goto(`${BASE}&apiToken=dev`); await leg.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await leg.waitForTimeout(800);
-  const legEscondido = await leg.locator('#cardComandasEstorno').evaluate(n => n.classList.contains('hidden'));
-  console.log('LEGADO: card escondido =', legEscondido);
-  if (!legEscondido) falha('token legado vê o estorno');
-  // E a API recusa o legado mesmo assim.
+  // As chamadas legadas ainda usadas por integrações não podem estornar.
   const r = await fetch(`${API}/api/comandas/${id2}/estorno`, { method: 'POST', headers: { authorization: 'Bearer dev', 'content-type': 'application/json' }, body: JSON.stringify({ tipo: 'total', idempotencyKey: 'leg', motivoCodigo: 'outro', motivo: 'tentativa pelo token legado' }) });
   console.log('LEGADO API:', r.status);
   if (r.status !== 403) falha(`legado estornou pela API: ${r.status}`);

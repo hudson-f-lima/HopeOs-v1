@@ -541,6 +541,6 @@ export function initDashboard() {
   stateBus.addEventListener('agenda:updated', renderActionStrip);
 
   stateBus.addEventListener('checkout:closed', () => {
-    if (sessionPode('painel:operacional')) atualizarDashboard();
+    if (state.activeTab === 'dashboard' && sessionPode('painel:operacional')) atualizarDashboard();
   });
 }

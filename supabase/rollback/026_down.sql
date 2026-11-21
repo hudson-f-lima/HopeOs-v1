@@ -1,4 +1,4 @@
--- Rollback da migration 026 (D-056): volta agendamento_criar ao corpo da 008 (sem a conferência
+-- Rollback da migration 026 (D-058): volta agendamento_criar ao corpo da 008 (sem a conferência
 -- da versão da escala). O backend continua conferindo depois de gravar (D-055).
 begin;
 

@@ -94,7 +94,7 @@ export function htmlFora(profId, data, { horaInicio, horaFim, pxPorMin }) {
     + (i === 0 && rotulo ? '<span class="ag-fora-rotulo">' + escapeHtml(rotulo) + '</span>' : '') + '</div>').join('');
 }
 
-// D-056: agendamento que entrou enquanto a escala mudava (sem decisão): a tela avisa; nada é mexido.
+// D-058: agendamento que entrou enquanto a escala mudava (sem decisão): a tela avisa; nada é mexido.
 export function avisarAfetadosDepois(r) {
   const l = (r && r.afetadosDepois) || [];
   if (l.length) showBanner(l.length + ' agendamento(s) entraram enquanto a escala mudava e ficaram fora dela (' + l.map(a => a.data.slice(8, 10) + '/' + a.data.slice(5, 7) + ' ' + a.horario).join(', ') + '). Confira na agenda: estão marcados com ⚠.', 'error');

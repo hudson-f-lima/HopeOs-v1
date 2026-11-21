@@ -93,7 +93,7 @@ async function afetados(repo, { antes, depois, profissionalIds, de, ate }) {
     .map(a => ({ agendamentoId: a.id, data: a.data, horario: hhmm(a.horario), profissional: (prof.get(a.profissional_id) || {}).nome || null, cliente: nomeCliente.get(a.cliente_id) || null, status: a.status }));
 }
 
-// Depois de gravar a escala (D-056): um agendamento que entrou ENTRE a leitura dos afetados e a
+// Depois de gravar a escala (D-058): um agendamento que entrou ENTRE a leitura dos afetados e a
 // gravação não teve decisão. A reserva já é recusada pelo banco quando a escala muda antes dela
 // (026); aqui cobre o outro lado — a reserva gravou primeiro. Não mexe nela: devolve a lista para
 // a tela mostrar (e a grade já marca o conflito).

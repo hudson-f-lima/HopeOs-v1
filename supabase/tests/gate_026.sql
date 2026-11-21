@@ -1,4 +1,4 @@
--- Gate SQL da migration 026 (escala e reserva sem corrida, D-056). Transação desfeita no final.
+-- Gate SQL da migration 026 (escala e reserva sem corrida, D-058). Transação desfeita no final.
 \set ON_ERROR_STOP 1
 begin;
 set local client_min_messages = warning;

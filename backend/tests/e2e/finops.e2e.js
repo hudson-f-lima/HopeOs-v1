@@ -58,7 +58,7 @@ const num = async (p, sel, attr) => Number(await p.getAttribute(sel, attr));
 
   // ---- Admin: comissão ----
   const a = await entrar(b, 'admin@dev.local', ['422 /api/comissoes/pagamentos']);
-  await a.click('#navMetas'); await a.waitForSelector('#tab-metas:not(.hidden)');
+  await a.click('#navGestao'); await a.click('#navMetas'); await a.waitForSelector('#tab-metas:not(.hidden)');
   await a.selectOption('#ganhosProfissional', ana.id); await a.waitForSelector('#ganhosSaldoValor');
   confere('comissão: saldo inicial = ganho', await num(a, '#ganhosSaldoValor', 'data-saldo') === ganhoAna && ganhoAna > 0, `tela × banco ${ganhoAna}`);
   await a.selectOption('#ganhosPagarTipo', 'vale'); await a.fill('#ganhosPagarValor', '5,00'); await a.fill('#ganhosPagarObs', 'Adiantamento');
@@ -78,7 +78,7 @@ const num = async (p, sel, attr) => Number(await p.getAttribute(sel, attr));
 
   // ---- Profissional: só leitura ----
   const p = await entrar(b, 'profissional@dev.local');
-  await p.click('#navMetas'); await p.waitForSelector('#ganhosSaldoValor');
+  await p.click('#navAvatar'); await p.click('#navMetas'); await p.waitForSelector('#ganhosSaldoValor');
   confere('profissional: vê o próprio saldo', await num(p, '#ganhosSaldoValor', 'data-saldo') === ganhoAna - 1000);
   confere('profissional: sem formulário de pagamento nem botão de estorno', !(await p.isVisible('#ganhosPagarForm')) && await p.locator('[data-estornar-pagamento]').count() === 0);
   console.log('PROFISSIONAL erros:', JSON.stringify(p.erros));

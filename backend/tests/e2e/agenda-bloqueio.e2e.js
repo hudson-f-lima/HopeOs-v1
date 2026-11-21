@@ -104,7 +104,7 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
   // Todos os dias: "amanhã" pode ser domingo (tem o agendamento das 11:00, que não pode ficar fora).
   const def = await (await fetch(`${API}/api/disponibilidade/profissionais/${ANA}/semanal`, { method: 'PUT', headers: adm, body: JSON.stringify({ periodos: [0, 1, 2, 3, 4, 5, 6].map(d => ({ diaSemana: d, inicio: '08:00', fim: '20:00' })), decisoes: [] }) })).json();
   console.log('ESCALA DEFINIDA:', def.ok, def.ok ? '' : JSON.stringify(def.error && def.error.code));
-  await a.click('#navAvatar'); await a.waitForSelector('#sheetGestao:not(.hidden)');
+  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
   await a.click('#subtabBtnEscalas'); await a.waitForSelector('[data-esc-aceitar]', { timeout: 8000 }).catch(() => {});
   confere('Ana vê "Aguardando aceite" e o botão', await a.locator('[data-esc-aceitar]').count() === 1 && /Aguardando aceite/.test(await a.textContent('#escConteudo')));
   await a.click('[data-esc-aceitar]');
@@ -132,7 +132,7 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
 
   // ---- Gestão vê o aceite ----
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navAvatar'); await g.waitForSelector('#sheetGestao:not(.hidden)');
+  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
   await g.click('#subtabBtnEscalas'); await g.waitForSelector('#escConteudo .esc-linha');
   const linhaAna = limpo(await g.locator(`.esc-linha[data-prof="${ANA}"]`).innerText());
   confere('gestão vê "Aceita pelo profissional" e não tem botão de aceitar', /Aceita pelo profissional em/.test(linhaAna) && await g.locator('[data-esc-aceitar]').count() === 0, linhaAna);

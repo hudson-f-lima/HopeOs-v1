@@ -12,6 +12,7 @@ import { carregarEquipe, initEquipe } from './metasEquipe.js';
 
 const el = id => document.getElementById(id);
 const fmtData = d => { const [, m, dd] = String(d).split('-'); return `${dd}/${m}`; };
+export const podeVerMetasGanhos = (total = false) => ['metas:ver', 'ganhos:ver'].some(codigo => sessionPode(codigo, total));
 
 function render(g) {
   const linha = (rotulo, v, id = '') => `<div class="row"${id ? ` id="${id}"` : ''}><span>${escapeHtml(rotulo)}</span><b>${centsToBRL(v)}</b></div>`;
@@ -106,21 +107,33 @@ export async function atualizarGanhos() {
   erro.textContent = '';
   const mes = el('ganhosMes').value || todayStr().slice(0, 7);
   const params = new URLSearchParams({ mes });
-  if (sessionPode('ganhos:ver', true)) {
-    const profissionalId = el('ganhosProfissional').value;
-    if (!profissionalId) { el('ganhosResultado').innerHTML = '<p class="empty-state">Escolha um profissional.</p>'; el('ganhosSaldo').innerHTML = ''; el('ganhosPagarForm').classList.add('hidden'); el('metasBloco').classList.add('hidden'); await atualizarRanking(mes); return; }
-    params.set('profissionalId', profissionalId);
+  const profissionalId = el('ganhosProfissional').value || null;
+  if (podeVerMetasGanhos(true)) {
+    if (!profissionalId) {
+      el('ganhosResultado').innerHTML = '<p class="empty-state">Escolha um profissional.</p>';
+      el('ganhosSaldo').innerHTML = '';
+      el('ganhosPagarForm').classList.add('hidden');
+      el('metasBloco').classList.add('hidden');
+      if (sessionPode('ranking:ver')) await atualizarRanking(mes);
+      return;
+    }
   }
-  try {
-    render(await api(`/relatorios/meus-ganhos?${params}`));
-    await atualizarSaldo(params.get('profissionalId'));
-    await atualizarMetas(mes, params.get('profissionalId'));
-    await atualizarRanking(mes);
-    await atualizarDesempenho(mes, params.get('profissionalId'));
-  } catch (err) {
-    el('ganhosResultado').innerHTML = '';
-    erro.textContent = err.message;
+  if (sessionPode('ganhos:ver')) {
+    const profissionalGanhos = sessionPode('ganhos:ver', true) ? profissionalId : null;
+    if (profissionalGanhos) params.set('profissionalId', profissionalGanhos);
+    try {
+      render(await api(`/relatorios/meus-ganhos?${params}`));
+      await atualizarSaldo(profissionalGanhos);
+    } catch (err) {
+      el('ganhosResultado').innerHTML = '';
+      erro.textContent = err.message;
+    }
+  } else {
+    el('ganhosResultado').replaceChildren();
   }
+  if (sessionPode('metas:ver')) await atualizarMetas(mes, profissionalId);
+  if (sessionPode('ranking:ver')) await atualizarRanking(mes);
+  if (sessionPode('desempenho:ver')) await atualizarDesempenho(mes, sessionPode('desempenho:ver', true) ? profissionalId : null);
 }
 
 // Ao abrir a aba Metas / Meu mês.
@@ -131,7 +144,7 @@ export function abrirMetas() {
 
 function abrir() {
   if (!el('ganhosMes').value) el('ganhosMes').value = todayStr().slice(0, 7);
-  if (sessionPode('ganhos:ver', true)) {
+  if (podeVerMetasGanhos(true)) {
     const select = el('ganhosProfissional');
     const atual = select.value;
     const profs = (state.catalog.profissionais || []).filter(p => p.ativo !== false);
@@ -142,16 +155,25 @@ function abrir() {
 }
 
 export function initGanhos() {
-  if (!sessionPode('ganhos:ver')) return;
-  // Aba própria na barra inferior (D-030): "Metas" para a gestão, "Meu mês" para o profissional.
+  if (!podeVerMetasGanhos()) return;
+  // A mesma tela tem entrada na Gestão ou em Minha conta, conforme o alcance da sessão.
   el('navMetas')?.classList.remove('hidden');
-  if (sessionPode('ganhos:ver', true)) {
+  if (podeVerMetasGanhos(true)) {
     el('ganhosProfissionalWrap').classList.remove('hidden');
   } else {
     el('navMetasLabel').textContent = 'Meu mês';
     el('navMetas').setAttribute('aria-label', 'Abrir meu mês');
     el('metasTitulo').textContent = 'Meu mês';
     el('metasSubtitulo').textContent = 'Minhas metas, meus ganhos e meu desempenho.';
+  }
+  if (!sessionPode('ganhos:ver')) {
+    el('ganhosTitulo').classList.add('hidden');
+    el('ganhosDescricao').classList.add('hidden');
+    if (podeVerMetasGanhos(true)) el('navMetasLabel').textContent = 'Metas';
+  } else if (!sessionPode('metas:ver') && podeVerMetasGanhos(true)) {
+    el('metasTitulo').textContent = 'Ganhos e comissões';
+    el('metasSubtitulo').classList.add('hidden');
+    el('navMetasLabel').textContent = 'Ganhos e comissões';
   }
   initEquipe();
   el('ganhosMes').addEventListener('change', () => { atualizarGanhos(); carregarEquipe(el('ganhosMes').value); });

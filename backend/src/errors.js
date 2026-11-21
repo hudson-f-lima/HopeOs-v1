@@ -14,6 +14,9 @@ function createAppError(code, message, statusCode = 422, details = null) {
 const POSTGRES_BUSINESS_ERROR_CODE = 'P0001';
 
 function mapErrorForResponse(err) {
+  if (err?.type === 'entity.parse.failed') {
+    return { statusCode: 400, body: { ok: false, error: { code: 'INVALID_JSON', message: 'O corpo da requisição deve conter JSON válido.', details: null } } };
+  }
   const hasAppStatus = Boolean(err && (err.statusCode || err.status));
   let statusCode = (err && (err.statusCode || err.status)) || 500;
   let code = (err && err.code) || 'INTERNAL_ERROR';

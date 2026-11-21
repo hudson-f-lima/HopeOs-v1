@@ -100,6 +100,7 @@ setAuthProvider({
   async setPassword(token, password) {
     const name = token.split('.')[1];
     if (!users[name]) throw createAppError('UNAUTHENTICATED', 'Credencial ausente ou invalida.', 401);
+    if (token !== 'recovery.recepcao.s') throw createAppError('PASSWORD_PROOF_REQUIRED', 'Solicite e abra um novo link para definir a senha.', 403);
     senhas[name] = password;
   }
 });
@@ -330,11 +331,13 @@ test('S03 recuperação de senha responde igual para e-mail existente ou não', 
   const b = await request('POST', '/api/auth/recover', { body: { email: 'naoexiste@gate.test' } });
   assert.strictEqual(a.status, 200); assert.deepStrictEqual(a.data, b.data);
 });
-test('S04 definir senha exige token do link e mínimo de 8 caracteres', async () => {
+test('S04 definir senha exige prova do provedor e mínimo de 8 caracteres', async () => {
   assert.strictEqual((await request('POST', '/api/auth/password', { body: { password: '12345678' } })).status, 401);
   assert.strictEqual(code(await request('POST', '/api/auth/password', { token: jwt('recepcao'), body: { password: '123' } })), 'WEAK_PASSWORD');
   assert.strictEqual((await request('POST', '/api/auth/password', { token: jwt('ninguem'), body: { password: '12345678' } })).status, 401);
-  const ok = await request('POST', '/api/auth/password', { token: jwt('recepcao'), body: { password: 'nova-senha-1' } });
+  const comum = await request('POST', '/api/auth/password', { token: jwt('recepcao'), body: { password: 'nova-senha-1', type: 'recovery' } });
+  assert.strictEqual(comum.status, 403); assert.strictEqual(code(comum), 'PASSWORD_PROOF_REQUIRED');
+  const ok = await request('POST', '/api/auth/password', { token: 'recovery.recepcao.s', body: { password: 'nova-senha-1' } });
   assert.strictEqual(ok.status, 200); assert.strictEqual(senhas.recepcao, 'nova-senha-1');
 });
 

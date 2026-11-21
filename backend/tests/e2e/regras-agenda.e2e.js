@@ -64,7 +64,7 @@ async function abrirCard(p, id) {
   const b = await chromium.launch();
   // 1) Regras pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navAvatar'); await g.waitForSelector('#sheetGestao:not(.hidden)');
+  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#formRegras');
   await g.selectOption('#rgPrazo', '720');
   await g.selectOption('#rgMaxFuturos', '1');
@@ -76,6 +76,7 @@ async function abrirCard(p, id) {
     JSON.stringify([emp.online_cancelamento_prazo_min, emp.agenda_max_futuros_recepcao, emp.agenda_intervalo_min_dias, emp.agenda_atraso_alerta_min]));
 
   // 2) Prazo próprio do serviço.
+  await g.click('#btnFecharGestao');
   await g.click('[data-subtab="servicos"]'); await g.waitForTimeout(400);
   await g.locator('[data-action="editar-servico"]').first().click();
   await g.waitForSelector('#modalServico:not(.hidden)');

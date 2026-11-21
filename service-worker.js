@@ -1,5 +1,5 @@
 // HOPE OS PWA — cache do app shell só. Nunca cacheia /api/* (dados sempre do backend real).
-const CACHE_NAME = 'hope-os-shell-v1-59-0-escala-reserva';
+const CACHE_NAME = 'hope-os-shell-v1-61-0-escala-reserva';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
@@ -8,6 +8,10 @@ const SHELL_ASSETS = [
   './js/app.js',
   './js/api.js',
   './js/api-base.js',
+  './js/auth-storage.js',
+  './js/auth-sdk.js',
+  './js/context-storage.js',
+  './js/checkout-pending.js',
   './js/state.js',
   './js/utils.js',
   './js/components/fuzzy-field.js',
@@ -19,6 +23,7 @@ const SHELL_ASSETS = [
   './js/ui/agendaMes.js',
   './js/ui/calendarioMes.js',
   './js/ui/checkout.js',
+  './js/ui/comandas.js',
   './js/ui/dashboard.js',
   './js/ui/cadastros.js',
   './js/ui/equipe.js',
@@ -79,6 +84,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // não intercepta chamadas ao backend (outra origem)
   if (url.pathname.includes('/api/')) return;
+  if (['auth_callback', 'auth_tx', 'code', 'token_hash', 'error', 'error_code', 'apiToken', 'access_token', 'refresh_token']
+    .some(key => url.searchParams.has(key))) {
+    // O retorno de Auth tem credencial de uso único. Nunca grava a URL no cache do shell.
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
   // Página pública de agendamento (agendar.html): sempre da rede, nunca cacheada.
   // Agendar exige o backend no ar (sem valor offline) e não deve ficar presa a uma
   // versão antiga no aparelho de quem também usa o app interno.

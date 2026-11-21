@@ -39,7 +39,7 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
     await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   };
   const abrir = async p => {
-    await p.click('#navAvatar'); await p.waitForTimeout(400);
+    await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
     if (!(await p.locator('#subtabBtnAssinantes').isVisible())) return false;
     await p.click('#subtabBtnAssinantes');
     await p.waitForFunction(() => { const c = document.getElementById('assinantesConteudo'); return c && !/Carregando/.test(c.textContent); }, null, { timeout: 8000 });
@@ -113,7 +113,7 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
   // 4) Profissional sem a aba.
   const pr = await nova();
   await login(pr, 'profissional@dev.local');
-  await pr.click('#navAvatar').catch(() => {}); await pr.waitForTimeout(400);
+  await pr.click('#navGestao'); await pr.waitForSelector('#tab-gestao:not(.hidden)');
   const vePro = await pr.locator('#subtabBtnAssinantes').isVisible().catch(() => false);
   console.log('PROFISSIONAL vê Assinantes:', vePro);
   if (vePro) errs.push('profissional vê Assinantes');

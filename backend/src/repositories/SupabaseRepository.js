@@ -137,21 +137,25 @@ class SupabaseRepository {
 
   // Compare-and-set do status do agendamento (sem migration): só atualiza se o
   // status atual ainda estiver em `deStatus`. Devolve a linha ou null (0 linhas).
-  async atualizarStatusAgendamentoSe(id, deStatus, patch) {
-    const { data, error } = await this.supabase
+  async atualizarStatusAgendamentoSe(id, deStatus, patch, atendimento) {
+    let consulta = this.supabase
       .from('agendamentos')
       .update(patch)
       .eq('id', id)
       .eq('empresa_id', this.empresaId)
-      .in('status', deStatus)
-      .select('*');
+      .in('status', deStatus);
+    if (atendimento) {
+      consulta = consulta.eq('profissional_id', atendimento.profissional_id);
+      consulta = atendimento.cliente_id === null ? consulta.is('cliente_id', null) : consulta.eq('cliente_id', atendimento.cliente_id);
+    }
+    const { data, error } = await consulta.select('*');
     if (error) throw error;
     return (data && data[0]) || null;
   }
 
   // Compare-and-set genérico (D-055): só atualiza se o status atual ainda estiver em `deStatus`.
   // Dois pedidos ao mesmo tempo: só um recebe a linha; o outro recebe null.
-  // Versão da escala (D-056): o maior seq da corrente de eventos de disponibilidade (023). Sobe a
+  // Versão da escala (D-058): o maior seq da corrente de eventos de disponibilidade (023). Sobe a
   // cada mudança de escala; agendamento_criar (026) compara com a lida antes de conferir.
   async versaoDisponibilidade() {
     const { data, error } = await this.supabase.from('disponibilidade_eventos').select('seq')
@@ -456,6 +460,16 @@ class SupabaseRepository {
     return { servicos, produtos, profissionais, profissionalServicos, formasPagamento, cargos, categorias };
   }
 
+  async temComandaDoAgendamento(agendamentoId) {
+    // Snapshots antigos preservaram maiúsculas e espaços de UUIDs válidos.
+    const { data, error } = await this.supabase.from('comandos').select('id')
+      .eq('empresa_id', this.empresaId)
+      .ilike('snapshot->request->raw->>agendamentoId', `%${agendamentoId}%`)
+      .limit(1);
+    if (error) throw error;
+    return Boolean(data?.length);
+  }
+
   async saveCheckoutClose({ payload, resolved, preview, autoria = {} }) {
     const rpcPayload = {
       id: payload.id || null,
@@ -465,6 +479,8 @@ class SupabaseRepository {
       hora: payload.hora || resolved.hora || null,
       raw: {
         clienteId: payload.clienteId || payload.cliente_id || null,
+        agendamentoId: payload.agendamentoId || null,
+        revisaoFinanceira: payload.revisaoFinanceira ?? null,
         itens: payload.itens,
         payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0,
@@ -491,7 +507,8 @@ class SupabaseRepository {
       clienteId: payload.clienteId || payload.cliente_id || null,
       data: payload.data || resolved.data || null,
       hora: payload.hora || resolved.hora || null,
-      raw: { clienteId: payload.clienteId || payload.cliente_id || null, itens: payload.itens, payments: payload.payments,
+      raw: { clienteId: payload.clienteId || payload.cliente_id || null, agendamentoId: payload.agendamentoId || null,
+        revisaoFinanceira: payload.revisaoFinanceira ?? null, itens: payload.itens, payments: payload.payments,
         descontoCentavos: payload.descontoCentavos ?? payload.desconto_centavos ?? 0, gorjetaCentavos: payload.gorjetaCentavos ?? payload.gorjeta_centavos ?? 0 }
     };
     const { data, error } = await this.supabase.rpc('checkout_close_assinatura', {
@@ -544,7 +561,7 @@ class SupabaseRepository {
     const { data, error } = await this.supabase.rpc('atendimento_criar', { p_empresa_id: this.empresaId, p_etapas: etapas, p_created_by: createdBy });
     if (error) {
       if (error.code === 'HS412') {
-        // 026 (D-056): a escala mudou entre a conferência e a gravação; nada foi gravado.
+        // 026 (D-058): a escala mudou entre a conferência e a gravação; nada foi gravado.
         throw createAppError('ESCALA_MUDOU', 'A escala mudou enquanto o horário era gravado. Nada ficou reservado: escolha outro horário.', 409);
       }
       if (error.code === 'HS409') {

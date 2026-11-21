@@ -10,26 +10,44 @@ function splitCsv(value, fallback = []) {
     .filter((v, i, arr) => arr.indexOf(v) === i);
 }
 
+function enabled(value) {
+  return String(value).trim().toLowerCase() === 'true';
+}
+
+function positiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+}
+
+const nodeEnv = process.env.NODE_ENV || 'development';
 const env = {
   PORT: Number(process.env.PORT || 3333),
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  NODE_ENV: nodeEnv,
   DATA_DIR: path.resolve(__dirname, '../../', process.env.DATA_DIR || '../data'),
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '',
+  SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || '',
+  AUTH_GOOGLE_ENABLED: enabled(process.env.AUTH_GOOGLE_ENABLED),
+  AUTH_APPLE_ENABLED: enabled(process.env.AUTH_APPLE_ENABLED),
+  AUTH_MAGIC_LINK_ENABLED: enabled(process.env.AUTH_MAGIC_LINK_ENABLED),
+  AUTH_OTP_ENABLED: enabled(process.env.AUTH_OTP_ENABLED),
+  AUTH_LINK_IDENTITY_ENABLED: enabled(process.env.AUTH_LINK_IDENTITY_ENABLED),
   DEFAULT_EMPRESA_ID: process.env.DEFAULT_EMPRESA_ID || '00000000-0000-0000-0000-000000000001',
   API_ACCESS_TOKEN: process.env.API_ACCESS_TOKEN || '',
   // ADR-005: desliga o Bearer legado (API_ACCESS_TOKEN) sem remover o código.
-  LEGACY_TOKEN_AUTH_ENABLED: String(process.env.LEGACY_TOKEN_AUTH_ENABLED ?? 'true').toLowerCase() !== 'false',
-  AUTH_TIMEOUT_MS: Number(process.env.AUTH_TIMEOUT_MS || 5000),
+  LEGACY_TOKEN_AUTH_ENABLED: enabled(process.env.LEGACY_TOKEN_AUTH_ENABLED ?? (nodeEnv !== 'production')),
+  AUTH_TIMEOUT_MS: positiveInteger(process.env.AUTH_TIMEOUT_MS, 5000),
   // Janela em que a credencial antiga de integração continua válida após rotação.
   INTEGRATION_ROTATION_OVERLAP_MIN: Number(process.env.INTEGRATION_ROTATION_OVERLAP_MIN || 60),
   // URL pública da PWA: destino dos links de convite e de recuperação de senha.
   APP_PUBLIC_URL: process.env.APP_PUBLIC_URL || '',
-  LOGIN_RATE_LIMIT_MAX: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
+  LOGIN_RATE_LIMIT_MAX: positiveInteger(process.env.LOGIN_RATE_LIMIT_MAX, 10),
   // Tentativas de login/recuperação por IP (qualquer e-mail) na mesma janela.
-  LOGIN_RATE_LIMIT_IP_MAX: Number(process.env.LOGIN_RATE_LIMIT_IP_MAX || 50),
-  LOGIN_RATE_LIMIT_WINDOW_MIN: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MIN || 15),
+  LOGIN_RATE_LIMIT_IP_MAX: positiveInteger(process.env.LOGIN_RATE_LIMIT_IP_MAX, 50),
+  LOGIN_RATE_LIMIT_WINDOW_MIN: positiveInteger(process.env.LOGIN_RATE_LIMIT_WINDOW_MIN, 15),
+  // Refresh tem um orçamento por IP separado do login para acomodar redes compartilhadas.
+  AUTH_REFRESH_RATE_LIMIT_IP_MAX: positiveInteger(process.env.AUTH_REFRESH_RATE_LIMIT_IP_MAX, 120),
   APP_TIMEZONE: process.env.APP_TIMEZONE || 'America/Sao_Paulo',
   // Agendamento online (draft docs/planning/AGENDAMENTO_ONLINE_DRAFT.md, opção B):
   // mapa JSON {"slug": "<uuid da empresa>"} configurado no servidor. Vazio = feature

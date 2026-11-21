@@ -11,7 +11,7 @@ async function entrar(p, email) { await p.goto(BASE); await p.waitForSelector('#
   console.log('SEM VÍNCULO:', await p.textContent('#loginErro'));
   p = await pagina(b);
   await entrar(p, 'admin@dev.local'); await p.waitForSelector('#appRoot:not(.hidden)'); await p.waitForTimeout(1200);
-  await p.click('#navAvatar'); await p.waitForTimeout(300);
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   console.log('ABA EQUIPE visível p/ admin:', await p.isVisible('#subtabBtnEquipe'));
   await p.click('#subtabBtnEquipe'); await p.waitForTimeout(800);
   console.log('LISTA antes:', (await p.locator('.eq-quem b').allTextContents()).join(', '));
@@ -30,12 +30,21 @@ async function entrar(p, email) { await p.goto(BASE); await p.waitForSelector('#
   const papel = e => (ms.find(m => m.user_id === (us.find(u => u.email === e) || {}).id) || {}).role;
   console.log('PAPÉIS:', 'recepcao→', papel('recepcao@dev.local'), '| novo→', papel('novo@dev.local'));
   console.log('ADMIN erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
-  // recepção (agora gestor) não deve ver aba Equipe; novo entra e vê só Bruno
+  // O gestor ganha destinos financeiros e mantém a hierarquia da administração.
+  p = await pagina(b);
+  await entrar(p, 'recepcao@dev.local'); await p.waitForSelector('#appRoot:not(.hidden)');
+  await p.click('#navGestao');
+  await p.waitForSelector('#navMetas:visible');
+  await p.click('#subtabBtnEquipe');
+  await p.waitForSelector('#cardPermissoes:not(.hidden)');
+  if (await p.isVisible('#cardConvite') || await p.isVisible('#cardListaEquipe')) throw new Error('gestor recebeu acesso aos convites ou papéis da equipe');
+  console.log('GESTOR erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1;
+  // Novo entra com acesso profissional e vê só Bruno.
   p = await pagina(b);
   await entrar(p, 'novo@dev.local'); await p.waitForSelector('#appRoot:not(.hidden)'); await p.waitForTimeout(1500);
   console.log('NOVO chip:', await p.textContent('#sessionLabel'));
   console.log('NOVO agenda:', JSON.stringify((await p.locator('.ag-line1').allTextContents()).map(t => t.trim())));
-  await p.click('#navAvatar'); await p.waitForTimeout(300);
+  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
   console.log('ABA EQUIPE p/ profissional:', await p.isVisible('#subtabBtnEquipe'));
   console.log('NOVO erros:', JSON.stringify(p.errs)); if (p.errs.length) process.exitCode = 1; // erro de console/página reprova o E2E (CI)
   await b.close();

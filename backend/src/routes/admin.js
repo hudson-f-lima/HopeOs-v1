@@ -5,7 +5,7 @@ const { randomUUID } = require('crypto');
 const { env } = require('../config/env');
 const { createAppError } = require('../errors');
 const { authorize } = require('../auth/rbac');
-const { getIdentityStore } = require('../auth/identityStore');
+const { getIdentityStore, assertIdentityEmail } = require('../auth/identityStore');
 const { generateCredential } = require('../auth/credentials');
 const { getAuthProvider } = require('../auth/provider');
 const { ACTIONS } = require('../auth/rbac');
@@ -26,6 +26,19 @@ function pick(body, allowed) {
   return body || {};
 }
 
+function validateRecipientEmail(value) {
+  const email = typeof value === 'string' ? value.trim() : '';
+  if (!/^[^@\s\x00-\x1f\x7f]+@[^@\s\x00-\x1f\x7f]+\.[^@\s\x00-\x1f\x7f]+$/.test(email)) {
+    throw createAppError('INVALID_EMAIL', 'E-mail inválido.', 422);
+  }
+  return email;
+}
+
+function requireRecipientId(user, email) {
+  assertIdentityEmail(user, email);
+  return validateUUID(user.id, 'userId');
+}
+
 async function validateUnitIds(store, empresaId, unitIds) {
   if (unitIds === undefined) return undefined;
   if (!Array.isArray(unitIds)) throw createAppError('INVALID_FIELD', 'unitIds deve ser lista.', 422);
@@ -44,12 +57,12 @@ async function validateProfissional(req, profissionalId) {
   return id;
 }
 
-// Não deixa a empresa sem admin ativo (evita trancar a conta para fora).
-async function assertKeepsAnAdmin(store, empresaId, membershipId, next) {
-  const ativos = (await store.listMembershipsByEmpresa(empresaId))
-    .filter(m => m.status === 'ativo' && m.role === 'admin' && m.id !== membershipId);
-  const continuaAdmin = next.role === 'admin' && next.status === 'ativo';
-  if (!ativos.length && !continuaAdmin) throw createAppError('LAST_ADMIN', 'A empresa precisa de ao menos um admin ativo.', 409);
+// Contenção até existir uma operação que serialize as reduções por empresa no banco.
+async function rejectActiveAdminReduction(store, empresaId, membershipId) {
+  const outroAdminAtivo = (await store.listMembershipsByEmpresa(empresaId))
+    .some(m => m.status === 'ativo' && m.role === 'admin' && m.id !== membershipId);
+  if (!outroAdminAtivo) throw createAppError('LAST_ADMIN', 'A empresa precisa de ao menos um admin ativo.', 409);
+  throw createAppError('ADMIN_CHANGE_REQUIRES_ATOMIC_SUPPORT', 'A redução de acesso de administradores ativos está temporariamente indisponível.', 409);
 }
 
 router.get('/admin/memberships', async (req, res, next) => {
@@ -70,14 +83,16 @@ router.post('/admin/memberships', async (req, res, next) => {
     const body = pick(req.body, ['email', 'role', 'profissionalId', 'unitIds']);
     const store = getIdentityStore();
     if (!ROLES.includes(body.role)) throw createAppError('INVALID_ROLE', 'role inválida.', 422, { allowed: ROLES });
-    const user = await store.findAppUserByEmail(String(body.email || '').trim());
+    const email = validateRecipientEmail(body.email);
+    const user = await store.findAppUserByEmail(email);
     if (!user) throw createAppError('USER_NOT_FOUND', 'Nenhuma conta com este e-mail. A pessoa precisa criar a conta antes.', 422);
+    const userId = requireRecipientId(user, email);
     const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
     const profissionalId = await validateProfissional(req, body.profissionalId);
     let m;
     try {
       m = await store.insertMembership({
-        empresa_id: req.auth.empresa_id, user_id: user.id, role: body.role,
+        empresa_id: req.auth.empresa_id, user_id: userId, role: body.role,
         profissional_id: profissionalId || null, created_by: req.auth.actor_id
       });
     } catch (err) {
@@ -95,24 +110,27 @@ router.post('/admin/invites', async (req, res, next) => {
   try {
     const body = pick(req.body, ['email', 'role', 'profissionalId', 'unitIds']);
     const store = getIdentityStore();
-    const email = String(body.email || '').trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw createAppError('INVALID_EMAIL', 'E-mail inválido.', 422);
+    const email = validateRecipientEmail(body.email);
     if (!ROLES.includes(body.role)) throw createAppError('INVALID_ROLE', 'role inválida.', 422, { allowed: ROLES });
     if (body.role === 'profissional' && !body.profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'Vincule o cadastro de profissional.', 422);
     const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
     const profissionalId = await validateProfissional(req, body.profissionalId);
     let user = await store.findAppUserByEmail(email);
-    let convidado = false;
+    let invitedId;
     if (!user) {
-      const criado = await getAuthProvider().inviteUser(email, env.APP_PUBLIC_URL || undefined);
-      user = await store.getAppUser(criado.id);
+      const criado = await getAuthProvider().inviteUser(email.toLowerCase(), env.APP_PUBLIC_URL || undefined);
+      invitedId = requireRecipientId(criado, email);
+      user = await store.getAppUser(invitedId);
       if (!user) throw createAppError('USER_SYNC_PENDING', 'Conta criada, mas ainda não sincronizada. Tente de novo.', 503);
-      convidado = true;
+    }
+    const userId = requireRecipientId(user, email);
+    if (invitedId && userId !== invitedId) {
+      throw createAppError('IDENTITY_USER_MISMATCH', 'Não foi possível confirmar o vínculo com a conta convidada.', 503);
     }
     let m;
     try {
       m = await store.insertMembership({
-        empresa_id: req.auth.empresa_id, user_id: user.id, role: body.role,
+        empresa_id: req.auth.empresa_id, user_id: userId, role: body.role,
         profissional_id: profissionalId || null, created_by: req.auth.actor_id
       });
     } catch (err) {
@@ -120,7 +138,7 @@ router.post('/admin/invites', async (req, res, next) => {
       throw err;
     }
     if (unitIds) await store.replaceMembershipUnits(m.id, unitIds);
-    res.status(201).json({ ok: true, data: { ...m, unit_ids: unitIds || [], convidado } });
+    res.status(201).json({ ok: true, data: { ...m, unit_ids: unitIds || [], convidado: Boolean(invitedId) } });
   } catch (err) { next(err); }
 });
 
@@ -130,6 +148,7 @@ router.patch('/admin/memberships/:id', async (req, res, next) => {
     const store = getIdentityStore();
     const m = await store.getMembership(validateUUID(req.params.id, 'id'));
     if (!m || m.empresa_id !== req.auth.empresa_id) throw createAppError('MEMBERSHIP_NOT_FOUND', 'Vínculo não encontrado.', 404);
+    const estadoAntes = { role: m.role, status: m.status };
     const patch = {};
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role)) throw createAppError('INVALID_ROLE', 'role inválida.', 422, { allowed: ROLES });
@@ -141,15 +160,19 @@ router.patch('/admin/memberships/:id', async (req, res, next) => {
     }
     if (body.profissionalId !== undefined) patch.profissional_id = await validateProfissional(req, body.profissionalId);
     const unitIds = await validateUnitIds(store, req.auth.empresa_id, body.unitIds);
-    await assertKeepsAnAdmin(store, m.empresa_id, m.id, { role: patch.role || m.role, status: patch.status || m.status });
-    const roleAntes = m.role;
-    const statusAntes = m.status;
-    let updated = Object.keys(patch).length ? await store.updateMembership(m.id, patch) : m;
+    if (estadoAntes.role === 'admin' && estadoAntes.status === 'ativo' &&
+        ((patch.role ?? estadoAntes.role) !== 'admin' || patch.status === 'inativo')) {
+      await rejectActiveAdminReduction(store, m.empresa_id, m.id);
+    }
+    // O filtro de escrita impede que uma edição obsoleta reduza um admin recém-ativado.
+    const esperado = patch.role !== undefined || patch.status !== undefined ? estadoAntes : undefined;
+    let updated = Object.keys(patch).length ? await store.updateMembership(m.id, patch, esperado) : m;
+    if (!updated) throw createAppError('MEMBERSHIP_CHANGED', 'O vínculo mudou enquanto você editava. Atualize e tente de novo.', 409);
     // Mudou o papel ou desativou: as permissões individuais saem, com registro na trilha
     // (Red Team D-032). Depois de gravar o papel novo: uma concessão feita em paralelo com o
     // papel antigo é recusada pela RPC (papel esperado) ou cai aqui, relida e zerada.
-    const mudouPapel = patch.role !== undefined && patch.role !== roleAntes;
-    const desativou = patch.status === 'inativo' && statusAntes !== 'inativo';
+    const mudouPapel = patch.role !== undefined && patch.role !== estadoAntes.role;
+    const desativou = patch.status === 'inativo' && estadoAntes.status !== 'inativo';
     for (let tentativa = 0; (mudouPapel || desativou) && tentativa < 3; tentativa++) {
       const atual = await store.getMembership(m.id);
       const extras = Array.isArray(atual.permissoes_extras) ? atual.permissoes_extras : [];

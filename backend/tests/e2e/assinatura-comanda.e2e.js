@@ -55,7 +55,7 @@ async function escolher(p, campo, texto) {
   await p.goto(APP); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
 
   // 2) Comanda: cliente + corte com o Bruno → plano cobre, R$ 0,00, fecha sem forma de pagamento.
-  await p.click('#navCheckout'); await p.waitForTimeout(500);
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda'); await p.waitForTimeout(500);
   const bruno = cat.profissionais.find(x => x.nome === 'Bruno');
   await escolher(p, '#coCliente', cliente.nome);
   await escolher(p, '#coServico', 'Corte'); await escolher(p, '#coProfissional', bruno.nome); await p.click('#btnAddItem');
@@ -87,7 +87,7 @@ async function escolher(p, campo, texto) {
 
   // 2c) Fora do dia do plano: a tela diz o PORQUÊ (achado do dono, 16/11: parecia erro).
   await p.goto(APP); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navCheckout'); await p.waitForTimeout(500);
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda'); await p.waitForTimeout(500);
   await escolher(p, '#coCliente', 'Cliente Fora do Dia');
   await escolher(p, '#coServico', 'Corte'); await escolher(p, '#coProfissional', bruno.nome);
   await escolher(p, '#coForma', 'Pix'); // fora do dia sobra valor a pagar
@@ -98,7 +98,7 @@ async function escolher(p, campo, texto) {
   if (!/fora da regra, R\$\s*36,00, gasta 1 uso — O plano não cobre/.test(linhaFora) || !/\(O plano não cobre/.test(avisoFora)) errs.push('fora do dia sem o motivo na tela');
   await p.click('[data-remover-item="0"]'); await p.waitForTimeout(300);
   await p.goto(APP); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navCheckout'); await p.waitForTimeout(500);
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda'); await p.waitForTimeout(500);
 
   // 3) "Não usar o plano": valor cheio e pede forma de pagamento.
   await escolher(p, '#coCliente', cliente.nome);

@@ -13,21 +13,35 @@ export function sessionRoleIn(...roles) {
 // papel e permissões individuais. A tela só mostra o que o servidor permite.
 // Sem a lista (API ainda sem a 012), cai no padrão de cada papel para os códigos usados aqui.
 const PADRAO_SEM_LISTA = {
+  'agenda:ver': ['admin', 'gestor', 'recepcao', 'profissional'],
+  'comanda:fechar': ['admin', 'gestor', 'recepcao', 'profissional'],
   'caixa:conferir': ['admin', 'gestor', 'recepcao'], 'painel:operacional': ['admin', 'gestor', 'recepcao'],
   'espera:ver': ['admin', 'gestor', 'recepcao'], 'painel:financeiro': ['admin', 'gestor'], 'metas:definir': ['admin', 'gestor'],
   'metas:ver': ['admin', 'gestor', 'profissional'], 'ganhos:ver': ['admin', 'gestor', 'profissional'], 'comissoes:pagar': ['admin', 'gestor'],
+  'ranking:ver': ['admin', 'gestor', 'profissional'], 'desempenho:ver': ['admin', 'gestor', 'profissional'],
   'empresa:configurar': ['admin', 'gestor'], 'catalogo:editar': ['admin', 'gestor'], 'comanda:estornar': ['admin', 'gestor'],
   'comanda:historico': ['admin', 'gestor'], 'equipe:permissoes': [],
   'agenda:lembretes': ['admin', 'gestor', 'recepcao'], 'clientes:contato': ['admin', 'gestor', 'recepcao'],
   'clientes:criar': ['admin', 'gestor', 'recepcao']
 };
+export function alcanceDaPermissao(s, codigo) {
+  if (!s) return null;
+  if (s.principal !== 'user') return 'total';
+  if (s.permissoes) return s.permissoes[codigo] || null;
+  if (!PADRAO_SEM_LISTA[codigo]?.includes(s.role)) return null;
+  return s.role === 'profissional' ? 'proprio' : 'total';
+}
+
 export function sessionPode(codigo, precisaTotal = false) {
-  const s = state && state.session;
-  if (!s || s.principal !== 'user') return true;
-  let alcance;
-  if (s.permissoes) alcance = s.permissoes[codigo];
-  else if ((PADRAO_SEM_LISTA[codigo] || []).includes(s.role)) alcance = s.role === 'profissional' && ['metas:ver', 'ganhos:ver'].includes(codigo) ? 'proprio' : 'total';
+  if (!state.session) return true;
+  const alcance = alcanceDaPermissao(state.session, codigo);
   return precisaTotal ? alcance === 'total' : Boolean(alcance);
+}
+
+export function podeFecharAtendimento(sessao, item) {
+  const alcance = alcanceDaPermissao(sessao, 'comanda:fechar');
+  return alcance === 'total' || (alcance === 'proprio' && Boolean(item?.profissional_id) &&
+    item.profissional_id === sessao.profissional_id);
 }
 
 export const state = {

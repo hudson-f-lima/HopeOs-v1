@@ -23,7 +23,7 @@ const escolher = async (p, campo, texto) => { await p.fill(campo, texto); await 
   await p.goto(BASE); await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'recepcao@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navCheckout');
+  await p.click('#navCheckout'); await p.click('#btnNovaComanda');
 
   // Corte (60,00) + Barba (40,00) = 100,00
   await escolher(p, '#coProfissional', 'Bruno'); await escolher(p, '#coServico', 'Corte'); await p.click('#btnAddItem');
