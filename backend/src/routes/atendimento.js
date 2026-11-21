@@ -175,6 +175,10 @@ router.post('/agenda/atendimentos', authorize('agenda:criar'), async (req, res, 
       const cli = (await repo.list('clientes', { id: clienteId, empresa_id: repo.empresaId }))[0];
       if (!cli || cli.ativo === false) throw createAppError('CLIENT_NOT_FOUND', 'Cliente não encontrado ou inativo.', 422);
     }
+    // D-058: versão da escala lida antes de calcular os espaços livres. atendimento_criar (019) não
+    // confere a versão; o backend confere depois de gravar (abaixo) e desfaz tudo se a escala mudou
+    // e alguma etapa não cabe mais.
+    const dispVersao = await repo.versaoDisponibilidade().catch(() => null);
     const ctx = await contextoDoDia(repo, data);
     if (ctx.passado) throw createAppError('ATENDIMENTO_INVALIDO', 'Essa data já passou.', 422, { problemas: [{ etapa: 0, motivo: 'passado' }] });
     const habilitado = (profId, servicoId) => {
@@ -213,6 +217,22 @@ router.post('/agenda/atendimentos', authorize('agenda:criar'), async (req, res, 
     }
     for (const a of r.agendamentos) {
       await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'criado', de: null, para: 'agendado', extra: { grupo_id: r.grupo_id, grupo_seq: a.grupo_seq, etapas: r.agendamentos.length } });
+    }
+    const depois = dispVersao === null ? null : await repo.versaoDisponibilidade().catch(() => null);
+    if (depois !== null && depois !== dispVersao) {
+      const ids = r.agendamentos.map(a => a.id);
+      const ctx2 = await contextoDoDia(repo, data, { ignorarIds: ids });
+      const problemas2 = validarEtapas({ etapas: calculadas, livresPor: ctx2.livresPor, esperaMaxMin: ctx2.esperaMaxMin, inicioMinimoMin: null });
+      if (problemas2.length) {
+        const agoraIso = clock.agora().toISOString();
+        for (const a of r.agendamentos) {
+          await repo.atualizarStatusAgendamentoSe(a.id, ATIVOS, { status: 'cancelado', cancelled_by: actorId || null, updated_at: agoraIso, updated_by: actorId || null });
+          await registrarEventoAgenda(repo, req.auth, { agendamentoId: a.id, tipo: 'status', de: 'agendado', para: 'cancelado', extra: { motivo: 'escala_mudou_durante_reserva', grupo_id: r.grupo_id } });
+        }
+        throw createAppError('ESCALA_MUDOU', 'A escala mudou enquanto o atendimento era gravado. Nenhuma etapa ficou reservada; veja as opções de novo.', 409, {
+          problemas: problemas2.map(p => ({ ...p, servicoNome: calculadas[p.etapa].servico.nome, profissionalNome: calculadas[p.etapa].prof.nome, horario: calculadas[p.etapa].horario }))
+        });
+      }
     }
     res.status(201).json({
       ok: true,

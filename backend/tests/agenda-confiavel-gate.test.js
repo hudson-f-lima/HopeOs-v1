@@ -261,6 +261,78 @@ test('C11 reserva entra durante a mudança de escala → resposta devolve afetad
   assert.strictEqual(db.agendamentos.find(a => a.id === intruso.id).status, 'agendado', 'nada é mexido sozinho');
 });
 
+// Faz a escala mudar (bloqueio da Ana, gera evento) logo antes de `metodo` gravar.
+async function comBloqueioNoMeio(metodo, ini, fim, fn) {
+  const P = SupabaseRepository.prototype; const original = P[metodo];
+  P[metodo] = async function (...args) {
+    await new SupabaseRepository(A).criarExcecoesDisponibilidade({ excecoes: [{ profissionalId: ANA, tipo: 'bloqueio', dataInicio: DIA, dataFim: DIA, inicio: ini, fim }], actorId: ADMIN });
+    return original.apply(this, args);
+  };
+  try { return await fn(); } finally { P[metodo] = original; }
+}
+const ativoEm = (cli, h) => db.agendamentos.filter(a => a.cliente_id === cli && a.data === DIA && String(a.horario).startsWith(h) && !['cancelado', 'reagendado'].includes(a.status));
+
+test('C12 remarcar: escala muda no meio → 409, original intacto, nada novo', async () => {
+  const ag = await request('POST', '/api/agenda', { body: { clienteId: CLI[3], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '16:00', aceitarAvisos: true } });
+  assert.strictEqual(ag.status, 201, ag.raw.slice(0, 160));
+  const r = await comBloqueioNoMeio('criarAgendamento', '16:30', '17:00', () =>
+    request('PATCH', `/api/agenda/${ag.data.data.id}/status`, { body: { novoStatus: 'reagendado', novaData: DIA, novoHorario: '16:30' } }));
+  assert.strictEqual(r.status, 409, r.raw.slice(0, 200)); assert.strictEqual(code(r), 'ESCALA_MUDOU');
+  assert.strictEqual(db.agendamentos.find(a => a.id === ag.data.data.id).status, 'agendado', 'original continua');
+  assert.strictEqual(ativoEm(CLI[3], '16:30').length, 0);
+});
+
+test('C13 série: escala muda no meio → 409, série inteira desfeita', async () => {
+  const r = await comBloqueioNoMeio('criarAgendamento', '13:00', '13:30', () =>
+    request('POST', '/api/agenda/series', { body: { clienteId: CLI[4], servicoId: CORTE, profissionalId: ANA, dataInicio: DIA, horario: '13:00', frequencia: 'semanal', ocorrencias: 2 } }));
+  assert.strictEqual(r.status, 409, r.raw.slice(0, 200)); assert.strictEqual(code(r), 'ESCALA_MUDOU');
+  assert.strictEqual(db.agendamentos.filter(a => a.cliente_id === CLI[4] && String(a.horario).startsWith('13:00') && !['cancelado', 'reagendado'].includes(a.status)).length, 0, 'nenhuma data marcada');
+});
+
+test('C14 link público: escala muda no meio → recusa, nada gravado', async () => {
+  const antes = db.agendamentos.length;
+  const r = await comBloqueioNoMeio('criarAgendamento', '13:30', '14:00', () =>
+    request('POST', '/api/public/agendar/salao-p', { token: null, body: { servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '13:30', nome: 'Visita Dois', whatsapp: '(11) 97777-1111', consentimento: true, website: '' } }));
+  assert.ok(r.status === 409 || r.status === 422, `${r.status} ${r.raw.slice(0, 160)}`);
+  assert.strictEqual(db.agendamentos.length, antes, 'nada gravado');
+});
+
+test('C15 vários serviços: escala muda no meio → 409, nenhuma etapa fica', async () => {
+  const r = await comBloqueioNoMeio('criarAtendimento', '14:30', '15:00', () =>
+    request('POST', '/api/agenda/atendimentos', { body: { data: DIA, clienteId: CLI[0], etapas: [{ servicoId: CORTE, profissionalId: ANA, horario: '14:30' }] } }));
+  assert.strictEqual(r.status, 409, r.raw.slice(0, 200)); assert.strictEqual(code(r), 'ESCALA_MUDOU');
+  assert.strictEqual(ativoEm(CLI[0], '14:30').length, 0, 'etapa desfeita');
+  // Controle negativo: escala mudou em outro horário (não pega a etapa) → grava normalmente.
+  const ok = await comBloqueioNoMeio('criarAtendimento', '17:45', '18:00', () =>
+    request('POST', '/api/agenda/atendimentos', { body: { data: DIA, clienteId: CLI[0], etapas: [{ servicoId: CORTE, profissionalId: ANA, horario: '11:30' }] } }));
+  assert.strictEqual(ok.status, 201, ok.raw.slice(0, 200));
+});
+
+test('C16 lote de escalas: reserva entra no meio → afetadosDepois', async () => {
+  const P = SupabaseRepository.prototype; const original = P.aplicarLoteDisponibilidade;
+  const intruso = { id: '91000000-0000-4000-8000-0000000000c2', empresa_id: A, cliente_id: CLI[5], servico_id: CORTE, profissional_id: ANA, data: '2026-11-12', horario: '10:00:00', duracao_min: 30, status: 'agendado' };
+  P.aplicarLoteDisponibilidade = async function (args) { db.agendamentos.push(intruso); return original.call(this, args); };
+  let r;
+  try { r = await request('POST', '/api/disponibilidade/lote', { token: 'h.admin.s', body: { profissionalIds: [ANA], operacao: { tipo: 'ausencia', dataInicio: '2026-11-12', dataFim: '2026-11-12', motivo: 'Curso' } } }); } finally { P.aplicarLoteDisponibilidade = original; }
+  assert.strictEqual(r.status, 200, r.raw.slice(0, 200));
+  assert.deepStrictEqual((r.data.data.afetadosDepois || []).map(a => a.agendamentoId), [intruso.id]);
+});
+
+test('C17 remover data especial: reserva entra no meio → afetadosDepois', async () => {
+  // No dia 13 a unidade e a Ana abrem até 20:00; remover a abertura da unidade volta o fim para 18:00.
+  const ana = await request('POST', '/api/disponibilidade/excecoes', { token: 'h.admin.s', body: { profissionalId: ANA, tipo: 'horario', dataInicio: '2026-11-13', dataFim: '2026-11-13', periodos: [{ inicio: '09:00', fim: '20:00' }] } });
+  const cria = await request('POST', '/api/disponibilidade/excecoes', { token: 'h.admin.s', body: { tipo: 'horario', dataInicio: '2026-11-13', dataFim: '2026-11-13', periodos: [{ inicio: '09:00', fim: '20:00' }] } });
+  assert.strictEqual(ana.status, 201, ana.raw.slice(0, 200)); assert.strictEqual(cria.status, 201, cria.raw.slice(0, 200));
+  const id = cria.data.data.ids[0];
+  const P = SupabaseRepository.prototype; const original = P.removerExcecaoDisponibilidade;
+  const intruso = { id: '91000000-0000-4000-8000-0000000000c3', empresa_id: A, cliente_id: CLI[5], servico_id: CORTE, profissional_id: ANA, data: '2026-11-13', horario: '19:00:00', duracao_min: 30, status: 'agendado' };
+  P.removerExcecaoDisponibilidade = async function (args) { db.agendamentos.push(intruso); return original.call(this, args); };
+  let r;
+  try { r = await request('DELETE', `/api/disponibilidade/excecoes/${id}`, { token: 'h.admin.s', body: {} }); } finally { P.removerExcecaoDisponibilidade = original; }
+  assert.strictEqual(r.status, 200, r.raw.slice(0, 200));
+  assert.deepStrictEqual((r.data.data.afetadosDepois || []).map(a => a.agendamentoId), [intruso.id]);
+});
+
 (async () => {
   const origErr = console.error; const origWarn = console.warn;
   console.error = () => {}; console.warn = () => {};

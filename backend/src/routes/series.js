@@ -99,8 +99,10 @@ async function prepararSerie(req) {
   assertOwn(req, profissional.id);
   const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: s.duracaoMin });
   const datas = datasDaSerie(s.dataInicio, s.frequencia, s.ocorrencias);
+  // D-058: versão da escala lida antes de avaliar as datas; o banco recusa se mudar até gravar.
+  const dispVersao = await repo.versaoDisponibilidade().catch(() => null);
   const ocorrencias = await avaliarDatas(repo, { profissional, datas, horario: s.horario, duracaoMin });
-  return { s, repo, cliente, servico, profissional, duracaoMin, ocorrencias };
+  return { s, repo, cliente, servico, profissional, duracaoMin, ocorrencias, dispVersao };
 }
 
 const resumo = ocorrencias => ({
@@ -200,7 +202,7 @@ router.post('/agenda/series', authorize('agenda:recorrencia'), async (req, res, 
 });
 
 async function criarSerie(req, pedido) {
-  const { s, repo, servico, profissional, duracaoMin, ocorrencias } = await prepararSerie(req);
+  const { s, repo, servico, profissional, duracaoMin, ocorrencias, dispVersao } = await prepararSerie(req);
   void pedido;
   const igual = await serieIgualAtiva(repo, s);
   if (igual) {
@@ -228,11 +230,14 @@ async function criarSerie(req, pedido) {
         ag = await repo.criarAgendamento({
           agendamento: {
             cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, data: o.data, horario: s.horario,
-            duracao_min: duracaoMin, valor_centavos: precoDe(servico, profissional), status: 'agendado'
+            duracao_min: duracaoMin, valor_centavos: precoDe(servico, profissional), status: 'agendado',
+            ...(dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
           },
           permitirConflito: false, createdBy: actorId || null
         });
       } catch (err) {
+        // Escala mudou no meio (D-058): não é conflito de uma data; a série inteira é desfeita.
+        if (err && err.code === 'ESCALA_MUDOU') throw err;
         if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { pulados.push({ ...o, situacao: 'conflito', motivo: motivoDe('conflito') }); continue; }
         throw err;
       }
@@ -243,7 +248,10 @@ async function criarSerie(req, pedido) {
     }
   } catch (err) {
     // Erro que não é conflito (banco, vínculo): tudo ou nada. Nada fica pela metade.
-    const desfeitos = await desfazerCriacao(req, repo, serie, criadosIds, 'criacao_da_serie_falhou');
+    const desfeitos = await desfazerCriacao(req, repo, serie, criadosIds, err && err.code === 'ESCALA_MUDOU' ? 'escala_mudou_durante_reserva' : 'criacao_da_serie_falhou');
+    if (err && err.code === 'ESCALA_MUDOU') {
+      throw createAppError('ESCALA_MUDOU', `A escala mudou enquanto a série era gravada; nada ficou marcado (${desfeitos} horário(s) desfeito(s)). Veja a prévia de novo.`, 409, { desfeitos, serieId: serie.id });
+    }
     console.error('[series] criação desfeita:', (err && err.code) || (err && err.message) || 'erro');
     throw createAppError('SERIE_FALHOU', `Não foi possível criar a série; nada ficou marcado (${desfeitos} horário(s) desfeito(s)). Tente de novo.`, 500, { desfeitos, serieId: serie.id });
   }
@@ -389,6 +397,7 @@ router.post('/agenda/series/:id/alterar', authorize('agenda:editar'), async (req
     const agoraIso = clock.agora().toISOString();
     const alterados = [];
     const mantidos = [];
+    const dispVersaoAlt = await repo.versaoDisponibilidade().catch(() => null); // D-058: antes de avaliar
     for (const a of alvos) {
       const h = novoHorario || hhmm(a.horario);
       const [sit] = await avaliarDatas(repo, { profissional, datas: [String(a.data)], horario: h, duracaoMin: Number(a.duracao_min) || 30, ignorarIds: [a.id] });
@@ -398,11 +407,14 @@ router.post('/agenda/series/:id/alterar', authorize('agenda:editar'), async (req
         novo = await repo.criarAgendamento({
           agendamento: {
             cliente_id: a.cliente_id, servico_id: a.servico_id, profissional_id: profissional.id, data: String(a.data), horario: h,
-            duracao_min: Number(a.duracao_min) || 30, valor_centavos: Number(a.valor_centavos) || 0, status: 'agendado'
+            duracao_min: Number(a.duracao_min) || 30, valor_centavos: Number(a.valor_centavos) || 0, status: 'agendado',
+            ...(dispVersaoAlt !== null ? { disp_versao: dispVersaoAlt } : {})
           },
           permitirConflito: false, ignorarId: a.id, createdBy: actorId || null
         });
       } catch (err) {
+        // Escala mudou no meio (D-058): este e os próximos ficam como estão; a tela diz o motivo.
+        if (err && err.code === 'ESCALA_MUDOU') { mantidos.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq, situacao: 'escala_mudou' }); continue; }
         if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) { mantidos.push({ agendamentoId: a.id, data: String(a.data), seq: a.serie_seq, situacao: 'conflito' }); continue; }
         throw err;
       }

@@ -344,9 +344,10 @@ router.delete('/disponibilidade/excecoes/:id', authorize('escala:ver'), async (r
       throw createAppError('BLOQUEIO_DO_PROFISSIONAL', 'Este bloqueio foi marcado pelo próprio profissional: só ele pode remover.', 403);
     }
     const depois = { semanal: disp.semanal, excecoes: disp.excecoes.filter(e => e.id !== id) };
-    const decisoes = decisoesPara(req, await afetados(repo, { antes: disp, depois, profissionalIds: exc.profissional_id ? [exc.profissional_id] : null, de: String(exc.data_inicio).slice(0, 10), ate: String(exc.data_fim).slice(0, 10) }), b.decisoes);
+    const alvoRem = { antes: disp, depois, profissionalIds: exc.profissional_id ? [exc.profissional_id] : null, de: String(exc.data_inicio).slice(0, 10), ate: String(exc.data_fim).slice(0, 10) };
+    const decisoes = decisoesPara(req, await afetados(repo, alvoRem), b.decisoes);
     await repo.removerExcecaoDisponibilidade({ id, actorId: req.auth.actor_id, decisoes });
-    res.json({ ok: true, data: { removida: id, decisoes } });
+    res.json({ ok: true, data: { removida: id, decisoes, ...comDepois(await afetadosDepois(repo, alvoRem, decisoes)) } });
   } catch (err) { next(err); }
 });
 
@@ -673,7 +674,8 @@ router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, 
       excecoes: [...disp.excecoes, ...excecoes.map(x => ({ profissional_id: x.profissionalId, tipo: x.tipo, data_inicio: x.dataInicio, data_fim: x.dataFim, inicio: x.inicio || null, fim: x.fim || null }))],
       publicar: semanais.filter(x => x.publicar).map(x => x.profissionalId)
     };
-    const lista = await afetados(repo, { antes: disp, depois, profissionalIds: unidade ? null : profsValidos, de: dataInicio || undefined, ate: dataFim || undefined });
+    const alvoAfetados = { antes: disp, depois, profissionalIds: unidade ? null : profsValidos, de: dataInicio || undefined, ate: dataFim || undefined };
+    const lista = await afetados(repo, alvoAfetados);
     const previa = {
       alteracao: descricao,
       alvos: alvos.map(a => ({ profissionalId: a, nome: a ? profPorId.get(a).nome : 'Unidade' })),
@@ -686,7 +688,7 @@ router.post('/disponibilidade/lote', authorize('escala:lote'), async (req, res, 
     if (!alvos.length) throw invalido('profissionalIds', 'Nada a aplicar.');
     const decisoes = decisoesPara(req, lista, b.decisoes);
     const r = await repo.aplicarLoteDisponibilidade({ semanais, excecoes, actorId: req.auth.actor_id, decisoes });
-    res.json({ ok: true, data: { ...previa, aplicado: r, decisoes } });
+    res.json({ ok: true, data: { ...previa, aplicado: r, decisoes, ...comDepois(await afetadosDepois(repo, alvoAfetados, decisoes)) } });
   } catch (err) { next(err); }
 });
 
