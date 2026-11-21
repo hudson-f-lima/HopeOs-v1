@@ -866,3 +866,19 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - `/api/health` fica como estava (o KeepAlive continua leve e mantém o Render acordado).
 - **Verificação:** gate `saude-banco` (5 testes): ok, falha sem vazar o erro do driver, lentidão, resultado guardado e `/api/health` intacto. A consulta real ao Supabase só é provada em produção, depois do deploy.
 - **Depois do merge:** criar no UptimeRobot o monitor da rota nova, com alerta por e-mail.
+
+## D-060 — Lista de espera: pedido de outro serviço ao agendar (opção C)
+- **Decisão (Platform Owner, 2026-11-21):** "Merge do PR 56 e implemente a opção C", sobre a dúvida que ficou aberta no D-055 (troca de serviço com pedido da espera).
+- **Regra:**
+  - **Outro cliente no formulário:** o pedido **nunca** é baixado, nem com decisão (`WAITLIST_MISMATCH`). Quem esperava não foi agendado.
+  - **Mesmo cliente e mesmo serviço:** baixa junto com o agendamento, de forma atômica (D-055).
+  - **Mesmo cliente e outro serviço:** a recepção escolhe antes de gravar:
+    - "Tirar da espera e agendar";
+    - "Agendar e manter na espera";
+    - "Voltar" (nada é gravado e o formulário continua aberto).
+  - O servidor também exige a decisão: sem `baixarEsperaOutroServico`, um pedido de outro serviço volta 422 `WAITLIST_SERVICO_DIFERENTE`.
+  - Se a recepção decidiu tirar da espera, o evento de criação do horário guarda `espera_baixada` (pedido, serviço pedido, serviço agendado e `outro_servico_por_decisao`).
+- **Fechado junto:** abrir o agendamento a partir de um pedido cujo cliente este aparelho ainda não carregou não segue com o formulário sem cliente (gravaria o horário "sem cliente"); mostra o erro e fecha.
+- **Verificação:**
+  - Gate `agenda-confiavel`: C07 (sem decisão, recusa), C18 (com decisão, baixa e guarda no histórico) e C19 (outro cliente nunca baixa). Com o servidor anterior, C07 e C18 falham. O C19 já passava, porque a regra de outro cliente era a mesma, e fica como guarda de regressão.
+  - E2E `agenda-politica-espera`: a tela pergunta com os nomes certos; "manter" agenda e o pedido continua aguardando; "voltar" não grava nada; "tirar da espera" agenda, dá baixa e guarda a decisão. Cache `v1-63-0`.

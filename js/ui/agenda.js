@@ -18,6 +18,7 @@ import {
   openModal,
   closeModal,
   confirmAction,
+  escolherOpcao,
   escapeHtml,
   getInitials,
   waLink,
@@ -395,6 +396,13 @@ function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
 function abrirAgendarDaEspera(item, data, horario, profissionalId) {
   openNovoAgendamentoModal(data, horario, profissionalId);
   state.fuzzyAgCliente.setValue(item.clienteId);
+  // Cliente que este aparelho ainda não carregou (cadastrado em outro lugar): não segue com o
+  // formulário sem cliente, que gravaria o horário "sem cliente" (D-060).
+  if (state.fuzzyAgCliente.getValue() !== item.clienteId) {
+    closeNovoAgendamentoModal();
+    showBanner('O cliente deste pedido ainda não carregou neste aparelho. Atualize a tela e tente de novo.', 'error');
+    return;
+  }
   state.fuzzyAgServico.setValue(item.servicoId);
   state.agListaEspera = { id: item.id, clienteId: item.clienteId, servicoId: item.servicoId };
   avisarReguaCliente(item.clienteId);
@@ -527,13 +535,41 @@ async function confirmarForaDaDisponibilidade(err) {
   return confirmAction({ title: 'Fora do horário', message: `${err.message} Agendar mesmo assim? Fica registrado como encaixe.`, confirmLabel: 'Agendar mesmo assim' });
 }
 
+// Pedido da lista de espera ao agendar (D-060, opção C):
+//   - outro cliente no formulário: o pedido NUNCA é baixado (quem esperava não foi agendado);
+//   - mesmo cliente e mesmo serviço: baixa junto, como antes;
+//   - mesmo cliente e outro serviço: pergunta (tirar da espera / manter na espera / voltar) e o
+//     servidor guarda a decisão no histórico do horário.
+async function decidirEspera(clienteId, servicoId) {
+  const pedido = state.agListaEspera;
+  if (!pedido) return { ok: true, listaEsperaId: undefined };
+  if (pedido.clienteId !== clienteId) {
+    showBanner('O pedido da lista de espera era de outro cliente: continua na espera.', 'info');
+    return { ok: true, listaEsperaId: undefined };
+  }
+  if (pedido.servicoId === servicoId) return { ok: true, listaEsperaId: pedido.id };
+  if (!pedido.decisao || pedido.decisaoServicoId !== servicoId) {
+    pedido.decisaoServicoId = servicoId;
+    pedido.decisao = await escolherOpcao({
+      title: 'Pedido da lista de espera',
+      // (o texto passa por escapeHtml em escolherOpcao; sem interpolação de nome, como manda o RT-13)
+      message: findClienteNome(clienteId) + ' esperava ' + findServicoNome(pedido.servicoId) + ' e você está agendando ' + findServicoNome(servicoId) + '. Tirar o pedido da espera?',
+      opcoes: [
+        { valor: 'baixar', rotulo: 'Tirar da espera e agendar', destaque: true },
+        { valor: 'manter', rotulo: 'Agendar e manter na espera' }
+      ]
+    });
+  }
+  if (!pedido.decisao) return { ok: false };
+  return pedido.decisao === 'baixar' ? { ok: true, listaEsperaId: pedido.id, baixarOutroServico: true } : { ok: true, listaEsperaId: undefined };
+}
+
 async function criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
   clearBanner();
   try {
-    // Trocou cliente ou serviço no formulário: o pedido da espera era para outra coisa e não é baixado (D-055).
-    const espera = state.agListaEspera && state.agListaEspera.clienteId === clienteId && state.agListaEspera.servicoId === servicoId ? state.agListaEspera.id : undefined;
-    if (state.agListaEspera && !espera) showBanner('O pedido da lista de espera era para outro cliente ou serviço: continua na espera.', 'info');
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera } });
+    const espera = await decidirEspera(clienteId, servicoId);
+    if (!espera.ok) return; // voltou: nada é gravado e o formulário continua aberto
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera.listaEsperaId, baixarEsperaOutroServico: espera.baixarOutroServico ? true : undefined } });
     state.agListaEspera = null;
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
