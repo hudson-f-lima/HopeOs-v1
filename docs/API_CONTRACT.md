@@ -109,7 +109,7 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 | `POST /api/auth/refresh` | `{ refresh_token }` | nova sessão |
 | `POST /api/auth/logout` | — (Bearer JWT) | revoga a sessão no provedor |
 | `POST /api/auth/recover` | `{ email }` | sempre 200 com a mesma mensagem |
-| `POST /api/auth/password` | `{ password }` (Bearer do link de convite/recuperação) | mínimo 8 caracteres |
+| `POST /api/auth/password` | `{ password }` (Bearer do link de convite/recuperação) | mínimo 8 caracteres; máximo 72 bytes em UTF-8 (`PASSWORD_TOO_LONG`, 422, D-062) |
 | `GET /api/me` | — | usuário: `{ user, empresas[{ empresa_id, nome, role, unidades }] }` (funciona sem `X-Empresa-Id`); integração/legado: o próprio contexto |
 
 ### Administração (`admin`, só principal usuário)

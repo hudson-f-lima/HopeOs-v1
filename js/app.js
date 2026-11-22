@@ -364,6 +364,7 @@ function runDefinirSenha(tipo) {
   get('senhaForm').onsubmit = async (event) => {
     event.preventDefault();
     if (a.value.length < 8) { erro.textContent = 'Use ao menos 8 caracteres.'; return; }
+    if (new TextEncoder().encode(a.value).length > 72) { erro.textContent = 'Use até 72 caracteres (menos, se tiver acento ou emoji).'; return; }
     if (a.value !== b.value) { erro.textContent = 'As senhas não conferem.'; return; }
     btn.disabled = true; erro.textContent = '';
     try {

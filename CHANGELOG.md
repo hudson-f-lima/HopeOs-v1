@@ -1,5 +1,11 @@
 # Changelog
 
+## Senha, teto do link público e aviso de cliente parecido (D-062)
+- Ao cadastrar um cliente com nome parecido com um já existente, o app avisa e oferece usar o cadastro existente.
+- Senha com mais de 72 bytes é recusada com aviso claro, em vez de ser cortada sem avisar.
+- O limite diário de agendamentos pelo link conta só os do dia, sem ler o histórico inteiro.
+- Testes: gates S04b e P14b; E2E 41/41.
+
 ## Novo visual, modo escuro e tela "Agora" do profissional (D-022)
 - Visual redesenhado: cores, tipografia (Inter), botões e campos maiores.
 - **Modo escuro** automático, conforme o aparelho.

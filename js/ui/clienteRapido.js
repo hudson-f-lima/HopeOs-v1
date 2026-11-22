@@ -3,6 +3,7 @@
 // O profissional não vê o contato de clientes já cadastrados: só o nome volta do servidor.
 import { api } from '../api.js';
 import { state, sessionPode } from '../state.js';
+import { clientesComNomeParecido, escolherOpcao } from '../utils.js';
 
 const el = id => document.getElementById(id);
 
@@ -26,6 +27,24 @@ async function salvar() {
   const whatsapp = el('agNovoClienteZap').value.trim();
   const erro = el('agNovoClienteErro');
   if (!nome) { erro.textContent = 'Informe o nome do cliente.'; erro.classList.remove('hidden'); el('agNovoClienteNome').focus(); return; }
+  // Nome parecido com cliente já cadastrado (D-062): oferece usar o cadastro existente.
+  const parecidos = clientesComNomeParecido(nome, state.catalog.clientes);
+  if (parecidos.length) {
+    const escolha = await escolherOpcao({
+      title: 'Cliente parecido já cadastrado',
+      message: 'Já existe: ' + parecidos.map(c => c.nome).join(', ') + '. Usar o cadastro existente evita cliente duplicado.',
+      opcoes: [
+        ...parecidos.map((c, i) => ({ valor: 'usar:' + c.id, rotulo: 'Usar ' + c.nome, destaque: i === 0 })),
+        { valor: 'novo', rotulo: 'Cadastrar novo mesmo assim' }
+      ]
+    });
+    if (!escolha) return;
+    if (escolha.startsWith('usar:')) {
+      state.fuzzyAgCliente.setValue(escolha.slice(5));
+      fechar();
+      return;
+    }
+  }
   const botao = el('btnAgNovoClienteSalvar');
   botao.disabled = true;
   try {

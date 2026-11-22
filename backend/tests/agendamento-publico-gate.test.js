@@ -335,6 +335,34 @@ test('P14 teto diário do salão: atingido → mesma recusa genérica', async ()
   } finally { limitesAltos(); }
 });
 
+test('P14b teto diário conta só desde a meia-noite do salão, sem ler o histórico (D-062)', async () => {
+  // AGORA = 10/11 09:00 em São Paulo (UTC-3): meia-noite local = 10/11 03:00Z.
+  // 1.000 eventos de ontem + 1 às 02:59Z (23:59 de ontem, local) ficam FORA; 1 às 03:00Z entra.
+  const antigos = [];
+  for (let i = 0; i < 1000; i++) antigos.push({ id: 'old-' + i, empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-09T15:00:00.000Z', payload: {} });
+  antigos.push({ id: 'old-borda', empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-10T02:59:00.000Z', payload: {} });
+  antigos.push({ id: 'hoje-borda', empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-10T03:00:00.000Z', payload: {} });
+  db.agendamento_eventos.push(...antigos);
+  const P = SupabaseRepository.prototype;
+  const listOriginal = P.list;
+  P.list = async function (t, f) {
+    if (t === 'agendamento_eventos') throw new Error('o teto não pode listar o histórico de eventos');
+    return listOriginal.call(this, t, f);
+  };
+  try {
+    const deHoje = db.agendamento_eventos.filter(e => e.empresa_id === A && e.tipo === publico.TIPO_EVENTO && e.created_at >= '2026-11-10T03:00:00.000Z').length;
+    env.PUBLIC_BOOKING_TETO_DIARIO = deHoje + 1; // cabe exatamente mais um hoje
+    const r = await post(pedido({ horario: '17:00', whatsapp: '21 96666-0010' }));
+    assert.strictEqual(r.status, 201, 'eventos antigos não contam no teto de hoje');
+    const r2 = await post(pedido({ horario: '17:30', whatsapp: '21 96666-0011' }));
+    assert.strictEqual(r2.status, 422); assert.strictEqual(code(r2), 'AGENDAMENTO_ONLINE_INDISPONIVEL', 'o da borda 03:00Z e o recém-criado contam');
+  } finally {
+    P.list = listOriginal;
+    for (const e of antigos) db.agendamento_eventos.splice(db.agendamento_eventos.indexOf(e), 1);
+    limitesAltos();
+  }
+});
+
 test('P15 rate limit: por IP (GET e POST) e por número → 429 neutro', async () => {
   publico.resetRateLimitPublico();
   env.PUBLIC_BOOKING_RATE_GET_MAX = 2;

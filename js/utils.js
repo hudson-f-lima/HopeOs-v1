@@ -25,6 +25,22 @@ export function normalizeSearchText(str) {
   return String(str ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+// Clientes ativos com nome parecido (D-062): igual sem acento, caixa e pontuação, ou mesmo primeiro e
+// último nome ("João Silva" × "Joao da Silva"). Só avisa; quem cadastra decide. Regra explicável,
+// sem pontuação inventada: telefone repetido continua sendo barrado pelo servidor.
+export function clientesComNomeParecido(nome, clientes, limite = 2) {
+  const chave = t => normalizeSearchText(t).replace(/[^a-z0-9]+/g, ' ').trim();
+  const alvo = chave(nome);
+  if (alvo.length < 3) return [];
+  const pontas = k => { const p = k.split(' '); return p.length > 1 ? p[0] + ' ' + p[p.length - 1] : null; };
+  const pontasAlvo = pontas(alvo);
+  return (clientes || []).filter(c => {
+    if (!c || c.ativo === false) return false;
+    const k = chave(c.nome);
+    return k === alvo || (pontasAlvo !== null && pontas(k) === pontasAlvo);
+  }).slice(0, limite);
+}
+
 export function toDateStr(d) { return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 
 export function todayStr() { return toDateStr(new Date()); }

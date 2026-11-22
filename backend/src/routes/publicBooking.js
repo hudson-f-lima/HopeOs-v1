@@ -380,8 +380,9 @@ async function gravar(repo, cat, ctx) {
   const agoraIso = relogio().toISOString();
 
   // Teto diário de agendamentos online do salão (disjuntor contra spam).
-  const eventos = await repo.list('agendamento_eventos', { empresa_id: repo.empresaId, tipo: TIPO_EVENTO });
-  const hoje = eventos.filter(e => e.created_at && agoraNoFuso(env.APP_TIMEZONE, new Date(e.created_at)).data === lim.agora.data).length;
+  // Conta só desde a meia-noite do salão (D-062), sem ler o histórico inteiro.
+  const inicioDoDia = instanteLocal(lim.agora.data, '00:00', env.APP_TIMEZONE).toISOString();
+  const hoje = await repo.contarDesde('agendamento_eventos', { empresa_id: repo.empresaId, tipo: TIPO_EVENTO }, 'created_at', inicioDoDia);
   if (hoje >= num(env.PUBLIC_BOOKING_TETO_DIARIO, 50)) throw agendamentoOnlineRecusado();
 
   const { algum, ativos } = clientesDoNumero(await repo.list('clientes', { empresa_id: repo.empresaId }), entrada.whatsapp);

@@ -889,3 +889,19 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - Controle negativo: com o seletor do menu errado só no auxiliar, `escalas` e `permissoes` falham juntos; restaurado, voltam.
   - Suíte completa de E2E verde.
 - **Regra daqui para a frente:** teste novo que precise ir a Gestão ou à Conta usa o auxiliar. Uma mudança de menu ajusta `navegacao.js`.
+
+## D-062 — Onda 1 do Blueprint v2 (sem migration): senha até 72 bytes, teto diário só do dia, aviso de nome parecido
+- **Origem:** `docs/planning/BLUEPRINT_MASTER_V2_ANALISE.md`, Onda 1. O Platform Owner pediu `/completar-lacuna` depois da análise.
+- **Senha (`POST /auth/password`):** acima de 72 bytes em UTF-8 volta 422 `PASSWORD_TOO_LONG`, e nada é gravado. O Supabase Auth guarda a senha com bcrypt, que ignora o que passa de 72 bytes, então duas senhas diferentes só depois disso entrariam como iguais. A tela de definir senha avisa antes de enviar.
+- **Teto diário do link público:** conta os eventos desde a meia-noite do salão com uma contagem no banco (`contarDesde`, `count` sem trazer linhas). Antes, lia todos os eventos do salão e filtrava em memória, o que crescia com o histórico.
+- **Nome parecido (recepção e Gestão):** antes de criar um cliente, procura um cliente ativo com o mesmo nome (ignorando acento, caixa e pontuação) ou com o mesmo primeiro e último nome.
+  - No cadastro rápido do agendamento: **Usar** o existente, **Cadastrar novo mesmo assim** ou **Voltar**.
+  - Em Gestão → Clientes: **Cadastrar novo mesmo assim** ou **Não cadastrar**.
+  - Só avisa e não bloqueia. Telefone repetido continua barrado pelo servidor.
+  - Sem pontuação inventada: os pesos e limiares do blueprint foram rejeitados (análise, §3.5).
+- **Verificação:**
+  - Gates: `identity` S04b (73 bytes, 37 "é" = 74 bytes, limite exato de 72) e `agendamento-publico` P14b (1.000 eventos de ontem e a borda 02:59Z/03:00Z; o teste falha se o teto listar os eventos).
+  - Controles negativos: com o código anterior, S04b e P14b caem. Com a regra de nome desligada, o E2E `permissoes` cai.
+  - E2E `permissoes`: aviso com o nome certo; Voltar não grava; Usar não cria cadastro; Cadastrar mesmo assim grava.
+  - Suíte offline verde, E2E 41/41, migrations conferem. Sem migration.
+- **Achado do E2E:** um segundo cadastro rápido com o mesmo telefone já é recusado pelo servidor. O teste limpa o telefone de propósito para exercitar só a regra do nome.

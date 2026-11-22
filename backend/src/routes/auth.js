@@ -98,6 +98,7 @@ router.post('/auth/recover', async (req, res, next) => {
 });
 
 // Define a senha apenas com prova recente da identidade no provedor.
+const SENHA_MAX_BYTES = 72;
 router.post('/auth/password', async (req, res, next) => {
   try {
     const token = extractBearer(req);
@@ -107,6 +108,9 @@ router.post('/auth/password', async (req, res, next) => {
     }
     const password = req.body?.password;
     if (typeof password !== 'string' || password.length < 8) throw createAppError('WEAK_PASSWORD', 'Senha fraca: use ao menos 8 caracteres.', 422);
+    // O Supabase Auth guarda a senha com bcrypt, que ignora o que passa de 72 bytes (D-062): duas
+    // senhas diferentes só depois do 72º byte entrariam como iguais. Recusa em vez de truncar.
+    if (Buffer.byteLength(password, 'utf8') > SENHA_MAX_BYTES) throw createAppError('PASSWORD_TOO_LONG', 'Senha longa demais: use até 72 caracteres (menos, se tiver acento ou emoji).', 422);
     await getAuthProvider().setPassword(token, password);
     res.json({ ok: true, data: null });
   } catch (err) { next(err); }

@@ -68,6 +68,23 @@ async function abrirPermissoesDaAna(a) {
   const clientes = await db('clientes');
   confere('cadastro rápido: cliente gravado e escolhido no agendamento', clientes.some(c => c.nome === 'Cliente Rápido Ana' && c.whatsapp === '11977776666') && await com.inputValue('#agCliente') === 'Cliente Rápido Ana');
   confere('profissional não recebe contato de clientes', await com.evaluate(async () => { const { api } = await import('/js/api.js'); return (await api('/clientes')).every(c => !('whatsapp' in c) && !('observacoes' in c)); }));
+  // Nome parecido (D-062): variação de acento/caixa avisa e oferece o cadastro existente.
+  const nClientes = async () => (await db('clientes')).length;
+  const antesParecido = await nClientes();
+  const pedirParecido = async nome => {
+    await com.click('#btnAgNovoCliente'); await com.fill('#agNovoClienteNome', nome); await com.fill('#agNovoClienteZap', ''); // o telefone repetido o servidor já barra
+    await com.click('#btnAgNovoClienteSalvar'); await com.waitForSelector('#conflict-dialog[open]');
+  };
+  await pedirParecido('cliente rapido  ANA');
+  confere('nome parecido: o aviso cita o cadastro existente', /Cliente Rápido Ana/.test(await com.textContent('#conflict-dialog')));
+  await com.click('#conflict-dialog [data-opcao-voltar]'); await com.waitForSelector('#conflict-dialog:not([open])', { state: 'attached' });
+  confere('nome parecido → Voltar: nada gravado e o formulário continua aberto', await nClientes() === antesParecido && await com.isVisible('#agNovoClienteNome'));
+  await com.click('#btnAgNovoClienteSalvar'); await com.waitForSelector('#conflict-dialog[open]');
+  await com.locator('#conflict-dialog [data-opcao^="usar:"]').first().click(); await com.waitForSelector('#agNovoCliente.hidden', { state: 'attached' });
+  confere('nome parecido → Usar: nenhum cadastro novo e o existente fica escolhido', await nClientes() === antesParecido && await com.inputValue('#agCliente') === 'Cliente Rápido Ana');
+  await pedirParecido('Cliente da Silva Ana');
+  await com.click('#conflict-dialog [data-opcao="novo"]'); await com.waitForSelector('#agNovoCliente.hidden', { state: 'attached' });
+  confere('nome parecido → Cadastrar mesmo assim: grava o novo', (await db('clientes')).some(c => c.nome === 'Cliente da Silva Ana') && await nClientes() === antesParecido + 1);
   await com.keyboard.press('Escape').catch(() => {});
   await com.goto(BASE); await com.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await com.waitForTimeout(600);
   await com.click('#navCheckout'); await com.click('#btnNovaComanda');

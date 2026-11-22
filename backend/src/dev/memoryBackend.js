@@ -21,6 +21,10 @@ function installMemoryBackend(seed = {}) {
   const P = SupabaseRepository.prototype;
 
   P.list = async function (t, f = {}) { return rows(t).filter(r => match(r, f)); };
+  P.contarDesde = async function (t, f = {}, coluna, desde) {
+    const limite = new Date(desde).getTime();
+    return rows(t).filter(r => match(r, f) && r[coluna] && new Date(r[coluna]).getTime() >= limite).length;
+  };
   P.listPagamentosDasComandas = async function (ids) {
     const set = new Set(ids || []);
     return rows('comando_pagamentos').filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));

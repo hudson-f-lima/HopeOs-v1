@@ -63,7 +63,7 @@
 - Tornar o check de CI obrigatório na `main`. Aceite: PR com check vermelho não pode ser mesclado.
 - Confirmar Node 22 no log do deploy.
 
-**Onda 1: sem migration (pode ser feita sem nova autorização de banco)**
+**Onda 1: sem migration — FEITA em D-062 (2026-11-22)**
 - Senha com teto de 72 bytes. O Supabase usa bcrypt, que ignora o que passa de 72 bytes; o teto de 128 do blueprint deixaria senhas "diferentes" equivalentes. Aceite: gate com senha de 73 bytes recusada em 422.
 - Teto diário do link público contando só os eventos do dia (filtro por intervalo no repositório), não o histórico inteiro. Aceite: gate com 1.000 eventos antigos mostra que a contagem do dia não lê eles.
 - Alerta não bloqueante na recepção: "nome parecido com X" (normalização sem acento), além do bloqueio por telefone que já existe. Aceite: E2E cria "Joao Silva" com "João Silva" já cadastrado e vê o aviso.

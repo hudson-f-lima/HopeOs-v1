@@ -45,6 +45,18 @@ class SupabaseRepository {
     return rows;
   }
 
+  // Conta linhas com filtros de igualdade e `coluna >= desde`, sem trazer as linhas (D-062):
+  // o teto diário do link público não pode crescer com o histórico do salão.
+  async contarDesde(table, filters = {}, coluna, desde) {
+    let query = this.supabase.from(table).select('*', { count: 'exact', head: true });
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== null && value !== '') query = query.eq(key, value);
+    }
+    const { count, error } = await query.gte(coluna, desde);
+    if (error) throw error;
+    return count || 0;
+  }
+
   // Pagamentos de um conjunto de comandas (comando_pagamentos não tem data);
   // sempre filtrado pela empresa do repositório, em lotes para não estourar a URL.
   async listPagamentosDasComandas(comandoIds) {
