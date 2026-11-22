@@ -198,7 +198,7 @@ test('C06 espera: gravação falha (horário ocupado) → pedido volta para a es
 
 test('C07 espera: serviço trocado no formulário → vínculo recusado, pedido intacto', async () => {
   const r = await request('POST', '/api/agenda', { body: { clienteId: CLI[4], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '16:00', listaEsperaId: W(5), aceitarAvisos: true } });
-  assert.strictEqual(r.status, 422); assert.strictEqual(code(r), 'WAITLIST_MISMATCH');
+  assert.strictEqual(r.status, 422); assert.strictEqual(code(r), 'WAITLIST_SERVICO_DIFERENTE', 'sem a decisão da recepção, o pedido de outro serviço não é baixado');
   assert.strictEqual(db.lista_espera.find(x => x.id === W(5)).status, 'aguardando');
   assert.ok(!db.agendamentos.some(x => x.cliente_id === CLI[4]));
 });
@@ -331,6 +331,23 @@ test('C17 remover data especial: reserva entra no meio → afetadosDepois', asyn
   try { r = await request('DELETE', `/api/disponibilidade/excecoes/${id}`, { token: 'h.admin.s', body: {} }); } finally { P.removerExcecaoDisponibilidade = original; }
   assert.strictEqual(r.status, 200, r.raw.slice(0, 200));
   assert.deepStrictEqual((r.data.data.afetadosDepois || []).map(a => a.agendamentoId), [intruso.id]);
+});
+
+test('C18 opção C: mesmo cliente, outro serviço, com a decisão → baixa, e o histórico guarda a decisão', async () => {
+  const r = await request('POST', '/api/agenda', { body: { clienteId: CLI[4], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '09:30', listaEsperaId: W(5), baixarEsperaOutroServico: true, aceitarAvisos: true } });
+  assert.strictEqual(r.status, 201, r.raw.slice(0, 200));
+  assert.strictEqual(db.lista_espera.find(x => x.id === W(5)).status, 'agendado');
+  const ev = db.agendamento_eventos.find(e => e.agendamento_id === r.data.data.id && e.tipo === 'criado');
+  const eb = ev && (ev.payload || {}).espera_baixada;
+  assert.ok(eb && eb.id === W(5) && eb.servico_pedido === QUIMICA && eb.servico_agendado === CORTE && eb.outro_servico_por_decisao === true, JSON.stringify(ev && ev.payload));
+});
+
+test('C19 opção C: OUTRO cliente nunca baixa, nem com a decisão', async () => {
+  const antes = db.lista_espera.find(x => x.id === W(3)).status;
+  const r = await request('POST', '/api/agenda', { body: { clienteId: CLI[0], servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '10:30', listaEsperaId: W(3), baixarEsperaOutroServico: true, aceitarAvisos: true } });
+  assert.strictEqual(r.status, 422, r.raw.slice(0, 200)); assert.strictEqual(code(r), 'WAITLIST_MISMATCH');
+  assert.strictEqual(db.lista_espera.find(x => x.id === W(3)).status, antes, 'pedido intacto');
+  assert.ok(!db.agendamentos.some(a => a.cliente_id === CLI[0] && a.data === DIA && String(a.horario).startsWith('10:30') && a.status === 'agendado'), 'nada gravado');
 });
 
 (async () => {

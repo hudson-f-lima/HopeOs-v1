@@ -48,7 +48,7 @@ async function irPara(p, dia) {
   const adm = await login('admin@dev.local');
   // Três clientes próprios deste roteiro (o seed tem poucos).
   const novoCliente = async (nome, tel) => (await (await fetch(`${API}/api/clientes`, { method: 'POST', headers: adm, body: JSON.stringify({ nome, whatsapp: tel }) })).json()).data;
-  const cli = [await novoCliente('Paula Espera', '11 95555-0001'), await novoCliente('Rita Vaga', '11 95555-0002'), await novoCliente('Sonia Noite', '11 95555-0003')];
+  const cli = [await novoCliente('Paula Espera', '11 95555-0001'), await novoCliente('Rita Vaga', '11 95555-0002'), await novoCliente('Sonia Noite', '11 95555-0003'), await novoCliente('Tania Barba', '11 95555-0004'), await novoCliente('Ursula Corte', '11 95555-0005')];
   const b = await chromium.launch();
 
   // 1) Política pela tela.
@@ -107,6 +107,55 @@ async function irPara(p, dia) {
     const item = (await db('lista_espera')).find(x => x.id === dentro.id);
     confere('gravou o agendamento do cliente da espera e o item virou "agendado"', Boolean(ag) && item.status === 'agendado', JSON.stringify({ ag: Boolean(ag), status: item.status }));
     confere('o outro item da espera continua aguardando', (await db('lista_espera')).find(x => x.id === fora.id).status === 'aguardando');
+
+    // 5) Opção C (D-060): mesmo cliente, outro serviço → a recepção decide; o histórico guarda.
+    const BARBA = 'bbbbbbbb-0000-4000-8000-000000000002';
+    const livresDe = prof => r.evaluate(p => [...document.querySelectorAll(`.slot-vazio:not(.fora):not(.incerto)[data-prof="${p}"]`)].map(e => e.dataset.time), prof);
+    const livresAna = await livresDe(ANA);
+    const min = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    const hm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    // Serviço de até 40 min cabe: o horário e os dois quadrados seguintes da grade estão livres.
+    const cabe = (livres, t) => [0, 20, 40].every(d => livres.includes(hm(min(t) + d)));
+    const h1 = livresAna.find(t => cabe(livresAna, t) && Math.abs(min(t) - min(hora)) >= 90); // Ana
+    if (!h1) { falhas.push('opção C: sem horário livre para o roteiro'); }
+    else {
+      const trocarServico = async () => { await r.click('#agServico'); await r.fill('#agServico', 'Barba'); await r.waitForTimeout(300); await r.locator('#agServico ~ div [data-value]').first().click(); await r.waitForTimeout(500); };
+      const pedido = async (c, h, prof) => {
+        const item = (await (await fetch(`${API}/api/lista-espera`, { method: 'POST', headers: adm, body: JSON.stringify({ clienteId: c.id, servicoId: CORTE, profissionalId: prof }) })).json()).data;
+        await r.locator(`.slot-vazio[data-prof="${prof}"][data-time="${h}"]`).click();
+        await r.waitForSelector(`#slotEspera [data-espera-id="${item.id}"]`, { timeout: 8000 });
+        await r.click(`#slotEspera [data-espera-id="${item.id}"]`);
+        await r.waitForSelector('#modalNovoAgendamento:not(.hidden)');
+        await trocarServico();
+        await r.click('#btnConfirmarNovoAgendamento');
+        await r.waitForSelector('#conflict-dialog[open] [data-opcao]', { timeout: 8000 });
+        return item;
+      };
+      // a) Manter na espera: agenda Barba e o pedido de Corte continua aguardando.
+      const c1 = cli[3];
+      const i1 = await pedido(c1, h1, ANA);
+      confere('a tela pergunta o que fazer com o pedido de outro serviço', /esperava Corte e você está agendando Barba/.test(limpo(await r.textContent('#conflict-dialog'))));
+      await r.click('#conflict-dialog [data-opcao="manter"]'); await r.waitForTimeout(1200);
+      const agM = (await db('agendamentos')).find(a => a.cliente_id === c1.id && a.data === amanha && a.servico_id === BARBA);
+      confere('"manter na espera": agendou a Barba e o pedido continua aguardando', Boolean(agM) && (await db('lista_espera')).find(x => x.id === i1.id).status === 'aguardando');
+      // b) Voltar: nada é gravado.
+      const c2 = cli[4];
+      await r.waitForTimeout(600);
+      const livresAna2 = await livresDe(ANA);
+      const h2 = livresAna2.find(t => cabe(livresAna2, t)); // outro horário livre da Ana, depois do agendamento anterior
+      if (!h2) { falhas.push('opção C: sem segundo horário livre'); throw new Error('sem segundo horário livre'); }
+      const i2 = await pedido(c2, h2, ANA);
+      await r.click('#conflict-dialog [data-opcao-voltar]'); await r.waitForTimeout(600);
+      confere('"voltar": nada gravado e o formulário continua aberto', !(await db('agendamentos')).some(a => a.cliente_id === c2.id) && await r.isVisible('#modalNovoAgendamento'));
+      // c) Tirar da espera: agenda e o pedido sai; o histórico guarda a decisão.
+      await r.click('#btnConfirmarNovoAgendamento');
+      await r.waitForSelector('#conflict-dialog[open] [data-opcao]', { timeout: 8000 });
+      await r.click('#conflict-dialog [data-opcao="baixar"]'); await r.waitForTimeout(1200);
+      const agB = (await db('agendamentos')).find(a => a.cliente_id === c2.id && a.data === amanha && a.servico_id === BARBA);
+      const evB = agB && (await db('agendamento_eventos')).find(e => e.agendamento_id === agB.id && e.tipo === 'criado');
+      confere('"tirar da espera": agendou, o pedido virou "agendado" e o histórico guarda a decisão', Boolean(agB) && (await db('lista_espera')).find(x => x.id === i2.id).status === 'agendado'
+        && Boolean(evB && (evB.payload || {}).espera_baixada && evB.payload.espera_baixada.outro_servico_por_decisao === true), JSON.stringify(evB && evB.payload));
+    }
   }
   console.log('RECEPÇÃO erros:', JSON.stringify(r.erros)); falhas.push(...r.erros);
 
