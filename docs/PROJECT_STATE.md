@@ -17,7 +17,7 @@
 |---|---|---|
 | Autenticação por usuário (JWT Supabase Auth, via `/api/auth/*`) | REAL no código / PENDENTE em produção | `backend/src/middleware/auth.js`, `routes/auth.js`; identity-gate 38/38 |
 | Principal de integração (credencial dedicada, scopes, rotação, auditoria) | REAL no código / PENDENTE em produção | `backend/src/auth/credentials.js`, `routes/admin.js`; identity-gate I01–I10 |
-| `API_ACCESS_TOKEN` (legado) | REAL / TEMPORÁRIO — coexistente, desligável por `LEGACY_TOKEN_AUTH_ENABLED` | identity-gate C01, C03 |
+| `API_ACCESS_TOKEN` (legado) | DESLIGADO em produção (`LEGACY_TOKEN_AUTH_ENABLED=false` no Render, informado pelo Platform Owner em 2026-11-22; não verificado por requisição) | identity-gate C01, C03 |
 | RBAC (4 papéis, matriz da ADR) | REAL no código — `authorize()` em todas as rotas de negócio | `backend/src/auth/rbac.js`; identity-gate U10, C05 |
 | Tenant por identidade (membership; `X-Empresa-Id` só seletor) | REAL no código / PENDENTE em produção | identity-gate U06–U08 |
 | Unidades | PARCIAL — acesso por unidade resolvido e fail-closed; dados de negócio ainda sem `unit_id` | ADR-005 "Desvios e limites" |
@@ -131,7 +131,8 @@
 ## Riscos residuais
 - Aplicar a 007 sem backup ou fora da ordem (backend novo antes da migration quebra agenda/checkout/estoque): o runbook fixa a ordem e o backup.
 - A 007 revoga `anon`/`authenticated` em todo `public`: qualquer consumidor externo que hoje use a anon key direto no PostgREST para de funcionar (nenhum conhecido no repositório).
-- Enquanto `LEGACY_TOKEN_AUTH_ENABLED=true`, quem tiver o `API_ACCESS_TOKEN` age sem autoria e fora do RBAC.
+- Token legado desligado em produção (Platform Owner, 2026-11-22). Se for religado, quem tiver o `API_ACCESS_TOKEN` age sem autoria e fora do RBAC.
+- Chave da API do UptimeRobot trocada (Platform Owner, 2026-11-22). Pendente: senha do AppBarber (o dono mantém até terminar a leitura dos cadastros).
 - Supabase Auth precisa de Site URL/Redirect URLs corretos para os links de convite/recuperação.
 - `xlsx` com HIGH sem fix upstream; auditorias antigas são históricas, não autoridade de estado.
 
