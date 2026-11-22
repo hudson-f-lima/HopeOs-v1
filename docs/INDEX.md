@@ -43,3 +43,4 @@ Este arquivo é apenas índice. O estado operacional atual está em [`PROJECT_ST
 - [`legacy/`](legacy/) — referências históricas; não representam a fundação física
 - [`archive/`](archive/) — arquivos arquivados
 - [`planning/AGENDAMENTO_INTELIGENTE_ANALISE.md`](planning/AGENDAMENTO_INTELIGENTE_ANALISE.md): análise da proposta de múltiplos serviços, encaixes e combinação de profissionais (2026-11-16).
+- [`planning/BLUEPRINT_MASTER_V2_ANALISE.md`](planning/BLUEPRINT_MASTER_V2_ANALISE.md): análise do "Blueprint Master Unificado v2.0" (M01–M12) contra o código e a produção, com plano em ondas e decisões pendentes (2026-11-22).
