@@ -1,5 +1,25 @@
 # Changelog
 
+## Painel sem número inventado (D-065)
+- Saíram o "score" calculado sem base e as frases automáticas como "Operação estável".
+- Os indicadores do piloto não mostram mais faixas "de mercado" que nunca foram conferidas: a comparação é com o histórico do próprio salão.
+
+## Cockpit do gestor (D-064)
+- No topo do Painel (administração e gestão): faturamento do mês contra a meta e o ritmo, margem real, ocupação por dia da semana, assinaturas (receita mensal, atrasos, cancelamentos), a equipe e um simulador.
+- "Decidir agora": o que pede ação, com o porquê e o valor em jogo. O botão leva direto à tela certa (agenda do dia ocioso, assinantes, escala, regras).
+- Sem número inventado: o que não tem dado aparece como "—", com o motivo.
+
+## Agendamento pelo link e remarcação sem meio-termo (D-063, migration 027)
+- Agendamento pelo link: se o horário for tomado no último instante, não fica mais um cadastro de cliente sem horário; dois pedidos ao mesmo tempo do mesmo número criam um cliente só.
+- Remarcação: se outra pessoa mudar o horário enquanto você remarca, o app avisa e nada é gravado (antes podiam ficar dois horários ativos).
+- Corrigido: quando a escala mudava durante a gravação, o app mostrava erro interno em vez do aviso "a escala mudou".
+
+## Senha, teto do link público e aviso de cliente parecido (D-062)
+- Ao cadastrar um cliente com nome parecido com um já existente, o app avisa e oferece usar o cadastro existente.
+- Senha com mais de 72 bytes é recusada com aviso claro, em vez de ser cortada sem avisar.
+- O limite diário de agendamentos pelo link conta só os do dia, sem ler o histórico inteiro.
+- Testes: gates S04b e P14b; E2E 41/41.
+
 ## Novo visual, modo escuro e tela "Agora" do profissional (D-022)
 - Visual redesenhado: cores, tipografia (Inter), botões e campos maiores.
 - **Modo escuro** automático, conforme o aparelho.

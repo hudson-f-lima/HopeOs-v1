@@ -14,7 +14,9 @@ import {
   confirmAction,
   renderList,
   showBanner,
-  waLink
+  waLink,
+  clientesComNomeParecido,
+  escolherOpcao
 } from '../utils.js';
 
 const MODELO_COMISSAO_LABEL = { bruto_salao: 'Bruto salão', dividido: 'Dividido', bruto_staff: 'Bruto staff' };
@@ -71,6 +73,19 @@ async function submitClienteForm() {
     observacoes: document.getElementById('clObservacoes').value.trim() || undefined
   };
   if (id) body.ativo = document.getElementById('clAtivo').checked;
+  // Cadastro novo com nome parecido (D-062): avisa antes de duplicar.
+  if (!id) {
+    const parecidos = clientesComNomeParecido(body.nome, state.catalog.clientes);
+    if (parecidos.length) {
+      const escolha = await escolherOpcao({
+        title: 'Cliente parecido já cadastrado',
+        message: 'Já existe: ' + parecidos.map(c => c.nome).join(', ') + '. Confira antes de criar outro cadastro.',
+        opcoes: [{ valor: 'novo', rotulo: 'Cadastrar novo mesmo assim' }],
+        voltar: 'Não cadastrar'
+      });
+      if (escolha !== 'novo') return;
+    }
+  }
   const data = await submitCadastro(
     () => api(id ? `/clientes/${id}` : '/clientes', { method: id ? 'PATCH' : 'POST', body }),
     id ? 'Cliente atualizado.' : 'Cliente criado.',

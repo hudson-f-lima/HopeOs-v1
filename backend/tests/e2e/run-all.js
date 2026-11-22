@@ -64,6 +64,7 @@ const CASOS = [
   { nome: 'checkout-retomada' },
   { nome: 'agora' },
   { nome: 'dashboard' },
+  { nome: 'cockpit' },
   { nome: 'split' },
   { nome: 'permissoes' },
   { nome: 'escalas' },

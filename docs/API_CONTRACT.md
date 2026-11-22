@@ -109,7 +109,7 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 | `POST /api/auth/refresh` | `{ refresh_token }` | nova sessão |
 | `POST /api/auth/logout` | — (Bearer JWT) | revoga a sessão no provedor |
 | `POST /api/auth/recover` | `{ email }` | sempre 200 com a mesma mensagem |
-| `POST /api/auth/password` | `{ password }` (Bearer do link de convite/recuperação) | mínimo 8 caracteres |
+| `POST /api/auth/password` | `{ password }` (Bearer do link de convite/recuperação) | mínimo 8 caracteres; máximo 72 bytes em UTF-8 (`PASSWORD_TOO_LONG`, 422, D-062) |
 | `GET /api/me` | — | usuário: `{ user, empresas[{ empresa_id, nome, role, unidades }] }` (funciona sem `X-Empresa-Id`); integração/legado: o próprio contexto |
 
 ### Administração (`admin`, só principal usuário)
@@ -159,6 +159,8 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 - Data fora do formato → 422 `INVALID_DATE`.
 
 `PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).
+
+Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/meu-agendamento/remarcar`), D-063/027: o novo horário e o original `reagendado` são gravados numa transação. Se o original mudou de status depois de lido → 409 `AGENDAMENTO_MUDOU`, sem nada gravado. Escala mudada durante a gravação → 409 `ESCALA_MUDOU` (antes da D-063, 500 no banco real).
 
 ## D-013 — estorno de comanda (migration 009)
 - `POST /api/comandas/:id/estorno` (`checkout:estornar`: admin/gestor, só usuário)
@@ -249,3 +251,9 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
     - `confirmacaoPrevia` = foto do dia: confirmados / (agendados + confirmados) de hoje;
     - `porProfissional[]` com falta e reagendamento.
   - Sem bônus.
+
+## Cockpit do gestor (D-064)
+`GET /api/cockpit` (`painel:financeiro`): `{ mes, hoje, saude: 'ok'|'ok_com_pontos'|'atencao', faturamento{realizadoCentavos, metaCentavos|null, metaPct|null, projecaoCentavos|null, projecaoNota, mesmoPeriodoAnteriorCentavos, variacaoPct|null, comandas}, margem{margemCentavos, margemPct|null, taxasCentavos, taxasPctDoRecebido|null, taxasPctAnterior|null}, ocupacao{janela, ocupacaoPct|null, minutosVendidos, minutosDisponiveis, minutosOciosos, porDia[{dow, nome, aberto, ocupacaoPct|null, tardePct|null, minutosOciosos}]}, recorrencia{ativos, mrrCentavos, atrasados, valorEmAbertoCentavos, canceladasNoMes, churnPct|null, pctDaReceita|null}, alertas[{id, nivel:'alta'|'media'|'info', titulo, porque, impactoCentavos|null, acao{rotulo, destino:'agenda'|'assinaturas'|'escalas'|'regras'|'financeiro', dow?, profissionalId?}, clientes?}], equipe[{profissionalId, nome, ocupacaoPct|null, metaPct|null, naEspera}], simulador{avulsosFrequentes, planoMaisBaratoMensalCentavos|null, minutosOciosos28d, minutosFalta30d, receitaPorMinutoCentavos|null} }`. Só leitura; nada é gravado.
+
+## Painel (D-065)
+`GET /api/dashboard`: `{ kpis{servicosLiquidosCentavos, produtosLiquidosCentavos, itensLiquidosCentavos, receitaEmpresaCentavos, realizadosPct|null, ticketMedioCentavos, comandos}, paymentsByMethod, finance }`. **Removidos:** `scoreHope`, `top3Actions` e `kpis.ocupacaoPct` (renomeado para `realizadosPct`). `/insights/piloto`: `referencia.media` e `referencia.topo` sempre `null`.

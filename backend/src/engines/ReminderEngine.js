@@ -18,6 +18,14 @@ function normalizarWhatsapp(numero) {
   return `55${d}`;
 }
 
+// Chave do número para achar o cliente (mesma regra de chave_numero_br, 027/D-063): normalizado
+// como acima e com o 9 no celular antigo de 8 dígitos. null se não for número válido.
+function chaveNumeroBr(numero) {
+  const n = normalizarWhatsapp(numero);
+  if (!n) return null;
+  return /^55\d{2}[6-9]\d{7}$/.test(n) ? `${n.slice(0, 4)}9${n.slice(4)}` : n;
+}
+
 function rotuloDia(data) {
   const [y, m, d] = data.split('-').map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -71,4 +79,4 @@ function montarLembretes({ data, agendamentos, clientes, servicos, profissionais
   };
 }
 
-module.exports = { montarLembretes, normalizarWhatsapp, textoLembrete, PENDENTES };
+module.exports = { montarLembretes, normalizarWhatsapp, chaveNumeroBr, textoLembrete, PENDENTES };

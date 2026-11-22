@@ -17,7 +17,7 @@
 |---|---|---|
 | Autenticação por usuário (JWT Supabase Auth, via `/api/auth/*`) | REAL no código / PENDENTE em produção | `backend/src/middleware/auth.js`, `routes/auth.js`; identity-gate 38/38 |
 | Principal de integração (credencial dedicada, scopes, rotação, auditoria) | REAL no código / PENDENTE em produção | `backend/src/auth/credentials.js`, `routes/admin.js`; identity-gate I01–I10 |
-| `API_ACCESS_TOKEN` (legado) | REAL / TEMPORÁRIO — coexistente, desligável por `LEGACY_TOKEN_AUTH_ENABLED` | identity-gate C01, C03 |
+| `API_ACCESS_TOKEN` (legado) | DESLIGADO em produção (`LEGACY_TOKEN_AUTH_ENABLED=false` no Render, informado pelo Platform Owner em 2026-11-22; não verificado por requisição) | identity-gate C01, C03 |
 | RBAC (4 papéis, matriz da ADR) | REAL no código — `authorize()` em todas as rotas de negócio | `backend/src/auth/rbac.js`; identity-gate U10, C05 |
 | Tenant por identidade (membership; `X-Empresa-Id` só seletor) | REAL no código / PENDENTE em produção | identity-gate U06–U08 |
 | Unidades | PARCIAL — acesso por unidade resolvido e fail-closed; dados de negócio ainda sem `unit_id` | ADR-005 "Desvios e limites" |
@@ -55,6 +55,10 @@
 - D-050 (2026-11-17): **gestão de agenda e escalas**: auditoria regra → estado; calendário do mês (estado da unidade, conflitos, ausências), lote em datas não consecutivas, conflito visível na grade, filtro de vários profissionais; **Gestão → Escalas redesenhada em blocos**. Sem migration. Recursos/processamento exigem 025.
 - D-051 (2026-11-17): **troca de cliente no card** — "Corrigir" (neutro) e "Passar a vaga" (cancelado com vaga repassada, ignorado na confiabilidade); sugestões da lista de espera, família e recentes. Sem migration.
 - D-061 (2026-11-22): **E2E com navegação comum** — `backend/tests/e2e/navegacao.js` (ir para Gestão, abrir Conta, sair); 25 trechos repetidos em 18 testes. Veio da análise das 9 falhas de CI de 14 a 21/11 (todas em PR, nenhuma na `main`; 6 eram teste desatualizado por mudança de menu ou de log).
+- D-062 (2026-11-22): **Onda 1 do Blueprint v2 (sem migration)** — senha acima de 72 bytes recusada (`PASSWORD_TOO_LONG`); teto diário do link público conta só o dia no banco; aviso de nome parecido ao cadastrar cliente (usar existente, cadastrar mesmo assim, voltar). Gates S04b e P14b e E2E `permissoes` com controles negativos; E2E 41/41.
+- D-063 (2026-11-22): **migration 027, agendamento público e remarcação atômicos** — link público grava cliente + horário + evento numa transação sob trava por salão + número (sem cliente órfão, sem duplicata na corrida, entre instâncias); remarcação (recepção e link) é uma transação com conferência de status (409 `AGENDAMENTO_MUDOU`). Sem índice único de telefone (família no mesmo número). Corrigido: HS412 de `agendamento_criar` saía como 500. Aplica no merge.
+- D-064 (2026-11-22): **Cockpit do gestor (sem migration)** — `GET /api/cockpit` + topo do Painel para gestão: faturamento × meta com projeção, margem real, ocupação por dia (tarde), recorrência (MRR, atrasados, churn), "Decidir agora" com regras explicáveis e ação real, equipe e simulador. Achado HARDCODED: `scoreHope` e "Operação estável" no `/dashboard` (sem uso na tela).
+- D-065 (2026-11-22): **sem número inventado no Painel** — removidos `scoreHope` e as ações de enchimento do `/dashboard`; `ocupacaoPct` virou `realizadosPct` (era outra métrica); faixas "de mercado" não verificadas saíram do piloto (agora: compare com o histórico do salão).
 - D-060 (2026-11-21): **lista de espera, opção C** — pedido de outro serviço do mesmo cliente: a recepção escolhe tirar da espera / manter / voltar (o servidor exige a decisão e a guarda no histórico); outro cliente nunca baixa. Corrige formulário sem cliente quando o cliente do pedido não está carregado.
 - D-059 (2026-11-21): **saúde do banco** — `GET /api/health/banco` consulta o Supabase (mínima, limite de 5 s, resultado guardado 30 s, 503 sem detalhe). Monitores no UptimeRobot: API (KeepAlive), app (PWA) e, depois do merge, banco.
 - D-058 (2026-11-21): **migration 026 (escala e reserva sem corrida)** — `agendamento_criar` confere a versão da escala (maior seq de disponibilidade_eventos) lida antes da conferência; mudou → HS412 ESCALA_MUDOU, nada gravado. Do lado da escala, `afetadosDepois` avisa reserva que entrou no meio. Aplica em produção no merge. Residual fechado em 2026-11-21: remarcação, série, link público e vários serviços também protegidos (vários serviços confere depois de gravar e desfaz); lote e remoção de data especial devolvem `afetadosDepois`.
@@ -129,7 +133,8 @@
 ## Riscos residuais
 - Aplicar a 007 sem backup ou fora da ordem (backend novo antes da migration quebra agenda/checkout/estoque): o runbook fixa a ordem e o backup.
 - A 007 revoga `anon`/`authenticated` em todo `public`: qualquer consumidor externo que hoje use a anon key direto no PostgREST para de funcionar (nenhum conhecido no repositório).
-- Enquanto `LEGACY_TOKEN_AUTH_ENABLED=true`, quem tiver o `API_ACCESS_TOKEN` age sem autoria e fora do RBAC.
+- Token legado desligado em produção (Platform Owner, 2026-11-22). Se for religado, quem tiver o `API_ACCESS_TOKEN` age sem autoria e fora do RBAC.
+- Chave da API do UptimeRobot trocada (Platform Owner, 2026-11-22). Pendente: senha do AppBarber (o dono mantém até terminar a leitura dos cadastros).
 - Supabase Auth precisa de Site URL/Redirect URLs corretos para os links de convite/recuperação.
 - `xlsx` com HIGH sem fix upstream; auditorias antigas são históricas, não autoridade de estado.
 

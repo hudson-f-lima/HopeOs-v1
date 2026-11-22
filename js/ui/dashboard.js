@@ -422,7 +422,8 @@ const PILOTO_KPIS = [
 ];
 
 function faixaPiloto(ref) {
-  if (!ref || !ref.media) return 'Sem referência de mercado';
+  // D-065: o servidor não manda faixa de mercado não verificada; a comparação é com o próprio salão.
+  if (!ref || !ref.media) return 'Compare com o histórico do salão' + (ref && ref.melhorQuando === 'menor' ? ' (menor é melhor)' : ref ? ' (maior é melhor)' : '');
   const f = r => (r.max == null ? `${r.min}%+` : `${r.min}–${r.max}%`);
   return `Referência: média ${f(ref.media)}${ref.topo ? `, topo ${f(ref.topo)}` : ''}${ref.melhorQuando === 'menor' ? ' (menor é melhor)' : ''}`;
 }

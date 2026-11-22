@@ -13,6 +13,7 @@ for f in supabase/tests/gate_*.sql; do [ -e "$f" ] && run "$f"; done
 TEST_DB=$DB supabase/tests/concurrency_agenda.sh
 TEST_DB=$DB supabase/tests/concurrency_estorno.sh
 TEST_DB=$DB supabase/tests/concurrency_atendimento.sh
+TEST_DB=$DB supabase/tests/concurrency_publico.sh
 TEST_DB=$DB supabase/tests/controle_negativo_009.sh
 TEST_DB=$DB supabase/tests/backup_restore.sh
 if [ "${WITH_ROLLBACK:-1}" = 1 ] && ls supabase/rollback/*.sql >/dev/null 2>&1; then

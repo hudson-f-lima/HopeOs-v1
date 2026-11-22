@@ -8,6 +8,7 @@ const { createAppError } = require('../errors');
 const { getIdentityStore } = require('../auth/identityStore');
 const clock = require('../config/clock');
 const { calcularEstorno } = require('../engines/EstornoEngine');
+const { chaveNumeroBr } = require('../engines/ReminderEngine');
 
 // JSON com chaves ordenadas: o "hash" do pedido não depende da ordem das chaves (como o jsonb).
 const canonico = v => Array.isArray(v) ? `[${v.map(canonico).join(',')}]`
@@ -21,6 +22,10 @@ function installMemoryBackend(seed = {}) {
   const P = SupabaseRepository.prototype;
 
   P.list = async function (t, f = {}) { return rows(t).filter(r => match(r, f)); };
+  P.contarDesde = async function (t, f = {}, coluna, desde) {
+    const limite = new Date(desde).getTime();
+    return rows(t).filter(r => match(r, f) && r[coluna] && new Date(r[coluna]).getTime() >= limite).length;
+  };
   P.listPagamentosDasComandas = async function (ids) {
     const set = new Set(ids || []);
     return rows('comando_pagamentos').filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
@@ -176,6 +181,37 @@ function installMemoryBackend(seed = {}) {
       }
     }
     return this.insert('agendamentos', { ...agendamento, created_by: createdBy });
+  };
+  // Espelho da 027 (D-063): tudo ou nada. A trava por número é o próprio laço de eventos (um
+  // processo só); o que importa aqui é não deixar cliente órfão quando o horário falha.
+  P.criarAgendamentoPublico = async function ({ numero, clienteId = null, clienteNovo, agendamento, evento }) {
+    let cli = null; let criado = false; let concorrente = false;
+    if (clienteId) {
+      cli = rows('clientes').find(c => c.id === clienteId && c.empresa_id === this.empresaId && c.ativo !== false);
+      if (!cli) throw new Error('cliente nao encontrado');
+    } else {
+      cli = rows('clientes').filter(c => c.empresa_id === this.empresaId && c.ativo !== false && chaveNumeroBr(c.whatsapp) === numero)
+        .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
+      if (cli) concorrente = true;
+      else { cli = await this.insert('clientes', { nome: clienteNovo.nome, whatsapp: numero, ativo: true, observacoes: clienteNovo.observacoes || null, created_by: null }); criado = true; }
+    }
+    let ag;
+    try { ag = await this.criarAgendamento({ agendamento: { ...agendamento, cliente_id: cli.id }, permitirConflito: false, ignorarId: null, createdBy: null }); }
+    catch (err) {
+      if (criado) rows('clientes').splice(rows('clientes').indexOf(cli), 1);
+      throw err;
+    }
+    const payload = { ...(evento.payload || {}), ...(concorrente ? { dedup: 'existente_concorrente' } : {}) };
+    await this.insert('agendamento_eventos', { agendamento_id: ag.id, tipo: evento.tipo, payload, created_at: evento.created_at || new Date().toISOString() });
+    return { agendamento: ag, clienteId: cli.id, clienteCriado: criado, clienteConcorrente: concorrente };
+  };
+  P.remarcarAgendamento = async function ({ originalId, deStatus, agendamento, permitirConflito = false, createdBy = null }) {
+    const orig = rows('agendamentos').find(a => a.id === originalId && a.empresa_id === this.empresaId);
+    if (!orig) throw new Error('agendamento nao encontrado');
+    if (!deStatus.includes(orig.status)) throw createAppError('AGENDAMENTO_MUDOU', 'Este horário mudou enquanto você remarcava (outra pessoa alterou). Nada foi gravado: confira e tente de novo.', 409);
+    const novo = await this.criarAgendamento({ agendamento, permitirConflito, ignorarId: originalId, createdBy });
+    Object.assign(orig, { status: 'reagendado', updated_at: new Date().toISOString(), updated_by: createdBy });
+    return { novo, original: orig };
   };
   const registrarAutoria = (empresaId, evento, autoria) => {
     const ev = { id: randomUUID(), empresa_id: empresaId, evento, actor_id: autoria.actorId || null, actor_integration_id: autoria.integrationId || null };

@@ -340,6 +340,16 @@ test('S04 definir senha exige prova do provedor e mínimo de 8 caracteres', asyn
   const ok = await request('POST', '/api/auth/password', { token: 'recovery.recepcao.s', body: { password: 'nova-senha-1' } });
   assert.strictEqual(ok.status, 200); assert.strictEqual(senhas.recepcao, 'nova-senha-1');
 });
+test('S04b senha acima de 72 bytes é recusada (bcrypt ignora o excedente, D-062)', async () => {
+  // 73 letras = 73 bytes; 37 "é" = 37 caracteres mas 74 bytes em UTF-8; 72 letras = limite exato.
+  const longa = await request('POST', '/api/auth/password', { token: 'recovery.recepcao.s', body: { password: 'a'.repeat(73) } });
+  assert.strictEqual(longa.status, 422); assert.strictEqual(code(longa), 'PASSWORD_TOO_LONG');
+  const acentos = await request('POST', '/api/auth/password', { token: 'recovery.recepcao.s', body: { password: 'é'.repeat(37) } });
+  assert.strictEqual(code(acentos), 'PASSWORD_TOO_LONG');
+  assert.strictEqual(senhas.recepcao, 'nova-senha-1', 'nada foi gravado');
+  const limite = await request('POST', '/api/auth/password', { token: 'recovery.recepcao.s', body: { password: 'b'.repeat(72) } });
+  assert.strictEqual(limite.status, 200); assert.strictEqual(senhas.recepcao, 'b'.repeat(72));
+});
 
 // ---------- principal integration ----------
 let integ; let secret1;

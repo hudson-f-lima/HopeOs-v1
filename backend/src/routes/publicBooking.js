@@ -380,8 +380,9 @@ async function gravar(repo, cat, ctx) {
   const agoraIso = relogio().toISOString();
 
   // Teto diário de agendamentos online do salão (disjuntor contra spam).
-  const eventos = await repo.list('agendamento_eventos', { empresa_id: repo.empresaId, tipo: TIPO_EVENTO });
-  const hoje = eventos.filter(e => e.created_at && agoraNoFuso(env.APP_TIMEZONE, new Date(e.created_at)).data === lim.agora.data).length;
+  // Conta só desde a meia-noite do salão (D-062), sem ler o histórico inteiro.
+  const inicioDoDia = instanteLocal(lim.agora.data, '00:00', env.APP_TIMEZONE).toISOString();
+  const hoje = await repo.contarDesde('agendamento_eventos', { empresa_id: repo.empresaId, tipo: TIPO_EVENTO }, 'created_at', inicioDoDia);
   if (hoje >= num(env.PUBLIC_BOOKING_TETO_DIARIO, 50)) throw agendamentoOnlineRecusado();
 
   const { algum, ativos } = clientesDoNumero(await repo.list('clientes', { empresa_id: repo.empresaId }), entrada.whatsapp);
@@ -403,54 +404,54 @@ async function gravar(repo, cat, ctx) {
       alerta: cat.empresa.regua_alerta_faltas ?? 2, sinal: cat.empresa.regua_sinal_faltas ?? 3
     }, lim.agora.data).nivel;
     if (regua === 'exigir_sinal') throw agendamentoOnlineRecusado();
-  } else {
-    cliente = await repo.insert('clientes', {
-      nome: entrada.nome, whatsapp: entrada.whatsapp, ativo: true,
-      observacoes: 'Cadastro pelo link de agendamento online', created_by: null
-    });
   }
 
-  // Mesmo caminho do POST /agenda: agendamento_criar (conflito + insert sob lock no banco).
+  const dadosAgendamento = {
+    servico_id: servico.id,
+    profissional_id: profissional.id,
+    data: entrada.data,
+    horario: entrada.horario,
+    duracao_min: duracaoMin,
+    valor_centavos: precoDe(servico, profissional),
+    status: 'agendado',
+    ...(cat.dispVersao !== null && cat.dispVersao !== undefined ? { disp_versao: cat.dispVersao } : {})
+  };
+  const clienteNovo = { nome: entrada.nome, observacoes: 'Cadastro pelo link de agendamento online' };
+  const payloadEvento = {
+    origem: 'link_publico',
+    slug: req.publicBooking.slug,
+    versao_aviso_privacidade: cat.aviso.versao,
+    aviso_hash: cat.aviso.hash,
+    fonte_link: req.publicBooking.fonte,
+    profissional_escolhido_por: ctx.semPreferencia ? 'sistema' : 'cliente',
+    consentimento_em: agoraIso,
+    ip_truncado: ipTruncado(req.ip),
+    dedup,
+    regua
+  };
+  // Conflito ou escala mudada: a mesma resposta neutra de antes (o cliente escolhe outro horário).
+  const ocupado = err => { if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) throw horarioOcupado(); throw err; };
+
+  // 027 (D-063): cliente, horário e evento numa transação, sob trava por salão + número que vale
+  // entre instâncias. Se outro pedido do mesmo número criou o cliente depois da leitura acima, o
+  // banco usa esse cliente (o evento registra "existente_concorrente").
+  let viaBanco;
+  try {
+    viaBanco = await repo.criarAgendamentoPublico({
+      numero: entrada.whatsapp, clienteId: cliente ? cliente.id : null, clienteNovo,
+      agendamento: dadosAgendamento, evento: { tipo: TIPO_EVENTO, created_at: agoraIso, payload: payloadEvento }
+    });
+  } catch (err) { ocupado(err); }
+  if (viaBanco) return viaBanco.agendamento;
+
+  // Banco sem a 027 (janela do deploy ou rollback): caminho anterior, em passos separados.
+  if (!cliente) cliente = await repo.insert('clientes', { nome: clienteNovo.nome, whatsapp: entrada.whatsapp, ativo: true, observacoes: clienteNovo.observacoes, created_by: null });
   let agendamento;
   try {
-    agendamento = await repo.criarAgendamento({
-      agendamento: {
-        cliente_id: cliente.id,
-        servico_id: servico.id,
-        profissional_id: profissional.id,
-        data: entrada.data,
-        horario: entrada.horario,
-        duracao_min: duracaoMin,
-        valor_centavos: precoDe(servico, profissional),
-        status: 'agendado',
-        ...(cat.dispVersao !== null && cat.dispVersao !== undefined ? { disp_versao: cat.dispVersao } : {})
-      },
-      permitirConflito: false,
-      createdBy: null
-    });
-  } catch (err) {
-    if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) throw horarioOcupado();
-    throw err;
-  }
-
+    agendamento = await repo.criarAgendamento({ agendamento: { ...dadosAgendamento, cliente_id: cliente.id }, permitirConflito: false, createdBy: null });
+  } catch (err) { ocupado(err); }
   try {
-    await repo.insert('agendamento_eventos', {
-      agendamento_id: agendamento.id,
-      tipo: TIPO_EVENTO,
-      created_at: agoraIso,
-      payload: {
-        origem: 'link_publico',
-        slug: req.publicBooking.slug,
-        versao_aviso_privacidade: cat.aviso.versao,
-        aviso_hash: cat.aviso.hash,
-        fonte_link: req.publicBooking.fonte,
-        profissional_escolhido_por: ctx.semPreferencia ? 'sistema' : 'cliente',
-        consentimento_em: agoraIso,
-        ip_truncado: ipTruncado(req.ip),
-        dedup,
-        regua
-      }
-    });
+    await repo.insert('agendamento_eventos', { agendamento_id: agendamento.id, tipo: TIPO_EVENTO, created_at: agoraIso, payload: payloadEvento });
   } catch (err) {
     // O agendamento já existe (e é o que importa ao cliente); o evento é auditoria.
     console.error('[agendar] evento de origem não gravado:', erroParaLog(err));
@@ -749,26 +750,30 @@ rotaLink('/remarcar', async (req, res) => {
   if (typeof horario !== 'string' || !HORA_RE.test(horario)) throw dadosInvalidos();
   const { slots, dispVersao } = await slotsDaRemarcacao(c, data);
   if (!slots.includes(horario)) throw horarioIndisponivel();
+  const dados = {
+    cliente_id: c.ag.cliente_id, servico_id: c.ag.servico_id, profissional_id: c.ag.profissional_id,
+    data, horario, duracao_min: Number(c.ag.duracao_min) || 30, valor_centavos: Number(c.ag.valor_centavos) || 0, status: 'agendado',
+    ...(dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
+  };
+  const agoraIso = c.agora.toISOString();
   let novo;
   try {
-    novo = await c.repo.criarAgendamento({
-      agendamento: {
-        cliente_id: c.ag.cliente_id, servico_id: c.ag.servico_id, profissional_id: c.ag.profissional_id,
-        data, horario, duracao_min: Number(c.ag.duracao_min) || 30, valor_centavos: Number(c.ag.valor_centavos) || 0, status: 'agendado',
-        ...(dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
-      },
-      permitirConflito: false, ignorarId: c.ag.id, createdBy: null
-    });
+    // 027 (D-063): novo + original "reagendado" numa transação; o original mudou no meio → nada gravado.
+    const feito = await c.repo.remarcarAgendamento({ originalId: c.ag.id, deStatus: STATUS_ATIVOS, agendamento: dados, permitirConflito: false, createdBy: null });
+    if (feito) novo = feito.novo;
+    else {
+      // Banco sem a 027: cria, marca o original por CAS e desfaz o novo se o original mudou.
+      novo = await c.repo.criarAgendamento({ agendamento: dados, permitirConflito: false, ignorarId: c.ag.id, createdBy: null });
+      const antigo = await c.repo.atualizarStatusAgendamentoSe(c.ag.id, STATUS_ATIVOS, { status: 'reagendado', updated_at: agoraIso, updated_by: null });
+      if (!antigo) {
+        await c.repo.atualizarStatusAgendamentoSe(novo.id, ['agendado'], { status: 'cancelado', cancelled_by: null, updated_at: agoraIso, updated_by: null });
+        throw agendamentoMudou();
+      }
+    }
   } catch (err) {
+    if (err && err.code === 'AGENDAMENTO_MUDOU') throw agendamentoMudou();
     if (err && (err.code === 'SCHEDULE_CONFLICT' || err.statusCode === 409)) throw horarioOcupado();
     throw err;
-  }
-  const agoraIso = c.agora.toISOString();
-  const antigo = await c.repo.atualizarStatusAgendamentoSe(c.ag.id, STATUS_ATIVOS, { status: 'reagendado', updated_at: agoraIso, updated_by: null });
-  if (!antigo) {
-    // O original mudou no meio (a recepção cancelou ou remarcou): desfaz o novo e avisa.
-    await c.repo.atualizarStatusAgendamentoSe(novo.id, ['agendado'], { status: 'cancelado', cancelled_by: null, updated_at: agoraIso, updated_by: null });
-    throw agendamentoMudou();
   }
   await moverAcessos(c.repo, c.ag.id, novo, { timeZone: env.APP_TIMEZONE, contarRemarcacao: true, agora: c.agora });
   await registrarEventoAgenda(c.repo, AUTOR_CLIENTE, { agendamentoId: c.ag.id, tipo: 'reagendado', de: c.ag.status, para: 'reagendado', origem: 'link_cliente', extra: { reagendado_para: novo.id } });

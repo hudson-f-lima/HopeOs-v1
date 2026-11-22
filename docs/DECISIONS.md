@@ -889,3 +889,94 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - Controle negativo: com o seletor do menu errado só no auxiliar, `escalas` e `permissoes` falham juntos; restaurado, voltam.
   - Suíte completa de E2E verde.
 - **Regra daqui para a frente:** teste novo que precise ir a Gestão ou à Conta usa o auxiliar. Uma mudança de menu ajusta `navegacao.js`.
+
+## D-062 — Onda 1 do Blueprint v2 (sem migration): senha até 72 bytes, teto diário só do dia, aviso de nome parecido
+- **Origem:** `docs/planning/BLUEPRINT_MASTER_V2_ANALISE.md`, Onda 1. O Platform Owner pediu `/completar-lacuna` depois da análise.
+- **Senha (`POST /auth/password`):** acima de 72 bytes em UTF-8 volta 422 `PASSWORD_TOO_LONG`, e nada é gravado. O Supabase Auth guarda a senha com bcrypt, que ignora o que passa de 72 bytes, então duas senhas diferentes só depois disso entrariam como iguais. A tela de definir senha avisa antes de enviar.
+- **Teto diário do link público:** conta os eventos desde a meia-noite do salão com uma contagem no banco (`contarDesde`, `count` sem trazer linhas). Antes, lia todos os eventos do salão e filtrava em memória, o que crescia com o histórico.
+- **Nome parecido (recepção e Gestão):** antes de criar um cliente, procura um cliente ativo com o mesmo nome (ignorando acento, caixa e pontuação) ou com o mesmo primeiro e último nome.
+  - No cadastro rápido do agendamento: **Usar** o existente, **Cadastrar novo mesmo assim** ou **Voltar**.
+  - Em Gestão → Clientes: **Cadastrar novo mesmo assim** ou **Não cadastrar**.
+  - Só avisa e não bloqueia. Telefone repetido continua barrado pelo servidor.
+  - Sem pontuação inventada: os pesos e limiares do blueprint foram rejeitados (análise, §3.5).
+- **Verificação:**
+  - Gates: `identity` S04b (73 bytes, 37 "é" = 74 bytes, limite exato de 72) e `agendamento-publico` P14b (1.000 eventos de ontem e a borda 02:59Z/03:00Z; o teste falha se o teto listar os eventos).
+  - Controles negativos: com o código anterior, S04b e P14b caem. Com a regra de nome desligada, o E2E `permissoes` cai.
+  - E2E `permissoes`: aviso com o nome certo; Voltar não grava; Usar não cria cadastro; Cadastrar mesmo assim grava.
+  - Suíte offline verde, E2E 41/41, migrations conferem. Sem migration.
+- **Achado do E2E:** um segundo cadastro rápido com o mesmo telefone já é recusado pelo servidor. O teste limpa o telefone de propósito para exercitar só a regra do nome.
+
+## D-063 — Migration 027: agendamento público e remarcação atômicos (Onda 2 do Blueprint v2)
+- **Autorização (Platform Owner, 2026-11-22):** "Iniciar a próxima onda", sobre a Onda 2 de `docs/planning/BLUEPRINT_MASTER_V2_ANALISE.md` (migration 027). O merge, que aplica em produção, continua dependendo de ordem própria.
+- **Mudança de desenho em relação à análise: sem índice único de telefone.**
+  - Evidência: `POST /clientes` deixa quem tem `clientes:editar` cadastrar dois clientes no mesmo número (só o cadastro rápido de quem não edita é barrado). É o caso de mãe e filho no mesmo número; um `UNIQUE` quebraria esse uso.
+  - A duplicata acidental vinha só da corrida do link público. Uma trava no banco por salão + número resolve a corrida sem tocar na recepção.
+  - A pergunta "abortar ou mesclar duplicados" deixou de existir.
+- **Migration 027 (aplica no merge):**
+  - `chave_numero_br(text)`: mesma regra do backend (`chaveNumeroBr` = `normalizarWhatsapp` + 9 no celular antigo). Índice comum, não único, `(empresa_id, chave_numero_br(whatsapp))`.
+  - `agendamento_publico_criar`: trava `cliente_numero:<empresa>:<número>`; acha o cliente ativo do número ou cria; chama `agendamento_criar` e grava o evento de origem, tudo na mesma transação. Se outro pedido criou o cliente depois da leitura do backend, usa esse cliente e marca `dedup: existente_concorrente`.
+  - `agendamento_remarcar`: trava a linha do original (`FOR UPDATE`) e confere o status (HS410 `AGENDAMENTO_MUDOU`). Depois cria o novo por `agendamento_criar`, ignorando o original, e marca o original `reagendado`, na mesma transação.
+  - Só `service_role` executa. Rollback `027_down.sql`.
+- **Backend:**
+  - O link público (agendar e remarcar) e a remarcação da recepção passam pelas RPCs.
+  - Se a função não existir no banco (PGRST202/42883, na janela do deploy ou depois de um rollback), a rota usa o caminho anterior.
+  - O espelho em memória reproduz o tudo ou nada.
+- **Defeito de produção corrigido junto (introduzido na D-058):** `criarAgendamento` do repositório real não traduzia o HS412. Escala mudada durante a gravação dava 500 em vez de 409 `ESCALA_MUDOU` no `POST /agenda`, na remarcação e no link. Os testes não pegavam porque o espelho em memória traduzia. Agora há um tradutor único (`erroDaAgenda`: HS409, HS412, HS410).
+- **Efeito para quem usa:**
+  - Link público: um conflito de horário não deixa mais cadastro de cliente sem horário. Dois pedidos simultâneos do mesmo número criam um cliente só, mesmo com mais de uma instância do backend.
+  - Recepção: se outra pessoa mudar o horário durante a remarcação, volta 409 `AGENDAMENTO_MUDOU` e nada é gravado. Antes ficavam dois horários ativos se a segunda gravação falhasse.
+- **Verificação:**
+  - `gate_027.sql` (10 blocos, verde antes e depois do ciclo de rollback): normalização, órfão, escala mudou, outra empresa, inativo, remarcar, status velho, conflito, acesso.
+  - `concurrency_publico.sh`: duas sessões reais do mesmo número geram 1 cliente, 2 horários e 2 eventos. **Controle negativo:** sem a trava, 2 clientes (FALHA).
+  - Gate `agendamento-atomico` (6 testes, novo em `test:offline` e `test:gate`): paridade com a tabela do SQL e tradução de erros. **Controle negativo:** com o `criarAgendamento` antigo, A04 (HS412) cai.
+  - Gate `agendamento-publico` P13b/P13c: sem cliente órfão; caminho anterior quando a RPC falta. **Controle negativo:** pelo caminho anterior, P13b cai (órfão).
+  - `meu-agendamento` M06 reescrito (com a 027, nada é criado) e M06b (caminho anterior).
+  - Suíte offline verde; E2E 41/41; migrations conferem.
+- **Fica de fora:**
+  - As regras do link (limite de futuros, régua, intervalo) continuam conferidas no backend antes da RPC. A trava do banco cobre a criação do cliente e a gravação, não essas leituras. Com uma instância só no Render, a trava em memória continua cobrindo isso.
+  - Mover o link pessoal na remarcação segue fora da transação (best-effort, como antes).
+
+## D-064 — Cockpit do gestor orientado a decisão (sem migration)
+- **Origem:** o Platform Owner definiu os três essenciais da troca (assinatura, automação e mensagens, gestão inteligente) e mandou os mockups "Cockpit do Gestor", "Automação & Mensageria" e "Cashback Dinâmico", com o pedido "Cockpit do gestor orientado a decisão". Esta entrega é o cockpit, o único dos três que não depende de fornecedor nem de migration.
+- **`GET /api/cockpit`** (`painel:financeiro`, só leitura; tenant só do token). Motor puro em `engines/insights/cockpit.js`.
+  - **Faturamento × meta:** itens líquidos do mês até hoje, menos estornos do mês. A meta é a soma das metas da equipe (011). A projeção usa o ritmo do mês, só a partir do dia 7. A comparação é com o mesmo período do mês anterior.
+  - **Margem real:** receita do salão depois de comissão e taxas, mais a fatia de taxas no recebido, comparada com o mês anterior.
+  - **Ocupação:** últimas 4 semanas, total e por dia da semana, com a tarde (13h–18h) separada. Dia sem expediente aparece como "fechado", nunca como 0%.
+  - **Recorrência:** assinantes vigentes (pela mesma `situacao` do ciclo), receita mensal das assinaturas (MRR, com anual e trimestral convertidos para mês), atrasados ou suspensos com o valor em aberto, cancelamentos no mês e peso no faturamento.
+  - **"Decidir agora":** alertas por regra, cada um com o porquê, a conta do impacto e a ação que abre uma tela que existe. Os alertas são:
+    - gargalo: tarde (13h–18h) abaixo de 50%; se o dia não tem expediente à tarde, vale o dia inteiro (achado na captura: com o expediente só de manhã do banco de demonstração, o alerta sumia; teste K03b);
+    - avulsos com 2+ comandas em 30 dias e sem assinatura, com o potencial no plano mais barato à venda;
+    - assinantes atrasados;
+    - profissional com 90%+ de ocupação e gente na espera por ele;
+    - taxas que subiram 1 ponto ou mais;
+    - 2+ faltas em 30 dias.
+  - **Equipe:** ocupação e % da meta de cada profissional. Os serviços estornados no mês saem da meta.
+  - **Simulador:** só multiplica as bases do servidor (avulsos × plano; horas livres × preço médio do minuto vendido; faltas × preço do minuto). A tela diz que é estimativa.
+- **O que NÃO entrou dos mockups, e por quê:**
+  - "IA" e "Aplicar recomendações": as regras são explicáveis, não há modelo, e o nome não promete o que não existe.
+  - "Executar campanha automatizada": não há fornecedor de WhatsApp ainda. A ação leva à tela certa.
+  - Números de exemplo dos mockups (fill rate, LTV, ROI de cashback): sem dado, o campo fica nulo e a tela diz o motivo.
+  - Cashback: depende de contador (passivo do cliente).
+- **Achado (HARDCODED, não corrigido aqui):** `GET /api/dashboard` devolve `scoreHope` (ocupação × 0,4 + 40) e completa `top3Actions` com "Operação estável". Nenhuma tela usa esses dois campos (`grep` em `js/`). Remover é mudança de contrato, fica para decidir.
+- **Tela:** "Cockpit do gestor" no topo do Painel, só para quem tem `painel:financeiro`. A recepção nem faz a requisição.
+- **Verificação:**
+  - Gate `cockpit` (12 testes, números à mão): faturamento, margem, ocupação, recorrência, ordem e impacto dos alertas, equipe, simulador, saturação, "sem dados nada inventado", HTTP admin/gestor, isolamento com `empresa_id` da query ignorado, RBAC.
+  - **Controles negativos:** estorno ignorado (6 caem), meta sem descontar estorno (K06), alerta de enchimento (K08), plano arquivado oferecido (K05, K06).
+  - E2E `cockpit`: o admin vê tudo sem erro; o alerta de avulsos aparece com cliente e valor; a ação abre Gestão → Assinantes; não há rolagem horizontal em 390 px; a recepção não vê nem chama. **Controle negativo:** com a seção sempre escondida, o E2E cai.
+  - Suíte offline verde; E2E 42/42; migrations conferem.
+
+## D-065 — Sem número inventado nem referência não verificada no Painel
+- **Pedido do Platform Owner (2026-11-22):** "Remover score inventado. Remover dados mocados."
+- **Removido de `GET /api/dashboard`:**
+  - `scoreHope`: fórmula sem base, ocupação × 0,4 + 40;
+  - `top3Actions`: quando faltava alerta, era completado com "Operação estável";
+  - a regra antiga que sugeria "sinal" a cada cancelamento.
+  - Nenhuma tela usava esses campos; as decisões com o porquê estão no cockpit (D-064).
+- **Renomeado:** `kpis.ocupacaoPct` → `kpis.realizadosPct`. Era a fração de agendamentos realizados, não ocupação. Sem agenda, o valor é `null`, não 0%. A ocupação de verdade, por minuto de cadeira, está no cockpit e em `/insights/occupancy`.
+- **Removido do piloto (`/insights/piloto`, Painel → Indicadores):** as faixas "de mercado" (faltas 10–20%, reagendamento 40–52% e topo 70–80%, retorno de cliente novo 30–35% e topo 70%+). Vinham de materiais de fornecedores achados na web pela auditoria de 2026-11, nunca conferidos, e apareciam como referência. A tela agora diz "Compare com o histórico do salão (menor/maior é melhor)".
+- **Mantido, com o motivo:**
+  - **Taxas de exemplo do onboarding** (débito 1,99%, crédito 4,99%): aparecem rotuladas como exemplo e são confirmadas pelo dono antes de gravar. Trocar por 0% esconderia o custo.
+  - **Banco de demonstração** (`backend/src/dev/`): só roda localmente e no E2E, nunca em produção.
+  - Os textos "por exemplo, 150,00" são dicas de formato.
+- **Não verificado:** se há registro de teste no banco de produção. A consulta só de contagens ficou sem aprovação e não foi executada.
+- **Verificação:** `correcoes` J14 e J14b (sem score, sem enchimento, sem nome enganoso, sem agenda = `null`). **Controle negativo:** com o `DashboardService` antigo, J14 e J14b caem. `piloto` passa a exigir faixa nula. Suíte offline verde; E2E 42/42.

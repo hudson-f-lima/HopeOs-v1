@@ -323,6 +323,38 @@ test('P13 concorrência: dois POSTs no mesmo horário → 1 grava; corrida após
   } finally { SupabaseRepository.prototype.criarAgendamento = original; }
 });
 
+test('P13b horário tomado no meio (027, D-063): número novo não deixa cliente órfão nem evento', async () => {
+  const original = SupabaseRepository.prototype.criarAgendamento;
+  SupabaseRepository.prototype.criarAgendamento = async function (args) {
+    db.agendamentos.push({ id: '90000000-0000-4000-8000-0000000000d1', empresa_id: A, profissional_id: ANA, servico_id: CORTE, data: AMANHA, horario: '16:30:00', duracao_min: 30, status: 'agendado' });
+    return original.call(this, args);
+  };
+  const antes = contar();
+  try {
+    const r = await post(pedido({ horario: '16:30', whatsapp: '21 96666-0020', nome: 'Sem Orfao' }));
+    assert.strictEqual(r.status, 409); assert.strictEqual(code(r), 'HORARIO_OCUPADO');
+  } finally {
+    SupabaseRepository.prototype.criarAgendamento = original;
+    db.agendamentos.splice(db.agendamentos.findIndex(a => a.id === '90000000-0000-4000-8000-0000000000d1'), 1);
+  }
+  assert.ok(!db.clientes.some(c => c.nome === 'Sem Orfao'), 'cliente órfão gravado');
+  assert.deepStrictEqual(contar(), antes);
+});
+
+test('P13c banco sem a 027 (RPC ausente): o link continua gravando pelo caminho anterior', async () => {
+  const P = SupabaseRepository.prototype;
+  const rpc = P.criarAgendamentoPublico;
+  let chamadas = 0;
+  P.criarAgendamentoPublico = async () => { chamadas++; return null; };
+  try {
+    const antes = contar();
+    const r = await post(pedido({ horario: '14:30', data: AMANHA, whatsapp: '21 96666-0021', nome: 'Caminho Antigo' }));
+    assert.strictEqual(r.status, 201, r.raw);
+    assert.strictEqual(chamadas, 1, 'tentou a RPC antes');
+    assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
+  } finally { P.criarAgendamentoPublico = rpc; }
+});
+
 test('P14 teto diário do salão: atingido → mesma recusa genérica', async () => {
   const hoje = db.agendamento_eventos.filter(e => e.empresa_id === A && e.tipo === publico.TIPO_EVENTO).length;
   env.PUBLIC_BOOKING_TETO_DIARIO = hoje;
@@ -333,6 +365,34 @@ test('P14 teto diário do salão: atingido → mesma recusa genérica', async ()
     assert.strictEqual(contar().ag, antes.ag);
     assert.strictEqual((await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '16:30', whatsapp: '21 96666-0004' }), 'salao-beta')).status, 201, 'teto é por salão');
   } finally { limitesAltos(); }
+});
+
+test('P14b teto diário conta só desde a meia-noite do salão, sem ler o histórico (D-062)', async () => {
+  // AGORA = 10/11 09:00 em São Paulo (UTC-3): meia-noite local = 10/11 03:00Z.
+  // 1.000 eventos de ontem + 1 às 02:59Z (23:59 de ontem, local) ficam FORA; 1 às 03:00Z entra.
+  const antigos = [];
+  for (let i = 0; i < 1000; i++) antigos.push({ id: 'old-' + i, empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-09T15:00:00.000Z', payload: {} });
+  antigos.push({ id: 'old-borda', empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-10T02:59:00.000Z', payload: {} });
+  antigos.push({ id: 'hoje-borda', empresa_id: A, tipo: publico.TIPO_EVENTO, created_at: '2026-11-10T03:00:00.000Z', payload: {} });
+  db.agendamento_eventos.push(...antigos);
+  const P = SupabaseRepository.prototype;
+  const listOriginal = P.list;
+  P.list = async function (t, f) {
+    if (t === 'agendamento_eventos') throw new Error('o teto não pode listar o histórico de eventos');
+    return listOriginal.call(this, t, f);
+  };
+  try {
+    const deHoje = db.agendamento_eventos.filter(e => e.empresa_id === A && e.tipo === publico.TIPO_EVENTO && e.created_at >= '2026-11-10T03:00:00.000Z').length;
+    env.PUBLIC_BOOKING_TETO_DIARIO = deHoje + 1; // cabe exatamente mais um hoje
+    const r = await post(pedido({ horario: '17:00', whatsapp: '21 96666-0010' }));
+    assert.strictEqual(r.status, 201, 'eventos antigos não contam no teto de hoje');
+    const r2 = await post(pedido({ horario: '17:30', whatsapp: '21 96666-0011' }));
+    assert.strictEqual(r2.status, 422); assert.strictEqual(code(r2), 'AGENDAMENTO_ONLINE_INDISPONIVEL', 'o da borda 03:00Z e o recém-criado contam');
+  } finally {
+    P.list = listOriginal;
+    for (const e of antigos) db.agendamento_eventos.splice(db.agendamento_eventos.indexOf(e), 1);
+    limitesAltos();
+  }
 });
 
 test('P15 rate limit: por IP (GET e POST) e por número → 429 neutro', async () => {
