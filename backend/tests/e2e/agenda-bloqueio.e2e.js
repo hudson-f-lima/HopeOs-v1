@@ -5,6 +5,7 @@
 // num horário livre do Bruno, escolhe Agendar. Em Escalas, a Ana aceita a escala que a gestão
 // definiu; a gestão vê "Aceita pelo profissional" e o histórico diz que a trilha está íntegra.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -104,7 +105,7 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
   // Todos os dias: "amanhã" pode ser domingo (tem o agendamento das 11:00, que não pode ficar fora).
   const def = await (await fetch(`${API}/api/disponibilidade/profissionais/${ANA}/semanal`, { method: 'PUT', headers: adm, body: JSON.stringify({ periodos: [0, 1, 2, 3, 4, 5, 6].map(d => ({ diaSemana: d, inicio: '08:00', fim: '20:00' })), decisoes: [] }) })).json();
   console.log('ESCALA DEFINIDA:', def.ok, def.ok ? '' : JSON.stringify(def.error && def.error.code));
-  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(a);
   await a.click('#subtabBtnEscalas'); await a.waitForSelector('[data-esc-aceitar]', { timeout: 8000 }).catch(() => {});
   confere('Ana vê "Aguardando aceite" e o botão', await a.locator('[data-esc-aceitar]').count() === 1 && /Aguardando aceite/.test(await a.textContent('#escConteudo')));
   await a.click('[data-esc-aceitar]');
@@ -132,7 +133,7 @@ const slot = (p, prof, h) => p.locator(`.slot-vazio[data-prof="${prof}"][data-ti
 
   // ---- Gestão vê o aceite ----
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(g);
   await g.click('#subtabBtnEscalas'); await g.waitForSelector('#escConteudo .esc-linha');
   const linhaAna = limpo(await g.locator(`.esc-linha[data-prof="${ANA}"]`).innerText());
   confere('gestão vê "Aceita pelo profissional" e não tem botão de aceitar', /Aceita pelo profissional em/.test(linhaAna) && await g.locator('[data-esc-aceitar]').count() === 0, linhaAna);

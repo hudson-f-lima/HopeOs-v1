@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { sairDaConta } = require('./navegacao');
 
 const API = 'http://127.0.0.1:3399';
 const BASE = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
@@ -58,8 +59,7 @@ async function entrar(browser, email) {
 }
 
 async function sair(p) {
-  if (!(await p.isVisible('#btnLogout'))) await p.click('#navAvatar');
-  await p.click('#btnLogout');
+  await sairDaConta(p);
   await p.waitForSelector(LOGGED_OUT);
   assert.equal(await p.isVisible('#appRoot'), false);
 }

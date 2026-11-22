@@ -551,8 +551,13 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
     if (payload.listaEsperaId) {
       exigirTambem(req, 'espera:gerir');
       itemEspera = await requireScopedEntity(repo, 'lista_espera', validateUUID(payload.listaEsperaId, 'listaEsperaId'), 'Item da lista de espera', 'WAITLIST_ITEM_NOT_FOUND');
-      if (itemEspera.cliente_id !== payload.clienteId || itemEspera.servico_id !== payload.servicoId) {
-        throw createAppError('WAITLIST_MISMATCH', 'Este pedido da lista de espera é de outro cliente ou de outro serviço.', 422);
+      // Outro cliente: nunca baixa (quem esperava não foi agendado), com ou sem a decisão (D-060).
+      if (itemEspera.cliente_id !== payload.clienteId) {
+        throw createAppError('WAITLIST_MISMATCH', 'Este pedido da lista de espera é de outro cliente.', 422);
+      }
+      // Mesmo cliente, outro serviço: só baixa se a recepção decidiu (e isso fica no histórico).
+      if (itemEspera.servico_id !== payload.servicoId && !payload.baixarEsperaOutroServico) {
+        throw createAppError('WAITLIST_SERVICO_DIFERENTE', 'Este pedido da lista de espera é de outro serviço. Decida se ele sai da espera.', 422, { servicoPedidoId: itemEspera.servico_id, servicoAgendadoId: payload.servicoId });
       }
       if (!['aguardando', 'contatado'].includes(itemEspera.status)) {
         throw createAppError('WAITLIST_ALREADY_USED', 'Este pedido da lista de espera já foi resolvido.', 409);
@@ -609,7 +614,9 @@ router.post('/agenda', authorize('agenda:criar'), async (req, res, next) => {
     // Encaixe forçado fora da disponibilidade fica registrado no próprio evento de criação.
     await registrarEventoAgenda(repo, req.auth, { agendamentoId: created && created.id, tipo: 'criado', de: null, para: (created && created.status) || 'agendado', extra: {
       ...(fora.forcado ? { fora_da_disponibilidade: fora.origem } : {}),
-      ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {})
+      ...(avisos.length ? { excecao_regras: avisos.map(a => a.codigo) } : {}),
+      // D-060: pedido da espera baixado por este agendamento (e, se o serviço era outro, por decisão da recepção).
+      ...(itemEspera ? { espera_baixada: { id: itemEspera.id, servico_pedido: itemEspera.servico_id, servico_agendado: payload.servicoId, outro_servico_por_decisao: itemEspera.servico_id !== payload.servicoId } } : {})
     } });
 
     res.status(201).json({ ok: true, data: created });

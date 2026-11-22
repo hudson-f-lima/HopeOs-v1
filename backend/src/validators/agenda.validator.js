@@ -29,7 +29,7 @@ function assertTransicaoStatus(statusAtual, novoStatus) {
 
 function validateCreateAgendamentoPayload(body) {
   if (!body || typeof body !== 'object') throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 400);
-  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId } = body;
+  const { clienteId, servicoId, profissionalId, data, horario, duracaoMin, permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId, baixarEsperaOutroServico } = body;
 
   if (!servicoId) throw createAppError('SERVICE_ID_REQUIRED', 'servicoId obrigatório.', 422);
   if (!profissionalId) throw createAppError('PROFESSIONAL_REQUIRED', 'profissionalId obrigatório.', 422);
@@ -50,7 +50,9 @@ function validateCreateAgendamentoPayload(body) {
     foraDaDisponibilidade: foraDaDisponibilidade === true,
     aceitarAvisos: aceitarAvisos === true,
     // Vaga dada a alguém da lista de espera (D-054): o item passa a "agendado" junto.
-    listaEsperaId: listaEsperaId === undefined || listaEsperaId === null || listaEsperaId === '' ? null : String(listaEsperaId)
+    listaEsperaId: listaEsperaId === undefined || listaEsperaId === null || listaEsperaId === '' ? null : String(listaEsperaId),
+    // D-060: a recepção decidiu tirar da espera um pedido de OUTRO serviço do mesmo cliente.
+    baixarEsperaOutroServico: baixarEsperaOutroServico === true
   };
 }
 

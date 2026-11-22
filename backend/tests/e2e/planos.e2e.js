@@ -3,6 +3,7 @@
 // por ciclo), simula sábado e quarta, edita o preço e arquiva outro plano. A recepção vê e simula,
 // sem criar nem editar. O profissional não vê a aba.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const db = async t => (await fetch(`${API}/__db/${t}`)).json();
@@ -42,7 +43,7 @@ function proximo(diaSemana) {
     await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   };
   const abrirPlanos = async p => {
-    await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+    await irParaGestao(p);
     const aba = p.locator('#subtabBtnPlanos');
     if (!(await aba.isVisible())) return false;
     await aba.click();
@@ -137,7 +138,7 @@ function proximo(diaSemana) {
   // 5) Profissional: sem a aba.
   const pr = await nova();
   await login(pr, 'profissional@dev.local');
-  await pr.click('#navGestao'); await pr.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(pr);
   const vePro = await pr.locator('#subtabBtnPlanos').isVisible().catch(() => false);
   console.log('PROFISSIONAL vê Planos:', vePro);
   if (vePro) errs.push('profissional vê Planos');

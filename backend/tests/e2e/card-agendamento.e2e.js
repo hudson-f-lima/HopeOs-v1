@@ -8,6 +8,7 @@
 //      vê "Profissional" editável.
 //   5) Camadas: Gestão → Clientes → "+ Novo" abre o modal por cima do painel; Esc fecha só o de cima.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -131,7 +132,7 @@ const topoEm = (p, sel) => p.evaluate(s => {
     && agsT.find(a => a.id === movido.id).status === 'cancelado' && Boolean(evT));
 
   // 5) Camadas: Gestão → Clientes → + Novo por cima; Esc fecha só o de cima.
-  await r.click('#navGestao'); await r.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(r);
   await r.click('[data-subtab="clientes"]'); await r.waitForTimeout(400);
   await r.click('#btnNovoCliente');
   await r.waitForSelector('#modalCliente:not(.hidden)');

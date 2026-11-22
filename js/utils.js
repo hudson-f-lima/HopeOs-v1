@@ -219,6 +219,29 @@ export function confirmAction({ title, message, confirmLabel = 'Confirmar', dang
   });
 }
 
+// Escolha entre várias ações (D-060): devolve o `valor` da opção tocada, ou null se a pessoa voltar.
+// opcoes: [{ valor, rotulo, destaque? }]. Usa o mesmo diálogo da confirmAction.
+export function escolherOpcao({ title, message, opcoes, voltar = 'Voltar' }) {
+  return new Promise((resolve) => {
+    const dialog = document.getElementById('conflict-dialog');
+    if (!dialog) { resolve(null); return; }
+    dialog.innerHTML = `
+      <div style="padding:20px;max-width:340px;font-family:inherit">
+        <div style="font-size:18px;font-weight:800;margin-bottom:8px">${escapeHtml(title)}</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.45;margin-bottom:20px">${escapeHtml(message)}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${opcoes.map(o => `<button type="button" data-opcao="${escapeHtml(o.valor)}" style="min-height:48px;padding:12px;border-radius:12px;cursor:pointer;font-weight:${o.destaque ? 800 : 600};font-size:14px;${o.destaque ? 'border:none;background:var(--primary);color:var(--on-primary)' : 'border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary)'}">${escapeHtml(o.rotulo)}</button>`).join('')}
+          <button type="button" data-opcao-voltar="1" style="min-height:44px;padding:12px;border-radius:12px;border:none;cursor:pointer;background:transparent;color:var(--text-secondary);font-size:14px">${escapeHtml(voltar)}</button>
+        </div>
+      </div>`;
+    const finish = (valor) => { dialog.close(); dialog.oncancel = null; resolve(valor); };
+    dialog.querySelectorAll('[data-opcao]').forEach(b => { b.onclick = () => finish(b.dataset.opcao); });
+    dialog.querySelector('[data-opcao-voltar]').onclick = () => finish(null);
+    dialog.oncancel = () => resolve(null);
+    dialog.showModal();
+  });
+}
+
 // CSV para planilha pt-BR: ";" como separador, vírgula decimal e BOM (acentos no Excel).
 // Texto que começa com = + - @ ganha apóstrofo: planilha não executa como fórmula.
 export function toCsv(cabecalho, linhas) {
