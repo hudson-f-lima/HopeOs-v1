@@ -20,6 +20,7 @@ const diasNoMes = mes => new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.s
 const mesAnterior = mes => { const y = Number(mes.slice(0, 4)); const m = Number(mes.slice(5, 7)); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`; };
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
 const soma = (lista, campo) => lista.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
+const num = v => String(v).replace('.', ',');
 const brl = c => 'R$ ' + (Math.round(c) / 100).toFixed(2).replace('.', ',');
 
 // Receita e margem de um intervalo [de, ate]: comandas pela data delas, estornos pela data do estorno.
@@ -151,16 +152,20 @@ function computeCockpit(input) {
   const nomeCli = new Map(entrada.clientes.map(c => [c.id, c.nome]));
   const alertas = [];
 
-  // 1. Gargalo: dia aberto com tarde abaixo de 50% nas últimas 4 semanas.
-  const abertos = occ.porDia.filter(d => d.aberto && d.tardePct !== null);
-  const pior = abertos.slice().sort((a, b) => a.tardePct - b.tardePct)[0];
-  if (pior && pior.tardePct < 50) {
+  // 1. Gargalo: dia aberto abaixo de 50% nas últimas 4 semanas. Usa a tarde (13h–18h) quando o dia
+  //    tem expediente à tarde; senão, o dia inteiro (salão que só abre de manhã também tem gargalo).
+  const candidatos = occ.porDia.filter(d => d.aberto && d.ocupacaoPct !== null)
+    .map(d => ({ ...d, valor: d.tardePct !== null ? d.tardePct : d.ocupacaoPct, tarde: d.tardePct !== null }));
+  const pior = candidatos.slice().sort((a, b) => a.valor - b.valor || b.minutosOciosos - a.minutosOciosos)[0];
+  if (pior && pior.valor < 50) {
     const ocioSemana = Math.round(pior.minutosOciosos / 4);
     const impacto = rpm ? Math.round(ocioSemana * rpm) : null;
+    const nomeDia = pior.nome[0].toUpperCase() + pior.nome.slice(1);
     alertas.push({
       id: 'gargalo_ocupacao', nivel: 'alta',
-      titulo: `${pior.nome[0].toUpperCase() + pior.nome.slice(1)} à tarde: ${pior.tardePct}% ocupada`,
-      porque: `Média das últimas 4 semanas entre ${TARDE.de}h e ${TARDE.ate}h. São cerca de ${Math.round(ocioSemana / 60)} h livres por semana nesse dia` +
+      titulo: `${nomeDia}${pior.tarde ? ' à tarde' : ''}: ${num(pior.valor)}% ocupada`,
+      porque: (pior.tarde ? `Média das últimas 4 semanas entre ${TARDE.de}h e ${TARDE.ate}h.` : 'Média das últimas 4 semanas, o dia inteiro.') +
+        ` São cerca de ${Math.round(ocioSemana / 60)} h livres por semana nesse dia` +
         (impacto !== null ? ` — ${brl(impacto)} por semana ao preço médio do minuto vendido (${brl(rpm * 60)} por hora).` : '.'),
       impactoCentavos: impacto, acao: { rotulo: 'Ver horários livres', destino: 'agenda', dow: pior.dow }
     });

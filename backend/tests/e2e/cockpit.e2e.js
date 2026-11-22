@@ -78,6 +78,16 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   await r.click('#navDashboard'); await r.waitForTimeout(1500);
   confere('recepção: cockpit escondido', !(await r.isVisible('#cockpit')));
   confere('recepção: nem chama /cockpit (sem 403 na tela)', r.cockpit.length === 0 && r.errs.length === 0, JSON.stringify([r.cockpit, r.errs]));
+  // Captura opcional para revisão humana (E2E_SHOT=caminho): computador, densidade 2.
+  if (process.env.E2E_SHOT) {
+    const d = await (await b.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 })).newPage();
+    await d.goto(BASE); await d.waitForSelector('#loginScreen:not(.hidden)');
+    await d.fill('#loginEmail', 'admin@dev.local'); await d.fill('#loginSenha', 'dev12345'); await d.click('#btnLogin');
+    await d.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
+    await d.click('#navDashboard'); await d.waitForSelector('#cockpit:not(.hidden) .ck-card');
+    await d.waitForFunction(() => !/Calculando/.test(document.getElementById('ckStatus').textContent));
+    await d.locator('#cockpit').screenshot({ path: process.env.E2E_SHOT });
+  }
   await b.close();
   if (falhas) { console.log(`E2E FALHOU (${falhas})`); process.exit(1); }
   console.log('E2E cockpit OK');

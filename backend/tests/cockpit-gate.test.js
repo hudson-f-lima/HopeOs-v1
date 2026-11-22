@@ -108,6 +108,19 @@ test('K03 ocupação 10,0% nas 4 semanas; terça à tarde 10% (gargalo); 2160 mi
   assert.ok(r.ocupacao.porDia.filter(d => d.dow !== 2).every(d => d.aberto === false && d.ocupacaoPct === null), 'dia fechado não vira 0%');
 });
 
+test('K03b salão que só abre de manhã: o gargalo usa o dia inteiro (antes: sumia sem a tarde)', () => {
+  // Terça 09h–12h (180 min) × 2 profissionais × 4 terças = 1440; P1 às 09h 60 min × 4 = 240 → 16,7%.
+  const manha = { ...EMPRESA, horario_por_dia: { ...EMPRESA.horario_por_dia, ter: { ativo: true, inicio: '09:00', fim: '12:00' } } };
+  const agenda = ['2026-10-27', '2026-11-03', '2026-11-10', '2026-11-17'].map((d, i) => ag('m' + i, P1, d, '09:00:00', 'concluido'));
+  const r = computeCockpit({ ...dados, empresa: manha, agendamentos: agenda });
+  const ter = r.ocupacao.porDia.find(d => d.dow === 2);
+  assert.deepStrictEqual([ter.ocupacaoPct, ter.tardePct], [16.7, null]);
+  const g = r.alertas.find(a => a.id === 'gargalo_ocupacao');
+  assert.ok(g, 'gargalo ausente');
+  assert.strictEqual(g.titulo, 'Terça: 16,7% ocupada');
+  assert.match(g.porque, /o dia inteiro/);
+});
+
 test('K04 recorrência: 2 ativos, MRR 194,90, 1 suspenso (94,90 em aberto), churn 33,3%, 92,8% da receita', () => {
   const r = computeCockpit(dados).recorrencia;
   assert.deepStrictEqual([r.ativos, r.mrrCentavos, r.atrasados, r.valorEmAbertoCentavos, r.canceladasNoMes, r.churnPct, r.pctDaReceita], [2, 19490, 1, 9490, 1, 33.3, 92.8]);
