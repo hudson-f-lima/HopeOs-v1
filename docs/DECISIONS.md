@@ -935,3 +935,32 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
 - **Fica de fora:**
   - As regras do link (limite de futuros, régua, intervalo) continuam conferidas no backend antes da RPC. A trava do banco cobre a criação do cliente e a gravação, não essas leituras. Com uma instância só no Render, a trava em memória continua cobrindo isso.
   - Mover o link pessoal na remarcação segue fora da transação (best-effort, como antes).
+
+## D-064 — Cockpit do gestor orientado a decisão (sem migration)
+- **Origem:** o Platform Owner definiu os três essenciais da troca (assinatura, automação e mensagens, gestão inteligente) e mandou os mockups "Cockpit do Gestor", "Automação & Mensageria" e "Cashback Dinâmico", com o pedido "Cockpit do gestor orientado a decisão". Esta entrega é o cockpit, o único dos três que não depende de fornecedor nem de migration.
+- **`GET /api/cockpit`** (`painel:financeiro`, só leitura; tenant só do token). Motor puro em `engines/insights/cockpit.js`.
+  - **Faturamento × meta:** itens líquidos do mês até hoje, menos estornos do mês. A meta é a soma das metas da equipe (011). A projeção usa o ritmo do mês, só a partir do dia 7. A comparação é com o mesmo período do mês anterior.
+  - **Margem real:** receita do salão depois de comissão e taxas, mais a fatia de taxas no recebido, comparada com o mês anterior.
+  - **Ocupação:** últimas 4 semanas, total e por dia da semana, com a tarde (13h–18h) separada. Dia sem expediente aparece como "fechado", nunca como 0%.
+  - **Recorrência:** assinantes vigentes (pela mesma `situacao` do ciclo), receita mensal das assinaturas (MRR, com anual e trimestral convertidos para mês), atrasados ou suspensos com o valor em aberto, cancelamentos no mês e peso no faturamento.
+  - **"Decidir agora":** alertas por regra, cada um com o porquê, a conta do impacto e a ação que abre uma tela que existe. Os alertas são:
+    - gargalo à tarde abaixo de 50%;
+    - avulsos com 2+ comandas em 30 dias e sem assinatura, com o potencial no plano mais barato à venda;
+    - assinantes atrasados;
+    - profissional com 90%+ de ocupação e gente na espera por ele;
+    - taxas que subiram 1 ponto ou mais;
+    - 2+ faltas em 30 dias.
+  - **Equipe:** ocupação e % da meta de cada profissional. Os serviços estornados no mês saem da meta.
+  - **Simulador:** só multiplica as bases do servidor (avulsos × plano; horas livres × preço médio do minuto vendido; faltas × preço do minuto). A tela diz que é estimativa.
+- **O que NÃO entrou dos mockups, e por quê:**
+  - "IA" e "Aplicar recomendações": as regras são explicáveis, não há modelo, e o nome não promete o que não existe.
+  - "Executar campanha automatizada": não há fornecedor de WhatsApp ainda. A ação leva à tela certa.
+  - Números de exemplo dos mockups (fill rate, LTV, ROI de cashback): sem dado, o campo fica nulo e a tela diz o motivo.
+  - Cashback: depende de contador (passivo do cliente).
+- **Achado (HARDCODED, não corrigido aqui):** `GET /api/dashboard` devolve `scoreHope` (ocupação × 0,4 + 40) e completa `top3Actions` com "Operação estável". Nenhuma tela usa esses dois campos (`grep` em `js/`). Remover é mudança de contrato, fica para decidir.
+- **Tela:** "Cockpit do gestor" no topo do Painel, só para quem tem `painel:financeiro`. A recepção nem faz a requisição.
+- **Verificação:**
+  - Gate `cockpit` (11 testes, números à mão): faturamento, margem, ocupação, recorrência, ordem e impacto dos alertas, equipe, simulador, saturação, "sem dados nada inventado", HTTP admin/gestor, isolamento com `empresa_id` da query ignorado, RBAC.
+  - **Controles negativos:** estorno ignorado (6 caem), meta sem descontar estorno (K06), alerta de enchimento (K08), plano arquivado oferecido (K05, K06).
+  - E2E `cockpit`: o admin vê tudo sem erro; o alerta de avulsos aparece com cliente e valor; a ação abre Gestão → Assinantes; não há rolagem horizontal em 390 px; a recepção não vê nem chama. **Controle negativo:** com a seção sempre escondida, o E2E cai.
+  - Suíte offline verde; E2E 42/42; migrations conferem.

@@ -26,6 +26,7 @@ import { initAgenda, updateNovoAgendamentoPreview, refreshAgendaSlots, avisarReg
 import { initCheckout, onServicoSelected, onCheckoutFieldChanged } from './ui/checkout.js';
 import { initComandas, abrirComandas } from './ui/comandas.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
+import { initCockpit, atualizarCockpit } from './ui/cockpit.js';
 import {
   initCadastros,
   openListaEsperaModal
@@ -63,6 +64,7 @@ export function showTab(name, { abrirLista = true } = {}) {
   if (name === 'metas' && anterior !== 'metas' && state.session && podeVerMetasGanhos()) abrirMetas();
   if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionPode('painel:operacional')) {
     atualizarDashboard();
+    atualizarCockpit();
     if (sessionPode('caixa:conferir')) atualizarCaixa();
     if (document.getElementById('dobraComandas').open && podeEstornar()) atualizarComandasEstorno();
   }
@@ -613,6 +615,7 @@ async function init() {
   initCheckout();
   initComandas(() => showTab('checkout', { abrirLista: false }));
   initDashboard();
+  initCockpit();
   initCadastros();
 
   document.getElementById('btnLogout')?.addEventListener('click', () => logout());

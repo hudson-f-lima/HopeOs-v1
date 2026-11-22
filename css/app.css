@@ -1426,3 +1426,47 @@ body{font-variant-numeric:tabular-nums;}
 #comandasStatus{margin:8px 0 0;color:var(--text-secondary);}
 #comandasStatus:empty{margin:0;}
 #btnComandaDoAtendimento{width:auto;margin-top:12px;}
+
+/* Cockpit do gestor (D-064) */
+.cockpit{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.ck-cabecalho{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ck-cabecalho h2{margin:0}
+.ck-saude{font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;background:var(--surface-variant);color:var(--text-secondary)}
+.ck-saude-ok{background:var(--success-light);color:var(--success)}
+.ck-saude-pontos{background:var(--warning-light);color:var(--warning)}
+.ck-saude-atencao{background:var(--error-light);color:var(--error)}
+.ck-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.ck-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px}
+.ck-card-titulo{font-size:13px;color:var(--text-secondary);font-weight:600}
+.ck-card-valor{font-size:24px;font-weight:800;margin:4px 0 6px;font-variant-numeric:tabular-nums}
+.ck-card-linha{font-size:12px;color:var(--text-secondary);line-height:1.45}
+.ck-secao{font-size:15px;margin:8px 0 4px}
+.ck-alertas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.ck-alerta{border:1px solid var(--border);border-left:4px solid var(--info);border-radius:var(--radius-md);padding:12px;background:var(--bg-surface)}
+.ck-alerta-alta{border-left-color:var(--error)}
+.ck-alerta-media{border-left-color:var(--warning)}
+.ck-alerta h4{margin:6px 0 4px;font-size:15px}
+.ck-alerta p{margin:0 0 8px;font-size:13px;color:var(--text-secondary);line-height:1.45}
+.ck-alerta-topo{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:700}
+.ck-nivel{color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.ck-impacto{font-variant-numeric:tabular-nums}
+.ck-quem{font-style:italic}
+.ck-alerta button{min-height:44px}
+.ck-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.ck-bloco{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px}
+.ck-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end}
+.ck-dia{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px}
+.ck-dia small{color:var(--text-secondary)}
+.ck-dia-barra{height:90px;width:100%;max-width:36px;background:var(--surface-variant);border-radius:6px;display:flex;align-items:flex-end;overflow:hidden}
+.ck-dia-barra span{display:block;width:100%;background:var(--success)}
+.ck-dia-baixo .ck-dia-barra span{background:var(--warning)}
+.ck-dia-cheio .ck-dia-barra span{background:var(--error)}
+.ck-dia-fechado b{color:var(--text-tertiary);font-weight:500}
+.ck-tabela{width:100%;border-collapse:collapse;font-size:13px}
+.ck-tabela th,.ck-tabela td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--border-light)}
+.ck-tabela td:not(:first-child),.ck-tabela th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.ck-sim{display:flex;flex-direction:column;gap:4px;font-size:13px;margin-bottom:10px}
+.ck-sim input{width:100%;min-height:32px}
+.ck-sim span{color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.ck-sim-total{font-size:15px;margin-top:4px}
+.ck-nota{font-size:12px;color:var(--text-tertiary);margin:6px 0 0}

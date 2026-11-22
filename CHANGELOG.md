@@ -1,5 +1,10 @@
 # Changelog
 
+## Cockpit do gestor (D-064)
+- No topo do Painel (administração e gestão): faturamento do mês contra a meta e o ritmo, margem real, ocupação por dia da semana, assinaturas (receita mensal, atrasos, cancelamentos), a equipe e um simulador.
+- "Decidir agora": o que pede ação, com o porquê e o valor em jogo. O botão leva direto à tela certa (agenda do dia ocioso, assinantes, escala, regras).
+- Sem número inventado: o que não tem dado aparece como "—", com o motivo.
+
 ## Agendamento pelo link e remarcação sem meio-termo (D-063, migration 027)
 - Agendamento pelo link: se o horário for tomado no último instante, não fica mais um cadastro de cliente sem horário; dois pedidos ao mesmo tempo do mesmo número criam um cliente só.
 - Remarcação: se outra pessoa mudar o horário enquanto você remarca, o app avisa e nada é gravado (antes podiam ficar dois horários ativos).

@@ -251,3 +251,6 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
     - `confirmacaoPrevia` = foto do dia: confirmados / (agendados + confirmados) de hoje;
     - `porProfissional[]` com falta e reagendamento.
   - Sem bônus.
+
+## Cockpit do gestor (D-064)
+`GET /api/cockpit` (`painel:financeiro`): `{ mes, hoje, saude: 'ok'|'ok_com_pontos'|'atencao', faturamento{realizadoCentavos, metaCentavos|null, metaPct|null, projecaoCentavos|null, projecaoNota, mesmoPeriodoAnteriorCentavos, variacaoPct|null, comandas}, margem{margemCentavos, margemPct|null, taxasCentavos, taxasPctDoRecebido|null, taxasPctAnterior|null}, ocupacao{janela, ocupacaoPct|null, minutosVendidos, minutosDisponiveis, minutosOciosos, porDia[{dow, nome, aberto, ocupacaoPct|null, tardePct|null, minutosOciosos}]}, recorrencia{ativos, mrrCentavos, atrasados, valorEmAbertoCentavos, canceladasNoMes, churnPct|null, pctDaReceita|null}, alertas[{id, nivel:'alta'|'media'|'info', titulo, porque, impactoCentavos|null, acao{rotulo, destino:'agenda'|'assinaturas'|'escalas'|'regras'|'financeiro', dow?, profissionalId?}, clientes?}], equipe[{profissionalId, nome, ocupacaoPct|null, metaPct|null, naEspera}], simulador{avulsosFrequentes, planoMaisBaratoMensalCentavos|null, minutosOciosos28d, minutosFalta30d, receitaPorMinutoCentavos|null} }`. Só leitura; nada é gravado.

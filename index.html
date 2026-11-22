@@ -362,6 +362,37 @@
         <span class="badge" id="dashUpdatedAt"></span>
       </div>
 
+      <section id="cockpit" class="cockpit hidden" aria-labelledby="ckTitulo">
+        <div class="ck-cabecalho">
+          <h2 id="ckTitulo">Cockpit do gestor</h2>
+          <span class="ck-saude" id="ckStatus" aria-live="polite"></span>
+        </div>
+        <div class="ck-cards" id="ckCards"></div>
+        <h3 class="ck-secao">Decidir agora</h3>
+        <div class="ck-alertas" id="ckAlertas"></div>
+        <div class="ck-grade">
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Ocupação por dia (últimas 4 semanas)</h3>
+            <div class="ck-dias" id="ckDias"></div>
+          </div>
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Equipe no mês</h3>
+            <div id="ckEquipe"></div>
+          </div>
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Simulador (estimativa)</h3>
+            <label class="ck-sim">Converter avulsos frequentes em assinantes <b id="ckSimConverterVal"></b>
+              <input type="range" id="ckSimConverter" min="0" max="100" step="5" value="15"/><span id="ckSimConverterRes"></span></label>
+            <label class="ck-sim">Preencher horas livres <b id="ckSimPreencherVal"></b>
+              <input type="range" id="ckSimPreencher" min="0" max="50" step="5" value="10"/><span id="ckSimPreencherRes"></span></label>
+            <label class="ck-sim">Reduzir faltas <b id="ckSimFaltasVal"></b>
+              <input type="range" id="ckSimFaltas" min="0" max="100" step="10" value="50"/><span id="ckSimFaltasRes"></span></label>
+            <div class="ck-sim-total">Potencial: <b id="ckSimTotal"></b></div>
+            <p class="ck-nota">Contas feitas com os números reais do salão (preço médio do minuto vendido e plano mais barato à venda). É uma estimativa, não uma promessa.</p>
+          </div>
+        </div>
+      </section>
+
       <h2 class="dash-precisa-titulo" id="dashPrecisaTitulo">Precisa de você</h2>
       <section class="dashboard-action-strip" id="dashboardActionStrip" aria-labelledby="dashPrecisaTitulo" aria-live="polite"></section>
 
