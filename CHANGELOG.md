@@ -1,5 +1,9 @@
 # Changelog
 
+## Painel sem número inventado (D-065)
+- Saíram o "score" calculado sem base e as frases automáticas como "Operação estável".
+- Os indicadores do piloto não mostram mais faixas "de mercado" que nunca foram conferidas: a comparação é com o histórico do próprio salão.
+
 ## Cockpit do gestor (D-064)
 - No topo do Painel (administração e gestão): faturamento do mês contra a meta e o ritmo, margem real, ocupação por dia da semana, assinaturas (receita mensal, atrasos, cancelamentos), a equipe e um simulador.
 - "Decidir agora": o que pede ação, com o porquê e o valor em jogo. O botão leva direto à tela certa (agenda do dia ocioso, assinantes, escala, regras).

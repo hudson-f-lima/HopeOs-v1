@@ -85,13 +85,17 @@ const FIDELIDADE_VISITAS = 3;
 const FIDELIDADE_JANELA_DIAS = 365;
 const ATENDIDO = ['concluido', 'fechado'];
 
+// D-065: sem faixas de mercado. As de antes (10–20% de faltas, 40–52% de reagendamento, 30–35% de
+// retorno) vinham de materiais de fornecedores achados na web, nunca conferidos, e apareciam como
+// padrão. O número que vale é o do próprio salão comparado com ele mesmo.
+const SEM_REFERENCIA = 'Sem referência de mercado verificada: compare com o histórico do salão';
 const REFERENCIAS = {
-  taxaFalta: { melhorQuando: 'menor', media: { min: 10, max: 20 }, topo: null, fonte: 'Auditoria 2026-11 §3 (SchedulingKit, Salon Today)' },
-  reagendamentoCheckout: { melhorQuando: 'maior', media: { min: 40, max: 52 }, topo: { min: 70, max: 80 }, fonte: 'Auditoria 2026-11 §3 (Kitomba, SalonIQ)' },
-  retornoClienteNovo: { melhorQuando: 'maior', media: { min: 30, max: 35 }, topo: { min: 70, max: null }, fonte: 'Auditoria 2026-11 §3 (Phorest, Boulevard)' },
-  confirmacaoPrevia: { melhorQuando: 'maior', media: null, topo: null, fonte: 'Sem referência no relatório §3' },
-  fidelizacao: { melhorQuando: 'maior', media: null, topo: null, fonte: 'Sem referência consolidada: benchmarks de fornecedores divergem; compare com o histórico do salão' },
-  taxaCancelamento: { melhorQuando: 'menor', media: null, topo: null, fonte: 'Sem referência consolidada: compare com o histórico do salão' }
+  taxaFalta: { melhorQuando: 'menor', media: null, topo: null, fonte: SEM_REFERENCIA },
+  reagendamentoCheckout: { melhorQuando: 'maior', media: null, topo: null, fonte: SEM_REFERENCIA },
+  retornoClienteNovo: { melhorQuando: 'maior', media: null, topo: null, fonte: SEM_REFERENCIA },
+  confirmacaoPrevia: { melhorQuando: 'maior', media: null, topo: null, fonte: SEM_REFERENCIA },
+  fidelizacao: { melhorQuando: 'maior', media: null, topo: null, fonte: SEM_REFERENCIA },
+  taxaCancelamento: { melhorQuando: 'menor', media: null, topo: null, fonte: SEM_REFERENCIA }
 };
 
 const dia = v => (v ? String(v).slice(0, 10) : null);

@@ -64,7 +64,7 @@ test('P01 taxa de falta = no_show / (atendidos + no_show + cancelado tardio)', (
   // atendidos a1,a3,a5,a6,a7,a13 = 6; no_show a8,a9 = 2 (a12 fora); tardio a10 = 1 (a11 antecipado não)
   assert.deepStrictEqual(nd(r.taxaFalta), [2, 9, 22.2]);
   assert.deepStrictEqual([r.taxaFalta.atendidos, r.taxaFalta.noShow, r.taxaFalta.cancelTardio], [6, 2, 1]);
-  assert.deepStrictEqual(r.taxaFalta.referencia.media, { min: 10, max: 20 });
+  assert.strictEqual(r.taxaFalta.referencia.media, null, 'sem faixa de mercado não verificada (D-065)');
   assert.strictEqual(r.taxaFalta.referencia.melhorQuando, 'menor');
 });
 
@@ -76,7 +76,7 @@ test('P02 reagendamento no checkout: próximo agendamento criado até D+1 (data 
   assert.strictEqual(r.reagendamentoCheckout.emMaturacao, 1);
   assert.strictEqual(r.reagendamentoCheckout.janelaDias, 1);
   assert.deepStrictEqual(r.reagendamentoCheckout.topo, undefined);
-  assert.deepStrictEqual(r.reagendamentoCheckout.referencia.topo, { min: 70, max: 80 });
+  assert.strictEqual(r.reagendamentoCheckout.referencia.topo, null, 'sem faixa de mercado não verificada (D-065)');
 });
 
 test('P03 retorno do cliente novo: só coorte madura (60 dias); dia 60 conta, dia 61 não', () => {

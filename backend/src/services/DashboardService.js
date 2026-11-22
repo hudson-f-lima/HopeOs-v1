@@ -3,35 +3,28 @@ const { buildFinanceReadModel } = require('./FinanceReadModel');
 function buildDashboard(snapshot) {
   const finance = buildFinanceReadModel(snapshot);
   const agendamentos = snapshot.agendamentos || [];
+  // Atendimentos realizados sobre os agendados (antes chamado de "ocupação", que é outra coisa: a
+  // ocupação real, por minuto de cadeira, está no cockpit e em /insights/occupancy). Reagendado foi
+  // substituído por outro agendamento que já está na lista: contá-lo duplicaria o atendimento.
   const concluidos = agendamentos.filter(a => ['concluido', 'fechado'].includes(a.status)).length;
-  const cancelados = agendamentos.filter(a => ['cancelado', 'no_show'].includes(a.status)).length;
-  // Reagendado foi substituído por outro agendamento (que já está na lista):
-  // contá-lo duplicaria o atendimento no denominador e derrubaria a ocupação.
   const totalAgenda = agendamentos.filter(a => a.status !== 'reagendado').length;
-  const ocupacaoPct = totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : 0;
+  const realizadosPct = totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : null;
   // Ticket médio: valores já descontam estornos; comanda 100% estornada sai da base (D-013).
   const baseTicket = finance.totals.comandasValidas ?? finance.totals.comandos;
   const ticketMedioCentavos = baseTicket ? Math.round((finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos) / baseTicket) : 0;
 
-  const actions = [];
-  if (ocupacaoPct < 60) actions.push({ priority: 'alta', title: 'Ocupação baixa', action: 'Chamar clientes de retorno e preencher buracos da agenda.' });
-  if (finance.totals.taxaTotalCentavos > finance.totals.servicosLiquidosCentavos * 0.03) actions.push({ priority: 'media', title: 'Taxas altas', action: 'Incentivar Pix QR ou dinheiro quando fizer sentido.' });
-  if (cancelados > 0) actions.push({ priority: 'media', title: 'No-show/cancelamento', action: 'Reforçar política de confirmação e sinal.' });
-
-  while (actions.length < 3) actions.push({ priority: 'baixa', title: 'Operação estável', action: 'Manter padrão de atendimento e registrar todos os fechamentos.' });
-
+  // D-065: sem "scoreHope" (fórmula inventada: ocupação × 0,4 + 40) e sem "top3Actions" completadas
+  // com "Operação estável". As decisões com o porquê estão no cockpit (D-064).
   return {
-    scoreHope: Math.max(0, Math.min(100, Math.round((ocupacaoPct * 0.4) + 40))),
     kpis: {
       servicosLiquidosCentavos: finance.totals.servicosLiquidosCentavos,
       produtosLiquidosCentavos: finance.totals.produtosLiquidosCentavos || 0,
       itensLiquidosCentavos: finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos,
       receitaEmpresaCentavos: finance.totals.receitaEmpresaCentavos,
-      ocupacaoPct,
+      realizadosPct,
       ticketMedioCentavos,
       comandos: finance.totals.comandos
     },
-    top3Actions: actions.slice(0, 3),
     paymentsByMethod: finance.porForma,
     finance
   };

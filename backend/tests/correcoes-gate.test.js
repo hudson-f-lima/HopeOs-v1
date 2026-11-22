@@ -254,9 +254,18 @@ test('J13 confiabilidade: agendamento de hoje ainda em aberto (ou cliente na cad
 });
 
 // ---------- 5. dashboard e margem ----------
-test('J14 ocupação do dashboard não conta o agendamento substituído por reagendamento', () => {
+test('J14 realizados do dashboard não contam o agendamento substituído por reagendamento', () => {
   const d = buildDashboard({ agendamentos: [{ status: 'concluido' }, { status: 'reagendado' }, { status: 'concluido' }] });
-  assert.strictEqual(d.kpis.ocupacaoPct, 100);
+  assert.strictEqual(d.kpis.realizadosPct, 100);
+});
+
+test('J14b dashboard sem número inventado (D-065): sem score, sem ações de enchimento, sem agenda = null', () => {
+  const d = buildDashboard({ agendamentos: [] });
+  assert.ok(!('scoreHope' in d), 'scoreHope voltou');
+  assert.ok(!('top3Actions' in d), 'top3Actions voltou');
+  assert.ok(!('ocupacaoPct' in d.kpis), 'nome enganoso voltou');
+  assert.strictEqual(d.kpis.realizadosPct, null, 'sem agenda não é 0%');
+  assert.ok(!JSON.stringify(d).includes('Operação estável'));
 });
 
 test('J15 ticket médio de um período não muda por estorno total lançado DEPOIS do período', async () => {

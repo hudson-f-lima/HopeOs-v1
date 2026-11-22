@@ -964,3 +964,19 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - **Controles negativos:** estorno ignorado (6 caem), meta sem descontar estorno (K06), alerta de enchimento (K08), plano arquivado oferecido (K05, K06).
   - E2E `cockpit`: o admin vê tudo sem erro; o alerta de avulsos aparece com cliente e valor; a ação abre Gestão → Assinantes; não há rolagem horizontal em 390 px; a recepção não vê nem chama. **Controle negativo:** com a seção sempre escondida, o E2E cai.
   - Suíte offline verde; E2E 42/42; migrations conferem.
+
+## D-065 — Sem número inventado nem referência não verificada no Painel
+- **Pedido do Platform Owner (2026-11-22):** "Remover score inventado. Remover dados mocados."
+- **Removido de `GET /api/dashboard`:**
+  - `scoreHope`: fórmula sem base, ocupação × 0,4 + 40;
+  - `top3Actions`: quando faltava alerta, era completado com "Operação estável";
+  - a regra antiga que sugeria "sinal" a cada cancelamento.
+  - Nenhuma tela usava esses campos; as decisões com o porquê estão no cockpit (D-064).
+- **Renomeado:** `kpis.ocupacaoPct` → `kpis.realizadosPct`. Era a fração de agendamentos realizados, não ocupação. Sem agenda, o valor é `null`, não 0%. A ocupação de verdade, por minuto de cadeira, está no cockpit e em `/insights/occupancy`.
+- **Removido do piloto (`/insights/piloto`, Painel → Indicadores):** as faixas "de mercado" (faltas 10–20%, reagendamento 40–52% e topo 70–80%, retorno de cliente novo 30–35% e topo 70%+). Vinham de materiais de fornecedores achados na web pela auditoria de 2026-11, nunca conferidos, e apareciam como referência. A tela agora diz "Compare com o histórico do salão (menor/maior é melhor)".
+- **Mantido, com o motivo:**
+  - **Taxas de exemplo do onboarding** (débito 1,99%, crédito 4,99%): aparecem rotuladas como exemplo e são confirmadas pelo dono antes de gravar. Trocar por 0% esconderia o custo.
+  - **Banco de demonstração** (`backend/src/dev/`): só roda localmente e no E2E, nunca em produção.
+  - Os textos "por exemplo, 150,00" são dicas de formato.
+- **Não verificado:** se há registro de teste no banco de produção. A consulta só de contagens ficou sem aprovação e não foi executada.
+- **Verificação:** `correcoes` J14 e J14b (sem score, sem enchimento, sem nome enganoso, sem agenda = `null`). **Controle negativo:** com o `DashboardService` antigo, J14 e J14b caem. `piloto` passa a exigir faixa nula. Suíte offline verde; E2E 42/42.
