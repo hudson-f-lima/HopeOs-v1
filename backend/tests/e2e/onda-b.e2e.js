@@ -3,6 +3,7 @@
 // Requer: node backend/scripts/dev-memory-api.js (seed padrão) + PWA em :5599.
 // Uso: NODE_PATH=$(npm root -g) node backend/tests/e2e/onda-b.e2e.js
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api';
 const API = 'http://127.0.0.1:3399';
 const db = async t => (await fetch(`${API}/__db/${t}`)).json();
@@ -21,7 +22,7 @@ const legado = (path, body) => fetch(`${API}/api${path}`, { method: body ? 'POST
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
 
   // Comissões: cria cargo, liga Ana a ele e muda o Corte para herdar do cargo
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   await p.click('#subtabBtnComissoes'); await p.waitForTimeout(800);
   const formCargo = p.locator('form[data-novo="cargo"]');
   await formCargo.locator('[name=nome]').fill('Barbeiro'); await formCargo.locator('[name=comissaoPct]').fill('50');

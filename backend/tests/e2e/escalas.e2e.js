@@ -2,6 +2,7 @@
 // Data especial pela tela, efeito nos horários oferecidos, origem da regra, permissões por papel
 // e conflito com agendamento existente (nada é gravado sem decisão).
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const WEB = process.env.E2E_WEB || 'http://127.0.0.1:5599';
 const API = process.env.E2E_API || 'http://127.0.0.1:3399';
 const BASE = `${WEB}/index.html?apiBase=${API}/api`;
@@ -26,7 +27,7 @@ async function entrar(b, email, esperados = []) {
   return p;
 }
 async function abrirEscalas(p) {
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   await p.click('#subtabBtnEscalas'); await p.waitForSelector('#escConteudo .esc-linha');
 }
 const slots = (p, prof, data) => p.evaluate(async ([prof, data, serv]) => {

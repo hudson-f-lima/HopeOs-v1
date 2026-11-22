@@ -3,6 +3,7 @@
 // desliga e o link volta a ser indisponível. Sem PUBLIC_BOOKING_LINKS: tudo vem do banco.
 // Uso: NODE_PATH=$(npm root -g) node backend/tests/e2e/link-online.e2e.js (API :3399, PWA :5599)
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const SLUG = 'salao-online-e2e';
 const PUBLICO = `http://127.0.0.1:5599/agendar.html?apiBase=${API}/api&s=${SLUG}`;
@@ -35,7 +36,7 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   await p.waitForSelector('#loginScreen:not(.hidden)');
   await p.fill('#loginEmail', 'admin@dev.local'); await p.fill('#loginSenha', 'dev12345'); await p.click('#btnLogin');
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   await p.click('#subtabBtnOnline'); await p.waitForSelector('#formOnline');
   console.log('PENDÊNCIAS:', (await p.textContent('#onlinePendencias')).trim());
   await p.fill('#onlineSlug', SLUG);
@@ -97,7 +98,7 @@ const db = async t => (await fetch(`${API}/__db/${t}`)).json();
   // 3) Admin desliga: o link volta a ser indisponível na hora.
   await p.goto(APP);
   await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   await p.click('#subtabBtnOnline'); await p.waitForSelector('#formOnline');
   await p.uncheck('#onlineAtivo');
   await p.click('#btnOnlineSalvar');

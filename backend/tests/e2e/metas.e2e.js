@@ -2,6 +2,7 @@
 // de produção. Admin define metas e liga o ranking; profissional vê só as próprias
 // metas e o ranking sem o valor em reais do colega; recepção não vê nada disso.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const WEB = process.env.E2E_WEB || 'http://127.0.0.1:5599';
 const API = process.env.E2E_API || 'http://127.0.0.1:3399';
 const BASE = `${WEB}/index.html?apiBase=${API}/api`;
@@ -90,7 +91,7 @@ const abrirGanhos = async (p, origem) => { await p.click(origem); await p.click(
   await a.locator('#tab-metas').screenshot({ path: require('path').join(require('os').tmpdir(), 'hopeos-metas-admin.png') });
 
   // Calculadora da taxa do parcelado: 6x, MDR 3,5%, antecipação 1,8% a.m. → 9,5795%.
-  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(a);
   await a.click('.subtab-btn[data-subtab="formas"]'); await a.click('#btnNovaForma'); await a.waitForSelector('#fmCode');
   await a.click('#fmCalc > summary');
   await a.fill('#fmCalcMdr', '3,5'); await a.fill('#fmCalcAnt', '1,8'); await a.selectOption('#fmCalcParcelas', '6'); await a.click('#btnFmCalc');

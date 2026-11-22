@@ -11,6 +11,7 @@
 //   8) Profissional com escopo próprio: só a própria coluna (a do colega pareceria livre).
 //   9) Desktop: sem rolagem lateral, grade visível.
 const { chromium } = require('playwright');
+const { irParaConta } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -79,7 +80,7 @@ const pequenos = p => p.evaluate(() => [...document.querySelectorAll('#btnAgBusc
   const lay = await r.evaluate(() => ({ topo: Math.round(document.getElementById('timelineContainer').getBoundingClientRect().top), larg: document.documentElement.scrollWidth, conta: Boolean(document.getElementById('btnLogout').offsetParent) }));
   confere('grade começa cedo (≤ 300px) e sem rolagem lateral', lay.topo <= 300 && lay.larg <= 390, JSON.stringify(lay));
   confere('conta e versão fora da agenda', !lay.conta);
-  await r.click('#navAvatar'); await r.waitForSelector('#sheetConta[open]');
+  await irParaConta(r);
   confere('conta, versão e Sair em Conta', await r.isVisible('#btnLogout') && /Recepção/.test(await txt(r, '#sessionLabel')));
   await r.click('#btnFecharConta'); await r.waitForSelector('#sheetConta', { state: 'hidden' }); await r.waitForTimeout(300);
 

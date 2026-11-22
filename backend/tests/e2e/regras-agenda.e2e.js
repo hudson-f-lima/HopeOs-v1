@@ -7,6 +7,7 @@
 //   4) Cancelar pelo card diz se é tardio (dentro do prazo) e que conta na confiabilidade.
 //   5) Card de um horário que já passou do alerta: "atrasado N min" e no-show destacado.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -64,7 +65,7 @@ async function abrirCard(p, id) {
   const b = await chromium.launch();
   // 1) Regras pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(g);
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#formRegras');
   await g.selectOption('#rgPrazo', '720');
   await g.selectOption('#rgMaxFuturos', '1');

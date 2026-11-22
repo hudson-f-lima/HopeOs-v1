@@ -3,6 +3,7 @@
 // backend/tests/e2e/static-server.py (que injeta os headers do render.yaml).
 // Uso: NODE_PATH=$(npm root -g) node backend/tests/e2e/csp.e2e.js
 const { chromium } = require('playwright');
+const { irParaConta, irParaGestao } = require('./navegacao');
 const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api';
 
 (async () => {
@@ -39,12 +40,12 @@ const BASE = 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api
   await p.click('#navCheckout'); await p.waitForSelector('#comandasHome');
   await p.click('#btnNovaComanda'); await p.waitForSelector('#coCliente');
   await p.click('#navDashboard'); await p.waitForTimeout(1200);
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   for (const entrada of await p.locator('#tab-gestao .subtab-btn:visible').all()) {
     await entrada.click(); await p.waitForSelector('#sheetGestao:not(.hidden)');
     await p.click('#btnFecharGestao'); await p.waitForSelector('#sheetGestao', { state: 'hidden' });
   }
-  await p.click('#navAvatar'); await p.waitForSelector('#sheetConta[open]'); await p.click('#btnFecharConta');
+  await irParaConta(p); await p.click('#btnFecharConta');
   await p.click('#navAgenda'); await p.waitForTimeout(600);
   if (await p.isVisible('#btnAgendaLembretes')) {
     await p.click('#btnAgendaLembretes'); await p.waitForSelector('#lembretesDialog[open]');

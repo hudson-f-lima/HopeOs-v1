@@ -866,3 +866,11 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - `/api/health` fica como estava (o KeepAlive continua leve e mantém o Render acordado).
 - **Verificação:** gate `saude-banco` (5 testes): ok, falha sem vazar o erro do driver, lentidão, resultado guardado e `/api/health` intacto. A consulta real ao Supabase só é provada em produção, depois do deploy.
 - **Depois do merge:** criar no UptimeRobot o monitor da rota nova, com alerta por e-mail.
+
+## D-061 — E2E: navegação comum (um lugar para mudar quando o menu mudar)
+- **Pedido (Platform Owner, 2026-11-22):** "Aprovado corrigir", sobre a análise das falhas de CI dos últimos 7 dias. Seis das nove vieram de teste que esperava um botão ou formato que o PR tinha mudado (menu de Gestão no PR #52, logs no #51); mudar o menu obrigava a editar vários testes, cada um com o seu caminho.
+- **Mudança (só testes, sem código de produto):** `backend/tests/e2e/navegacao.js` com `irParaGestao`, `irParaConta` e `sairDaConta`. 25 trechos repetidos em 18 testes passaram a usar o auxiliar. A saída com verificação extra (`sair` de login e convite) foi mantida.
+- **Verificação:**
+  - Controle negativo: com o seletor do menu errado só no auxiliar, `escalas` e `permissoes` falham juntos; restaurado, voltam.
+  - Suíte completa de E2E verde.
+- **Regra daqui para a frente:** teste novo que precise ir a Gestão ou à Conta usa o auxiliar. Uma mudança de menu ajusta `navegacao.js`.

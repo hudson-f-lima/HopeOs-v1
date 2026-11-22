@@ -6,6 +6,7 @@
 //   3) filtro de vários profissionais: só as colunas escolhidas;
 //   4) "Escolher datas": duas datas não consecutivas → lote com prévia → ausência só nelas.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -85,7 +86,7 @@ async function mostrarMes(p, mes, raiz = '#agMes') {
   await p.click('#agFiltroProfs [data-agf=""]'); await p.waitForTimeout(300);
 
   // 4) Escalas (bento): tocar no dia abre a data especial já na data; datas avulsas → lote.
-  await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(p);
   await p.click('#subtabBtnEscalas'); await p.waitForSelector('#escCal [data-agm-dia]', { timeout: 8000 });
   confere('Escalas em blocos com calendário, semana em pontos e pendências', await p.locator('#escConteudo .bento .bento-tile').count() >= 5 && await p.locator('#escConteudo .esc-semana .esc-d.on').count() > 0);
   await mostrarMes(p, proxMes, '#escCal');

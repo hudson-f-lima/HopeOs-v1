@@ -1,6 +1,7 @@
 // E2E (Playwright/Chromium) das permissões individuais (D-032) e da recepção em celular,
 // tablet e computador, sob a CSP de produção.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const WEB = process.env.E2E_WEB || 'http://127.0.0.1:5599';
 const API = process.env.E2E_API || 'http://127.0.0.1:3399';
 const BASE = `${WEB}/index.html?apiBase=${API}/api`;
@@ -22,7 +23,7 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }, esperado
 const extrasDaAna = async () => ((await db('empresa_memberships')).find(m => m.role === 'profissional') || {}).permissoes_extras || [];
 
 async function abrirPermissoesDaAna(a) {
-  await a.click('#navGestao'); await a.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(a);
   await a.click('#subtabBtnEquipe'); await a.waitForSelector('#cardPermissoes:not(.hidden) [data-perm-abrir]');
   const linha = a.locator('.perm-pessoa').filter({ hasText: 'Ana' });
   await linha.locator('[data-perm-abrir]').click(); await a.waitForSelector('#modalPermissoes:not(.hidden)');

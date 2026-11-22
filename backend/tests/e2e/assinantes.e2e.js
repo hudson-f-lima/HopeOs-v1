@@ -4,6 +4,7 @@
 // registra os pagamentos e vê "Em dia". O proprietário pausa, retoma e agenda o cancelamento. A
 // recepção não vê pausar nem cancelar. O profissional não vê a aba.
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const db = async t => (await fetch(`${API}/__db/${t}`)).json();
@@ -39,7 +40,7 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
     await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   };
   const abrir = async p => {
-    await p.click('#navGestao'); await p.waitForSelector('#tab-gestao:not(.hidden)');
+    await irParaGestao(p);
     if (!(await p.locator('#subtabBtnAssinantes').isVisible())) return false;
     await p.click('#subtabBtnAssinantes');
     await p.waitForFunction(() => { const c = document.getElementById('assinantesConteudo'); return c && !/Carregando/.test(c.textContent); }, null, { timeout: 8000 });
@@ -113,7 +114,7 @@ const fuso = d => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' 
   // 4) Profissional sem a aba.
   const pr = await nova();
   await login(pr, 'profissional@dev.local');
-  await pr.click('#navGestao'); await pr.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(pr);
   const vePro = await pr.locator('#subtabBtnAssinantes').isVisible().catch(() => false);
   console.log('PROFISSIONAL vê Assinantes:', vePro);
   if (vePro) errs.push('profissional vê Assinantes');

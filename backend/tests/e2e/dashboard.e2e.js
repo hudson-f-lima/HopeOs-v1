@@ -1,6 +1,7 @@
 // E2E do Dashboard curto: "Precisa de você" no topo e o resto recolhido.
 // Uso: node backend/tests/e2e/run-all.js dashboard
 const { chromium } = require('playwright');
+const { irParaConta } = require('./navegacao');
 const BASE = process.env.E2E_BASE || 'http://127.0.0.1:5599/index.html?apiBase=http://127.0.0.1:3399/api';
 let falhas = 0;
 const confere = (nome, ok, extra = '') => { console.log(`${ok ? 'ok ' : 'FALHOU'} ${nome}${extra ? ' — ' + extra : ''}`); if (!ok) falhas++; };
@@ -79,13 +80,13 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   // Tema (D-031): aparelho claro; "Escuro" força o escuro e sobrevive ao recarregar; "Automático" volta.
   const fundo = () => adm.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const claro = await fundo();
-  await adm.click('#navAvatar'); await adm.waitForSelector('#sheetConta[open]');
+  await irParaConta(adm);
   await adm.click('#temaEscolha label:has(input[value="escuro"])');
   const escuro = await fundo();
   confere('tema: "Escuro" muda o fundo na hora', await adm.evaluate(() => document.documentElement.dataset.theme) === 'dark' && escuro !== claro, `${claro} → ${escuro}`);
   await adm.reload(); await adm.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 });
   confere('tema: escolha mantida depois de recarregar, sem esperar o app', await adm.evaluate(() => document.documentElement.dataset.theme) === 'dark' && await fundo() === escuro);
-  await adm.click('#navAvatar'); await adm.waitForSelector('#sheetConta[open]');
+  await irParaConta(adm);
   confere('tema: opção marcada corresponde ao salvo', await adm.isChecked('#temaEscolha input[value="escuro"]'));
   await adm.click('#temaEscolha label:has(input[value="auto"])');
   confere('tema: "Automático" volta a seguir o aparelho', await adm.evaluate(() => document.documentElement.hasAttribute('data-theme')) === false && await fundo() === claro);

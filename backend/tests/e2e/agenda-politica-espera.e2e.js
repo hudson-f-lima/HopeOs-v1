@@ -6,6 +6,7 @@
 //   4) Recepção toca num horário livre: aparece quem da lista de espera combina (faixa certa) e
 //      não aparece quem está fora da faixa; escolher preenche o agendar; gravar marca "agendado".
 const { chromium } = require('playwright');
+const { irParaGestao } = require('./navegacao');
 const API = 'http://127.0.0.1:3399';
 const APP = `http://127.0.0.1:5599/index.html?apiBase=${API}/api`;
 const ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -52,7 +53,7 @@ async function irPara(p, dia) {
 
   // 1) Política pela tela.
   const g = await entrar(b, 'admin@dev.local');
-  await g.click('#navGestao'); await g.waitForSelector('#tab-gestao:not(.hidden)');
+  await irParaGestao(g);
   await g.click('#subtabBtnRegras'); await g.waitForSelector('#rgPolitica');
   await g.selectOption('#rgPolitica', 'compacta');
   confere('a dica explica a regra escolhida', /Só os encaixes ideais/.test(await g.textContent('#rgPoliticaDica')));
