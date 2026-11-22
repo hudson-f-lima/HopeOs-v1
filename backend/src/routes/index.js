@@ -689,8 +689,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
       : [];
 
     // O original ainda está ativo neste momento: é ignorado na checagem de conflito.
-    const novo = await repo.criarAgendamento({
-      agendamento: {
+    const dadosNovo = {
         cliente_id: original.cliente_id,
         servico_id: novoServicoId,
         profissional_id: novoProfissionalId,
@@ -703,13 +702,16 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
         status: statusAnterior === 'confirmado' && reagendamento.novaData === String(original.data).slice(0, 10)
           && String(reagendamento.novoHorario).slice(0, 5) === String(original.horario).slice(0, 5) ? 'confirmado' : 'agendado',
         ...(!foraRe.forcado && dispVersaoRe !== null ? { disp_versao: dispVersaoRe } : {})
-      },
-      permitirConflito: reagendamento.permitirConflito,
-      ignorarId: original.id,
-      createdBy: actorId
-    });
-
-    const updatedOriginal = await repo.updateScoped('agendamentos', original.id, { status: 'reagendado', updated_at: now, updated_by: actorId });
+      };
+    // 027 (D-063): novo + original "reagendado" numa transação, se o original ainda estiver como
+    // foi lido (senão 409 AGENDAMENTO_MUDOU e nada é gravado). Banco sem a 027: dois passos, como antes.
+    let novo; let updatedOriginal;
+    const feito = await repo.remarcarAgendamento({ originalId: original.id, deStatus: [statusAnterior], agendamento: dadosNovo, permitirConflito: reagendamento.permitirConflito, createdBy: actorId });
+    if (feito) { novo = feito.novo; updatedOriginal = feito.original; }
+    else {
+      novo = await repo.criarAgendamento({ agendamento: dadosNovo, permitirConflito: reagendamento.permitirConflito, ignorarId: original.id, createdBy: actorId });
+      updatedOriginal = await repo.updateScoped('agendamentos', original.id, { status: 'reagendado', updated_at: now, updated_by: actorId });
+    }
     await registrarEventoAgenda(repo, req.auth, {
       agendamentoId: original.id, tipo: 'reagendado', de: statusAnterior, para: 'reagendado',
       extra: { reagendado_para: (novo && novo.id) || null }

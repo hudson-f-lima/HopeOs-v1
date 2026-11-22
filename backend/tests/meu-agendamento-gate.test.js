@@ -214,19 +214,39 @@ test('M05 remarcar: horários sem o próprio; grava novo, antigo vira remarcado,
   assert.strictEqual(x.status, 422); assert.strictEqual(code(x), 'FORA_DO_PRAZO');
 });
 
-test('M06 corrida: a recepção cancela o original no meio da remarcação → o novo é desfeito e o cliente vê 409', async () => {
+test('M06 corrida: a recepção cancela o original antes da remarcação gravar → 409 e nenhum horário novo (027, D-063)', async () => {
   const { token, ag } = await agendamentoComLink({ horario: '09:30', profissional: BETO, data: '2026-11-12' });
   const P = SupabaseRepository.prototype;
-  const original = P.criarAgendamento;
-  P.criarAgendamento = async function (args) {
+  const original = P.remarcarAgendamento;
+  // Com a 027 o original fica travado (FOR UPDATE) durante a remarcação: a mudança concorrente
+  // só pode acontecer antes da trava, e aí a RPC recusa sem criar nada.
+  P.remarcarAgendamento = async function (args) {
     db.agendamentos.find(a => a.id === ag.id).status = 'cancelado';
     return original.call(this, args);
   };
   try {
     const r = await link('/remarcar', token, { data: '2026-11-12', horario: '10:00' });
     assert.strictEqual(r.status, 409, r.raw); assert.strictEqual(code(r), 'AGENDAMENTO_MUDOU');
-  } finally { P.criarAgendamento = original; }
-  const criado = db.agendamentos.find(a => a.data === '2026-11-12' && a.horario === '10:00' && a.profissional_id === BETO);
+  } finally { P.remarcarAgendamento = original; }
+  assert.ok(!db.agendamentos.some(a => a.data === '2026-11-12' && a.horario === '10:00' && a.profissional_id === BETO), 'nada foi criado');
+  assert.strictEqual(db.agendamentos.find(a => a.id === ag.id).status, 'cancelado', 'o cancelamento da recepção vale');
+});
+
+test('M06b banco sem a 027: a mesma corrida no caminho anterior desfaz o novo e o cliente vê 409', async () => {
+  const { token, ag } = await agendamentoComLink({ horario: '09:30', profissional: BETO, data: '2026-11-19' });
+  const P = SupabaseRepository.prototype;
+  const remarcar = P.remarcarAgendamento;
+  const criar = P.criarAgendamento;
+  P.remarcarAgendamento = async () => null; // RPC ausente (PGRST202)
+  P.criarAgendamento = async function (args) {
+    db.agendamentos.find(a => a.id === ag.id).status = 'cancelado';
+    return criar.call(this, args);
+  };
+  try {
+    const r = await link('/remarcar', token, { data: '2026-11-19', horario: '10:00' });
+    assert.strictEqual(r.status, 409, r.raw); assert.strictEqual(code(r), 'AGENDAMENTO_MUDOU');
+  } finally { P.remarcarAgendamento = remarcar; P.criarAgendamento = criar; }
+  const criado = db.agendamentos.find(a => a.data === '2026-11-19' && a.horario === '10:00' && a.profissional_id === BETO);
   assert.strictEqual(criado.status, 'cancelado', 'o novo foi desfeito');
 });
 

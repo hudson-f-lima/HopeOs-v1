@@ -323,6 +323,38 @@ test('P13 concorrência: dois POSTs no mesmo horário → 1 grava; corrida após
   } finally { SupabaseRepository.prototype.criarAgendamento = original; }
 });
 
+test('P13b horário tomado no meio (027, D-063): número novo não deixa cliente órfão nem evento', async () => {
+  const original = SupabaseRepository.prototype.criarAgendamento;
+  SupabaseRepository.prototype.criarAgendamento = async function (args) {
+    db.agendamentos.push({ id: '90000000-0000-4000-8000-0000000000d1', empresa_id: A, profissional_id: ANA, servico_id: CORTE, data: AMANHA, horario: '16:30:00', duracao_min: 30, status: 'agendado' });
+    return original.call(this, args);
+  };
+  const antes = contar();
+  try {
+    const r = await post(pedido({ horario: '16:30', whatsapp: '21 96666-0020', nome: 'Sem Orfao' }));
+    assert.strictEqual(r.status, 409); assert.strictEqual(code(r), 'HORARIO_OCUPADO');
+  } finally {
+    SupabaseRepository.prototype.criarAgendamento = original;
+    db.agendamentos.splice(db.agendamentos.findIndex(a => a.id === '90000000-0000-4000-8000-0000000000d1'), 1);
+  }
+  assert.ok(!db.clientes.some(c => c.nome === 'Sem Orfao'), 'cliente órfão gravado');
+  assert.deepStrictEqual(contar(), antes);
+});
+
+test('P13c banco sem a 027 (RPC ausente): o link continua gravando pelo caminho anterior', async () => {
+  const P = SupabaseRepository.prototype;
+  const rpc = P.criarAgendamentoPublico;
+  let chamadas = 0;
+  P.criarAgendamentoPublico = async () => { chamadas++; return null; };
+  try {
+    const antes = contar();
+    const r = await post(pedido({ horario: '14:30', data: AMANHA, whatsapp: '21 96666-0021', nome: 'Caminho Antigo' }));
+    assert.strictEqual(r.status, 201, r.raw);
+    assert.strictEqual(chamadas, 1, 'tentou a RPC antes');
+    assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
+  } finally { P.criarAgendamentoPublico = rpc; }
+});
+
 test('P14 teto diário do salão: atingido → mesma recusa genérica', async () => {
   const hoje = db.agendamento_eventos.filter(e => e.empresa_id === A && e.tipo === publico.TIPO_EVENTO).length;
   env.PUBLIC_BOOKING_TETO_DIARIO = hoje;

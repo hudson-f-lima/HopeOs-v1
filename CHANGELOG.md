@@ -1,5 +1,10 @@
 # Changelog
 
+## Agendamento pelo link e remarcação sem meio-termo (D-063, migration 027)
+- Agendamento pelo link: se o horário for tomado no último instante, não fica mais um cadastro de cliente sem horário; dois pedidos ao mesmo tempo do mesmo número criam um cliente só.
+- Remarcação: se outra pessoa mudar o horário enquanto você remarca, o app avisa e nada é gravado (antes podiam ficar dois horários ativos).
+- Corrigido: quando a escala mudava durante a gravação, o app mostrava erro interno em vez do aviso "a escala mudou".
+
 ## Senha, teto do link público e aviso de cliente parecido (D-062)
 - Ao cadastrar um cliente com nome parecido com um já existente, o app avisa e oferece usar o cadastro existente.
 - Senha com mais de 72 bytes é recusada com aviso claro, em vez de ser cortada sem avisar.

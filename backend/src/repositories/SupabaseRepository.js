@@ -594,16 +594,53 @@ class SupabaseRepository {
       p_ignorar_id: ignorarId,
       p_created_by: createdBy
     });
-    if (error) {
-      if (error.code === 'HS409') {
-        let conflitos = [];
-        try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
-        throw createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda para o profissional neste horário.', 409, { conflitos });
-      }
-      throw error;
-    }
+    if (error) throw erroDaAgenda(error);
     return data;
+  }
+
+  // 027 (D-063): cliente (achado ou criado sob trava por salão + número), horário e evento de
+  // origem na mesma transação. null = banco sem a 027 (a rota usa o caminho anterior).
+  async criarAgendamentoPublico({ numero, clienteId = null, clienteNovo, agendamento, evento }) {
+    const { data, error } = await this.supabase.rpc('agendamento_publico_criar', {
+      p_empresa_id: this.empresaId, p_numero: numero, p_cliente_id: clienteId,
+      p_cliente_novo: clienteNovo, p_agendamento: agendamento, p_evento: evento
+    });
+    if (error) {
+      if (RPC_AUSENTE.includes(error.code)) return null;
+      throw erroDaAgenda(error);
+    }
+    return { agendamento: data.agendamento, clienteId: data.cliente_id, clienteCriado: data.cliente_criado === true, clienteConcorrente: data.cliente_concorrente === true };
+  }
+
+  // 027 (D-063): novo horário + original "reagendado" na mesma transação, se o original ainda
+  // estiver num dos status de origem (senão AGENDAMENTO_MUDOU). null = banco sem a 027.
+  async remarcarAgendamento({ originalId, deStatus, agendamento, permitirConflito = false, createdBy = null }) {
+    const { data, error } = await this.supabase.rpc('agendamento_remarcar', {
+      p_empresa_id: this.empresaId, p_original_id: originalId, p_de_status: deStatus,
+      p_agendamento: agendamento, p_permitir_conflito: !!permitirConflito, p_created_by: createdBy
+    });
+    if (error) {
+      if (RPC_AUSENTE.includes(error.code)) return null;
+      throw erroDaAgenda(error);
+    }
+    return { novo: data.novo, original: data.original };
   }
 }
 
-module.exports = { SupabaseRepository, mapEstornoError };
+// Função que ainda não existe no banco (migration não aplicada): PostgREST ou Postgres.
+const RPC_AUSENTE = ['PGRST202', '42883'];
+
+// Erros das RPCs de agenda (008/026/027) → erro da API. Antes da D-063 o HS412 de
+// agendamento_criar saía como 500: só o espelho em memória traduzia.
+function erroDaAgenda(error) {
+  if (error.code === 'HS409') {
+    let conflitos = [];
+    try { conflitos = JSON.parse(error.details || '[]'); } catch (_) { /* detalhe opcional */ }
+    return createAppError('SCHEDULE_CONFLICT', 'Conflito de agenda para o profissional neste horário.', 409, { conflitos });
+  }
+  if (error.code === 'HS412') return createAppError('ESCALA_MUDOU', 'A escala mudou enquanto o horário era gravado. Nada ficou reservado: escolha outro horário.', 409);
+  if (error.code === 'HS410') return createAppError('AGENDAMENTO_MUDOU', 'Este horário mudou enquanto você remarcava (outra pessoa alterou). Nada foi gravado: confira e tente de novo.', 409);
+  return error;
+}
+
+module.exports = { SupabaseRepository, mapEstornoError, erroDaAgenda };

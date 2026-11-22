@@ -905,3 +905,33 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - E2E `permissoes`: aviso com o nome certo; Voltar não grava; Usar não cria cadastro; Cadastrar mesmo assim grava.
   - Suíte offline verde, E2E 41/41, migrations conferem. Sem migration.
 - **Achado do E2E:** um segundo cadastro rápido com o mesmo telefone já é recusado pelo servidor. O teste limpa o telefone de propósito para exercitar só a regra do nome.
+
+## D-063 — Migration 027: agendamento público e remarcação atômicos (Onda 2 do Blueprint v2)
+- **Autorização (Platform Owner, 2026-11-22):** "Iniciar a próxima onda", sobre a Onda 2 de `docs/planning/BLUEPRINT_MASTER_V2_ANALISE.md` (migration 027). O merge, que aplica em produção, continua dependendo de ordem própria.
+- **Mudança de desenho em relação à análise: sem índice único de telefone.**
+  - Evidência: `POST /clientes` deixa quem tem `clientes:editar` cadastrar dois clientes no mesmo número (só o cadastro rápido de quem não edita é barrado). É o caso de mãe e filho no mesmo número; um `UNIQUE` quebraria esse uso.
+  - A duplicata acidental vinha só da corrida do link público. Uma trava no banco por salão + número resolve a corrida sem tocar na recepção.
+  - A pergunta "abortar ou mesclar duplicados" deixou de existir.
+- **Migration 027 (aplica no merge):**
+  - `chave_numero_br(text)`: mesma regra do backend (`chaveNumeroBr` = `normalizarWhatsapp` + 9 no celular antigo). Índice comum, não único, `(empresa_id, chave_numero_br(whatsapp))`.
+  - `agendamento_publico_criar`: trava `cliente_numero:<empresa>:<número>`; acha o cliente ativo do número ou cria; chama `agendamento_criar` e grava o evento de origem, tudo na mesma transação. Se outro pedido criou o cliente depois da leitura do backend, usa esse cliente e marca `dedup: existente_concorrente`.
+  - `agendamento_remarcar`: trava a linha do original (`FOR UPDATE`) e confere o status (HS410 `AGENDAMENTO_MUDOU`). Depois cria o novo por `agendamento_criar`, ignorando o original, e marca o original `reagendado`, na mesma transação.
+  - Só `service_role` executa. Rollback `027_down.sql`.
+- **Backend:**
+  - O link público (agendar e remarcar) e a remarcação da recepção passam pelas RPCs.
+  - Se a função não existir no banco (PGRST202/42883, na janela do deploy ou depois de um rollback), a rota usa o caminho anterior.
+  - O espelho em memória reproduz o tudo ou nada.
+- **Defeito de produção corrigido junto (introduzido na D-058):** `criarAgendamento` do repositório real não traduzia o HS412. Escala mudada durante a gravação dava 500 em vez de 409 `ESCALA_MUDOU` no `POST /agenda`, na remarcação e no link. Os testes não pegavam porque o espelho em memória traduzia. Agora há um tradutor único (`erroDaAgenda`: HS409, HS412, HS410).
+- **Efeito para quem usa:**
+  - Link público: um conflito de horário não deixa mais cadastro de cliente sem horário. Dois pedidos simultâneos do mesmo número criam um cliente só, mesmo com mais de uma instância do backend.
+  - Recepção: se outra pessoa mudar o horário durante a remarcação, volta 409 `AGENDAMENTO_MUDOU` e nada é gravado. Antes ficavam dois horários ativos se a segunda gravação falhasse.
+- **Verificação:**
+  - `gate_027.sql` (10 blocos, verde antes e depois do ciclo de rollback): normalização, órfão, escala mudou, outra empresa, inativo, remarcar, status velho, conflito, acesso.
+  - `concurrency_publico.sh`: duas sessões reais do mesmo número geram 1 cliente, 2 horários e 2 eventos. **Controle negativo:** sem a trava, 2 clientes (FALHA).
+  - Gate `agendamento-atomico` (6 testes, novo em `test:offline` e `test:gate`): paridade com a tabela do SQL e tradução de erros. **Controle negativo:** com o `criarAgendamento` antigo, A04 (HS412) cai.
+  - Gate `agendamento-publico` P13b/P13c: sem cliente órfão; caminho anterior quando a RPC falta. **Controle negativo:** pelo caminho anterior, P13b cai (órfão).
+  - `meu-agendamento` M06 reescrito (com a 027, nada é criado) e M06b (caminho anterior).
+  - Suíte offline verde; E2E 41/41; migrations conferem.
+- **Fica de fora:**
+  - As regras do link (limite de futuros, régua, intervalo) continuam conferidas no backend antes da RPC. A trava do banco cobre a criação do cliente e a gravação, não essas leituras. Com uma instância só no Render, a trava em memória continua cobrindo isso.
+  - Mover o link pessoal na remarcação segue fora da transação (best-effort, como antes).

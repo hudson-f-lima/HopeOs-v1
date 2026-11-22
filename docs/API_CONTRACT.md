@@ -160,6 +160,8 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 
 `PATCH /api/agenda/:id/status`: agendamento `concluido`, `fechado` ou `reagendado` não muda mais de status → 409 `INVALID_STATUS_TRANSITION` (`details: { de, para }`).
 
+Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/meu-agendamento/remarcar`), D-063/027: o novo horário e o original `reagendado` são gravados numa transação. Se o original mudou de status depois de lido → 409 `AGENDAMENTO_MUDOU`, sem nada gravado. Escala mudada durante a gravação → 409 `ESCALA_MUDOU` (antes da D-063, 500 no banco real).
+
 ## D-013 — estorno de comanda (migration 009)
 - `POST /api/comandas/:id/estorno` (`checkout:estornar`: admin/gestor, só usuário)
   - Corpo: `{tipo:'total'|'parcial', idempotencyKey, motivoCodigo: erro_lancamento|desistencia_cliente|insatisfacao|duplicidade|outro, motivo (10–500), devolverEstoque? (total), itens?:[{comandoItemId, quantidade, devolveEstoque?}] (parcial), reembolsos?:[{formaCode, valorCentavos}] | reembolsoForma? (parcial)}`.

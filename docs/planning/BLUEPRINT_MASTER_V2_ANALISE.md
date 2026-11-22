@@ -68,7 +68,7 @@
 - Teto diário do link público contando só os eventos do dia (filtro por intervalo no repositório), não o histórico inteiro. Aceite: gate com 1.000 eventos antigos mostra que a contagem do dia não lê eles.
 - Alerta não bloqueante na recepção: "nome parecido com X" (normalização sem acento), além do bloqueio por telefone que já existe. Aceite: E2E cria "Joao Silva" com "João Silva" já cadastrado e vê o aviso.
 
-**Onda 2: migration 027 (exige autorização explícita)**
+**Onda 2: migration 027 — FEITA em D-063 (2026-11-22), sem o índice único (ver D-063: família no mesmo número)**
 - `agendamento_publico_criar` (RPC): advisory lock por salão + telefone, upsert do cliente, `agendamento_criar` existente e evento de origem na mesma transação.
 - Índice único parcial `(empresa_id, telefone normalizado)` para clientes ativos. Hoje há 0 duplicados, então dá para criar sem saneamento. A migration aborta se encontrar duplicado.
 - `agendamento_remarcar` (RPC): novo + baixa do antigo + mover acessos na mesma transação.
