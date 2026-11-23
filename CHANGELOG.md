@@ -1,5 +1,10 @@
 # Changelog
 
+## Agendamento pelo link: revisar antes de confirmar (D-068)
+- Antes de confirmar, o cliente vê até que horas vai o atendimento, a duração, o preço e até quando pode cancelar.
+- Se o salão mudar o preço ou a duração enquanto o cliente preenche, o app avisa, mostra os horários de novo e não grava nada até ele revisar.
+- Tocar duas vezes em "Agendar" não cria dois horários.
+
 ## Documentação revisada de ponta a ponta (D-066)
 - O estado do projeto, o guia para agentes de código e o índice foram reescritos a partir do que está de fato em produção (migrations 001–027 aplicadas).
 - Nova lista de todas as rotas da API com a permissão de cada uma (`docs/ROTAS.md`, gerada do código).

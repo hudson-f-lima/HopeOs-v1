@@ -10,7 +10,7 @@ Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](
 5. [`../README.md`](../README.md): apresentação, instalação e estrutura do repositório.
 
 ## 2. Decisões e histórico de entregas
-- [`DECISIONS.md`](DECISIONS.md): decisões D-001 a D-067, cada uma com autorização, escopo e evidência.
+- [`DECISIONS.md`](DECISIONS.md): decisões D-001 em diante (a mais recente no fim do arquivo), cada uma com autorização, escopo e evidência.
 - [`../CHANGELOG.md`](../CHANGELOG.md): entregas concluídas, da mais nova para a mais antiga.
 - [`adr/ADR-005-identity-tenant-rbac-actor.md`](adr/ADR-005-identity-tenant-rbac-actor.md): identidade, tenant, RBAC e autoria (aprovada e implementada).
 

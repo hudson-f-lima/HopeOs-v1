@@ -103,6 +103,8 @@ function renderServicos() {
 }
 
 function resetarDepoisDe(passo) {
+  estado.slotsSeq++; // descarta uma lista de horários ainda carregando
+  estado.oferta = null;
   const ordem = ['servico', 'profissional', 'data', 'horario'];
   for (const p of ordem.slice(ordem.indexOf(passo) + 1)) estado[p] = null;
   if (ordem.indexOf(passo) < 1) mostrar('secDia', false);
@@ -174,20 +176,28 @@ async function carregarHorarios() {
   if (r.status !== 200) return aviso(mensagemDe(r));
   const slots = (r.corpo.data && r.corpo.data.slots) || [];
   if (!slots.length) { mostrar('horariosVazio'); return; }
+  const ofertas = new Map((r.corpo.data.ofertas || []).map(o => [o.horario, o]));
   for (const h of slots) {
     const b = el('button', { type: 'button', class: 'horario', 'aria-pressed': 'false', 'data-horario': h, text: h });
-    b.addEventListener('click', () => escolherHorario(h, b));
+    b.addEventListener('click', () => escolherHorario(h, b, ofertas.get(h)));
     lista.append(b);
   }
   $('secHorario').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function escolherHorario(horario, botao) {
+// Resumo revisado (D-068): fim, duração, preço e prazo de cancelamento vêm do servidor.
+function escolherHorario(horario, botao, oferta) {
+  estado.oferta = oferta || null;
   estado.horario = horario;
   aviso('');
   marcar($('listaHorarios'), botao);
-  const quem = estado.profissional.id === SEM_PREFERENCIA ? 'qualquer profissional' : estado.profissional.nome;
-  $('resumoEscolha').textContent = `${estado.servico.nome} com ${quem} — ${diaLongo.format(utc(estado.data))}, às ${horario}`;
+  const quem = (oferta && oferta.profissional) || (estado.profissional.id === SEM_PREFERENCIA ? 'qualquer profissional' : estado.profissional.nome);
+  let resumo = estado.servico.nome + ' com ' + quem + ' — ' + diaLongo.format(utc(estado.data)) + ', às ' + horario;
+  if (oferta) {
+    const preco = faixaPreco(oferta.precoCentavos);
+    resumo += ' até ' + oferta.fim + ' (' + oferta.duracaoMin + ' min)' + (preco ? ' · ' + preco : '') + '. Cancelamento até ' + textoPrazo(oferta.cancelamentoPrazoMin) + '.';
+  }
+  $('resumoEscolha').textContent = resumo;
   mostrar('secDados');
   $('secDados').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -202,6 +212,7 @@ async function enviar(ev) {
   if (![10, 11, 12, 13].includes(digitos.length)) return aviso('Informe o WhatsApp com DDD, por exemplo (11) 98888-7777.');
   if (!$('consentimento').checked) return aviso('Confirme que leu o aviso de privacidade.');
   estado.enviando = true;
+  $('fluxo').inert = true; // nada muda a escolha enquanto o pedido está no ar
   $('btnAgendar').disabled = true;
   $('btnAgendar').textContent = 'Agendando…';
   let r;
@@ -210,28 +221,37 @@ async function enviar(ev) {
       method: 'POST',
       body: {
         servicoId: estado.servico.id, profissionalId: estado.profissional.id, data: estado.data, horario: estado.horario,
+        versaoOferta: estado.oferta ? estado.oferta.versaoOferta : undefined,
         nome, whatsapp, consentimento: true, website: $('website').value
       }
     });
   } catch { r = null; }
   estado.enviando = false;
+  $('fluxo').inert = false;
   $('btnAgendar').disabled = false;
   $('btnAgendar').textContent = 'Agendar';
   if (!r) return aviso(MSG_CONEXAO);
   if (r.status === 201) return confirmar(r.corpo.data);
   aviso(mensagemDe(r));
-  if (['HORARIO_INDISPONIVEL', 'HORARIO_OCUPADO'].includes(codigoDe(r))) {
+  if (['HORARIO_INDISPONIVEL', 'HORARIO_OCUPADO', 'OFERTA_ALTERADA'].includes(codigoDe(r))) {
     estado.horario = null;
     mostrar('secDados', false);
     await carregarHorarios();
   }
 }
 
+function textoPrazo(prazo) {
+  if (prazo === 0) return 'o horário';
+  return prazo % 60 === 0 ? `${prazo / 60} h antes` : `${prazo} min antes`;
+}
+
 function confirmar(d) {
   $('confirmacaoTexto').textContent = `${d.servico} com ${d.profissional}, ${diaLongo.format(utc(d.data))}, às ${d.horario}.`;
-  const prazo = Number(estado.catalogo.regras && estado.catalogo.regras.cancelamentoPrazoMin);
+  // Prazo do serviço agendado (D-049), devolvido pelo servidor; sem ele, o do salão.
+  const prazo = Number.isFinite(d.cancelamentoPrazoMin) ? d.cancelamentoPrazoMin : Number(estado.catalogo.regras && estado.catalogo.regras.cancelamentoPrazoMin);
+  mostrar('confirmacaoPrazo', false);
   if (Number.isFinite(prazo)) {
-    const quando = prazo === 0 ? 'até o horário' : prazo % 60 === 0 ? `até ${prazo / 60} h antes` : `até ${prazo} min antes`;
+    const quando = 'até ' + textoPrazo(prazo);
     $('confirmacaoPrazo').textContent = d.link
       ? `Cancelar ou remarcar pelo link: ${quando}. Depois disso, fale com o salão.`
       : `Precisa cancelar ou remarcar? Avise o salão ${quando}.`;

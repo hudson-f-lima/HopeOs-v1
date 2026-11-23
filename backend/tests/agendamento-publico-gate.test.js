@@ -164,7 +164,7 @@ test('P04 slots: só horários; antecedência de 2 h hoje; ocupado some; passado
   const slots = async (data, prof = ANA, serv = CORTE) => request('GET', `/api/public/agendar/salao-alfa/slots?servicoId=${serv}&profissionalId=${prof}&data=${data}`);
   const hoje = await slots(HOJE);
   assert.strictEqual(hoje.status, 200);
-  assert.deepStrictEqual(Object.keys(hoje.data.data).sort(), ['data', 'duracaoMin', 'slots']);
+  assert.deepStrictEqual(Object.keys(hoje.data.data).sort(), ['data', 'duracaoMin', 'ofertas', 'slots']);
   assert.ok(hoje.data.data.slots.every(h => typeof h === 'string'));
   assert.strictEqual(hoje.data.data.slots[0], '11:00', 'agora 09:00 + 2 h');
   const amanha = (await slots(AMANHA)).data.data.slots;
@@ -186,7 +186,7 @@ test('P05 POST cria cliente novo + agendamento "agendado" sem autoria + evento d
   const r = await post(pedido());
   assert.strictEqual(r.status, 201, r.raw);
   const { link, calendario, ...resposta } = r.data.data;
-  assert.deepStrictEqual(resposta, { data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
+  assert.deepStrictEqual(resposta, { cancelamentoPrazoMin: 120, data: AMANHA, horario: '11:00', servico: 'Corte', profissional: 'Ana' });
   assert.match(link, /^[A-Za-z0-9_-]{43}$/, 'link pessoal (017) devolvido');
   assert.strictEqual(calendario.inicioIso, '2026-11-11T14:00:00.000Z');
   assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
@@ -353,6 +353,66 @@ test('P13c banco sem a 027 (RPC ausente): o link continua gravando pelo caminho 
     assert.strictEqual(chamadas, 1, 'tentou a RPC antes');
     assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
   } finally { P.criarAgendamentoPublico = rpc; }
+});
+
+test('P13d oferta revisada (D-068): resumo do servidor; condição mudou → OFERTA_ALTERADA sem gravar; nova versão grava', async () => {
+  const P = SupabaseRepository.prototype;
+  const rpc = P.criarAgendamentoPublico;
+  const direto = P.criarAgendamento;
+  const chamadas = { rpc: 0, direto: 0 };
+  P.criarAgendamentoPublico = async function (...a) { chamadas.rpc++; return rpc.apply(this, a); };
+  P.criarAgendamento = async function (...a) { chamadas.direto++; return direto.apply(this, a); };
+  const servico = db.servicos.find(s => s.id === CORTE);
+  const precoAntes = servico.valor_centavos;
+  try {
+    const lista = async () => (await request('GET', `/api/public/agendar/salao-alfa/slots?servicoId=${CORTE}&profissionalId=${ANA}&data=${AMANHA}`)).data.data;
+    const r1 = await lista();
+    assert.deepStrictEqual(r1.ofertas.map(o => o.horario), r1.slots, 'uma oferta por horário, na mesma ordem');
+    const o = r1.ofertas.find(x => x.horario === '15:30');
+    assert.ok(o, 'horário 15:30 livre amanhã');
+    const { versaoOferta, ...resumo } = o;
+    assert.deepStrictEqual(resumo, { horario: '15:30', fim: '16:00', profissional: 'Ana', duracaoMin: 30, precoCentavos: precoAntes, cancelamentoPrazoMin: 120 });
+    assert.match(versaoOferta, /^[0-9a-f]{64}$/);
+    assert.strictEqual((await lista()).ofertas.find(x => x.horario === '15:30').versaoOferta, versaoOferta, 'determinística');
+    const body = pedido({ horario: '15:30', whatsapp: '21 96666-0031', nome: 'Oferta Revista', versaoOferta });
+
+    // Versão malformada: recusa genérica, sem gravar.
+    const antes = contar();
+    for (const ruim of ['x'.repeat(64), 'A'.repeat(64), 123]) {
+      const r = await post({ ...body, versaoOferta: ruim });
+      assert.strictEqual(code(r), 'DADOS_INVALIDOS', String(ruim));
+    }
+    assert.deepStrictEqual(contar(), antes);
+
+    // Preço mudou entre a lista e o envio.
+    servico.valor_centavos = precoAntes + 500;
+    const mudou = await post(body);
+    assert.strictEqual(mudou.status, 409, mudou.raw);
+    assert.strictEqual(code(mudou), 'OFERTA_ALTERADA');
+    assert.deepStrictEqual(chamadas, { rpc: 0, direto: 0 }, 'OFERTA_ALTERADA não chega a gravar');
+    assert.deepStrictEqual(contar(), antes, 'nenhuma reserva, cliente ou evento');
+
+    // Revisada: a oferta nova traz o preço novo e outra versão; com ela grava uma vez.
+    const nova = (await lista()).ofertas.find(x => x.horario === '15:30');
+    assert.strictEqual(nova.precoCentavos, precoAntes + 500);
+    assert.notStrictEqual(nova.versaoOferta, versaoOferta);
+    const aceita = await post({ ...body, versaoOferta: nova.versaoOferta });
+    assert.strictEqual(aceita.status, 201, aceita.raw);
+    assert.strictEqual(aceita.data.data.cancelamentoPrazoMin, 120);
+    assert.strictEqual(chamadas.rpc, 1, 'grava pela RPC atômica (027), uma vez');
+    assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
+  } finally {
+    P.criarAgendamentoPublico = rpc;
+    P.criarAgendamento = direto;
+    servico.valor_centavos = precoAntes;
+  }
+});
+
+test('P13e cliente antigo, sem versaoOferta: continua gravando (compatível)', async () => {
+  const antes = contar();
+  const r = await post(pedido({ data: '2026-11-12', horario: '10:00', whatsapp: '21 96666-0032', nome: 'Sem Versao' }));
+  assert.strictEqual(r.status, 201, r.raw);
+  assert.deepStrictEqual(contar(), { ag: antes.ag + 1, cli: antes.cli + 1, ev: antes.ev + 1 });
 });
 
 test('P14 teto diário do salão: atingido → mesma recusa genérica', async () => {
