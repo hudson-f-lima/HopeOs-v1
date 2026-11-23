@@ -1,7 +1,7 @@
 # PROJECT STATE — KortexOS / HOPE OS
 
 **Atualizado:** 2026-11-23 · `main` em `3358bf8` (PR #58). **Fonte canônica do estado operacional.**
-Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A cronologia das decisões (D-001 a D-066) está em [`DECISIONS.md`](DECISIONS.md); o histórico de entregas, em [`../CHANGELOG.md`](../CHANGELOG.md).
+Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A cronologia das decisões (D-001 a D-067) está em [`DECISIONS.md`](DECISIONS.md); o histórico de entregas, em [`../CHANGELOG.md`](../CHANGELOG.md).
 
 ## 1. Identificação e produção (conferido em 2026-11-23, só leitura)
 
@@ -27,6 +27,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Autenticação por usuário (JWT Supabase Auth) | **REAL em produção** (login, `/me`, catálogo validados em 2026-11-10; sem revalidação completa depois) | `routes/auth.js`, identity-gate, `smoke.js` |
 | Token legado `API_ACCESS_TOKEN` | **Informado desligado** em produção (`LEGACY_TOKEN_AUTH_ENABLED=false`, Platform Owner, 2026-11-22). NÃO verificado por requisição | `render.yaml`, identity-gate C01/C03 |
 | Login social, por link e por código (D-056) | REAL no código, **atrás de flags `AUTH_*_ENABLED`**, desligadas até haver prova externa. Provedores e SMTP reais **NÃO validados**; nenhuma aprovação de produção ou multi-tenant decorre dele | `planning/AUTH_PWA_IMPLEMENTACAO.md` |
+| Trigger `auth.users → app_users` (007) | **PARCIAL**: espelha o usuário (caminho feliz coberto pelo gate), mas **falha ao recriar uma conta com e-mail já usado** por um usuário removido do Auth (REAL no Postgres local; Supabase real DESCONHECIDO). Correção exige migration 028+, não autorizada | `audit/TRIGGER_AUTH_USERS_2026-11-23.md` |
 | Principal de integração (credencial, scopes, rotação, auditoria) | REAL no código; uso em produção DESCONHECIDO | `auth/credentials.js`, identity-gate I01–I10 |
 | RBAC (4 papéis) + permissões individuais (012) | REAL — `authorize()` em toda rota de negócio | `auth/rbac.js`, `docs/PERMISSOES.md`, gates S04/C05 |
 | Tenant por identidade (membership; `X-Empresa-Id` só seletor) | REAL no código | identity-gate U06–U08 |
@@ -50,7 +51,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
-- **D-066 (23/11):** revisão semântica de toda a documentação (este arquivo reescrito, `CODEX.md`, `INDEX.md`, `ROTAS.md` gerado, 12 arquivos obsoletos removidos). 41 arquivos históricos protegidos aguardam decisão do dono.
+- **D-067 (23/11):** os 41 documentos históricos de julho foram movidos para `docs/historico/` sem alterar um byte; PR #15 (rascunho de julho da 007) fechado; achado do trigger `auth.users` registrado (P2, abaixo).
+- **D-066 (23/11):** revisão semântica de toda a documentação (este arquivo reescrito, `CODEX.md`, `INDEX.md`, `ROTAS.md` gerado, 12 arquivos obsoletos removidos).
 - **D-065 (23/11):** Painel sem número inventado; `kpis.ocupacaoPct` virou `realizadosPct`.
 - **D-064 (22/11):** Cockpit do gestor.
 - **D-063 (22/11):** migration 027, agendamento público e remarcação atômicos; HS412 de `agendamento_criar` passou a responder 409 em vez de 500.
@@ -80,10 +82,10 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 - **P1 (dono, no Render):** chaves VAPID para o lembrete por push; decidir sobre os serviços duplicados suspensos (`hopeos-v1-rvo9`, `hopeos-v1-frontend`, `Kortex_*`); `NODE_ENV=production` em minúsculas (HSTS) e `APP_PUBLIC_URL` (status destes dois itens não verificado nesta revisão).
 - **P1:** trocar a senha do AppBarber (o dono mantém até terminar a leitura dos cadastros).
 - **P1:** teste de ponta a ponta com dado real em produção (cliente → agendamento → comanda → caixa → ganhos → estorno → CSV). Escrita real em produção nunca foi registrada como exercitada.
-- **P2:** 41 FKs sem índice (INFO); unidades sem particionar dados; autoria de integração em estado mutável; `doctor.js` sem as migrations 010–027.
+- **P2:** 41 FKs sem índice (INFO); unidades sem particionar dados; autoria de integração em estado mutável; `doctor.js` sem as migrations 010–027; **trigger `auth.users → app_users` falha ao recriar e-mail já usado** (mitigação: desativar usuários pelo app, não excluir no painel do Supabase Auth; ver `audit/TRIGGER_AUTH_USERS_2026-11-23.md`).
 - **BLOQUEADO — comandas abertas e venda interna persistentes (D-057).** Contrato proposto para revisão: criação retorna ID, versão, empresa, unidade, autor e tipo de comprador (cliente ou profissional). Listagem autorizada inclui abertas de dias anteriores; detalhe carrega os itens e a revisão. Edição envia a revisão que o operador viu, conflito preserva as duas intenções para conferência. Fechamento transacional consome uma única revisão, usa chave por operação e grava o vínculo com a venda. Comprador, profissional executor, vendedor e operador têm identidades separadas. Regras de acesso, cancelamento, preços e eventual liquidação interna exigem decisão do proprietário. Persistência depende de autorização específica para a migration. A UI atual oferece somente fluxo de cliente e dados já registrados. Rascunho do editor vive na aba e o journal persiste tentativas de fechamento incertas.
 - **Decisões abertas (dono):** fornecedor de pagamento da assinatura (GalaxPay ou outro); fornecedor de WhatsApp; migration 028 (campo "não quero receber mensagens" e aniversário); ficha do cliente; leitura dos cadastros do AppBarber (capturas de tela); parecer jurídico para dado de saúde antes de guardar alergia ou anamnese; infra paga antes do primeiro cliente.
-- **PRs abertos:** #59 (esta documentação), #53 (agendamento online, grade por duração, rascunho), #15 (rascunho de julho sobre a migration 007, já aplicada: candidato a fechar).
+- **PRs abertos:** #59 (esta documentação) e #53 (agendamento online, grade por duração, rascunho). O #15 (rascunho de julho sobre a migration 007) foi **fechado em 2026-11-23** (D-067); a branch `codex/fase1-identidade-minima` foi mantida.
 - NFS-e é obrigatória para ME/EPP do Simples desde 2026-11-01: o salão piloto precisa do contador emitindo (o CSV do Painel é o apoio).
 
 ## 7. Gates (como verificar; os números vêm do CI do último commit)

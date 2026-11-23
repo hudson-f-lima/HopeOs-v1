@@ -10,7 +10,7 @@ Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](
 5. [`../README.md`](../README.md): apresentação, instalação e estrutura do repositório.
 
 ## 2. Decisões e histórico de entregas
-- [`DECISIONS.md`](DECISIONS.md): decisões D-001 a D-066, cada uma com autorização, escopo e evidência.
+- [`DECISIONS.md`](DECISIONS.md): decisões D-001 a D-067, cada uma com autorização, escopo e evidência.
 - [`../CHANGELOG.md`](../CHANGELOG.md): entregas concluídas, da mais nova para a mais antiga.
 - [`adr/ADR-005-identity-tenant-rbac-actor.md`](adr/ADR-005-identity-tenant-rbac-actor.md): identidade, tenant, RBAC e autoria (aprovada e implementada).
 
@@ -53,15 +53,16 @@ Cada um descreve o estado **na data do arquivo**. O estado de hoje vale em `PROJ
 - [`audit/RED_TEAM_2026-11.md`](audit/RED_TEAM_2026-11.md) (09/11) e [`RED_TEAM_2026-11-16_PRODUCAO_C1.md`](audit/RED_TEAM_2026-11-16_PRODUCAO_C1.md): Red Team do agendamento online, estorno, auth e PWA; C1 em produção.
 - [`audit/AUDITORIA_RECORRENCIA_2026-11-16.md`](audit/AUDITORIA_RECORRENCIA_2026-11-16.md): recorrência que não aparecia na agenda.
 - [`audit/COMANDAS_D057.md`](audit/COMANDAS_D057.md): evidências da revisão do checkout e das comandas (D-057).
+- [`audit/TRIGGER_AUTH_USERS_2026-11-23.md`](audit/TRIGGER_AUTH_USERS_2026-11-23.md): trigger `auth.users → app_users` falha ao recriar e-mail já usado (P2; correção pendente de autorização).
 - [`audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md`](audit/MELHORES_PRATICAS_GLOBAIS_2026-11-10.md): práticas de outras disciplinas × HOPE OS.
 - Pesquisa e justificativas: [`DILEMA_EXCLUIR_VS_DESATIVAR_SNAPSHOT.md`](DILEMA_EXCLUIR_VS_DESATIVAR_SNAPSHOT.md) (cadastro desativa, não apaga; é o que o sistema faz) e [`AI_MODEL_SELECTION_RATIONALE.md`](AI_MODEL_SELECTION_RATIONALE.md).
 - [`promo/README.md`](promo/README.md): kit promocional (rascunho, fora do produto).
 
 ## 7. Histórico de julho de 2026 (V1.0–V1.4 e KortexOS 5.1): NÃO representa o estado atual
-Material de uma fase anterior, preservado como evidência (regra do `AGENTS.md`: não sobrescrever auditorias, prompts históricos nem evidências do dono). **Afirmações como "base real 001–006", "faixa 007+ reservada ao KortexOS 5.1" e "projeto `qosioymzswhkqkziocas`" são do passado**: hoje a base é 001–027 e a produção é o projeto `hopeos-v1`. O caminho do produto é evoluir o HOPE OS (D-021).
-- [`canon/`](canon/) e [`architecture/`](architecture/): visão KortexOS 5.1 (Master Briefing, Benchmark, Proposal, Truth Map, Blueprint).
-- [`planning/KORTEXOS_5_1_MIGRATION_MAP.md`](planning/KORTEXOS_5_1_MIGRATION_MAP.md), [`KORTEXOS_5_1_SQL_MASTER_PLANNING.md`](planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md), [`KORTEXOS_5_1_SQL_MASTER_DRAFT.md`](planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md): planejamento e SQL de 5.1 (DRAFT ONLY, **nunca executar**; a numeração 046–060 é obsoleta).
-- [`redteam/`](redteam/) e [`prompts/`](prompts/): plano de correção e prompt de Red Team do 5.1.
-- [`audit_global/`](audit_global/): auditoria global de julho (14 arquivos), incluindo checklists de produção da V1.4.1.
-- [`FRONTEND_V1_3_UI_UX_AUDIT.md`](FRONTEND_V1_3_UI_UX_AUDIT.md), [`FRONTEND_V1_3_ADVERSARIAL_AUDIT.md`](FRONTEND_V1_3_ADVERSARIAL_AUDIT.md), [`RENDER_DEPLOYMENT_VALIDATION.md`](RENDER_DEPLOYMENT_VALIDATION.md): auditorias e validação de V1.3 e V1.4.1.
-- [`legacy/`](legacy/) (SMART_FLOW 4.0, V1.0 e V1.1) e [`archive/`](archive/): referências históricas e arquivos arquivados.
+Tudo em [`historico/`](historico/) (41 arquivos, movidos sem alterar o conteúdo; ver [`historico/README.md`](historico/README.md)). É evidência preservada por regra do `AGENTS.md`: não sobrescrever auditorias, prompts históricos nem evidências do dono. **Afirmações como "base real 001–006", "faixa 007+ reservada ao KortexOS 5.1" e "projeto `qosioymzswhkqkziocas`" são do passado**: hoje a base é 001–027 e a produção é o projeto `hopeos-v1`. O caminho do produto é evoluir o HOPE OS (D-021).
+- [`historico/canon/`](historico/canon/) e [`historico/architecture/`](historico/architecture/): visão KortexOS 5.1 (Master Briefing, Benchmark, Proposal, Truth Map, Blueprint).
+- [`historico/planning/KORTEXOS_5_1_MIGRATION_MAP.md`](historico/planning/KORTEXOS_5_1_MIGRATION_MAP.md), [`KORTEXOS_5_1_SQL_MASTER_PLANNING.md`](historico/planning/KORTEXOS_5_1_SQL_MASTER_PLANNING.md), [`KORTEXOS_5_1_SQL_MASTER_DRAFT.md`](historico/planning/KORTEXOS_5_1_SQL_MASTER_DRAFT.md): planejamento e SQL do 5.1 (DRAFT ONLY, **nunca executar**; a numeração 046–060 é obsoleta).
+- [`historico/redteam/`](historico/redteam/) e [`historico/prompts/`](historico/prompts/): plano de correção e prompt de Red Team do 5.1.
+- [`historico/audit_global/`](historico/audit_global/): auditoria global de julho (14 arquivos), incluindo checklists de produção da V1.4.1.
+- [`historico/FRONTEND_V1_3_UI_UX_AUDIT.md`](historico/FRONTEND_V1_3_UI_UX_AUDIT.md), [`historico/FRONTEND_V1_3_ADVERSARIAL_AUDIT.md`](historico/FRONTEND_V1_3_ADVERSARIAL_AUDIT.md), [`historico/RENDER_DEPLOYMENT_VALIDATION.md`](historico/RENDER_DEPLOYMENT_VALIDATION.md): auditorias e validação de V1.3 e V1.4.1.
+- [`historico/legacy/`](historico/legacy/) (SMART_FLOW 4.0, V1.0 e V1.1) e [`historico/archive/`](historico/archive/): referências históricas e arquivos arquivados.

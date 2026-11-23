@@ -20,7 +20,7 @@ APROVADA pelo Platform Owner em 2026-10-16 (D-007) e IMPLEMENTADA no código (PR
 - V1.4.2 parcial (commit `c5a2914`, merged em `main`) introduziu `req.auth` estrutural e fechou 4 riscos cross-tenant nas rotas e no `SupabaseRepository`, mas `empresa_id` ainda deriva exclusivamente de `DEFAULT_EMPRESA_ID` (env), não de identidade real.
 - Hoje existe um único mecanismo de perímetro: Bearer `API_ACCESS_TOKEN` compartilhado, fail-closed, sem noção de usuário individual.
 - Não existe tabela de usuários, papéis, unidades ou autoria em `supabase/migrations/001` a `006`.
-- `req.auth.user_id`, `.actor_id`, `.role` e `.unit_ids` existem como campos estruturais (`null`/`[]`) e não são lidos em nenhuma rota — não simulam identidade que não existe (`docs/DECISIONS.md` D-004, `docs/audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md`).
+- `req.auth.user_id`, `.actor_id`, `.role` e `.unit_ids` existem como campos estruturais (`null`/`[]`) e não são lidos em nenhuma rota — não simulam identidade que não existe (`docs/DECISIONS.md` D-004, `docs/historico/audit_global/13_V142_IDENTITY_TENANT_AUDIT_PLAN.md`).
 - Débito à parte, não coberto por esta ADR: o repositório não possui CI remoto (`.github/workflows` inexistente) — registrado como P1 separado em `docs/PROJECT_STATE.md`, não deve ser resolvido no mesmo branch desta ADR.
 
 ## Problema

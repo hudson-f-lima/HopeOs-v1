@@ -12,7 +12,7 @@ Tempo estimado: 30–45 min. Rollback: seção 8.
 ## 0. Bloqueios encontrados (por que não foi aplicado automaticamente)
 | Item | Situação | O que destrava |
 |---|---|---|
-| `qosioymzswhkqkziocas` (citado em `docs/audit_global/12_*`) | **Não existe** na organização (conferido em 2026-11-23 por `list_projects`): é o ID de um projeto anterior, citado em auditorias antigas. A produção é a linha seguinte | — |
+| `qosioymzswhkqkziocas` (citado em `docs/historico/audit_global/12_*`) | **Não existe** na organização (conferido em 2026-11-23 por `list_projects`): é o ID de um projeto anterior, citado em auditorias antigas. A produção é a linha seguinte | — |
 | Projeto do HOPE OS | **`hopeos-v1` (`gsttjozcmdvgstcpadiq`)**, criado em 2026-10-16, banco novo. **001–008 aplicadas em 2026-11-08** pelo merge do PR #16 (verificação 12/12 `true`). Desde 2026-11-08 a integração GitHub do Supabase está ligada ("Deploy to production" na `main`) e o histórico foi alinhado aos nomes dos arquivos (ver passo 4, opção C) | Merge do PR na `main` (opção C) ou SQL Editor (opção A) |
 | `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) | **OUTRO PROJETO — nunca usar para o HOPE OS** (decisão do Platform Owner, 2026-10-16). Foi reativado e pausado de novo em 2026-10-16; só uma consulta de leitura rodou nele, sem escrita | — |
 | Backend Render | **ATIVO** desde 2026-11-09: serviço `HopeOs-v1` em **`https://hopeos-v1.onrender.com`**, commit `5f0a3d6`, conectado ao `hopeos-v1` (login 401 para credencial inválida). O serviço do Blueprint `hopeos-v1-rvo9` está SUSPENSO (D-015). Este serviço não é gerenciado pelo `render.yaml`: variáveis e build command ficam no painel | — |

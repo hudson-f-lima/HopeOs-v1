@@ -49,7 +49,7 @@ bash supabase/tests/check_migrations.sh     # trava: lock confere, nada editado 
 | Cálculo financeiro no frontend | Regra-mãe: backend é a verdade |
 | `service_role` / `SUPABASE_SECRET_KEY` no frontend | Nunca |
 | `empresa_id` vindo de body ou query | O tenant vem só de `req.auth.empresa_id` |
-| `docs/canon/`, auditorias, prompts históricos | Evidência do dono (`AGENTS.md`): não sobrescrever nem comprimir |
+| `docs/historico/`, `docs/audit/`, prompts históricos | Evidência do dono (`AGENTS.md`): não sobrescrever nem comprimir. `docs/historico/` **não representa o estado atual** |
 | Banco de produção | Sem SQL, dado ou deploy sem autorização explícita |
 
 ## Como entregar uma funcionalidade (modelo: Cockpit, D-064)

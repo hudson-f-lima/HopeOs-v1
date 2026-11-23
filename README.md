@@ -4,7 +4,7 @@ Sistema operacional para beauty tech: agenda, comandas e caixa, assinaturas, com
 
 **Estado operacional atual:** [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) (única fonte de estado).
 **Regras permanentes para agentes:** [`AGENTS.md`](AGENTS.md) e [`CLAUDE.md`](CLAUDE.md).
-**Mapa documental:** [`docs/INDEX.md`](docs/INDEX.md). Guia para agentes de código: [`CODEX.md`](CODEX.md). Decisões: [`docs/DECISIONS.md`](docs/DECISIONS.md) (D-001 a D-066).
+**Mapa documental:** [`docs/INDEX.md`](docs/INDEX.md). Guia para agentes de código: [`CODEX.md`](CODEX.md). Decisões: [`docs/DECISIONS.md`](docs/DECISIONS.md) (D-001 a D-067).
 
 ## Estrutura do repositório
 
