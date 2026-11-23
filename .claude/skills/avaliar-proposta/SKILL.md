@@ -39,4 +39,4 @@ Tabela com: item | situação real (arquivo/função) | `REAL`/`PARCIAL`/`AUSENT
 ## 5. Entregar
 - Documento em `docs/planning/<NOME>_ANALISE.md` (SQL só como `DRAFT ONLY`), indexado em `docs/INDEX.md`.
 - Plano em ondas: **0 = o que bloqueia produção hoje**, depois sem migration, depois com migration (pedir autorização), por fim fornecedores externos. Cada onda com critério de aceite verificável.
-- Lista curta de decisões do Platform Owner. Não implementar feature nova nem migration 008+ sem essa decisão.
+- Lista curta de decisões do Platform Owner. Não implementar feature nova nem migration 028+ sem essa decisão (a próxima migration física é a 028; 001–027 já existem).

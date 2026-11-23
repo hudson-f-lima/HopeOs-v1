@@ -1,138 +1,78 @@
-# CODEX.md — Guia para agente de código
+# CODEX.md — Guia para agentes de código
 
-Específico para agentes que escrevem código (Claude Code, Codex, Cursor, Copilot). Ler após `AGENTS.md` e `CLAUDE.md`.
+Para quem escreve código neste repositório (Claude Code, Codex/GPT, Cursor, Copilot). Leia **antes**, nesta ordem: `AGENTS.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/PROJECT_STATE.md`. Este guia não guarda estado; o estado vive só no `PROJECT_STATE.md`. Atualizado em 2026-11-23.
 
-## Como rodar
+## Stack e estrutura
+- **Backend:** Node 22 + Express (`backend/src/`). **Banco:** Supabase Postgres (`supabase/migrations/001–027`). **App:** PWA em JavaScript puro (`index.html`, `js/`, `css/`, `service-worker.js` na raiz). Sem framework, sem build.
+- **Regra-mãe:** o backend é a fonte de verdade para dinheiro, comissão, estoque, agenda e ledger. O frontend nunca calcula taxa, comissão, gorjeta ou líquido: pede prévia ao backend.
+- **Produção:** API no Render, PWA no GitHub Pages, banco `hopeos-v1`. **Merge na `main` aplica `supabase/migrations` em produção** (D-010) e publica a API.
 
+## Como rodar e testar
 ```bash
-# Backend
-cd backend
-npm install
-npm start          # porta 3000 por padrão
+cd backend && npm ci
 
-# Testes — obrigatório verde antes de qualquer commit
-cd backend && npm run test:gate
-# Esperado: 82/82 verdes
+# 1. Suíte offline (sem Supabase). Os três valores fictícios são obrigatórios (CI faz igual):
+API_ACCESS_TOKEN=x SUPABASE_URL=https://example.invalid SUPABASE_SECRET_KEY=x npm run test:offline
+#    Uma suíte só: node tests/<nome>.test.js   (com as mesmas variáveis)
 
-# Frontend local
-npx --yes serve . -l 5500
-# Abrir http://localhost:5500
+# 2. E2E da PWA (Playwright, sob a CSP de produção). Portas 5599 e 3399 precisam estar livres:
+pkill -f static-server.py; pkill -f dev-memory-api.js
+NODE_PATH=$(npm root -g) node backend/tests/e2e/run-all.js [nomes...]   # sem nomes = todos
+
+# 3. Migrations + gates SQL (Postgres 16 limpo; roda 001–027, gates, concorrência e rollback):
+su postgres -c "cd <repo> && WITH_ROLLBACK=1 supabase/tests/run.sh"
+bash supabase/tests/check_migrations.sh     # trava: lock confere, nada editado ou não autorizado
 ```
-
-## Como testar
-
-```bash
-# Gate principal (82/82)
-cd backend && npm run test:gate
-
-# Validação manual de auth (com backend rodando)
-curl http://localhost:3000/api/health          # → 200
-curl http://localhost:3000/api/clientes        # → 401
-curl -H "Authorization: Bearer WRONG" http://localhost:3000/api/clientes  # → 401
-curl -H "Authorization: Bearer $API_ACCESS_TOKEN" http://localhost:3000/api/clientes  # → 200
-```
+- Ver a PWA localmente com API e banco **em memória**: `node backend/scripts/dev-memory-api.js` (porta 3399) e um servidor estático na raiz; abrir `index.html?apiBase=http://127.0.0.1:3399/api`. Logins de dev (senha `dev12345`): `admin@dev.local`, `recepcao@dev.local`, `profissional@dev.local`.
+- `npm run test:gate` exige Supabase real e `data/*.json` (não versionado). Não roda no CI. **Nunca declare "gate verde" sem ter rodado**; registre como DESCONHECIDO.
+- Os números de testes mudam a cada entrega: confie no CI do último commit, não em contagens escritas em documentos.
+- O CI (`.github/workflows/ci.yml`) roda 3 jobs: **Gates offline**, **E2E da PWA** e **Migrations + gates SQL**. `monitor.yml` é o monitor agendado de produção.
 
 ## Onde mexer
-
-| Área | Localização |
-|------|-------------|
-| Rotas backend | `backend/src/routes/index.js` |
-| Validators | `backend/src/validators/` |
-| Engines (financeiro, comissão, estoque) | `backend/src/engines/` |
-| Repository (Supabase) | `backend/src/repositories/SupabaseRepository.js` |
-| Auth middleware | `backend/src/middleware/auth.js` |
-| Config/env | `backend/src/config/env.js` |
-| Frontend — state | `js/state.js` |
-| Frontend — API calls | `js/api.js` |
-| Frontend — UI tabs | `js/ui/agenda.js`, `js/ui/checkout.js`, `js/ui/dashboard.js`, `js/ui/cadastros.js` |
-| Service worker | `service-worker.js` (raiz) |
-| Testes | `backend/tests/` |
+| Área | Local |
+|---|---|
+| Rotas (uma por área) | `backend/src/routes/<area>.js`; as mais antigas ficam em `routes/index.js`. Montagem em `backend/src/app.js` |
+| Permissão de cada rota | `authorize('<ação>')` do `backend/src/auth/rbac.js`; catálogo fino em `auth/permissoes.js` |
+| Regras de negócio puras | `backend/src/engines/` (sem I/O, dinheiro em **centavos inteiros**) |
+| Validação de entrada | `backend/src/validators/` |
+| Banco (acesso) | `backend/src/repositories/SupabaseRepository.js` e o espelho em memória `backend/src/dev/memoryBackend.js` |
+| Migrations | `supabase/migrations/` (**exige autorização**); rollback em `supabase/rollback/`; gate em `supabase/tests/gate_NNN.sql` |
+| App (telas) | `js/ui/<tela>.js`, estado em `js/state.js`, chamadas em `js/api.js`, utilitários em `js/utils.js` |
+| Service worker | `service-worker.js`: arquivo novo entra em `SHELL_ASSETS` **e** `CACHE_NAME` muda, senão o aparelho fica com a versão antiga |
+| Testes | `backend/tests/*.test.js` (gates), `backend/tests/e2e/*.e2e.js` (PWA), `supabase/tests/` (SQL) |
 
 ## Onde NÃO mexer
-
 | Área | Motivo |
-|------|--------|
-| `supabase/migrations/` | Banco real; qualquer SQL exige autorização explícita |
+|---|---|
+| `supabase/migrations/001–027` | Aplicadas em produção. O CI reprova arquivo editado ou apagado |
+| Migration **028+** | Só com autorização do Platform Owner registrada em `docs/DECISIONS.md`, linha em `supabase/migrations.lock` e decisão própria |
 | Cálculo financeiro no frontend | Regra-mãe: backend é a verdade |
-| `backend/src/db/supabaseClient.js` com `service_role` | Nunca expor ao frontend |
-| `empresa_id` via body/query | Deve vir do config backend, não do cliente |
-| Documentos em `docs/canon/` | Só reescrever in-place com autorização |
+| `service_role` / `SUPABASE_SECRET_KEY` no frontend | Nunca |
+| `empresa_id` vindo de body ou query | O tenant vem só de `req.auth.empresa_id` |
+| `docs/historico/`, `docs/audit/`, prompts históricos | Evidência do dono (`AGENTS.md`): não sobrescrever nem comprimir. `docs/historico/` **não representa o estado atual** |
+| Banco de produção | Sem SQL, dado ou deploy sem autorização explícita |
 
-## Padrões de commit
+## Como entregar uma funcionalidade (modelo: Cockpit, D-064)
+1. **Motor puro** em `engines/` (testável sem banco). 2. **Rota** com `authorize(...)`; `empresa_id` só do token. 3. **Gate** em `backend/tests/<nome>-gate.test.js`, com números calculados à mão e **controle negativo** (quebre a regra, veja o teste cair, restaure); registre em `package.json` nos scripts `test:<nome>` e `test:offline`/`test:gate`. 4. **Tela** em `js/ui/`, `init...()` em `js/app.js`. 5. **Service worker** (`SHELL_ASSETS` + `CACHE_NAME`). 6. **E2E** em `backend/tests/e2e/` e entrada em `CASOS` de `run-all.js`. 7. **Docs:** `DECISIONS.md` (novo `D-0xx`), `PROJECT_STATE.md`, `CHANGELOG.md`, `API_CONTRACT.md` e `node backend/scripts/docs/gerar-indice-rotas.js > docs/ROTAS.md`.
 
-```text
-fix(scope): descrição curta em inglês
-feat(scope): descrição
-chore(scope): descrição
-docs(scope): descrição
-refactor(scope): descrição
-```
+## Armadilhas que o projeto já pagou
+- **Toda rota precisa de `authorize`** (RT-20 reprova). Rota pública entra na lista `ROTAS_SEM_RBAC` do `redteam-gate`, com justificativa.
+- **Nada de `${nome}` em HTML** sem `escapeHtml`, e nomes vindos do servidor em mensagens usam concatenação (RT-13 varre o `js/`).
+- **Log de erro 4xx em uma linha, sem dado pessoal** (RT-10): mascare telefone e nome.
+- **Data em teste:** nunca dependa de `new Date()` contra fixture fixa; injete o relógio (`config/clock.js`). Nos E2E o navegador roda em `America/Sao_Paulo`.
+- **Segunda/domingo:** teste de agenda que assume dia útil quebra aos domingos; defina escala para os sete dias.
+- **Navegação nos E2E:** use `backend/tests/e2e/navegacao.js` (`irParaGestao`, `irParaConta`, `sairDaConta`); mudança de menu ajusta um arquivo só (D-061).
+- **Erro de RPC do banco:** traduza no repositório (`erroDaAgenda`). Antes de D-063, o HS412 saía como 500 no banco real porque só o espelho em memória traduzia: **teste sempre também contra o comportamento do banco real**, não só do espelho.
+- **Evento de agenda, dinheiro e ledger são imutáveis.** Corrija com estorno ou evento novo, nunca com `UPDATE` em linha financeira.
+- **Dois agentes em paralelo:** cada um no seu branch, e `main` é a fonte. O **número `D-0xx` colide** quando dois branches criam decisão ao mesmo tempo (aconteceu com D-056/D-057): antes de mesclar, confira o último `D-` da `main`, renomeie o seu e, se uma migration cita o número no cabeçalho, atualize o sha em `supabase/migrations.lock`. Conflito em `PROJECT_STATE.md`/`DECISIONS.md`: junte as duas entradas, não escolha uma. Em branch alheio, faça merge, nunca rebase nem force-push.
 
-Exemplos reais do projeto:
-- `fix(auth): add API access token auth middleware`
-- `docs(audit): add production deployment checklists for Tarefa A & B`
-- `fix(security): remove PII from git index and prevent future commits`
+## Commits e PR
+- Mensagem curta e descritiva, em português, citando a decisão: `Cockpit do gestor orientado a decisão (D-064, sem migration)`. Prefixos `docs:` e `fix(escopo):` são aceitos. Sem segredo, credencial, dado pessoal ou nome de cliente em commit, PR ou documento.
+- PR como **rascunho**, com o que mudou, o que foi testado (e como) e o que **não** foi verificado. O merge é decisão do Platform Owner; nunca mescle por conta própria.
+- Antes de pedir revisão: suíte offline verde, E2E verde, `check_migrations.sh` verde, nenhum `.env`, `data/*.json` ou arquivo de `supabase/migrations/` staged sem autorização.
 
-## Gates obrigatórios antes de commit
+## Variáveis de ambiente (nomes; valores só no Render ou em `.env` local, nunca no Git)
+`PORT` (padrão 3333), `NODE_ENV`, `APP_TIMEZONE`, `APP_PUBLIC_URL`, `CORS_ORIGIN`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (ou `SUPABASE_SERVICE_ROLE_KEY`), `SUPABASE_PUBLISHABLE_KEY`, `DEFAULT_EMPRESA_ID`, `API_ACCESS_TOKEN` e `LEGACY_TOKEN_AUTH_ENABLED` (legado, **desligado em produção**), `AUTH_*_ENABLED` (login social, link e código: desligados até prova externa), `PUBLIC_BOOKING_*` (agendamento pelo link: ausente = desligado), `VAPID_*` (lembrete por push), `WHATSAPP_ENABLED`, `SMS_ENABLED`. A lista completa e os padrões estão em `backend/src/config/env.js`.
 
-1. `cd backend && npm run test:gate` → 82/82 verdes.
-2. Nenhum arquivo `.env` staged (`git status` para confirmar).
-3. Nenhum dado em `data/*.json` staged (`.gitignore` deve barrar).
-4. Nenhuma migration nova em `supabase/migrations/` sem autorização explícita.
-5. Service worker: se alterou frontend, bumpar `CACHE_NAME` em `service-worker.js`.
-
-## Checklist antes de commit
-
-```text
-[ ] npm run test:gate → 82/82 verdes
-[ ] git status — sem .env, data/*.json, backups/
-[ ] Nenhuma migration SQL nova não autorizada
-[ ] Se mudou frontend → CACHE_NAME bumped em service-worker.js
-[ ] Mensagem de commit segue padrão fix/feat/chore/docs/refactor(scope)
-[ ] Não avançou escopo bloqueado (V1.5, 007+, IA, marketplace)
-```
-
-## Variáveis de ambiente (backend)
-
-```bash
-# backend/.env (nunca commitar)
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...   # ou SUPABASE_SECRET_KEY (compatibilidade)
-DEFAULT_EMPRESA_ID=...
-API_ACCESS_TOKEN=...            # Bearer token para auth de perímetro
-PORT=3000
-```
-
-**PENDENTE (Tarefa A):** `API_ACCESS_TOKEN` deve ser definido no Render com valor gerado por:
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-## Arquitetura de auth atual (V1.4.1)
-
-```text
-Frontend → Authorization: Bearer <API_ACCESS_TOKEN> → backend/src/middleware/auth.js → requireAuth()
-                                                                        ↓
-                                                      token válido → next()
-                                                      token inválido → 401
-                                                      /api/health → bypass (200 sempre)
-```
-
-**NÃO é autenticação final.** É perímetro mínimo. Multi-tenant e JWT Supabase são decisão futura bloqueada.
-
-## Tarefas autorizadas agora
-
-1. **Tarefa A** — Configurar `API_ACCESS_TOKEN` no Render + redeploy + validação. Ver `docs/audit_global/11_PRODUCTION_DEPLOYMENT_TAREFA_A.md`.
-2. **Tarefa B** — Rotação de segredos + remoção de PII do histórico. Ver `docs/audit_global/12_PRODUCTION_DEPLOYMENT_TAREFA_B.md`.
-3. **Débitos técnicos V1.4** que não exijam migration (ex: campo `actor` via payload, busca paginada de clientes).
-
-## Tarefas bloqueadas
-
-```text
-V1.5 — BLOQUEADO
-Migrations 007+ — BLOQUEADO
-Escala global / multi-tenant — BLOQUEADO
-IA operacional — BLOQUEADA
-Marketplace — BLOQUEADO
-App nativo do cliente — BLOQUEADO
-```
+## O que está bloqueado hoje (ver `PROJECT_STATE.md` §1 e §6)
+V1.5 e escala global; migration 028+ sem autorização; multi-tenant declarado seguro sem Red Team em produção; WhatsApp/SMS automáticos, Pix, cashback e NFS-e (dependem de fornecedor, contador e jurídico); comandas abertas persistentes (D-057); ligar o agendamento pelo link público sem aviso de privacidade aprovado e Red Team.

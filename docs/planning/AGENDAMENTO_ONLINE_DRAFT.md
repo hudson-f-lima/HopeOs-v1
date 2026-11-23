@@ -1,6 +1,6 @@
 # Agendamento online pelo cliente — proposta (DRAFT)
 
-**Status:** proposta para decisão. Nada foi implementado. É uma feature nova (bloqueio do `AGENTS.md`) e precisa de autorização como D-006/D-008. A migration 009+ **não** está autorizada.
+**Status (atualizado em 2026-11-23): IMPLEMENTADO.** Esta proposta (2026-11-08) originou o agendamento online: D-014 (link por mapa em variável de ambiente), D-037 (migration 016, link por salão), D-038 (link pessoal do cliente, migrations 017–018) e D-063 (migration 027, gravação atômica). O link vem **desligado** por padrão (`PUBLIC_BOOKING_LINKS` ausente). O texto abaixo é o rascunho original, mantido como histórico; o estado vale em `PROJECT_STATE.md`.
 **Origem:** lacuna 4 e prioridade 3 de `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md` ("item básico em todos os concorrentes").
 **Convenção:** **Fato** traz arquivo:linha. **Inferência** é conclusão a partir dos fatos. **Hipótese** precisa de validação.
 

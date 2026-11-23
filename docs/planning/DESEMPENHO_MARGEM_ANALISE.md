@@ -1,6 +1,6 @@
 # Análise — proposta "Desempenho e Margem Variável" (2026-11-13)
 
-**Estado:** Onda 1 implementada em 2026-11-13 (D-023). Ondas 2 e 3 aguardam decisão. SQL citado é DRAFT ONLY. Migration 012 não autorizada.
+**Estado:** Onda 1 implementada em 2026-11-13 (D-023). Ondas 2 e 3 aguardam decisão. SQL citado é DRAFT ONLY. A migration 012 foi usada por permissões individuais (D-032), não por esta análise; a Onda 3 precisará de uma migration nova (028+), com autorização.
 
 ## Classificação item a item
 | Item da proposta | Situação real | Classe | Migration? | Fornecedor? |
@@ -33,7 +33,7 @@
   2. Parcelado como formas de pagamento + calculadora de taxa efetiva (MDR + antecipação pro-rata) na tela de formas. Aceite: comanda em `credito_6x` grava a taxa certa; margem por forma mostra a diferença para PIX.
   3. Margem líquida por profissional e por forma no painel do gestor (dados já existem). Aceite: soma bate com `margin.js`.
 - **Onda 2 (depende de decisão e parecer):** painel de desempenho individual com ocupação e faixas neutras ("acima / na faixa / abaixo da meta"), só gestão, sem rótulo de desligamento.
-- **Onda 3 (migration 012, pedir autorização):** tabela de MDR por parcelas e campo de parcelas no pagamento, se a Onda 1.2 ficar incômoda no uso real.
+- **Onda 3 (migration nova, 028+; pedir autorização):** tabela de MDR por parcelas e campo de parcelas no pagamento, se a Onda 1.2 ficar incômoda no uso real.
 - **Não recomendado:** proficiência por tempo cronometrado; snapshots; comissão forçada sobre o líquido.
 
 ## Decisões do Platform Owner

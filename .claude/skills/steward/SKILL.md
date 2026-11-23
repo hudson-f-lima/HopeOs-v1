@@ -11,7 +11,7 @@ description: Como trabalhar no HOPE OS / KortexOS sem violar as regras do projet
 
 ## 2. Bloqueios que nenhuma autonomia genérica libera
 Exigem autorização **explícita e específica** do Platform Owner:
-- Criar migration 012+ ou tocar 001–011 (007 em D-007, 008 em D-009, 009 em D-013, 010 em D-017, 011 em D-019); executar SQL em qualquer banco. SQL de rascunho só em Markdown marcado `DRAFT ONLY`.
+- Criar migration 028+ ou tocar 001–027 (qual decisão autorizou cada migration está em `CLAUDE.md`); executar SQL em qualquer banco. SQL de rascunho só em Markdown marcado `DRAFT ONLY`.
 - Usar o projeto Supabase `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`): é OUTRO projeto, não misturar com o HOPE OS.
 - Mesclar na `main` qualquer mudança em `supabase/migrations/` sem autorização: o merge executa SQL em produção (integração GitHub do Supabase, D-010). Migration nova exige linha em `supabase/migrations.lock` citando a decisão; `supabase/tests/check_migrations.sh` reprova o resto.
 - Declarar multi-tenant seguro ou tratar `API_ACCESS_TOKEN` como auth final.
@@ -25,11 +25,11 @@ Rota nova de negócio: `authorize('<ação>')` de `src/auth/rbac.js` (o identity
 |---|---|---|
 | Offline (CI) | em `backend/`: `API_ACCESS_TOKEN=x SUPABASE_URL=https://example.invalid SUPABASE_SECRET_KEY=x npm run test:offline` | nada |
 | Trava de migrations (CI) | `supabase/tests/check_migrations.sh` | nenhum |
-| Migrations + SQL (CI) | `PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh` (shim Supabase, 001–011, `gate_*.sql`, concorrência da agenda e do estorno, controles negativos da 009, rollback) | Postgres 16 limpo |
+| Migrations + SQL (CI) | `PGHOST=... PGPORT=... PGUSER=postgres supabase/tests/run.sh` (shim Supabase, 001–027, `gate_*.sql`, concorrência da agenda, do estorno, do atendimento e do link público, controles negativos da 009, rollback) | Postgres 16 limpo |
 | Integrado | em `backend/`: `npm run test:gate` | `.env` com Supabase real (com 007) + `data/*.json` (PII, não versionado) |
 | Uma suíte | `node tests/<nome>.test.js` | ver acima |
 
-- O CI (`.github/workflows/ci.yml`) roda offline + migrations. Nunca declarar "gate verde" citando o integrado sem tê-lo rodado; registrar como DESCONHECIDO.
+- O CI (`.github/workflows/ci.yml`) roda três jobs: gates offline, E2E da PWA e migrations + gates SQL. Nunca declarar "gate verde" citando o integrado sem tê-lo rodado; registrar como DESCONHECIDO.
 - Teste novo puro → entra em `test:offline` **e** em `test:gate`. Teste de banco → `supabase/tests/gate_*.sql` (transação com rollback no fim).
 - Datas em teste: nunca depender de `new Date()` contra fixture com data fixa (o insights-gate quebrou assim). Injetar "agora".
 - Postgres local na sessão: `initdb`/`pg_ctl` de `/usr/lib/postgresql/16/bin` como usuário `postgres` em `/var/tmp/...` (o scratchpad não é acessível a esse usuário).
@@ -43,7 +43,8 @@ python3 -m http.server 5599 --bind 127.0.0.1 &          # na raiz do repo
 # logins (senha dev12345): admin@dev.local, recepcao@dev.local, profissional@dev.local, novo@dev.local (sem vínculo)
 # modo legado: acrescentar &apiToken=dev
 ```
-- Scripts prontos: `NODE_PATH=$(npm root -g) node backend/tests/e2e/<login|equipe|convite|slots>.e2e.js` (cada um com a API recém-iniciada).
+- **Jeito oficial:** `NODE_PATH=$(npm root -g) node backend/tests/e2e/run-all.js [nomes...]` sobe um servidor estático com a CSP de produção e uma API de memória nova por roteiro (42 roteiros; sem nomes roda todos; as portas 5599 e 3399 precisam estar livres: `pkill -f static-server.py; pkill -f dev-memory-api.js`). Para ir a Gestão ou à Conta num teste novo, use `backend/tests/e2e/navegacao.js` (D-061).
+- Roteiro isolado, com a API recém-iniciada: `NODE_PATH=$(npm root -g) node backend/tests/e2e/<nome>.e2e.js`.
 - Links de convite/recuperação do dev aparecem no console da API e em `GET /__links`; estado em `GET /__db/<tabela>`.
 - Playwright: Chromium em `/opt/pw-browsers`; não rodar `playwright install`.
 - Autocomplete (`FuzzyField`): `page.locator('#<input> ~ div [data-value]').first().click()` — teclado não seleciona. Avisos de sucesso são toast (ler `body`, não `#banner`).

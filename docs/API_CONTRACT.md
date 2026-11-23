@@ -1,4 +1,6 @@
-# HOPE OS V1.0.3 — API Contract
+# HOPE OS — API Contract
+
+> Formato das respostas, validações e erros por área. **A lista completa das rotas, com a permissão de cada uma, está em [`ROTAS.md`](ROTAS.md)** (gerada do código). As seções abaixo foram escritas por decisão (D-0xx) e podem não cobrir toda rota: em caso de dúvida, vale o código e o `ROTAS.md`.
 
 ## Checkout preview/close
 
@@ -96,7 +98,7 @@ Toda rota `/api/*` (exceto `/api/health`, `/api/auth/*` e `/api/me`) exige `Auth
 
 Cabeçalhos opcionais (só seletores, validados contra o que o usuário já tem): `X-Empresa-Id` (obrigatório se o usuário tiver mais de uma empresa → senão 400 `EMPRESA_SELECTION_REQUIRED`), `X-Unidade-Id`.
 
-Ações RBAC: `cadastros:read|write`, `clientes:read|write`, `agenda:read|write`, `checkout:write`, `estoque:write`, `lista_espera:read|write`, `relatorios:operacional|full`, `admin`. Profissional tem escopo "Próprio" em agenda e checkout (`NOT_OWN_RESOURCE`).
+Ações RBAC: cada rota exige uma ação, que é uma permissão fina do catálogo `backend/src/auth/permissoes.js` (D-032; matriz por papel em [`PERMISSOES.md`](PERMISSOES.md)) ou uma ação de administração de `backend/src/auth/rbac.js` (`admin`, `checkout:estornar`, `comissoes:pagar`). **A ação de cada rota está em [`ROTAS.md`](ROTAS.md).** Profissional tem escopo "Próprio" em agenda e checkout (`NOT_OWN_RESOURCE`).
 
 Erros: 401 `UNAUTHENTICATED`/`LEGACY_AUTH_DISABLED`; 403 `USER_INACTIVE`, `NO_ACTIVE_MEMBERSHIP`, `EMPRESA_NOT_AUTHORIZED`, `NO_UNIT_ACCESS`, `UNIT_NOT_AUTHORIZED`, `INSUFFICIENT_ROLE`, `INSUFFICIENT_SCOPE`, `INTEGRATION_INACTIVE`, `PROFESSIONAL_LINK_REQUIRED`, `NOT_OWN_RESOURCE`, `USER_PRINCIPAL_REQUIRED`; 503 `AUTH_PROVIDER_UNAVAILABLE` (nunca vira acesso).
 
@@ -125,24 +127,24 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 ## Empresa e assistente de configuração (D-008)
 | Rota | Ação RBAC | Uso |
 |---|---|---|
-| `GET /api/empresa` | `cadastros:read` | Dados e horários da empresa do usuário |
-| `PATCH /api/empresa` | `cadastros:write` | `{ nome, telefone, whatsapp, endereco, cidade, horarioPorDia: {seg:{ativo,inicio,fim},…}, slotPadrao: 10|15|20|30|45|60, intervaloAlmoco, almocoInicio, almocoFim }`; outros campos → 422 `FORBIDDEN_FIELD` |
-| `GET /api/onboarding/status` | `cadastros:write` | `{ fases[{id,titulo,concluida}], proximaFase, completo, resumo }` — derivado dos dados |
-| `GET /api/onboarding/presets` | `cadastros:write` | Cardápios por nicho, formas de pagamento e horário padrão (sugestões editáveis) |
-| `POST /api/onboarding/servicos` | `cadastros:write` | `{ itens: [{ nome, categoria, valorCentavos, duracaoMin, comissaoPct }] }` (até 50); nome repetido é ignorado |
-| `POST /api/onboarding/formas` | `cadastros:write` | `{ itens: [{ code, label, taxaPct, diasRecebimento }] }`; código repetido é ignorado |
+| `GET /api/empresa` | `cadastros:ver` | Dados e horários da empresa do usuário |
+| `PATCH /api/empresa` | `empresa:configurar` | `{ nome, telefone, whatsapp, endereco, cidade, horarioPorDia: {seg:{ativo,inicio,fim},…}, slotPadrao: 10|15|20|30|45|60, intervaloAlmoco, almocoInicio, almocoFim }`; outros campos → 422 `FORBIDDEN_FIELD` |
+| `GET /api/onboarding/status` | `empresa:configurar` | `{ fases[{id,titulo,concluida}], proximaFase, completo, resumo }` — derivado dos dados |
+| `GET /api/onboarding/presets` | `empresa:configurar` | Cardápios por nicho, formas de pagamento e horário padrão (sugestões editáveis) |
+| `POST /api/onboarding/servicos` | `empresa:configurar` | `{ itens: [{ nome, categoria, valorCentavos, duracaoMin, comissaoPct }] }` (até 50); nome repetido é ignorado |
+| `POST /api/onboarding/formas` | `empresa:configurar` | `{ itens: [{ code, label, taxaPct, diasRecebimento }] }`; código repetido é ignorado |
 
 ## Onda B (D-009, migration 008)
 | Rota | Ação RBAC | Uso |
 |---|---|---|
-| `GET /api/cargos` · `POST /api/cargos` · `PATCH /api/cargos/:id` | read: `cadastros:read`; escrita: `cadastros:write` | `{ nome, comissaoPct, modeloComissao: dividido|bruto_salao|bruto_staff, ativo }`; nome repetido (sem diferenciar maiúsculas) → 409 `CARGO_EXISTS` |
+| `GET /api/cargos` · `POST /api/cargos` · `PATCH /api/cargos/:id` | leitura: `cadastros:ver`; escrita: `catalogo:editar` | `{ nome, comissaoPct, modeloComissao: dividido|bruto_salao|bruto_staff, ativo }`; nome repetido (sem diferenciar maiúsculas) → 409 `CARGO_EXISTS` |
 | `GET /api/categorias` · `POST /api/categorias` · `PATCH /api/categorias/:id` | idem | `{ nome, comissaoPct|null, ativo }`; 409 `CATEGORIA_EXISTS` |
-| `POST/PATCH /api/profissionais` | `cadastros:write` | aceita `cargoId` (da mesma empresa, senão 422 `CARGO_NOT_FOUND`) |
-| `POST/PATCH /api/servicos` | `cadastros:write` | aceita `categoriaId` e `modeloHeranca: FIXED_SERVICE|BY_CATEGORY|BY_ROLE` |
-| `PATCH /api/empresa` | `cadastros:write` | também `cnpj` (dígitos verificadores; máscara aceita; `null` limpa), `razaoSocial`, `salaoParceiro`, `bufferMin` (0/5/10/15), `reguaAlertaFaltas` < `reguaSinalFaltas` |
-| `POST /api/onboarding/cargos` | `cadastros:write` | `{ itens: [{ nome, comissaoPct, modeloComissao }] }`, idempotente |
-| `GET /api/relatorios/cota-parte?mes=YYYY-MM` | `relatorios:full` | `{ comandas, valorItensCentavos, cotaParteSalaoCentavos, cotaParteProfissionaisCentavos, profissionais[{ nome, itens, valorCentavos, cotaParteCentavos }], salaoParceiro, cnpj, razaoSocial }` |
-| `GET /api/insights/clients/:id/reliability` | `relatorios:operacional` | inclui `regua: { faltasSeguidas, nivel: ok|tolerada|alerta|exigir_sinal, mensagem, limites }` — só alerta, sem cobrança |
+| `POST/PATCH /api/profissionais` | `catalogo:editar` | aceita `cargoId` (da mesma empresa, senão 422 `CARGO_NOT_FOUND`) |
+| `POST/PATCH /api/servicos` | `catalogo:editar` | aceita `categoriaId` e `modeloHeranca: FIXED_SERVICE|BY_CATEGORY|BY_ROLE` |
+| `PATCH /api/empresa` | `empresa:configurar` | também `cnpj` (dígitos verificadores; máscara aceita; `null` limpa), `razaoSocial`, `salaoParceiro`, `bufferMin` (0/5/10/15), `reguaAlertaFaltas` < `reguaSinalFaltas` |
+| `POST /api/onboarding/cargos` | `empresa:configurar` | `{ itens: [{ nome, comissaoPct, modeloComissao }] }`, idempotente |
+| `GET /api/relatorios/cota-parte?mes=YYYY-MM` | `painel:financeiro` | `{ comandas, valorItensCentavos, cotaParteSalaoCentavos, cotaParteProfissionaisCentavos, profissionais[{ nome, itens, valorCentavos, cotaParteCentavos }], salaoParceiro, cnpj, razaoSocial }` |
+| `GET /api/insights/clients/:id/reliability` | `painel:operacional` | inclui `regua: { faltasSeguidas, nivel: ok|tolerada|alerta|exigir_sinal, mensagem, limites }` — só alerta, sem cobrança |
 
 - Comissão no checkout: `itens[].comissaoPct` + `comissaoOrigem` (`override_profissional`, `cargo`, `categoria` ou `servico`).
 - `GET /api/agenda/slots` devolve `bufferMin`; cada atendimento ocupa até o fim + buffer (mesma regra do `agendamento_criar`).
@@ -170,7 +172,7 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - 404 `COMANDA_NOT_FOUND`.
   - 409 `ESTORNO_EXCEDE` | `ESTORNO_JA_TOTAL` | `IDEMPOTENCY_MISMATCH`.
   - 422 `IDEMPOTENCY_KEY_REQUIRED` | `ESTORNO_PAYLOAD_INVALIDO` | `ESTORNO_PRAZO_EXPIRADO` (> 30 dias) | `ESTORNO_DATA_INVALIDA` | `ESTORNO_ITEM_INVALIDO` | `ESTORNO_ITENS_OBRIGATORIOS` | `ESTORNO_FORMA_OBRIGATORIA` | `ESTORNO_REEMBOLSO_DIVERGENTE` | `FORBIDDEN_FIELD`.
-- `GET /api/comandas/:id/estornos` e `GET /api/comandas?data=` (lista do dia com saldo estornável): RBAC `relatorios:full`.
+- `GET /api/comandas/:id/estornos` e `GET /api/comandas?data=` (lista do dia com saldo estornável): RBAC `comanda:historico`.
 - Campos novos:
   - `/caixa/fechamento`: `estornos{quantidadeMovimentos, valorCentavos, porForma}` e `saldoDoDiaCentavos`;
   - `/financeiro/resumo`: `estornos` e `totals.comandasValidas`;
@@ -208,8 +210,8 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - `descontoCentavos` e `gorjetaCentavos` inteiros ≥ 0 → senão 422 `INVALID_FIELD`;
   - desconto > total dos itens → 422 `INVALID_DISCOUNT`;
   - `/checkout/close` ignora `data`/`hora` do cliente: usa agora no `APP_TIMEZONE`.
-- **`GET /api/caixa/fechamento[?data=YYYY-MM-DD][&contadoDinheiroCentavos=N]`**
-  - RBAC `relatorios:operacional`. Só leitura (`persistido: false`).
+- **`GET /api/caixa/fechamento[?data=YYYY-MM-DD][&contadoDinheiroCentavos=N][&fundoTrocoCentavos=N]`**
+  - RBAC `caixa:conferir`. Só leitura: calcula o dia na hora. Traz também `persistido` (há fechamento salvo), `ultimoFechamento` (com `desatualizado` se houve movimento depois dele) e `quantidadeFechamentos`. Salvar o fechamento é `POST /api/caixa/fechamentos` (`caixa:fechar`); sangria, suprimento e ajustes são `POST /api/caixa/ajustes` (`caixa:movimentar`) — migration 010 (D-017).
   - Devolve:
     - `quantidadeComandas`, `totalBrutoCentavos` (inclui gorjeta), `taxaTotalCentavos`, `liquidoEsperadoCentavos`;
     - `gorjetas {brutaCentavos, liquidaCentavos}`;
@@ -217,33 +219,32 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
     - `dinheiro {esperadoCentavos, contadoCentavos?, diferencaCentavos?}` (negativo = falta);
     - `ledger {caixaMovimentosCentavos, consistente, divergencias[]}`.
   - Erros: 422 `INVALID_DATE`/`INVALID_FIELD`.
-  - Sem troco/sangria/suprimento: não existem nas migrations 001–008.
 - **Metas e ranking** (D-019, migration 011)
-  - `GET /api/metas?mes=YYYY-MM` — RBAC `metas:read` (admin, gestor; profissional só as próprias). Devolve `{mes, metas:[{id, profissionalId, nome, tipo:'faturamento'|'atendimentos'|'produtos', alvo, realizado, percentual, atingida}]}`. `percentual` é truncado. `produtos` = venda de produtos pelo profissional (D-020).
-  - `PUT /api/metas` — RBAC `metas:write` (admin, gestor; só usuário). Corpo `{profissionalId, mes, tipo, valorAlvo}`; `valorAlvo` em centavos para faturamento; `null` ou `0` remove. 201 ao criar, 200 ao alterar ou remover. 404 `PROFESSIONAL_NOT_FOUND`; 422 `INVALID_MONTH`/`INVALID_FIELD`/`FORBIDDEN_FIELD`.
-  - `GET /api/gamificacao/ranking?mes=YYYY-MM[&criterio=servicos|produtos|total]` — RBAC `ranking:read`. Gestão: `{mes, criterio, visivelEquipe, ranking:[{posicao, profissionalId, nome, atendimentos, percentualDoLider, valorCentavos, faturamentoCentavos, produtosCentavos, totalCentavos, ticketMedioCentavos}]}`. `valorCentavos` é o do critério; critério inválido → 422. Profissional: se o salão não ligou, 200 com `visivelEquipe:false` e `ranking:[]`; ligado, recebe `voce` em cada linha e os valores em reais só na própria.
+  - `GET /api/metas?mes=YYYY-MM` — RBAC `metas:ver` (admin, gestor; profissional só as próprias). Devolve `{mes, metas:[{id, profissionalId, nome, tipo:'faturamento'|'atendimentos'|'produtos', alvo, realizado, percentual, atingida}]}`. `percentual` é truncado. `produtos` = venda de produtos pelo profissional (D-020).
+  - `PUT /api/metas` — RBAC `metas:definir` (admin, gestor; só usuário). Corpo `{profissionalId, mes, tipo, valorAlvo}`; `valorAlvo` em centavos para faturamento; `null` ou `0` remove. 201 ao criar, 200 ao alterar ou remover. 404 `PROFESSIONAL_NOT_FOUND`; 422 `INVALID_MONTH`/`INVALID_FIELD`/`FORBIDDEN_FIELD`.
+  - `GET /api/gamificacao/ranking?mes=YYYY-MM[&criterio=servicos|produtos|total]` — RBAC `ranking:ver`. Gestão: `{mes, criterio, visivelEquipe, ranking:[{posicao, profissionalId, nome, atendimentos, percentualDoLider, valorCentavos, faturamentoCentavos, produtosCentavos, totalCentavos, ticketMedioCentavos}]}`. `valorCentavos` é o do critério; critério inválido → 422. Profissional: se o salão não ligou, 200 com `visivelEquipe:false` e `ranking:[]`; ligado, recebe `voce` em cada linha e os valores em reais só na própria.
   - `PATCH /api/empresa` aceita `rankingVisivelEquipe` (só `true` liga).
 - **Aviso de privacidade** (D-018)
   - `GET /api/me` (usuário) ganha `privacidade:{versaoAtual, versaoAceita, aceitoEm, pendente}`.
   - `POST /api/auth/privacidade/aceite` — Bearer de usuário; corpo `{versao}`. Só a versão vigente (`PRIVACY_NOTICE_VERSION`): outra → 422 `PRIVACY_VERSION_MISMATCH` (`details.versaoAtual`). Token legado ou ausente → 401; conta desativada → 403; provedor sem suporte → 503 `PRIVACY_NOT_SUPPORTED`.
 - **Pagamento de comissão** (D-017, migration 010)
-  - `GET /api/comissoes/pagamentos[?profissionalId]` — RBAC `relatorios:proprio` (profissional: só o próprio). Devolve `{profissionalId, nome, ganhoCentavos, pagamentosCentavos, valesCentavos, estornadoCentavos, recebidoCentavos, saldoCentavos, lancamentos:[{id, tipo, valorCentavos, data, referenciaMes, observacao, estornaId, estornado}]}`.
+  - `GET /api/comissoes/pagamentos[?profissionalId]` — RBAC `ganhos:ver` (profissional: só o próprio). Devolve `{profissionalId, nome, ganhoCentavos, pagamentosCentavos, valesCentavos, estornadoCentavos, recebidoCentavos, saldoCentavos, lancamentos:[{id, tipo, valorCentavos, data, referenciaMes, observacao, estornaId, estornado}]}`.
   - `POST /api/comissoes/pagamentos` — RBAC `comissoes:pagar` (admin, gestor; só usuário). Corpo `{profissionalId, tipo:'pagamento'|'vale', valorCentavos, referenciaMes?, observacao?, idempotencyKey}`. 201; repetição idêntica → 200 `idempotente:true`; mesma chave com outro pedido → 409 `IDEMPOTENCY_MISMATCH`; pagamento acima do saldo → 422 `PAYMENT_EXCEEDS_BALANCE` (`details.saldoCentavos`).
   - `POST /api/comissoes/pagamentos/:id/estorno` — corpo `{observacao (3–500), idempotencyKey}`. 404 `PAYMENT_NOT_FOUND`, 409 `ALREADY_REVERSED`, 422 `INVALID_REVERSAL`.
 - **Caixa com gravação** (D-017, migration 010)
   - `GET /api/caixa/fechamento[?data&contadoDinheiroCentavos&fundoTrocoCentavos]` ganha `fundoTrocoCentavos`, `ajustes:{sangriasCentavos, suprimentosCentavos, itens}`, `dinheiro.vendasCentavos`, `persistido`, `quantidadeFechamentos` e `ultimoFechamento:{..., desatualizado}`. `dinheiro.esperadoCentavos` = fundo + vendas − estornos + suprimentos − sangrias.
-  - `POST /api/caixa/ajustes` — RBAC `caixa:operar` (admin, gestor, recepção; só usuário). Corpo `{tipo:'sangria'|'suprimento', valorCentavos, motivo (3–300), idempotencyKey}`. Sempre no dia corrente.
+  - `POST /api/caixa/ajustes` — RBAC `caixa:movimentar` (admin, gestor, recepção; só usuário). Corpo `{tipo:'sangria'|'suprimento', valorCentavos, motivo (3–300), idempotencyKey}`. Sempre no dia corrente.
   - `POST /api/caixa/fechamentos` — corpo `{data?, contadoDinheiroCentavos, fundoTrocoCentavos?, observacao?, idempotencyKey}`. O esperado é calculado pelo servidor; campo desconhecido → 422. Dia futuro → 422 `INVALID_DATE`.
   - Em todas as escritas: `empresa_id`/`actor_id` no corpo → 422 `FORBIDDEN_FIELD`; token legado e integração → 403 `USER_PRINCIPAL_REQUIRED`.
 - **`GET /api/relatorios/meus-ganhos?mes=YYYY-MM[&profissionalId]`** (D-016)
-  - RBAC `relatorios:proprio`: admin, gestor e profissional. Profissional: escopo próprio, `profissionalId` da query é ignorado. Gestão: `profissionalId` obrigatório (422 `PROFESSIONAL_REQUIRED`); de outra empresa ou inexistente → 404 `PROFESSIONAL_NOT_FOUND`.
+  - RBAC `ganhos:ver`: admin, gestor e profissional. Profissional: escopo próprio, `profissionalId` da query é ignorado. Gestão: `profissionalId` obrigatório (422 `PROFESSIONAL_REQUIRED`); de outra empresa ou inexistente → 404 `PROFESSIONAL_NOT_FOUND`.
   - Devolve `{mes, profissionalId, nome, atendimentos, valorServicosCentavos, comissaoCentavos, gorjetaLiquidaCentavos, estornos:{quantidade, comissaoCentavos, gorjetaCentavos}, totalCentavos, porDia:[{data, atendimentos, comissaoCentavos, gorjetaCentavos}]}`.
   - Estorno entra no mês do estorno. Só leitura: não há registro de pagamento de comissão.
 - **`GET /api/relatorios/servicos-prestados?mes=YYYY-MM`** (D-016)
-  - RBAC `relatorios:full`. Devolve `{mes, linhas:[{data, lancamento:'venda'|'estorno', comandaId, tipo, descricao, profissional, quantidade, valorCentavos, cotaParteProfissionalCentavos, cotaParteSalaoCentavos}], totais}`. Estornos são linhas negativas. Sem dado de cliente.
+  - RBAC `painel:financeiro`. Devolve `{mes, linhas:[{data, lancamento:'venda'|'estorno', comandaId, tipo, descricao, profissional, quantidade, valorCentavos, cotaParteProfissionalCentavos, cotaParteSalaoCentavos}], totais}`. Estornos são linhas negativas. Sem dado de cliente.
 - **`X-Request-Id`** (D-016): cabeçalho em toda resposta; em erro 5xx também em `error.requestId`.
 - **`GET /api/relatorios/piloto[?de&ate]`**
-  - RBAC `relatorios:full`. Padrão: últimos 30 dias; máximo 366 (422 `INVALID_DATE`/`INVALID_PERIOD`).
+  - RBAC `painel:financeiro`. Padrão: últimos 30 dias; máximo 366 (422 `INVALID_DATE`/`INVALID_PERIOD`).
   - KPIs `{numerador, denominador, taxa|null, referencia}`:
     - `taxaFalta` = no_show / (atendidos + no_show + cancelado tardio);
     - `reagendamentoCheckout` = atendimento com agendamento futuro criado até o dia seguinte;

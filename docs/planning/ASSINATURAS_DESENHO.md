@@ -1,6 +1,6 @@
 # Clube de assinatura — desenho completo, independente de fornecedor (2026-11-15)
 
-**Estado:** desenho com as decisões do dono registradas (§11). Nada implementado. O SQL é DRAFT ONLY: as migrations deste desenho não estão autorizadas.
+**Estado (atualizado em 2026-11-23):** desenho com as decisões do dono registradas (§11). **Onda A implementada:** planos e restrições (migration 021, D-042), assinantes, cobrança manual e uso na agenda e na comanda (022, D-043), comissão por rateio, tabela ou fixo e margem por plano (D-044, D-045). **Não implementado:** cobrança recorrente automática por fornecedor, link de gerência do assinante, pacotes e vale-presente. O SQL abaixo é o desenho original (DRAFT ONLY); o schema real está nas migrations 021 e 022.
 
 **Pedido do dono (2026-11-15):** "Fazer o desenho completo e deixar preparado para posteriormente escolher o fornecedor do pagamento."
 

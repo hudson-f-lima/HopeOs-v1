@@ -1,6 +1,6 @@
 # Estorno de comanda — proposta (DRAFT)
 
-**Status:** proposta para decisão. Nada aqui foi implementado ou executado. A migration 009 **não** está autorizada (CLAUDE.md; D-009).
+**Status (atualizado em 2026-11-23): IMPLEMENTADO.** Migration 009 (D-013), aplicada em produção: estorno total ou parcial com idempotência e ledger imutável por trigger. Este documento é a proposta original (DRAFT), mantida como histórico; o schema real está em `supabase/migrations/009_estorno_comanda.sql`.
 **Origem:** lacuna 3 de `docs/audit/AUDITORIA_E_BENCHMARK_2026-11.md` ("erro de caixa hoje não tem correção auditável").
 **Convenção:** **Fato** traz arquivo:linha. **Inferência** é conclusão a partir dos fatos. **Hipótese** precisa de validação.
 
