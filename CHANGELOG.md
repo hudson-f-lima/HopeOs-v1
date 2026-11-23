@@ -1,5 +1,10 @@
 # Changelog
 
+## Documentação revisada de ponta a ponta (D-066)
+- O estado do projeto, o guia para agentes de código e o índice foram reescritos a partir do que está de fato em produção (migrations 001–027 aplicadas).
+- Nova lista de todas as rotas da API com a permissão de cada uma (`docs/ROTAS.md`, gerada do código).
+- Removidos 12 arquivos de planos e checklists das versões antigas; documentos históricos ficam marcados como tal.
+
 ## Painel sem número inventado (D-065)
 - Saíram o "score" calculado sem base e as frases automáticas como "Operação estável".
 - Os indicadores do piloto não mostram mais faixas "de mercado" que nunca foram conferidas: a comparação é com o histórico do próprio salão.

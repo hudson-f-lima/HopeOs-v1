@@ -1,6 +1,6 @@
 # Assinatura — Onda A: plano de execução (2026-11-16)
 
-**Estado:** plano; nenhum código. Migration 021 já autorizada (D-038); precisa de linha em `supabase/migrations.lock` e decisão própria. **Merge na `main` aplica a migration em produção.**
+**Estado (atualizado em 2026-11-23): ONDA A ENTREGUE.** Fase 1: planos e restrições (D-042, migration 021). Fase 2: assinantes, cobrança manual e uso (D-043, migration 022, PR #37). Fase 3: comissão por rateio, tabela ou fixo e margem por plano (D-044, D-045; sem migration). Documento mantido como histórico do plano; o estado vale em `PROJECT_STATE.md`.
 
 **Entradas:** [`ASSINATURAS_DESENHO.md`](ASSINATURAS_DESENHO.md) (§4, uso fora da regra), [`APPBARBER_ASSINATURAS_PACOTES_LEITURA_2026-11-16.md`](APPBARBER_ASSINATURAS_PACOTES_LEITURA_2026-11-16.md), [`ASSINATURAS_PACOTES_BENCHMARK_2026-11-16.md`](ASSINATURAS_PACOTES_BENCHMARK_2026-11-16.md).
 

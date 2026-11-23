@@ -4,7 +4,7 @@ Sistema operacional para beauty tech: agenda, comandas e caixa, assinaturas, com
 
 **Estado operacional atual:** [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) (única fonte de estado).
 **Regras permanentes para agentes:** [`AGENTS.md`](AGENTS.md) e [`CLAUDE.md`](CLAUDE.md).
-**Mapa documental:** [`docs/INDEX.md`](docs/INDEX.md). Decisões: [`docs/DECISIONS.md`](docs/DECISIONS.md) (D-001 a D-065).
+**Mapa documental:** [`docs/INDEX.md`](docs/INDEX.md). Guia para agentes de código: [`CODEX.md`](CODEX.md). Decisões: [`docs/DECISIONS.md`](docs/DECISIONS.md) (D-001 a D-066).
 
 ## Estrutura do repositório
 
@@ -12,7 +12,7 @@ Sistema operacional para beauty tech: agenda, comandas e caixa, assinaturas, com
 backend/        API Express (src/), testes offline e E2E (tests/), scripts de ops
 js/, css/       PWA: interface, módulos por tela (js/ui/) e service worker na raiz
 supabase/       migrations (001–027), rollbacks, gates SQL e testes de concorrência
-docs/           documentação (ver docs/README.md)
+docs/           documentação (ver docs/README.md); docs/ROTAS.md lista todas as rotas da API (gerado)
 frontend/       protótipos antigos e plano de patch histórico (não é o app atual)
 ```
 
@@ -47,7 +47,7 @@ Os números de testes mudam a cada entrega. O estado atual vem do CI do último 
 ## Banco e migrations
 
 - Produção: projeto Supabase **`hopeos-v1`** (ID `gsttjozcmdvgstcpadiq`).
-- Migrations físicas: **001–027**. A 027 (agendamento público e remarcação atômicos, D-063) foi mesclada na `main` em 2026-11-22. A aplicação em produção ainda não foi confirmada: conferir `list_migrations` no Supabase antes de depender dela.
+- Migrations físicas: **001–027**. Todas aplicadas em produção (conferido por `list_migrations` em 2026-11-23); a 027 (agendamento público e remarcação atômicos, D-063) entrou no merge do PR #58.
 - **Merge na `main` aplica `supabase/migrations` em produção** (D-010). Toda migration precisa de autorização do Platform Owner e de linha em `supabase/migrations.lock`.
 - **Não criar migrations 028+** sem autorização registrada em `docs/DECISIONS.md`.
 - Não avançar para V1.5 nem novas features com P0 aberto em [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md).

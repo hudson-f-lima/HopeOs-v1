@@ -1,6 +1,8 @@
-# HOPE OS V1.0.3 — /data Contract
+# HOPE OS — /data Contract
 
-A pasta `/data` é contrato e seed, não banco final.
+> **Atualizado em 2026-11-23.** A pasta `data/` **não é versionada** (`data/*.json` está no `.gitignore`; os JSON com dados de clientes saíram do Git em 2026-07-11, ver `SECURITY_PII_POLICY.md`). Ela só existe em máquina local e é lida por `GET /api/data-contract` (`backend/src/services/DataContractService.js`). O banco de verdade é o Postgres do Supabase (migrations 001–027). Os nomes de campos e a regra do checkout abaixo continuam valendo e foram conferidos nas migrations.
+
+A pasta `data/` é contrato e seed local, não banco final.
 
 ## Coleções principais
 

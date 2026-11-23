@@ -2,7 +2,22 @@
 
 **Decisão do Platform Owner (2026-11-15):** o objetivo agora é **substituir o app Barber no próprio salão**. Vender para outros salões fica para depois. Para isso, falta separação entre empresas comprovada em produção, que hoje está BLOQUEADA (`docs/PROJECT_STATE.md`).
 
-**Estado:** planejamento. Nada aqui está autorizado para construção. Cada item que exigir migration (013+), fornecedor ou custo depende de autorização própria.
+**Estado (atualizado em 2026-11-23):** planejamento com **parte já construída**. Cada item novo que exigir migration (028+; 013–027 já existem), fornecedor ou custo depende de autorização própria.
+
+### Situação dos 9 itens da fase 1 em 2026-11-23
+| # | Item | Situação | Evidência |
+|---|---|---|---|
+| 1 | Importar dados do app Barber | **AUSENTE** (adiado pelo dono; nova leitura de aprendizado se for preciso) | — |
+| 2 | Agenda: escalas, recorrência, bloqueio de horário e feriados | **REAL** | migrations 013–015, 018, 023; D-033, D-035, D-039, D-047 |
+| 3 | Comanda aberta + comissão de auxiliar | Comanda aberta persistente: **BLOQUEADA** (contrato proposto, exige migration e decisão). Comissão de auxiliar: **AUSENTE** | D-057; `PROJECT_STATE.md` §6 |
+| 4 | Saldo do cliente: pacotes e vale-presente | **AUSENTE** | — |
+| 5 | Clube de assinatura | **PARCIAL**: planos, assinantes, cobrança **manual**, uso na comanda, comissão e margem por plano são REAIS. Cobrança recorrente automática: **AUSENTE** (fornecedor de pagamento) | migrations 021–022; D-042..D-045 |
+| 6 | Pontos de fidelidade e cupons | **AUSENTE** (metas e ranking existem, mas são outra coisa) | D-019 |
+| 7 | Contas a pagar e a receber | **AUSENTE** | — |
+| 8 | Fila de chegada e rodízio | **PARCIAL**: presença na agenda (aguardando, na cadeira) é REAL; fila ordenada e rodízio **AUSENTES** | D-012 |
+| 9 | Lembrete automático por WhatsApp | **PARCIAL**: lembrete assistido (abre o WhatsApp com a mensagem pronta) e push no celular do cliente (desligado: faltam as chaves VAPID) são REAIS; envio automático por WhatsApp **AUSENTE** | D-041; `planning/INTEGRACOES_FUTURAS.md` §3 |
+
+Do que o dono definiu como essencial em 2026-11-22: plano de assinatura (parcial), automação e mensageria (parcial, desligada) e gestão inteligente (Cockpit REAL, D-064).
 
 ## 0. Tese do produto (Platform Owner, 2026-11-15)
 "Estado da arte" aqui **não** é ter mais telas que o app Barber. É ser **mais eficiente e dinâmico com baixo esforço cognitivo para qualquer usuário**, e **mais inteligente**, com obsessão por **desempenho, margem e gestão**. Nada de copiar telas.
@@ -92,7 +107,7 @@ A ordem pode mudar por prazo. Itens 5 e 9 dependem de fornecedor e podem ser con
 1. ~~Uso real~~ — **respondido em 2026-11-15** (seção 3).
 2. **Fornecedor de pagamento da assinatura:** continuar na GalaxPay (migrar assinantes sem pedir cartão de novo, se a GalaxPay permitir; DESCONHECIDO) ou trocar (Asaas, Mercado Pago, Stripe, Pagar.me). A troca obriga cada assinante a cadastrar o cartão de novo.
 3. **Prazo** desejado para sair do app Barber.
-4. **Migration 013+:** cada item que precisar será desenhado e levado à autorização, como nas anteriores.
+4. **Migration 028+:** cada item que precisar será desenhado e levado à autorização, como nas anteriores.
 
 ## 5. Riscos
 - **Assinatura é dinheiro recorrente de cliente final:** erro de cobrança vira reclamação e estorno. Exige gate próprio, Red Team e período de operação paralela, com os dois sistemas e cobrança só em um.

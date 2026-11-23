@@ -1,16 +1,18 @@
 # Runbook — Migration 007 e login por usuário em produção
 
 Autorização: Platform Owner, 2026-10-16 ("criar, testar e aplicar em prod") — D-007.
-Estado em 2026-10-16: código e migration prontos e testados (Postgres 16 local + CI);
-**não aplicados em produção** porque esta sessão não tinha acesso ao projeto Supabase
-de produção e o serviço do Render estava suspenso (ver "Bloqueios encontrados").
+**Estado (atualizado em 2026-11-23): APLICADA.** A 007 entrou em produção em 2026-11-08, junto de 001–008, no merge do PR #16 (D-010); hoje o banco está em 001–027. Este runbook permanece como **procedimento de verificação (§4) e de limpeza de dados (§4.1)**; os bloqueios da §0 abaixo são o registro de 2026-10-16.
+
+Estado em 2026-10-16 (histórico): código e migration prontos e testados (Postgres 16 local + CI);
+não aplicados em produção porque a sessão daquele dia não tinha acesso ao projeto Supabase
+de produção e o serviço do Render estava suspenso.
 
 Tempo estimado: 30–45 min. Rollback: seção 8.
 
 ## 0. Bloqueios encontrados (por que não foi aplicado automaticamente)
 | Item | Situação | O que destrava |
 |---|---|---|
-| Supabase de produção (`qosioymzswhkqkziocas`, citado em `docs/audit_global/12_*`) | DESCONHECIDO — não aparece na conta conectada à sessão | Executar este runbook com acesso ao projeto, ou conectar a conta certa ao conector Supabase do Claude |
+| `qosioymzswhkqkziocas` (citado em `docs/audit_global/12_*`) | **Não existe** na organização (conferido em 2026-11-23 por `list_projects`): é o ID de um projeto anterior, citado em auditorias antigas. A produção é a linha seguinte | — |
 | Projeto do HOPE OS | **`hopeos-v1` (`gsttjozcmdvgstcpadiq`)**, criado em 2026-10-16, banco novo. **001–008 aplicadas em 2026-11-08** pelo merge do PR #16 (verificação 12/12 `true`). Desde 2026-11-08 a integração GitHub do Supabase está ligada ("Deploy to production" na `main`) e o histórico foi alinhado aos nomes dos arquivos (ver passo 4, opção C) | Merge do PR na `main` (opção C) ou SQL Editor (opção A) |
 | `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) | **OUTRO PROJETO — nunca usar para o HOPE OS** (decisão do Platform Owner, 2026-10-16). Foi reativado e pausado de novo em 2026-10-16; só uma consulta de leitura rodou nele, sem escrita | — |
 | Backend Render | **ATIVO** desde 2026-11-09: serviço `HopeOs-v1` em **`https://hopeos-v1.onrender.com`**, commit `5f0a3d6`, conectado ao `hopeos-v1` (login 401 para credencial inválida). O serviço do Blueprint `hopeos-v1-rvo9` está SUSPENSO (D-015). Este serviço não é gerenciado pelo `render.yaml`: variáveis e build command ficam no painel | — |

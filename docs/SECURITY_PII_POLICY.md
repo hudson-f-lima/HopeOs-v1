@@ -2,7 +2,7 @@
 
 **Data:** 2026-07-11  
 **Status:** ✅ Implementado  
-**Arquivo de referência:** `CLAUDE.md` (seção "Segurança & Conformidade")
+**Arquivo de referência:** `AGENTS.md` e `CLAUDE.md` (regras invioláveis; a seção "Segurança & Conformidade" original foi consolidada nelas em 2026-07-12)
 
 ---
 
@@ -36,7 +36,7 @@ data/backups/
 ```
 
 ### Script de reescrita de historico
-- **Arquivo:** `.git-rewrite.sh`
+- **Arquivo:** `.git-rewrite.sh` (**removido do repositório em 2026-07-12; consta no histórico do Git**, commit `af0687f`)
 - **Status:** evidencia operacional versionada da Tarefa B; execucao manual somente com aprovacao explicita do Platform Owner.
 - **Escopo:** remover `data/clientes.json`, `data/backups/`, `.env` e `backend/.env` do historico, se necessario.
 - **Risco:** reescreve historico Git; exige coordenacao com todos os clones.
@@ -92,6 +92,6 @@ data/backups/
 
 ## Referência
 
-- **CLAUDE.md** — Seção "Segurança & Conformidade"
+- **AGENTS.md** e **CLAUDE.md** — regras invioláveis (a seção "Segurança & Conformidade" original foi consolidada nelas)
 - **.gitignore** — Regras de proteção ativas
 - **Commit `eed9bd1`** — Histórico da limpeza

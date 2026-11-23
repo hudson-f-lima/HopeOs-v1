@@ -1,12 +1,12 @@
 # Integrações e extensões futuras — encaminhamento (D-016)
 
-**Estado:** planejamento. Nada aqui está implementado nem autorizado. Cada item diz o que já existe, o que falta, o que exige e como saber que ficou pronto. Origem: `docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`.
+**Estado (atualizado em 2026-11-23):** os itens **1 a 3** (pagamento e Pix, NFS-e, mensagens automáticas) seguem em planejamento: nada implementado nem autorizado, todos dependem de fornecedor. Os itens **4 e 5** foram implementados (D-017, migration 010) e o **6** é parcial. A parte **manual** do clube de assinatura (item 1) existe (D-042 a D-045); falta a cobrança recorrente por fornecedor. Cada item diz o que já existe, o que falta, o que exige e como saber que ficou pronto. Origem: `docs/audit/AUDITORIA_E_BENCHMARK_2026-11-10.md`.
 
 Regras que valem para todos:
 - Dinheiro, comissão, estoque e agenda continuam calculados só no backend. O fornecedor informa um evento; quem grava é a RPC.
 - Nenhuma chave de fornecedor vai para a PWA nem para o repositório. Só variável de ambiente do Render.
 - Toda integração nasce **desligada** (sem a variável, a rota responde 404), como o agendamento online.
-- Migration 010+ exige autorização do Platform Owner e linha em `supabase/migrations.lock`.
+- Migration 028+ exige autorização do Platform Owner e linha em `supabase/migrations.lock`.
 - Entrada de fornecedor (webhook) é tratada como dado não confiável: assinatura conferida, idempotência por id do evento, valor reconferido contra o que o backend esperava.
 
 ## 1. Pagamento: sinal, Pix e clube de assinatura (Onda C)
@@ -32,7 +32,7 @@ Regras que valem para todos:
 ## 3. Mensagens automáticas (WhatsApp API): lembrete, lista de espera, campanha
 | | |
 |---|---|
-| Já existe | Texto e link do lembrete (`ReminderEngine.js`); candidatos da lista de espera ao abrir vaga; segmentos de retenção (`/insights/retention`) |
+| Já existe | Texto e link do lembrete (`ReminderEngine.js`); **lembrete por push no celular do cliente, 1 dia e 2 h antes (D-041, migration 020; desligado: faltam as chaves VAPID)**; canais de WhatsApp e SMS pré-configurados e desligados (`notifications/canais.js`); candidatos da lista de espera ao abrir vaga; segmentos de retenção (`/insights/retention`) |
 | Falta | Envio sem ação humana; registro de consentimento; resposta do cliente confirmando |
 | Exige | Fornecedor pago; consentimento por cliente (LGPD) — coluna nova, logo migration; modelos de mensagem aprovados |
 | Aceite | Só recebe quem consentiu; resposta "sim" confirma o agendamento com autoria "cliente"; falha de envio aparece para a recepção |
