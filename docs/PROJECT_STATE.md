@@ -51,6 +51,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
+- **D-068 (23/11, PR rascunho):** no link público, o cliente revisa fim, duração, preço e prazo de cancelamento antes de confirmar; se algo mudar até o envio, `OFERTA_ALTERADA` sem gravar; envio travado contra toque duplo. Sem migration.
 - **D-067 (23/11):** os 41 documentos históricos de julho foram movidos para `docs/historico/` sem alterar um byte; PR #15 (rascunho de julho da 007) fechado; achado do trigger `auth.users` registrado (P2, abaixo).
 - **D-066 (23/11):** revisão semântica de toda a documentação (este arquivo reescrito, `CODEX.md`, `INDEX.md`, `ROTAS.md` gerado, 12 arquivos obsoletos removidos).
 - **D-065 (23/11):** Painel sem número inventado; `kpis.ocupacaoPct` virou `realizadosPct`.
