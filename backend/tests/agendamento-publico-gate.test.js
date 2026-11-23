@@ -363,7 +363,7 @@ test('P14 teto diário do salão: atingido → mesma recusa genérica', async ()
     const r = await post(pedido({ horario: '16:30', whatsapp: '21 96666-0004' }));
     assert.strictEqual(r.status, 422); assert.strictEqual(code(r), 'AGENDAMENTO_ONLINE_INDISPONIVEL');
     assert.strictEqual(contar().ag, antes.ag);
-    assert.strictEqual((await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '16:30', whatsapp: '21 96666-0004' }), 'salao-beta')).status, 201, 'teto é por salão');
+    assert.strictEqual((await post(pedido({ servicoId: SERV_B, profissionalId: PROF_B, horario: '16:00', whatsapp: '21 96666-0004' }), 'salao-beta')).status, 201, 'teto é por salão');
   } finally { limitesAltos(); }
 });
 

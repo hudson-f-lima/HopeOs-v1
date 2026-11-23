@@ -189,6 +189,7 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - Respostas com `Cache-Control: no-store` e erros sem `details`.
   - `GET /api/public/agendar/:slug` devolve catálogo, serviços com preço e o primeiro nome dos profissionais, e as regras de antecedência e janela.
   - `GET /api/public/agendar/:slug/slots?servicoId&profissionalId&data` devolve `{data, duracaoMin, slots}`.
+    - grade (D-069): em cada janela livre do profissional, do início da janela em passos da duração efetiva do serviço; o encaixe no fim só entra se cair na grade. Vale também para `POST /api/public/meu-agendamento/horarios` e `/remarcar`. `GET /api/agenda/slots` (recepção) não muda.
   - `POST /api/public/agendar/:slug`:
     - corpo `{servicoId, profissionalId, data, horario, nome, whatsapp, consentimento:true, website:""}`, com até 10 KB e só esses campos;
     - sucesso: 201 `{data, horario, servico, profissional}`;

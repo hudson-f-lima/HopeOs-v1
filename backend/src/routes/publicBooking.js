@@ -309,7 +309,9 @@ async function slotsDoProfissional(repo, cat, servico, profissional, data, lim, 
     .filter(a => a.id !== ignorarId);
   const r = buildSlotsDoDia({
     data, profissional, empresa: cat.empresa, servico, servicosAtivos: cat.servicosAtivos, agendamentos, agora: lim.minimo,
-    duracaoMin: duracaoFixa
+    // D-069: no link (reserva e remarcação), a grade parte do início de cada janela livre e anda
+    // pela duração efetiva do serviço para o profissional. A recepção (GET /agenda/slots) não passa isto.
+    gradePorDuracao: true, duracaoMin: duracaoFixa
   });
   const piso = data === lim.minimo.data ? lim.minimo.minuto : -1;
   // Política de sugestão (D-054): no link, só o que a política oferece (e a gravação usa a mesma lista).

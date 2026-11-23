@@ -152,7 +152,8 @@ test('PE03 equilibrada na recepção: tira 10:45 e 17:15 (sobra de 15 min)', asy
 test('PE04 link: sem política mostra todos; compacta só os ideais e recusa gravar fora', async () => {
   politica(null);
   const todos = await slotsLink();
-  assert.ok(todos.includes('10:45') && todos.includes('11:00'), todos.join(','));
+  // D-069: no link a grade anda pela duração (30 min) a partir do início da janela livre; a borda 10:45 fora da grade não entra.
+  assert.ok(todos.includes('10:30') && todos.includes('11:00') && !todos.includes('10:45'), todos.join(','));
   politica('compacta');
   assert.deepStrictEqual(await slotsLink(), ['09:30', '10:30', '17:30']);
   const fora = await request('POST', '/api/public/agendar/salao-p', { token: null, body: { servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '11:00', nome: 'Visitante', whatsapp: '(11) 98765-4321', consentimento: true, website: '' } });
@@ -162,6 +163,32 @@ test('PE04 link: sem política mostra todos; compacta só os ideais e recusa gra
   const dentro = await request('POST', '/api/public/agendar/salao-p', { token: null, body: { servicoId: CORTE, profissionalId: ANA, data: DIA, horario: '17:30', nome: 'Visitante', whatsapp: '(11) 98765-4321', consentimento: true, website: '' } });
   assert.strictEqual(dentro.status, 201, `dentro da política grava: ${dentro.raw.slice(0, 200)}`);
   politica(null);
+});
+
+test('PE04b grade do link (D-069) nas três políticas e sem política; recepção mantém a grade do salão', async () => {
+  const D = '2026-11-12';
+  const beto = db.profissionais.find(p => p.id === BETO);
+  const overridesAntes = beto.overrides;
+  beto.overrides = { [CORTE]: { duracao_min: 45 } }; // duração efetiva do Beto: 45
+  db.agendamentos.push({ id: '90000000-0000-4000-8000-0000000000b9', empresa_id: A, cliente_id: CLI[5], servico_id: CORTE, profissional_id: BETO, data: D, horario: '09:00:00', duracao_min: 35, status: 'agendado' });
+  const grade = ['09:35', '10:20', '11:05', '11:50', '12:35', '13:20', '14:05', '14:50', '15:35', '16:20', '17:05'];
+  const link = async () => (await request('GET', `/api/public/agendar/salao-p/slots?servicoId=${CORTE}&profissionalId=${BETO}&data=${D}`, { token: null })).data.data.slots;
+  try {
+    politica(null);
+    assert.deepStrictEqual(await link(), grade, 'sem política: toda a grade; 17:15 (borda fora da grade) não entra');
+    for (const p of ['flexivel', 'equilibrada', 'compacta']) {
+      politica(p);
+      const s = await link();
+      assert.ok(s.length > 0 && s.every(h => grade.includes(h)), `${p}: ${s.join(',')}`);
+    }
+    politica(null);
+    const recep = (await request('GET', `/api/agenda/slots?data=${D}&profissionalId=${BETO}&servicoId=${CORTE}`)).data.data.slots.map(s => s.horario);
+    assert.ok(recep.includes('09:45') && recep.includes('10:00') && recep.includes('17:15'), 'recepção: grade de 15 do salão + bordas: ' + recep.join(','));
+  } finally {
+    politica(null);
+    beto.overrides = overridesAntes;
+    db.agendamentos.splice(db.agendamentos.findIndex(a => a.id === '90000000-0000-4000-8000-0000000000b9'), 1);
+  }
 });
 
 test('PE05 configuração: PATCH /empresa aceita as três e null; recusa outro valor', async () => {

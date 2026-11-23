@@ -161,6 +161,38 @@ test('18 query não aceita empresa_id: o tenant não faz parte da entrada do mot
   assert.ok(!('empresa_id' in r));
 });
 
+test('19 grade do link (D-069) recomeça após ocupação e respeita a antecedência pela mesma âncora', () => {
+  const slots = computeSlots({
+    janela: { inicio: 540, fim: 730 }, ocupados: [{ start: 540, end: 610 }],
+    duracaoMin: 45, passoMin: 45, inicioMinimoMin: 611, gradePorDuracao: true
+  });
+  assert.deepStrictEqual(horarios(slots), ['10:55']);
+});
+
+test('20 exemplo do dono (D-069): ocupado até 09:35, serviço de 45 → 09:35, 10:20, 11:05; recepção mantém a grade de 30', () => {
+  const base = { janela: { inicio: 540, fim: 720 }, ocupados: [{ start: 540, end: 575 }], duracaoMin: 45 };
+  // Link: passo = duração efetiva; 11:15 (borda final, 12:00 − 45) não coincide com a grade e sai.
+  assert.deepStrictEqual(horarios(computeSlots({ ...base, passoMin: 45, gradePorDuracao: true })), ['09:35', '10:20', '11:05']);
+  // Recepção: grade do salão (30) a partir da abertura + bordas da janela livre (comportamento anterior).
+  assert.deepStrictEqual(horarios(computeSlots({ ...base, passoMin: 30 })), ['09:35', '10:00', '10:30', '11:00', '11:15']);
+});
+
+test('21 borda final entra quando coincide com a grade (D-069)', () => {
+  // Livre 09:00–10:30, serviço de 45: grade 09:00, 09:45; a borda 09:45 é ponto da grade.
+  const r = computeSlots({ janela: { inicio: 540, fim: 630 }, ocupados: [], duracaoMin: 45, passoMin: 45, gradePorDuracao: true });
+  assert.deepStrictEqual(horarios(r), ['09:00', '09:45']);
+});
+
+test('22 buildSlotsDoDia: gradePorDuracao usa a duração efetiva do profissional como passo', () => {
+  const empresa = { slot_padrao: 30, horario_por_dia: { qua: { ativo: true, inicio: '09:00', fim: '12:00' } }, intervalo_almoco: false, buffer_min: 0 };
+  const profissional = { id: 'p1', horario: empresa.horario_por_dia, overrides: { s1: { duracao_min: 45 } } };
+  const servico = { id: 's1', duracao_min: 30 };
+  const agendamentos = [{ profissional_id: 'p1', data: '2026-11-25', horario: '09:00:00', duracao_min: 35, status: 'agendado' }];
+  const comum = { data: '2026-11-25', profissional, empresa, servico, servicosAtivos: [servico], agendamentos };
+  assert.deepStrictEqual(buildSlotsDoDia({ ...comum, gradePorDuracao: true }).slots.map(s => s.horario), ['09:35', '10:20', '11:05']);
+  assert.deepStrictEqual(buildSlotsDoDia(comum).slots.map(s => s.horario), ['09:35', '10:00', '10:30', '11:00', '11:15']);
+});
+
 (async () => {
   let passed = 0;
   for (const t of tests) {

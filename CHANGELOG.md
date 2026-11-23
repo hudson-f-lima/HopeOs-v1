@@ -1,5 +1,9 @@
 # Changelog
 
+## Agendamento pelo link: horários em sequência (D-069)
+- No link, os horários oferecidos começam logo depois de cada atendimento e seguem a duração do serviço (ex.: 09:35, 10:20, 11:05 para um serviço de 45 min), sem buracos entre um cliente e outro.
+- Vale para agendar e para remarcar pelo link. A agenda da recepção continua igual.
+
 ## Documentação revisada de ponta a ponta (D-066)
 - O estado do projeto, o guia para agentes de código e o índice foram reescritos a partir do que está de fato em produção (migrations 001–027 aplicadas).
 - Nova lista de todas as rotas da API com a permissão de cada uma (`docs/ROTAS.md`, gerada do código).

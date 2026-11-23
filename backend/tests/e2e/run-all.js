@@ -54,6 +54,7 @@ const CASOS = [
   { nome: 'presenca' },
   { nome: 'caixa' },
   { nome: 'agendar', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
+  { nome: 'grade-link', env: { DEV_PUBLIC_SLUG: 'salao-dev' } },
   { nome: 'estorno' },
   { nome: 'ganhos' },
   { nome: 'finops' },
