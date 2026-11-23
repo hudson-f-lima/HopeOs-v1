@@ -188,12 +188,12 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - Fica desligado sem `PUBLIC_BOOKING_LINKS` (JSON `{"slug":"<uuid>"}`); desligado, tudo responde 404.
   - Respostas com `Cache-Control: no-store` e erros sem `details`.
   - `GET /api/public/agendar/:slug` devolve catálogo, serviços com preço e o primeiro nome dos profissionais, e as regras de antecedência e janela.
-  - `GET /api/public/agendar/:slug/slots?servicoId&profissionalId&data` devolve `{data, duracaoMin, slots}`.
+  - `GET /api/public/agendar/:slug/slots?servicoId&profissionalId&data` devolve `{data, duracaoMin, slots, ofertas}`; cada oferta (D-068) tem `{horario, fim, profissional, duracaoMin, precoCentavos|null, cancelamentoPrazoMin, versaoOferta}`.
     - grade (D-069): em cada janela livre do profissional, do início da janela em passos da duração efetiva do serviço; o encaixe no fim só entra se cair na grade. Vale também para `POST /api/public/meu-agendamento/horarios` e `/remarcar`. `GET /api/agenda/slots` (recepção) não muda.
   - `POST /api/public/agendar/:slug`:
-    - corpo `{servicoId, profissionalId, data, horario, nome, whatsapp, consentimento:true, website:""}`, com até 10 KB e só esses campos;
-    - sucesso: 201 `{data, horario, servico, profissional}`;
-    - erros: 422 `DADOS_INVALIDOS` | `NOME_INVALIDO` | `WHATSAPP_INVALIDO` | `CONSENTIMENTO_OBRIGATORIO` | `INDISPONIVEL` | `HORARIO_INDISPONIVEL` | `AGENDAMENTO_ONLINE_INDISPONIVEL`; 409 `HORARIO_OCUPADO`; 429 `MUITAS_TENTATIVAS`.
+    - corpo `{servicoId, profissionalId, data, horario, nome, whatsapp, consentimento:true, website:"", versaoOferta?}`, com até 10 KB e só esses campos; `versaoOferta` (opcional, hex de 64) é a da oferta revisada;
+    - sucesso: 201 `{cancelamentoPrazoMin, data, horario, servico, profissional, link, calendario}`;
+    - erros: 422 `DADOS_INVALIDOS` | `NOME_INVALIDO` | `WHATSAPP_INVALIDO` | `CONSENTIMENTO_OBRIGATORIO` | `INDISPONIVEL` | `HORARIO_INDISPONIVEL` | `AGENDAMENTO_ONLINE_INDISPONIVEL`; 409 `HORARIO_OCUPADO` | `OFERTA_ALTERADA` (versão não bate; nada gravado); 429 `MUITAS_TENTATIVAS`.
 
 ## D-012 — presença, checkout, caixa e piloto
 - Corpo JSON máximo: 100 KB; acima disso, 413.
