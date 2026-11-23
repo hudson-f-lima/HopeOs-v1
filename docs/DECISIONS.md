@@ -1025,3 +1025,28 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - Gate `agendamento-publico` P13d: resumo exato da oferta; versão determinística; versões malformadas recusadas; preço alterado → 409 `OFERTA_ALTERADA` com **zero** chamadas à RPC e ao insert e nenhuma linha nova; oferta nova grava uma vez pela RPC. P13e: cliente sem versão continua gravando. **Controle negativo:** sem a comparação da versão, P13d cai (o POST grava com 201).
   - E2E `agendar-oferta` (Playwright, CSP de produção), com contagem no banco de teste (`/__db/agendamentos`) por cenário: resumo → **1** reserva; preço alterado antes de confirmar → **0** após a recusa e **1** após revisar, com o preço novo; toque duplo com o pedido segurado 1,5 s (mais um toque no botão, um `requestSubmit` e um toque em outro horário) → **1** POST e **1** reserva, no horário escolhido; dois POSTs simultâneos fora do navegador → um 201, um 422 `HORARIO_INDISPONIVEL`, **1** reserva. **Controle negativo:** sem o `inert`, caem "fluxo travado" e "escolha não muda com o pedido no ar".
 - **Não verificado:** comportamento contra o Supabase real (o link público segue desligado em produção, sem `PUBLIC_BOOKING_LINKS`).
+
+## D-069 — Link público: grade de horários pela duração do serviço, a partir de cada janela livre (sem migration)
+- **Pedido (Platform Owner, 2026-11-23):** "Para a entrega B, a grade pública parte do início de cada janela livre e avança pela duração efetiva do serviço para o profissional. O encaixe no fim entra quando coincidir com a grade. A regra vale para flexível, equilibrada e compacta, na reserva e na remarcação. A recepção conserva sua grade atual." E: "Entregue B em PR separado, documente a interpretação da D-054 e inclua o exemplo 09h35 → 10h20 → 11h05 no teste de navegador." Origem: a parte de grade do PR #53 (`fix/grade-reserva-cliente`), portada sobre a `main` atual.
+- **Problema:** o link usava a grade da recepção: passo do salão (`slot_padrao`) contado da abertura, mais as duas bordas de cada janela livre. Com um serviço de 45 min e passo de 30, um cliente que pega 10:00 depois de um atendimento que termina 09:35 deixa 25 min parados, e o link oferecia horários que se sobrepõem uns aos outros em sequência (10:00, 10:30, 11:00).
+- **Regra (só no link):**
+  - Em cada janela livre do profissional, o primeiro horário é o início da janela; os seguintes avançam pela **duração efetiva** do serviço para aquele profissional (a do vínculo, se houver; senão a do serviço). Na remarcação, a duração é a do próprio agendamento.
+  - O último encaixe da janela (fim da janela menos a duração) **só entra se coincidir com essa grade**.
+  - Com "agora" ou antecedência no meio da janela, o primeiro horário é o próximo ponto da grade dessa janela (a âncora continua sendo o início da janela).
+  - Exemplo do dono: ocupado até 09:35, serviço de 45 min, expediente até 12:00 → **09:35, 10:20, 11:05**. A recepção, no mesmo dia, segue com 09:35, 10:00, 10:30, 11:00 e 11:15.
+- **Interpretação da D-054 (política de sugestão) a partir daqui:** a política continua sendo aplicada depois do cálculo da grade, sem mudar suas regras. O que muda é o conjunto de partida no link:
+  - **sem política (null):** "o link mostra todos os livres" passa a significar todos os pontos **da grade do link**, não todos os pontos da grade do salão mais as bordas;
+  - **flexível:** todos os pontos da grade do link;
+  - **equilibrada:** os pontos da grade do link que não deixam sobra menor que o menor serviço (se nenhum, os ideais), como antes;
+  - **compacta:** os encaixes ideais **entre os pontos da grade do link**. "Colado no fim" só vale quando o fim coincide com a grade;
+  - na recepção nada muda: grade do salão a partir da abertura, bordas, `sugerido` e "Ver todos";
+  - a gravação pelo link continua recusando horário fora do que foi oferecido (`HORARIO_INDISPONIVEL`), agora contra a grade nova, na reserva e na remarcação.
+- **Custo aceito (a decidir se incomodar na prática):** o link oferece menos horários (no exemplo, 3 em vez de 5) e não oferece o encaixe colado no fim da janela quando ele cai fora da grade (no E2E, 12:15). Esse encaixe continua disponível para a recepção.
+- **Código:** `SlotEngine.computeSlots`/`buildSlotsDoDia` ganham `gradePorDuracao` (padrão `false`); só `publicBooking.slotsDoProfissional` passa `true`, e ele serve à lista, à gravação e à remarcação do link. `GET /api/agenda/slots` não passa a opção.
+- **Fora do escopo:** o intervalo mínimo entre visitas na remarcação (M11 do PR #53) não entrou; é decisão separada do dono.
+- **Verificação:**
+  - `schedule-slots` 19 a 22: âncora com antecedência; o exemplo 09:35 → 10:20 → 11:05 contra a grade da recepção; borda final que coincide com a grade entra; `buildSlotsDoDia` com duração do vínculo.
+  - `agenda-politica` PE04 (10:45 sai do link) e PE04b (sem política, flexível, equilibrada e compacta só oferecem pontos da grade; recepção mantém 09:45, 10:00 e 17:15). `meu-agendamento` M12: remarcação na grade de 45 a partir de 09:35; 10:00 recusado, 10:20 aceito. `agendamento-publico` P14 passou a usar 16:00 (16:30 deixou de ser ponto da grade no salão de teste).
+  - **Controle negativo:** com `gradePorDuracao: false` na rota pública, caem PE04, PE04b e M12.
+  - E2E `grade-link` (navegador, CSP de produção): o link mostra **09:35 → 10:20 → 11:05 → 11:50**; a recepção tem 10:00, 10:30 e 12:15; as três políticas só oferecem pontos da grade; reservar 10:20 gera **1** reserva de 45 min e a lista recomeça em 09:35, 11:05, 11:50.
+- **Não verificado:** contra o Supabase real (o link público segue desligado em produção).

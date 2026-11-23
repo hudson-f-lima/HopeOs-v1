@@ -1,5 +1,9 @@
 # Changelog
 
+## Agendamento pelo link: horários em sequência (D-069)
+- No link, os horários oferecidos começam logo depois de cada atendimento e seguem a duração do serviço (ex.: 09:35, 10:20, 11:05 para um serviço de 45 min), sem buracos entre um cliente e outro.
+- Vale para agendar e para remarcar pelo link. A agenda da recepção continua igual.
+
 ## Agendamento pelo link: revisar antes de confirmar (D-068)
 - Antes de confirmar, o cliente vê até que horas vai o atendimento, a duração, o preço e até quando pode cancelar.
 - Se o salão mudar o preço ou a duração enquanto o cliente preenche, o app avisa, mostra os horários de novo e não grava nada até ele revisar.

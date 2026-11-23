@@ -343,6 +343,24 @@ test('NC2 controle negativo: sem olhar revogado_em, o link revogado do M02 volta
   });
 });
 
+test('M12 remarcação pelo link usa a grade do link (D-069): parte do fim da ocupação e anda pela duração do agendamento', async () => {
+  const D = '2026-11-17';
+  // Outro cliente ocupa a Ana das 09:00 às 09:35 nesse dia.
+  await repoA().insert('agendamentos', { id: '90000000-0000-4000-8000-0000000002f1', cliente_id: CLI, servico_id: CORTE, profissional_id: ANA,
+    data: D, horario: '09:00:00', duracao_min: 35, valor_centavos: 5000, status: 'agendado' });
+  const { ag, token } = await agendamentoComLink({ data: AMANHA, horario: '14:00' });
+  ag.duracao_min = 45; // a remarcação mantém a duração do agendamento (duracaoFixa)
+  db.agendamentos.find(a => a.id === ag.id).duracao_min = 45;
+  const r = await link('/horarios', token, { data: D });
+  assert.strictEqual(r.status, 200, r.raw);
+  assert.deepStrictEqual(r.data.data.slots.slice(0, 3), ['09:35', '10:20', '11:05'], r.data.data.slots.join(','));
+  assert.ok(r.data.data.slots.every(h => { const m = +h.slice(0, 2) * 60 + +h.slice(3) - 575; return m >= 0 && m % 45 === 0; }), 'todos na grade de 45 a partir de 09:35');
+  const fora = await link('/remarcar', token, { data: D, horario: '10:00' });
+  assert.ok(fora.status >= 400, 'fora da grade do link não remarca: ' + fora.status);
+  const dentro = await link('/remarcar', token, { data: D, horario: '10:20' });
+  assert.strictEqual(dentro.status, 200, dentro.raw);
+});
+
 (async () => {
   const origErr = console.error; const origWarn = console.warn;
   console.error = () => {}; console.warn = () => {};
