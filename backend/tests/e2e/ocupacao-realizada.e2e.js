@@ -58,7 +58,8 @@ async function entrar(page, email) {
 const dadoDaResposta = async resposta => (await (await resposta).json()).data;
 const respostaPara = (page, path) => page.waitForResponse(r => new URL(r.url()).pathname === '/api' + path && r.ok());
 const cartao = page => page.locator('#ckCards .ck-card').filter({ hasText: 'Ocupação realizada' });
-const valorDoCartao = (page, texto) => cartao(page).locator('.ck-card-valor').getByText(texto, { exact: true }).waitFor();
+const esperarTexto = (locator, texto) => locator.and(locator.page().getByText(texto, { exact: true })).waitFor();
+const valorDoCartao = (page, texto) => esperarTexto(cartao(page).locator('.ck-card-valor'), texto);
 const ticketMargem = page => page.locator('#dbMarginWidget .row').filter({ hasText: 'Ticket médio' }).locator('b');
 const detalheLinha = (detalhe, rotulo) => detalhe.locator('dl > div').filter({
   has: detalhe.page().getByText(rotulo, { exact: true })
@@ -107,7 +108,7 @@ async function legado(route, reduzir) {
 
     const analises = page.locator('#dobraIndicadores > summary');
     await analises.click();
-    await ticketMargem(page).getByText('Sem comandas válidas', { exact: true }).waitFor();
+    await esperarTexto(ticketMargem(page), 'Sem comandas válidas');
     await page.locator('#dbOccupancyWidget').getByText('150%', { exact: true }).waitFor();
     if (diaUTC.getUTCDay() !== 0) {
       await page.locator('#dbOccupancyWidget').getByText('Ocupação prevista', { exact: true }).waitFor();
@@ -115,7 +116,7 @@ async function legado(route, reduzir) {
     const abrir = page.locator('#btnAbrirDesempenho');
     await abrir.focus();
     await page.keyboard.press('Enter');
-    await page.locator('#desempenhoOcupacao').getByText('150%', { exact: true }).waitFor();
+    await esperarTexto(page.locator('#desempenhoOcupacao'), '150%');
     assert.equal(await page.locator('#desempenhoTicket').innerText(), 'Sem comandas válidas');
     await page.locator('#desempenhoOcupacaoDetalhe summary').click();
     assert.equal(await detalheLinha(page.locator('#desempenhoOcupacaoDetalhe details'), 'Tempo preenchido na grade').innerText(), '60 min');
@@ -136,9 +137,9 @@ async function legado(route, reduzir) {
     assert.equal(await detalheLinha(detalhe, 'Sobreposição de serviços').innerText(), '15 min');
     assert.equal(await detalheLinha(detalhe, 'Preenchimento realizado da grade').innerText(), '41,7%');
     assert.equal(await detalheLinha(detalhe, 'Fora da escala').innerText(), '0 min');
-    await ticketMargem(page).getByText(/R\$\s*0,00/).waitFor();
+    await esperarTexto(ticketMargem(page), /R\$\s*0,00/);
     await abrir.click();
-    await page.locator('#desempenhoTicket').getByText(/R\$\s*0,00/).waitFor();
+    await esperarTexto(page.locator('#desempenhoTicket'), /R\$\s*0,00/);
     await page.click('#btnVoltarAnalises');
 
     // Sem expediente, os 90 minutos de produção continuam presentes.
@@ -192,7 +193,7 @@ async function legado(route, reduzir) {
     await antiga.click('#dobraIndicadores > summary');
     await antiga.locator('#dbOccupancyWidget').getByText('Dados de ocupação em atualização.').waitFor();
     await antiga.click('#btnAbrirDesempenho');
-    await antiga.locator('#desempenhoOcupacao').getByText('Em atualização', { exact: true }).waitFor();
+    await esperarTexto(antiga.locator('#desempenhoOcupacao'), 'Em atualização');
     console.log('OK ocupação realizada · 150%, simultaneidade em dia ocioso, sem escala, foco, ticket zero, recepção e troca de versão da API');
   } finally { await browser.close(); }
 })().catch(err => { console.error(err); process.exitCode = 1; });

@@ -23,6 +23,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 ## 2. Estado confirmado
 
 - **D-071 · Painel com uma definição por métrica (PR rascunho):** o Painel e o Desempenho distinguem produção realizada, preenchimento da grade e compromissos futuros. Serviços fora do expediente e encaixes contam na produção. Recepção lê os status da agenda para montar o resumo operacional. O ticket da coorte distingue ausência de comandas e valor zero. A publicação e a validação do app instalado em produção seguem pendentes. Sem migration.
+  - **Verificação sintética:** PostgreSQL 16.15 e PostgREST 12.2.12 com as 27 migrations. Dez cenários de ocupação, dois fechamentos pela RPC e reenvio idempotente. Permissões de API testadas com autenticação simulada.
+  - **Medição HTTP local:** 5.600 agendamentos e 4.200 comandas em memória. Para o gestor, os corpos das chamadas automáticas do Painel passaram de 7.255.204 para 49.563 bytes e a mediana de 1.025 para 777 ms. Para a recepção, de 24.713 para 25.889 bytes e de 632 para 572 ms. Doze rodadas por papel, após três aquecimentos. Na consulta isolada de Desempenho mensal, a mediana passou de 23,27 para 49,82 ms (30 rodadas após cinco aquecimentos); os novos diagnósticos elevaram o custo. Tempo até pintar a tela e custo físico do banco em produção seguem desconhecidos.
 - **D-070 · Desempenho do salão:** implementação no Painel e em `GET /api/cockpit/desempenho`. Base de integração `184b3fa` (PR #61). Validação de implantação em produção pendente.
 
 | Área | Estado | Evidência |
