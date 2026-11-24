@@ -9,7 +9,7 @@ Este índice lista **todas** as rotas registradas no Express, com a permissão q
 - Rotas depois do `requireAuth` exigem JWT de usuário, credencial de integração ou o token legado (desligado em produção).
 - Permissão com `:` e rótulo (ex.: `agenda:status`) é uma ação RBAC; a permissão efetiva por papel está na matriz.
 
-Total: **164 rotas**.
+Total: **165 rotas**.
 
 ## admin
 
@@ -138,6 +138,7 @@ Total: **164 rotas**.
 | Método | Caminho | Permissão (RBAC) | Perímetro |
 |---|---|---|---|
 | GET | `/api/cockpit` | `painel:financeiro` | autenticado |
+| GET | `/api/cockpit/desempenho` | `painel:financeiro` | autenticado |
 
 ## comandas
 

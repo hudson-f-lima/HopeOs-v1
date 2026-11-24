@@ -1050,3 +1050,9 @@ O proprietário aprovou a direção Agenda, Comandas, Painel e Gestão, conta no
   - **Controle negativo:** com `gradePorDuracao: false` na rota pública, caem PE04, PE04b e M12.
   - E2E `grade-link` (navegador, CSP de produção): o link mostra **09:35 → 10:20 → 11:05 → 11:50**; a recepção tem 10:00, 10:30 e 12:15; as três políticas só oferecem pontos da grade; reservar 10:20 gera **1** reserva de 45 min e a lista recomeça em 09:35, 11:05, 11:50.
 - **Não verificado:** contra o Supabase real (o link público segue desligado em produção).
+
+## D-070 — Desempenho do salão no Painel (2026-11-23)
+
+O Platform Owner aprovou a análise de desempenho e o percurso Painel → Análises → Desempenho. A visualização usa a permissão `painel:financeiro` e um período comum para vendas, agenda e visitas. A parte do salão em serviços por hora considera todas as horas-profissional disponíveis e exclui vendas de produtos. Os valores são anteriores às despesas fixas.
+
+Contar uma visita por cliente identificado por dia, reunindo atendimentos concluídos e comandas com serviço. Sinalizar registros sem cliente. Fidelização mede, entre os clientes com visita identificada no período, quantos acumularam três dias de visita nos últimos 365 dias até o fim do período. Ticket usa comandas, e ocupação reflete os minutos de agenda em relação à escala. Sem base para uma razão, mostrar indisponibilidade. A composição do faturamento distingue comissões, taxas sobre vendas, custo dos produtos e parte do salão. Divergências devem ficar explícitas. Nenhuma migration.
