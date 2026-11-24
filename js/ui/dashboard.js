@@ -34,6 +34,13 @@ function loadingState() {
   `;
 }
 
+// Período do quadro Margem, escrito ao lado do ticket (D-071): a regra é a do Desempenho do salão.
+function periodoCurto() {
+  const { from, to } = insightRange();
+  const dm = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  return dm(from) + ' a ' + dm(to);
+}
+
 function insightRange() {
   const from = state.currentWeekStart || startOfWeek(todayStr());
   const to = addDays(from, 6);
@@ -54,6 +61,8 @@ function renderLegacyDashboard(dash) {
   // D-071: saíram os cards "Receita empresa", "Comandas", "Comissões" e "Ticket médio". Somavam todo o
   // histórico com o rótulo "no período" e repetiam, com outra regra, o que o Cockpit e o Desempenho mostram.
   setText('dashUpdatedAt', new Date().toLocaleTimeString('pt-BR'));
+  // D-071: pagamentos por forma e repasses são dado gerencial; a recepção nem recebe esses campos.
+  if (!sessionPode('painel:financeiro')) return;
 
   const porForma = dash.paymentsByMethod || [];
   const formasVisiveis = porForma.slice(0, 5);
@@ -262,7 +271,7 @@ function renderMargin() {
   }, 'Sem pagamentos no período.');
 
   node.innerHTML = `
-    <div class="row"><span>Ticket médio</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
+    <div class="row"><span>Ticket médio (${escapeHtml(periodoCurto())})</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
     <h4 class="insight-subtitle">Top serviços</h4>
     ${servicosHtml}
     <h4 class="insight-subtitle">Por profissional (produção · o que fica no salão)</h4>
@@ -496,6 +505,10 @@ async function atualizarInsights() {
 }
 
 export async function atualizarDashboard() {
+  // D-071: a dobra "Pagamentos e repasses" nasce oculta e aparece já pela permissão da sessão,
+  // antes da resposta (sem a dobra aparecer e sumir na tela da recepção).
+  const dobraRepasses = el('dobraRepasses');
+  if (dobraRepasses) dobraRepasses.hidden = !sessionPode('painel:financeiro');
   try {
     const dash = await api('/dashboard');
     renderLegacyDashboard(dash);

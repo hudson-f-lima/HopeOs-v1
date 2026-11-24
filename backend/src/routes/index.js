@@ -158,8 +158,13 @@ router.get('/snapshot', authorize('painel:financeiro'), async (req, res, next) =
 });
 
 router.get('/dashboard', authorize('painel:operacional'), async (req, res, next) => {
-  try { res.json({ ok: true, data: buildDashboard(await getSnapshot(req.auth.empresa_id)) }); }
-  catch (err) { next(err); }
+  try {
+    const dash = buildDashboard(await getSnapshot(req.auth.empresa_id));
+    // D-071: receita, comissões, pagamentos por forma e repasses são dado gerencial (painel:financeiro).
+    // A recepção abre o Painel com painel:operacional e recebe só o indicador operacional.
+    if (!pode(req.auth, 'painel:financeiro')) return res.json({ ok: true, data: { kpis: { realizadosPct: dash.kpis.realizadosPct } } });
+    res.json({ ok: true, data: dash });
+  } catch (err) { next(err); }
 });
 
 router.get('/financeiro/resumo', authorize('painel:financeiro'), async (req, res, next) => {

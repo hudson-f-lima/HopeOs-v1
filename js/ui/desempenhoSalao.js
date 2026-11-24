@@ -86,9 +86,11 @@ function render(dados) {
   el('desempenhoVisitasNota').hidden = !dados.atendimentosSemCliente;
   setText('desempenhoProdutos', Number.isFinite(dados.produtosUnidades) ? inteiro.format(dados.produtosUnidades) : 'Indisponível');
   setText('desempenhoOcupacao', Number.isFinite(dados.ocupacaoPct) ? percentual.format(dados.ocupacaoPct / 100) : 'Sem base');
-  setText('desempenhoOcupacaoBase', disponivel
+  // D-071: atendimento fora da escala não infla a ocupação; aparece à parte para conferir a escala.
+  const fora = dados.minutosForaDaEscala > 0 ? '. Fora da escala: ' + horas(dados.minutosForaDaEscala) + ' (confira a escala)' : '';
+  setText('desempenhoOcupacaoBase', (disponivel
     ? horas(dados.minutosOcupados) + ' ocupados de ' + horas(dados.minutosDisponiveis) + ' disponíveis'
-    : 'Sem tempo disponível registrado no período.');
+    : 'Sem tempo disponível registrado no período.') + fora);
   setText('desempenhoFidelizacao', identificados ? percentual.format(dados.clientesFieis / dados.clientesIdentificados) : 'Sem base');
   setText('desempenhoFidelizacaoBase', identificados
     ? inteiro.format(dados.clientesFieis) + ' de ' + inteiro.format(dados.clientesIdentificados)

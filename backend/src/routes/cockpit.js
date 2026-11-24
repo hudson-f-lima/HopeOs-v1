@@ -50,7 +50,7 @@ router.get('/cockpit/desempenho', authorize('painel:financeiro'), async (req, re
     const [comandos, agendamentos, estornos, profissionais, empresa] = await Promise.all([
       repo.list('comandos', filtro, { ...historico, campos: 'id,data,status,cliente_id,itens_liquidos_centavos,receita_empresa_centavos,total_comissao_centavos,taxa_servico_centavos,total_custo_produtos_centavos' }),
       repo.list('agendamentos', filtro, { ...historico, campos: 'id,data,status,cliente_id,profissional_id,duracao_min' }),
-      repo.list('comanda_estornos', filtro, { inicio, fim, ordem: 'id', campos: 'id,data,tipo,comando_id,itens_centavos,receita_empresa_centavos,comissao_centavos' }),
+      repo.list('comanda_estornos', filtro, { inicio, fim, ordem: 'id', campos: 'id,data,tipo,comando_id,itens_centavos,receita_empresa_centavos,comissao_centavos,gorjeta_bruta_centavos,gorjeta_liquida_centavos' }),
       repo.list('profissionais', filtro, { ordem: 'id' }), repo.empresaComDisponibilidade()
     ]);
     const devolvidas = estornos.map(e => e.comando_id);

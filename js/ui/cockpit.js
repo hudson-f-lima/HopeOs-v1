@@ -47,7 +47,8 @@ function renderCards(d) {
     // Mesmo período e mesma regra do Desempenho do salão (D-071).
     card('Ocupação da agenda', pctTxt(om.ocupacaoPct), [
       periodoTxt(om.de, om.ate),
-      om.ocupacaoPct === null ? 'Sem expediente na escala neste período' : horasTxt(om.minutosOcupados) + ' ocupadas de ' + horasTxt(om.minutosDisponiveis)
+      om.ocupacaoPct === null ? 'Sem expediente na escala neste período' : horasTxt(om.minutosOcupados) + ' ocupadas de ' + horasTxt(om.minutosDisponiveis),
+      om.minutosForaDaEscala > 0 ? horasTxt(om.minutosForaDaEscala) + ' atendidas fora da escala (confira a escala)' : null
     ]),
     card('Recorrência', r.ativos + ' assinante(s) ativo(s)', [
       centsToBRL(r.mrrCentavos) + ' por mês' + (r.pctDaReceita !== null ? ' (' + pctTxt(r.pctDaReceita) + ' do faturamento)' : ''),

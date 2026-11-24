@@ -325,6 +325,17 @@ test('G19 cadastro rápido: quem não edita clientes grava só nome e WhatsApp; 
   assert.deepStrictEqual([vr.ativo, vr.faltas], [false, 1], 'controle negativo: recepção grava o cadastro completo');
 });
 
+test('G19b Painel (D-071): a recepção recebe só o indicador operacional; dados financeiros ficam com quem tem painel:financeiro', async () => {
+  const recep = await request('GET', '/api/dashboard', { token: 'h.recep.s' });
+  assert.strictEqual(recep.status, 200);
+  assert.deepStrictEqual(Object.keys(recep.data.data), ['kpis']);
+  assert.deepStrictEqual(Object.keys(recep.data.data.kpis), ['realizadosPct']);
+  for (const campo of ['finance', 'paymentsByMethod']) assert.ok(!(campo in recep.data.data), campo);
+  // Controle: o admin continua recebendo a visão financeira completa.
+  const adm = await request('GET', '/api/dashboard');
+  assert.ok(adm.data.data.finance && Array.isArray(adm.data.data.paymentsByMethod) && 'receitaEmpresaCentavos' in adm.data.data.kpis);
+});
+
 test('G20 corrida com troca de papel: concessão decidida com o papel antigo é recusada', async () => {
   const real = ident.getMembership;
   ident.getMembership = async id => { const m = await real(id); return id === M.recep ? { ...m, role: 'recepcao' } : m; };

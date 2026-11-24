@@ -291,7 +291,7 @@ test('D02 desempenho reconcilia o ledger misto, conta visitas identificadas e di
     // Antes da D-071 o ticket era 12000 ÷ 4 = 3000, puxado para baixo por aquele estorno antigo.
     inicio: dia, fim: dia, faturamentoCentavos: 12000, comandas: 4, ticketMedioCentavos: 3500, estornosVendasAnterioresCentavos: 2000,
     visitasIdentificadas: 3, atendimentosSemCliente: true, produtosUnidades: 3,
-    minutosOcupados: 95, minutosDisponiveis: 600, ocupacaoPct: 15.8, clientesIdentificados: 3, clientesFieis: 1,
+    minutosOcupados: 95, minutosDisponiveis: 600, minutosForaDaEscala: 0, ocupacaoPct: 15.8, clientesIdentificados: 3, clientesFieis: 1,
     parteSalaoServicosCentavos: 4000, parteSalaoServicosPorHoraCentavos: 400,
     resultadoFinanceiro: { faturamentoCentavos: 12000, parteSalaoCentavos: 7900, comissoesCentavos: 1800,
       taxasItensCentavos: 300, custoProdutosVendidosCentavos: 2000, diferencaConciliacaoCentavos: 0,
@@ -339,7 +339,8 @@ test('D05 conciliação discrimina a taxa da gorjeta devolvida (009: receita do 
       total_comissao_centavos: 4000, taxa_servico_centavos: 300, total_custo_produtos_centavos: 0, receita_empresa_centavos: 5700 }],
     comando_itens: [{ id: 'gi', empresa_id: E, comando_id: 'g', tipo: 'servico', quantidade: 1, receita_empresa_centavos: 5700 }],
     // Estorno total: itens 10000, comissão 4000, gorjeta bruta 1000 com taxa 50 → receita do estorno 10000 − 4000 + 50 = 6050.
-    comanda_estornos: [{ id: 'ge', empresa_id: E, comando_id: 'g', tipo: 'total', data: d, itens_centavos: 10000, comissao_centavos: 4000, receita_empresa_centavos: 6050 }],
+    comanda_estornos: [{ id: 'ge', empresa_id: E, comando_id: 'g', tipo: 'total', data: d, itens_centavos: 10000, comissao_centavos: 4000, receita_empresa_centavos: 6050,
+      gorjeta_bruta_centavos: 1000, gorjeta_liquida_centavos: 950 }],
     comanda_estorno_itens: [{ id: 'gx', empresa_id: E, estorno_id: 'ge', comando_id: 'g', comando_item_id: 'gi', quantidade: 1, receita_empresa_centavos: 6000 }]
   });
   const r = (await request(pathDesempenho + '?inicio=' + d + '&fim=' + d)).data.data.resultadoFinanceiro;
@@ -348,6 +349,55 @@ test('D05 conciliação discrimina a taxa da gorjeta devolvida (009: receita do 
   assert.deepStrictEqual([r.faturamentoCentavos, r.parteSalaoCentavos, r.comissoesCentavos, r.taxasItensCentavos],
     [0, -350, 0, 300]);
   assert.deepStrictEqual([r.diferencaConciliacaoCentavos, r.taxaGorjetaEstornadaCentavos, r.outraDiferencaCentavos], [50, 50, 0]);
+});
+
+test('D05b conciliação: se o estorno registrou uma taxa de gorjeta que não bate com os totais, o resto vira divergência', async () => {
+  const d = '2026-11-17';
+  installMemoryBackend({
+    empresas: [EMPRESA], profissionais: PROFS, agendamentos: [], comando_itens: [], comanda_estorno_itens: [],
+    comandos: [{ id: 'h', empresa_id: E, cliente_id: C(1), data: d, status: 'fechado', itens_liquidos_centavos: 10000,
+      total_comissao_centavos: 4000, taxa_servico_centavos: 300, total_custo_produtos_centavos: 0, receita_empresa_centavos: 5700 }],
+    // Receita do estorno 6080 implica taxa de gorjeta 80, mas o estorno registrou 50 (1000 − 950): sobram 30 sem causa.
+    comanda_estornos: [{ id: 'he', empresa_id: E, comando_id: 'h', tipo: 'total', data: d, itens_centavos: 10000, comissao_centavos: 4000, receita_empresa_centavos: 6080,
+      gorjeta_bruta_centavos: 1000, gorjeta_liquida_centavos: 950 }]
+  });
+  const r = (await request(pathDesempenho + '?inicio=' + d + '&fim=' + d)).data.data.resultadoFinanceiro;
+  assert.deepStrictEqual([r.diferencaConciliacaoCentavos, r.taxaGorjetaEstornadaCentavos, r.outraDiferencaCentavos], [80, 50, 30]);
+});
+
+test('D06 ocupação não conta atendimento fora da escala (domingo fechado) e mostra esses minutos à parte', async () => {
+  // Cenário da revisão do PR #63: segunda 23/11 com 60 min de escala e nenhum atendimento; domingo 22/11
+  // fechado com um atendimento concluído de 30 min. Antes: 30 ocupados ÷ 60 disponíveis = 50%.
+  const SEG = { ativo: true, inicio: '09:00', fim: '10:00' };
+  const empresa = { id: E, nome: 'A', slot_padrao: 30, horario_por_dia: { dom: fechado, seg: SEG, ter: fechado, qua: fechado, qui: fechado, sex: fechado, sab: fechado } };
+  const { ocupacaoDoPeriodo } = require('../src/engines/insights/metricasPeriodo');
+  const r = ocupacaoDoPeriodo({
+    empresa, profissionais: [{ id: P1, empresa_id: E, nome: 'Ana', ativo: true }],
+    agendamentos: [{ ...ag('dom', P1, '2026-11-22', '10:00:00', 'concluido'), duracao_min: 30 }]
+  }, '2026-11-22', '2026-11-23');
+  assert.deepStrictEqual(r, { minutosOcupados: 0, minutosDisponiveis: 60, minutosForaDaEscala: 30, ocupacaoPct: 0 });
+});
+
+test('D07 ticket igual no quadro Margem e no Desempenho: venda com gorjeta e estorno de venda do mês anterior', async () => {
+  const d = '2026-11-17';
+  installMemoryBackend({
+    empresas: [EMPRESA], profissionais: PROFS, agendamentos: [], comando_gorjetas: [], comanda_estorno_gorjetas: [], comanda_estorno_itens: [],
+    comandos: [
+      // Venda de novembro: itens 10000, recebido 11000 (gorjeta de 1000).
+      { id: 'n1', empresa_id: E, cliente_id: C(1), data: d, status: 'fechado', itens_liquidos_centavos: 10000, total_recebido_centavos: 11000 },
+      // Venda de outubro, estornada em novembro.
+      { id: 'o1', empresa_id: E, cliente_id: C(2), data: '2026-10-20', status: 'fechado', itens_liquidos_centavos: 4000, total_recebido_centavos: 4000 }
+    ],
+    comando_itens: [], comando_pagamentos: [],
+    comanda_estornos: [{ id: 'eo', empresa_id: E, comando_id: 'o1', tipo: 'total', data: d, itens_centavos: 4000, comissao_centavos: 0, receita_empresa_centavos: 4000, reembolso_centavos: 4000 }],
+    comanda_estorno_pagamentos: [{ id: 'eop', empresa_id: E, estorno_id: 'eo', comando_id: 'o1', forma_code: 'pix', valor_centavos: 4000 }]
+  });
+  const { InsightsService } = require('../src/services/InsightsService');
+  const margem = await new InsightsService(E).loadMarginInsights('2026-11-01', '2026-11-22');
+  const desempenho = (await request(pathDesempenho)).data.data;
+  // Coorte de novembro: só n1, sem gorjeta → 10000. Antes, a Margem dava (11000 − 4000) ÷ 1 = 7000.
+  assert.strictEqual(desempenho.ticketMedioCentavos, 10000);
+  assert.strictEqual(margem.ticketMedioCentavos, desempenho.ticketMedioCentavos);
 });
 
 test('D03 o repositório pagina mais de 1000 itens do mesmo lote, em ordem e com tenant', async () => {

@@ -744,6 +744,7 @@ progress{accent-color:var(--primary);}
 .taxa-calc[open]{padding-bottom:12px;}
 .dash-precisa-titulo{margin:4px 0 0;}
 .dash-dobra{margin-top:12px;}
+.dash-dobra[hidden]{display:none;}
 .dash-dobra>summary,.dash-dobra-card summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;cursor:pointer;list-style:none;font-size:15px;font-weight:700;color:var(--text-primary);}
 .dash-dobra>summary{padding:0 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;}
 .dash-dobra>summary::-webkit-details-marker,.dash-dobra-card summary::-webkit-details-marker{display:none;}

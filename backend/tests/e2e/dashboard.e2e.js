@@ -37,6 +37,7 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
     confere(`${id} começa recolhida`, await p.locator('#' + id).evaluate(n => n.open === false));
   }
   confere('formulário do caixa escondido enquanto recolhido', !(await p.isVisible('#caixaContado')));
+  confere('recepção não vê Pagamentos e repasses (D-071)', !(await p.isVisible('#dobraRepasses')));
   const altura = await p.locator('#tab-dashboard').evaluate(n => n.scrollHeight);
   confere('painel recolhido cabe em até 2 telas de celular', altura <= 844 * 2, `${altura}px`);
   for (const s of await p.locator('#tab-dashboard summary:visible').all()) {
@@ -69,6 +70,7 @@ const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
   confere('recepção não vê o painel "Agenda e clientes"', !(await p.isVisible('#dbPilotoPanel')) && await p.locator('#dbPilotoPanel').evaluate(n => n.classList.contains('hidden')));
   const adm = await entrar(b, 'admin@dev.local');
   await adm.click('#navDashboard'); await adm.waitForTimeout(1500);
+  confere('admin vê Pagamentos e repasses (D-071)', await adm.isVisible('#dobraRepasses'));
   await adm.click('#dobraIndicadores > summary'); await adm.waitForSelector('#dbPilotoPanel:not(.hidden)', { timeout: 8000 });
   const painel = (await adm.textContent('#dbPilotoWidget')).replace(/\s+/g, ' ');
   confere('admin vê taxa de cancelamento e fidelização no painel', /Taxa de cancelamento/.test(painel) && /Fidelização/.test(painel) && /Retorno do cliente novo/.test(painel), painel.slice(0, 160));

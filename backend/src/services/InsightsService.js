@@ -1,10 +1,11 @@
 // F1.4 — OrquestraService que carrega dados e aplica engines puras
 
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
+const { ticketDoPeriodo } = require('../engines/insights/metricasPeriodo');
 const occupancy = require('../engines/insights/occupancy');
 const cashflow = require('../engines/insights/cashflow');
 const margin = require('../engines/insights/margin');
-const { itensNegativos, gorjetasNegativas, pagamentosNegativos, comandasEstornadasTotal } = require('../engines/EstornoEngine');
+const { itensNegativos, gorjetasNegativas, pagamentosNegativos } = require('../engines/EstornoEngine');
 
 class InsightsService {
   constructor(empresaId) {
@@ -97,16 +98,11 @@ class InsightsService {
     });
 
     const itensLiquidos = itemFiltered.concat(negItens);
-    // Ticket: reembolsos do período saem do numerador; comanda 100% estornada sai da base.
-    // Só estornos totais lançados ATÉ o fim do período: um estorno posterior não
-    // pode tirar a comanda da base de um período já fechado (o numerador ainda a
-    // conta inteira porque o reembolso dela cai fora do período).
-    const totalmente = comandasEstornadasTotal(estornos.filter(e => e.data <= dataTo));
-    const cmdValidas = cmdFiltered.filter(c => !totalmente.has(c.id));
+    // Ticket (D-071): a mesma regra do Desempenho do salão (metricasPeriodo.ticketDoPeriodo). Valor
+    // líquido dos itens, sem gorjeta; só as vendas do período e os estornos delas. Antes usava o total
+    // recebido (com gorjeta) e todos os reembolsos do período, inclusive de vendas de meses anteriores.
     const reembolsos = negPagamentos.reduce((s, p) => s + p.valor_centavos, 0);
-    const ticketMedioCentavos = cmdValidas.length
-      ? Math.round((cmdFiltered.reduce((s, c) => s + (c.total_recebido_centavos || 0), 0) + reembolsos) / cmdValidas.length)
-      : 0;
+    const ticketMedioCentavos = ticketDoPeriodo({ comandos, estornos }, dataFrom, dataTo).ticketMedioCentavos ?? 0;
 
     return {
       porServico: margin.aggregateMarginByServico(itensLiquidos, cmdFiltered),
