@@ -40,7 +40,12 @@ router.get('/cockpit', authorize('painel:financeiro'), async (req, res, next) =>
 router.get('/cockpit/desempenho', authorize('painel:financeiro'), async (req, res, next) => {
   try {
     const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
-    const fim = dataValida(req.query.fim ?? hoje, 'fim');
+    const { mes } = req.query;
+    if (mes !== undefined && (!['atual', 'anterior'].includes(mes) || req.query.inicio !== undefined || req.query.fim !== undefined)) {
+      throw createAppError('INVALID_PERIOD', 'Escolha um mês predefinido ou envie as datas do período.', 422);
+    }
+    const fimPadrao = mes === 'anterior' ? addDays(hoje.slice(0, 7) + '-01', -1) : hoje;
+    const fim = dataValida(req.query.fim ?? fimPadrao, 'fim');
     const inicio = dataValida(req.query.inicio ?? (fim.slice(0, 7) + '-01'), 'inicio');
     if (fim > hoje || inicio > fim || daysBetween(inicio, fim) + 1 > 366) {
       throw createAppError('INVALID_PERIOD', 'Escolha até 366 dias, em ordem, com término até hoje.', 422);
@@ -65,6 +70,7 @@ router.get('/cockpit/desempenho', authorize('painel:financeiro'), async (req, re
       repo.listDasComandas('comanda_estorno_itens', devolvidas, 'estorno_id,comando_item_id,quantidade,receita_empresa_centavos')
     ]);
     const data = computeDesempenhoSalao({ inicio, fim, producao: { ...producao, comandoItens }, comandos, agendamentos, estornos, profissionais, empresa: empresa || {}, comandoItens, estornoItens });
+    if (mes !== undefined) data.periodoPredefinido = mes;
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });

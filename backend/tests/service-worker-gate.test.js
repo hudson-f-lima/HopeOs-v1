@@ -98,6 +98,7 @@ test('SW5 versão nova: a instalação guarda o shell no cache novo e a ativaç�
   assert.deepStrictEqual([...amb.lojas.keys()].filter(k => k.startsWith('hope-os-shell-')).length, 1, 'só o cache novo sobra');
   assert.ok(!amb.lojas.has('hope-os-shell-v1-0-antigo'));
   assert.ok(amb.lojas.get(cacheAtual(amb)).size > 10, 'shell guardado');
+  assert.ok(amb.lojas.get(cacheAtual(amb)).has('./js/ui/graficoComposicao.js'), 'composição disponível com dados já abertos e sem rede');
   assert.ok(amb.lojas.get(cacheAtual(amb)).has('./js/ui/ocupacao.js'), 'detalhe de ocupação disponível com o shell instalado');
   assert.strictEqual(amb.mensagens.length, 1, 'atualização: as páginas abertas são avisadas');
   assert.strictEqual(amb.mensagens[0].tipo, 'nova-versao');

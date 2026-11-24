@@ -83,14 +83,32 @@ async function legado(route, reduzir) {
     await entrar(page, 'admin@dev.local');
     const respostaCockpit = respostaPara(page, '/cockpit');
     const respostaAgenda = respostaPara(page, '/insights/occupancy');
-    await page.click('#navDashboard');
+    const recursoRepasses = /\/api\/dashboard\?visao=painel$/;
+    let liberarRepasses;
+    const esperaRepasses = new Promise(resolve => { liberarRepasses = resolve; });
+    let leiturasRepasses = 0;
+    await page.route(recursoRepasses, async route => {
+      leiturasRepasses++;
+      await esperaRepasses;
+      await route.continue();
+    });
+    const respostaRepasses = respostaPara(page, '/dashboard');
+    try {
+      await page.click('#navDashboard');
+      assert.equal((await dadoDaResposta(respostaAgenda)).realizada.minutosRealizados, 90,
+        'A consulta da agenda não depende dos pagamentos e repasses.');
+    } finally {
+      liberarRepasses();
+    }
+    await respostaRepasses;
+    await page.unroute(recursoRepasses);
+    assert.equal(leiturasRepasses, 1);
     await valorDoCartao(page, '150%');
     assert.match(await cartao(page).innerText(), /90 min em serviços para 60 min disponíveis/);
     const cockpit = await dadoDaResposta(respostaCockpit);
     assert.equal(cockpit.ocupacaoMes.ocupacaoPct, 100, 'a PWA anterior ainda lê o preenchimento pela chave legada');
     assert.equal(cockpit.ocupacaoMes.minutosOcupados, 60);
     assert.ok(!cockpit.alertas.some(a => /conflit/i.test(a.titulo)), 'produção acima de 100% não cria alerta de conflito');
-    assert.equal((await dadoDaResposta(respostaAgenda)).realizada.minutosRealizados, 90, 'reservas futuras ficam fora do realizado');
 
     const detalhe = cartao(page).locator('details');
     const resumo = detalhe.locator('summary');
@@ -158,11 +176,19 @@ async function legado(route, reduzir) {
     const requisicoes = [];
     page.on('request', req => requisicoes.push(new URL(req.url()).pathname));
     await entrar(page, 'recepcao@dev.local');
-    const respostaOperacional = respostaPara(page, '/dashboard');
+    const respostaOperacional = respostaPara(page, '/insights/occupancy');
     await page.click('#navDashboard');
     const operacional = await respostaOperacional;
-    assert.deepEqual(Object.keys(await dadoDaResposta(operacional)), ['kpis']);
+    assert.equal((await dadoDaResposta(operacional)).realizada.minutosRealizados, 90);
+    await page.click('#dobraIndicadores > summary');
+    await page.locator('#dbOccupancyWidget').getByText('Sem escala para calcular', { exact: true }).waitFor();
+    assert.ok(!requisicoes.includes('/api/dashboard'), 'A recepção já recebe a ocupação pela consulta operacional.');
     const headers = { authorization: await operacional.request().headerValue('authorization') };
+    const empresa = await operacional.request().headerValue('x-empresa-id');
+    if (empresa) headers['x-empresa-id'] = empresa;
+    const painelAnterior = await fetch(api + '/dashboard?visao=painel', { headers });
+    assert.equal(painelAnterior.status, 200);
+    assert.deepEqual(Object.keys(await dadoDaResposta(painelAnterior)), ['kpis']);
     for (const recurso of ['/cockpit', '/cockpit/desempenho', '/insights/margin']) {
       assert.equal((await fetch(api + recurso, { headers })).status, 403);
       assert.ok(!requisicoes.includes('/api' + recurso));
@@ -180,8 +206,9 @@ async function legado(route, reduzir) {
       d.ocupacaoMes.ocupacaoPct = 100;
       for (const p of d.equipe) delete p.ocupacaoRealizadaPct;
     }));
-    await antiga.route('**/api/cockpit/desempenho', route => legado(route, d => {
+    await antiga.route(/\/api\/cockpit\/desempenho(?:\?|$)/, route => legado(route, d => {
       delete d.ocupacaoRealizadaPct;
+      delete d.periodoPredefinido;
       d.ocupacaoPct = 100;
     }));
     await antiga.route('**/api/insights/occupancy?*', route => legado(route, d => { delete d.realizada; }));
@@ -194,6 +221,7 @@ async function legado(route, reduzir) {
     await antiga.locator('#dbOccupancyWidget').getByText('Dados de ocupação em atualização.').waitFor();
     await antiga.click('#btnAbrirDesempenho');
     await esperarTexto(antiga.locator('#desempenhoOcupacao'), 'Em atualização');
+    assert.equal(await antiga.locator('#desempenhoFiltro').isVisible(), false);
     console.log('OK ocupação realizada · 150%, simultaneidade em dia ocioso, sem escala, foco, ticket zero, recepção e troca de versão da API');
   } finally { await browser.close(); }
 })().catch(err => { console.error(err); process.exitCode = 1; });

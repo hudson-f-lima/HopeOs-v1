@@ -269,6 +269,21 @@ function serviceMedianGap({ comandos, comandoItens, servicoId }) {
   return median(gaps);
 }
 
+function prepararIntervaloPorServico(comandos, comandoItens) {
+  // Cada requisição reutiliza a mediana entre clientes do mesmo serviço. A
+  // ordem dos itens continua sendo a da leitura, inclusive no desempate.
+  const clientePorComanda = new Map(comandos.map(c => [c.id, c.cliente_id]));
+  const itensPorCliente = groupBy(comandoItens, item => clientePorComanda.get(item.comando_id));
+  const medianas = new Map();
+  return (comandosCliente, servicoExplicito) => {
+    const itens = itensPorCliente.get(comandosCliente[0]?.cliente_id);
+    const servicoId = servicoExplicito || dominantServiceId(comandosCliente, itens);
+    if (!servicoId) return null;
+    if (!medianas.has(servicoId)) medianas.set(servicoId, serviceMedianGap({ comandos, comandoItens, servicoId }));
+    return medianas.get(servicoId);
+  };
+}
+
 function riskFromRatio(ratio) {
   if (ratio < 1.2) return 'ok';
   if (ratio < 1.8) return 'atencao';
@@ -301,12 +316,12 @@ function computeChurnRisk(input, maybeHoje, maybeOptions) {
   let base = intervalo ? 'cliente' : null;
 
   if (!intervalo) {
-    const servicoId = options.servicoId || dominantServiceId(commandsCliente, options.comandoItens || []);
-    intervalo = serviceMedianGap({
-      comandos: options.comandos || [],
-      comandoItens: options.comandoItens || [],
-      servicoId
-    });
+    if (options.intervaloPorServico) {
+      intervalo = options.intervaloPorServico(commandsCliente, options.servicoId);
+    } else {
+      const servicoId = options.servicoId || dominantServiceId(commandsCliente, options.comandoItens || []);
+      intervalo = serviceMedianGap({ comandos: options.comandos || [], comandoItens: options.comandoItens || [], servicoId });
+    }
     base = intervalo ? 'servico' : null;
   }
 
@@ -577,6 +592,7 @@ module.exports = {
   SEGMENTS,
   computeRfm,
   computeChurnRisk,
+  prepararIntervaloPorServico,
   computeReliability,
   computeRebooking,
   computeAttach,

@@ -436,6 +436,23 @@ test('D09 Margem e Desempenho distinguem ausência de comandas de uma cortesia d
   }
 });
 
+test('D10 mês anterior usa o fuso do salão em cada consulta, inclusive após a virada', async () => {
+  installMemoryBackend({ empresas: [EMPRESA], profissionais: PROFS });
+  try {
+    for (const [hora, inicio, fim] of [
+      ['2026-12-01T02:55:00Z', '2026-10-01', '2026-10-31'],
+      ['2026-12-01T03:05:00Z', '2026-11-01', '2026-11-30'],
+      ['2028-03-01T03:05:00Z', '2028-02-01', '2028-02-29']
+    ]) {
+      clock.definirRelogio(() => new Date(hora));
+      const r = await request(pathDesempenho + '?mes=anterior');
+      assert.strictEqual(r.status, 200);
+      assert.deepStrictEqual([r.data.data.inicio, r.data.data.fim, r.data.data.periodoPredefinido], [inicio, fim, 'anterior']);
+    }
+    assert.strictEqual((await request(pathDesempenho + '?mes=anterior&inicio=2026-11-01')).status, 422);
+  } finally { clock.definirRelogio(() => new Date('2026-11-22T15:00:00Z')); }
+});
+
 test('D03 o repositório pagina mais de 1000 itens do mesmo lote, em ordem e com tenant', async () => {
   const itens = Array.from({ length: 1207 }, (_, id) => ({ id, empresa_id: E, comando_id: 'k' }));
   const paginas = [];

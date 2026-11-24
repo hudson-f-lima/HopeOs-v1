@@ -266,6 +266,12 @@ Com `GET /api/dashboard?visao=painel`, a gestão recebe apenas `paymentsByMethod
 
 O objeto `data` contém `inicio`, `fim`, `faturamentoCentavos`, `comandas`, `ticketMedioCentavos`, `visitasIdentificadas`, `atendimentosSemCliente`, `produtosUnidades`, `minutosOcupados`, `minutosDisponiveis`, os indicadores de ocupação realizada descritos abaixo, `estornosVendasAnterioresCentavos` (D-071: estornos de vendas de outros períodos, fora do ticket), `clientesIdentificados`, `clientesFieis`, `parteSalaoServicosCentavos`, `parteSalaoServicosPorHoraCentavos` e `resultadoFinanceiro`. O ticket e a parte por hora retornam `null` quando o denominador é zero. A capacidade usa a escala disponível para consulta e os status do motor de ocupação. Não há fotografia imutável da escala histórica.
 
+No Desempenho (D-072), `mes=atual` cobre o dia 1 até hoje, e `mes=anterior` cobre o mês anterior completo. Em ambos, o backend responde `periodoPredefinido` e resolve a janela no fuso configurado a cada chamada. Envie `inicio` e `fim` em consulta sem preset para usar datas explícitas. Cada seleção usa uma leitura, reutilizada pela tabela e pelo gráfico de composição.
+
+No Cockpit, cada linha de `ocupacao.porDia` expõe também `preenchimentoGradePct` realizado e os minutos de diagnóstico do período. A chave anterior `ocupacaoPct` continua representando o preenchimento da grade de compromissos.
+
+Em `GET /api/insights/retention`, `painel:operacional` dá acesso aos dados operacionais. Segmentação, candidatos de assinatura e prioridade econômica exigem `painel:financeiro`. A projeção de WhatsApp exige a permissão específica de contato. O backend deriva o escopo da sessão.
+
 ### Indicadores de ocupação (D-071)
 
 O Cockpit (`ocupacaoMes`) e o Desempenho retornam os mesmos indicadores para as mesmas datas. A capacidade soma a disponibilidade de cada profissional. Um profissional escalado sem atendimento participa do denominador. Um profissional hoje inativo com execução registrada entra nos dias com evidência de trabalho.

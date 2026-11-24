@@ -17,6 +17,7 @@ Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](
 ## 3. Contratos e referência técnica
 - [`ROTAS.md`](ROTAS.md): **todas as rotas da API com a permissão de cada uma** (gerado do código; regenerar ao mudar rotas).
 - [`API_CONTRACT.md`](API_CONTRACT.md): formato das respostas, validações e erros por área.
+- [`METRICAS_DASHBOARD.md`](METRICAS_DASHBOARD.md): definições, origem, acesso e testes dos indicadores.
 - [`PERMISSOES.md`](PERMISSOES.md): matriz de permissões por papel (gerada de `backend/src/auth/permissoes.js`; conferida pelo gate).
 - [`DATA_CONTRACT.md`](DATA_CONTRACT.md): campos financeiros autoritativos e regra do checkout; a pasta `data/` não é versionada.
 - [`SECURITY_PII_POLICY.md`](SECURITY_PII_POLICY.md): nenhum dado pessoal no Git; histórico da limpeza de julho.
@@ -34,6 +35,7 @@ SQL dentro destes documentos é **DRAFT ONLY**: o schema real está em `supabase
 
 | Documento | Situação em 2026-11-23 |
 |---|---|
+| [`planning/INTELLIGENCE_DASHBOARD.md`](planning/INTELLIGENCE_DASHBOARD.md) | D-072: inventário, arquitetura, seleção de gráficos e critérios de validação |
 | [`planning/BLUEPRINT_MASTER_V2_ANALISE.md`](planning/BLUEPRINT_MASTER_V2_ANALISE.md) | Ondas 1 e 2 feitas (D-062, D-063); decisões da Onda 3 pendentes |
 | [`planning/CADASTROS_PROFUNDIDADE_ANALISE.md`](planning/CADASTROS_PROFUNDIDADE_ANALISE.md) | Análise; decisões do dono pendentes (ficha do cliente, leitura do AppBarber) |
 | [`planning/ROADMAP_SUBSTITUIR_APPBARBER.md`](planning/ROADMAP_SUBSTITUIR_APPBARBER.md) | Planejamento; tabela de situação dos 9 itens no topo |

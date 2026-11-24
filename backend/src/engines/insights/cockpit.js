@@ -91,6 +91,9 @@ function ocupacao(entrada, hoje, minutoAtual) {
     return {
       dow, nome, aberto: servicos.minutosDisponiveis > 0, minutosDisponiveis: servicos.minutosDisponiveis,
       minutosRealizados: servicos.minutosRealizados, ocupacaoRealizadaPct: servicos.ocupacaoRealizadaPct,
+      preenchimentoGradePct: servicos.preenchimentoGradePct, coberturaParcial: servicos.coberturaParcial,
+      minutosSemHorario: servicos.minutosSemHorario, minutosForaDaEscala: servicos.minutosForaDaEscala,
+      minutosSobrepostos: servicos.minutosSobrepostos,
       ocupacaoPct: dia.preenchimentoGradePct, tardePct: tarde.preenchimentoGradePct,
       minutosOciosos: dia.minutosLivres, minutosOciososTarde: tarde.minutosLivres, proximaDataLivre: proxima?.data || null
     };
