@@ -336,4 +336,4 @@ function computePiloto({ agendamentos = [], comandos = [], comandoItens = [], ev
   return { periodo: { de, ate, hoje }, taxaFalta, reagendamentoCheckout, retornoClienteNovo, confirmacaoPrevia, fidelizacao, taxaCancelamento, porProfissional: porProfissionalCompleto };
 }
 
-module.exports = { computePiloto, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };
+module.exports = { computePiloto, atendimentosDe, ATENDIDO, REFERENCIAS, REBOOK_JANELA_DIAS, RETORNO_JANELA_DIAS, RETORNO_JANELAS_PERMITIDAS, FIDELIDADE_VISITAS, FIDELIDADE_JANELA_DIAS };

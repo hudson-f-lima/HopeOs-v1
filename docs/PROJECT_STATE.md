@@ -22,6 +22,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 
 ## 2. Estado confirmado
 
+- **D-070 · Desempenho do salão:** implementação no Painel e em `GET /api/cockpit/desempenho`. Base de integração `184b3fa` (PR #61). Validação de implantação em produção pendente.
+
 | Área | Estado | Evidência |
 |---|---|---|
 | Autenticação por usuário (JWT Supabase Auth) | **REAL em produção** (login, `/me`, catálogo validados em 2026-11-10; sem revalidação completa depois) | `routes/auth.js`, identity-gate, `smoke.js` |

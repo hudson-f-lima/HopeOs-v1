@@ -11,6 +11,9 @@ const clock = require('../src/config/clock');
 const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
+const { SupabaseRepository } = require('../src/repositories/SupabaseRepository');
+// Conserva o paginador real antes da instalação do repositório em memória.
+const { list, listDasComandas } = SupabaseRepository.prototype;
 const { computeCockpit } = require('../src/engines/insights/cockpit');
 const { createAppError } = require('../src/errors');
 const { app } = require('../src/app');
@@ -220,6 +223,100 @@ test('K11 RBAC: recepção e profissional 403; sem token 401', async () => {
   assert.strictEqual((await request('/api/cockpit', 'h.recep.s')).status, 403);
   assert.strictEqual((await request('/api/cockpit', 'h.prof.s')).status, 403);
   assert.strictEqual((await request('/api/cockpit', null)).status, 401);
+});
+
+const pathDesempenho = '/api/cockpit/desempenho';
+
+test('D01 desempenho: RBAC, tenant do token, mês até hoje local e limites de período', async () => {
+  clock.definirRelogio(() => new Date('2026-12-01T01:15:00Z')); // ainda é 30/11 em São Paulo
+  try {
+    for (const token of ['h.admin.s', 'h.gestor.s']) {
+      const r = await request(pathDesempenho, token);
+      assert.strictEqual(r.status, 200);
+      assert.deepStrictEqual([r.data.data.inicio, r.data.data.fim], ['2026-11-01', '2026-11-30']);
+    }
+    const b = await request(pathDesempenho + '?empresa_id=' + E, 'h.adminb.s');
+    assert.strictEqual(b.data.data.faturamentoCentavos, 77700);
+    assert.strictEqual(b.data.data.resultadoFinanceiro.diferencaConciliacaoCentavos, 27700, 'divergência preservada em vez de inventar um custo');
+    assert.strictEqual((await request(pathDesempenho, null)).status, 401);
+    for (const token of ['h.recep.s', 'h.prof.s']) assert.strictEqual((await request(pathDesempenho, token)).status, 403);
+    for (const q of ['fim=2026-02-30', 'inicio=2026-11-20&fim=2026-11-19', 'fim=2026-12-01', 'inicio=2024-01-01']) {
+      assert.strictEqual((await request(pathDesempenho + '?' + q)).status, 422, q);
+    }
+  } finally { clock.definirRelogio(() => new Date('2026-11-22T15:00:00Z')); }
+});
+
+test('D02 desempenho reconcilia o ledger misto, conta visitas identificadas e divide pelas horas de toda a escala', async () => {
+  const dia = '2026-11-17'; // terça, 5 horas por profissional
+  const venda = (id, cliente_id, valor, comissao, taxa, custo) => ({
+    id, empresa_id: E, cliente_id, data: dia, status: 'fechado', itens_liquidos_centavos: valor,
+    total_comissao_centavos: comissao, taxa_servico_centavos: taxa, total_custo_produtos_centavos: custo,
+    receita_empresa_centavos: valor - comissao - taxa - custo, gorjeta_bruta_centavos: 100, taxa_gorjeta_centavos: 8
+  });
+  const item = (id, comando_id, tipo, quantidade, receita_empresa_centavos) =>
+    ({ id, empresa_id: E, comando_id, tipo, quantidade, receita_empresa_centavos });
+  const visita = (id, data, cliente, status, minutos) => ({ ...ag(id, P1, data, '13:00:00', status, cliente), duracao_min: minutos });
+  installMemoryBackend({
+    empresas: [EMPRESA], profissionais: PROFS, agendamentos: [
+      visita('anterior', '2025-11-18', C(1), 'concluido', 20), visita('recente', '2026-11-01', C(1), 'fechado', 20),
+      visita('fora-da-janela', '2025-11-17', C(2), 'concluido', 20), visita('dentro', '2026-09-11', C(2), 'fechado', 20),
+      visita('primeiro', dia, C(1), 'concluido', 20), visita('segundo', dia, C(1), 'fechado', 30),
+      visita('outro', dia, C(2), 'concluido', 30), visita('marcado', dia, C(3), 'confirmado', 15),
+      visita('faltou', dia, C(4), 'no_show', 60)
+    ],
+    comandos: [venda('mista', C(1), 16000, 3400, 300, 1500), venda('sem-cliente', null, 0, 0, 0, 0),
+      venda('assinante', C(4), 0, 0, 0, 0), venda('so-produto', C(3), 2000, 0, 0, 500), { ...venda('antiga', C(4), 2000, 400, 0, 500), data: '2025-01-01' }],
+    comando_itens: [item('s', 'mista', 'servico', 1, 6800), item('p', 'mista', 'produto', 3, 4000),
+      item('s0', 'sem-cliente', 'servico', 1, 0), item('coberto', 'assinante', 'servico', 1, 0), item('p1', 'so-produto', 'produto', 1, 1500), item('p2', 'antiga', 'produto', 1, 1100)],
+    comanda_estornos: [
+      { id: 'es', empresa_id: E, comando_id: 'mista', tipo: 'parcial', data: dia, itens_centavos: 4000, comissao_centavos: 1200, receita_empresa_centavos: 2800 },
+      { id: 'ep', empresa_id: E, comando_id: 'antiga', tipo: 'total', data: dia, itens_centavos: 2000, comissao_centavos: 400, receita_empresa_centavos: 1600 },
+      { id: 'ef', empresa_id: E, comando_id: 'so-produto', tipo: 'total', data: '2026-11-18', itens_centavos: 2000, comissao_centavos: 0, receita_empresa_centavos: 2000 }
+    ],
+    comanda_estorno_itens: [
+      { id: 'xs', empresa_id: E, estorno_id: 'es', comando_id: 'mista', comando_item_id: 's', quantidade: 1, receita_empresa_centavos: 2800 },
+      { id: 'xp', empresa_id: E, estorno_id: 'ep', comando_id: 'antiga', comando_item_id: 'p2', quantidade: 1, receita_empresa_centavos: 1600, devolve_estoque: false },
+      { id: 'xf', empresa_id: E, estorno_id: 'ef', comando_id: 'so-produto', comando_item_id: 'p1', quantidade: 1, receita_empresa_centavos: 2000 }
+    ]
+  });
+  const relatorio = async (inicio, fim) => {
+    const r = await request(pathDesempenho + '?inicio=' + inicio + '&fim=' + fim);
+    assert.strictEqual(r.status, 200);
+    return r.data.data;
+  };
+  const r = await relatorio(dia, dia);
+  assert.deepStrictEqual(r, {
+    inicio: dia, fim: dia, faturamentoCentavos: 12000, comandas: 4, ticketMedioCentavos: 3000,
+    visitasIdentificadas: 3, atendimentosSemCliente: true, produtosUnidades: 3,
+    minutosOcupados: 95, minutosDisponiveis: 600, clientesIdentificados: 3, clientesFieis: 1,
+    parteSalaoServicosCentavos: 4000, parteSalaoServicosPorHoraCentavos: 400,
+    resultadoFinanceiro: { faturamentoCentavos: 12000, parteSalaoCentavos: 7900, comissoesCentavos: 1800,
+      taxasItensCentavos: 300, custoProdutosVendidosCentavos: 2000, diferencaConciliacaoCentavos: 0 }
+  });
+  const soEstorno = await relatorio('2026-11-18', '2026-11-18');
+  assert.deepStrictEqual([soEstorno.faturamentoCentavos, soEstorno.produtosUnidades, soEstorno.comandas, soEstorno.ticketMedioCentavos,
+    soEstorno.minutosDisponiveis, soEstorno.parteSalaoServicosPorHoraCentavos, soEstorno.atendimentosSemCliente],
+    [-2000, -1, 0, null, 0, null, false]);
+  const incluiEstornoTotal = await relatorio(dia, '2026-11-18');
+  assert.deepStrictEqual([incluiEstornoTotal.faturamentoCentavos, incluiEstornoTotal.comandas, incluiEstornoTotal.ticketMedioCentavos], [10000, 3, 3333]);
+});
+
+test('D03 o repositório pagina mais de 1000 itens do mesmo lote, em ordem e com tenant', async () => {
+  const itens = Array.from({ length: 1207 }, (_, id) => ({ id, empresa_id: E, comando_id: 'k' }));
+  const paginas = [];
+  const supabase = { from(t) {
+    assert.strictEqual(t, 'comando_itens');
+    return {
+      select(campos) { assert.strictEqual(campos, 'id,comando_id'); return this; },
+      eq(coluna, valor) { assert.deepStrictEqual([coluna, valor], ['empresa_id', E]); return this; },
+      in(coluna, ids) { assert.deepStrictEqual([coluna, ids], ['comando_id', ['k']]); return this; },
+      order(coluna) { assert.strictEqual(coluna, 'id'); return this; },
+      range(de, ate) { paginas.push([de, ate]); return { data: itens.slice(de, ate + 1) }; }
+    };
+  } };
+  const resultado = await listDasComandas.call({ empresaId: E, supabase, list }, 'comando_itens', ['k', 'k'], 'id,comando_id');
+  assert.deepStrictEqual(paginas, [[0, 999], [1000, 1999]]);
+  assert.deepStrictEqual(resultado, itens);
 });
 
 (async () => {

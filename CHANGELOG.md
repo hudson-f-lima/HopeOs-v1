@@ -1,5 +1,10 @@
 # Changelog
 
+## Análise de desempenho do salão (D-070)
+- O gestor abre **Painel → Análises → Desempenho do salão** para consultar o faturamento, as visitas identificadas, os produtos vendidos, o ticket por comanda, a ocupação e a fidelização no mesmo período.
+- O destaque mostra quanto fica para o salão em serviços por hora-profissional disponível. A composição financeira detalha o valor das vendas.
+
+
 ## Agendamento pelo link: horários em sequência (D-069)
 - No link, os horários oferecidos começam logo depois de cada atendimento e seguem a duração do serviço (ex.: 09:35, 10:20, 11:05 para um serviço de 45 min), sem buracos entre um cliente e outro.
 - Vale para agendar e para remarcar pelo link. A agenda da recepção continua igual.

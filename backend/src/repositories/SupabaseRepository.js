@@ -19,7 +19,7 @@ class SupabaseRepository {
     this.empresaId = empresaId;
   }
 
-  async list(table, filters = {}) {
+  async list(table, filters = {}, { campos = '*', inicio, fim, comandoIds, ordem } = {}) {
     // PostgREST limita a 1000 linhas por chamada por padrao. Sem paginacao aqui,
     // qualquer tabela que cresca alem disso (ex: clientes) silenciosamente perde
     // registros em toda leitura (snapshot, export, GET /catalog, etc), sem erro.
@@ -27,15 +27,15 @@ class SupabaseRepository {
     const rows = [];
     let from = 0;
     for (;;) {
-      let query = this.supabase.from(table).select('*');
+      let query = this.supabase.from(table).select(campos);
       for (const [key, value] of Object.entries(filters)) {
         if (value !== undefined && value !== null && value !== '') query = query.eq(key, value);
       }
-      // Nao ordena por 'id': profissional_servicos e formas_pagamento nao tem essa
-      // coluna (chave primaria composta). Tabelas sem 'id' sempre cabem numa unica
-      // pagina neste projeto, entao a ordem so importa para tabelas grandes (que tem
-      // 'id'), onde o Postgres retorna ordem estavel entre chamadas sequenciais sem
-      // escrita concorrente no meio.
+      if (inicio) query = query.gte('data', inicio);
+      if (fim) query = query.lte('data', fim);
+      if (comandoIds) query = query.in('comando_id', comandoIds);
+      // Ordem explícita nas leituras paginadas de indicadores. Outras tabelas têm PK composta.
+      if (ordem) query = query.order(ordem);
       const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
       rows.push(...(data || []));
@@ -76,17 +76,14 @@ class SupabaseRepository {
 
   // Linhas de um conjunto de comandas em qualquer tabela com comando_id (itens,
   // pagamentos, estornos...), sempre filtradas pela empresa do repositório.
-  async listDasComandas(table, comandoIds) {
+  async listDasComandas(table, comandoIds, campos = '*') {
     const ids = [...new Set((comandoIds || []).filter(Boolean))];
     const rows = [];
     for (let i = 0; i < ids.length; i += 100) {
-      const { data, error } = await this.supabase
-        .from(table)
-        .select('*')
-        .eq('empresa_id', this.empresaId)
-        .in('comando_id', ids.slice(i, i + 100));
-      if (error) throw error;
-      rows.push(...(data || []));
+      const lote = await this.list(table, { empresa_id: this.empresaId }, {
+        campos, comandoIds: ids.slice(i, i + 100), ordem: 'id'
+      });
+      rows.push(...lote);
     }
     return rows;
   }

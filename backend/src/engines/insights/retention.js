@@ -581,6 +581,7 @@ module.exports = {
   computeRebooking,
   computeAttach,
   normalizeCommands,
+  isClosedCommand,
   isLateCancel,
   scheduledDateTime,
   getCommandTime,

@@ -27,6 +27,7 @@ import { initCheckout, onServicoSelected, onCheckoutFieldChanged } from './ui/ch
 import { initComandas, abrirComandas } from './ui/comandas.js';
 import { initDashboard, atualizarDashboard } from './ui/dashboard.js';
 import { initCockpit, atualizarCockpit } from './ui/cockpit.js';
+import { initDesempenho, atualizarAcessoDesempenho, fecharDesempenho } from './ui/desempenhoSalao.js';
 import {
   initCadastros,
   openListaEsperaModal
@@ -56,6 +57,7 @@ export function showTab(name, { abrirLista = true } = {}) {
   const target = document.getElementById('tab-' + name);
   if (!target) return;
   const anterior = state.activeTab;
+  if (anterior === 'dashboard' && name !== 'dashboard') fecharDesempenho();
   if (anterior !== name) tabScroll.set(anterior, window.scrollY);
   state.activeTab = name;
   document.querySelectorAll('.tab-content').forEach(el => el.classList.toggle('hidden', el !== target));
@@ -63,6 +65,7 @@ export function showTab(name, { abrirLista = true } = {}) {
   // ou caixa em outro aparelho, e as pendências do topo precisam estar em dia.
   if (name === 'metas' && anterior !== 'metas' && state.session && podeVerMetasGanhos()) abrirMetas();
   if (name === 'dashboard' && anterior !== 'dashboard' && state.session && sessionPode('painel:operacional')) {
+    atualizarAcessoDesempenho();
     atualizarDashboard();
     atualizarCockpit();
     if (sessionPode('caixa:conferir')) atualizarCaixa();
@@ -616,6 +619,7 @@ async function init() {
   initComandas(() => showTab('checkout', { abrirLista: false }));
   initDashboard();
   initCockpit();
+  initDesempenho();
   initCadastros();
 
   document.getElementById('btnLogout')?.addEventListener('click', () => logout());
