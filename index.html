@@ -353,6 +353,7 @@
     </section>
 
     <section id="tab-dashboard" class="tab-content hidden">
+      <div id="dashboardResumo">
       <button class="btn-link hidden" type="button" id="btnVoltarGestao">‹ Voltar para Gestão</button>
       <div class="dashboard-header">
         <div>
@@ -362,68 +363,12 @@
         <span class="badge" id="dashUpdatedAt"></span>
       </div>
 
-      <section id="cockpit" class="cockpit hidden" aria-labelledby="ckTitulo">
-        <div class="ck-cabecalho">
-          <h2 id="ckTitulo">Cockpit do gestor</h2>
-          <span class="ck-saude" id="ckStatus" aria-live="polite"></span>
-        </div>
-        <div class="ck-cards" id="ckCards"></div>
-        <h3 class="ck-secao">Decidir agora</h3>
-        <div class="ck-alertas" id="ckAlertas"></div>
-        <div class="ck-grade">
-          <div class="ck-bloco">
-            <h3 class="ck-secao">Ocupação por dia (últimas 4 semanas)</h3>
-            <div class="ck-dias" id="ckDias"></div>
-          </div>
-          <div class="ck-bloco">
-            <h3 class="ck-secao">Equipe no mês</h3>
-            <div id="ckEquipe"></div>
-          </div>
-          <div class="ck-bloco">
-            <h3 class="ck-secao">Simulador (estimativa)</h3>
-            <label class="ck-sim">Converter avulsos frequentes em assinantes <b id="ckSimConverterVal"></b>
-              <input type="range" id="ckSimConverter" min="0" max="100" step="5" value="15"/><span id="ckSimConverterRes"></span></label>
-            <label class="ck-sim">Preencher horas livres <b id="ckSimPreencherVal"></b>
-              <input type="range" id="ckSimPreencher" min="0" max="50" step="5" value="10"/><span id="ckSimPreencherRes"></span></label>
-            <label class="ck-sim">Reduzir faltas <b id="ckSimFaltasVal"></b>
-              <input type="range" id="ckSimFaltas" min="0" max="100" step="10" value="50"/><span id="ckSimFaltasRes"></span></label>
-            <div class="ck-sim-total">Potencial: <b id="ckSimTotal"></b></div>
-            <p class="ck-nota">Contas feitas com os números reais do salão (preço médio do minuto vendido e plano mais barato à venda). É uma estimativa, não uma promessa.</p>
-          </div>
-        </div>
-      </section>
-
       <h2 class="dash-precisa-titulo" id="dashPrecisaTitulo">Precisa de você</h2>
       <section class="dashboard-action-strip" id="dashboardActionStrip" aria-labelledby="dashPrecisaTitulo" aria-live="polite"></section>
 
-      <div class="dashboard-bento">
-        <div class="stat-card primary">
-          <div class="label">Receita empresa</div>
-          <div class="value" id="dbReceita">—</div>
-          <div class="hint">Resultado líquido operacional</div>
-        </div>
-        <div class="stat-card accent-teal">
-          <div class="label">Comandas</div>
-          <div class="value" id="dbComandos">—</div>
-          <div class="hint">Fechadas no período</div>
-        </div>
-        <div class="stat-card accent-coral">
-          <div class="label">Comissões</div>
-          <div class="value" id="dbComissoes">—</div>
-          <div class="hint">Previsão de repasse</div>
-        </div>
-        <div class="stat-card accent-blue">
-          <div class="label">Ticket médio</div>
-          <div class="value" id="dbTicketMedio">—</div>
-          <div class="hint">Por comanda fechada</div>
-        </div>
-      </div>
-
-      <div class="dashboard-status" id="dashboardInsightsStatus"></div>
-
-
       <details class="dash-dobra" id="dobraIndicadores">
-      <summary>Indicadores</summary>
+      <summary>Análises</summary>
+      <button type="button" class="dash-analise-atalho hidden" id="btnAbrirDesempenho">Desempenho do salão</button>
       <div class="dashboard-insights-grid">
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
@@ -495,6 +440,63 @@
       </div>
       </details>
 
+      <section id="cockpit" class="cockpit hidden" aria-labelledby="ckTitulo">
+        <div class="ck-cabecalho">
+          <h2 id="ckTitulo">Cockpit do gestor</h2>
+          <span class="ck-saude" id="ckStatus" aria-live="polite"></span>
+        </div>
+        <div class="ck-cards" id="ckCards"></div>
+        <h3 class="ck-secao">Decidir agora</h3>
+        <div class="ck-alertas" id="ckAlertas"></div>
+        <div class="ck-grade">
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Ocupação por dia (últimas 4 semanas)</h3>
+            <div class="ck-dias" id="ckDias"></div>
+          </div>
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Equipe no mês</h3>
+            <div id="ckEquipe"></div>
+          </div>
+          <div class="ck-bloco">
+            <h3 class="ck-secao">Simulador (estimativa)</h3>
+            <label class="ck-sim">Converter avulsos frequentes em assinantes <b id="ckSimConverterVal"></b>
+              <input type="range" id="ckSimConverter" min="0" max="100" step="5" value="15"/><span id="ckSimConverterRes"></span></label>
+            <label class="ck-sim">Preencher horas livres <b id="ckSimPreencherVal"></b>
+              <input type="range" id="ckSimPreencher" min="0" max="50" step="5" value="10"/><span id="ckSimPreencherRes"></span></label>
+            <label class="ck-sim">Reduzir faltas <b id="ckSimFaltasVal"></b>
+              <input type="range" id="ckSimFaltas" min="0" max="100" step="10" value="50"/><span id="ckSimFaltasRes"></span></label>
+            <div class="ck-sim-total">Potencial: <b id="ckSimTotal"></b></div>
+            <p class="ck-nota">Contas feitas com os números reais do salão (preço médio do minuto vendido e plano mais barato à venda). É uma estimativa, não uma promessa.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="dashboard-bento">
+        <div class="stat-card primary">
+          <div class="label">Receita empresa</div>
+          <div class="value" id="dbReceita">—</div>
+          <div class="hint">Resultado líquido operacional</div>
+        </div>
+        <div class="stat-card accent-teal">
+          <div class="label">Comandas</div>
+          <div class="value" id="dbComandos">—</div>
+          <div class="hint">Fechadas no período</div>
+        </div>
+        <div class="stat-card accent-coral">
+          <div class="label">Comissões</div>
+          <div class="value" id="dbComissoes">—</div>
+          <div class="hint">Previsão de repasse</div>
+        </div>
+        <div class="stat-card accent-blue">
+          <div class="label">Ticket médio</div>
+          <div class="value" id="dbTicketMedio">—</div>
+          <div class="hint">Por comanda fechada</div>
+        </div>
+      </div>
+
+      <div class="dashboard-status" id="dashboardInsightsStatus"></div>
+
+
       <details class="dash-dobra" id="dobraRepasses">
       <summary>Pagamentos e repasses</summary>
       <div class="dashboard-list-grid">
@@ -541,6 +543,66 @@
         </details>
       </section>
       <button class="btn btn-secondary" id="btnAtualizarDashboard">Atualizar dashboard</button>
+      </div>
+
+      <section class="dash-desempenho hidden" id="painelDesempenho" aria-labelledby="desempenhoSalaoTitulo">
+        <button type="button" class="btn-link" id="btnVoltarAnalises">‹ Voltar para Análises</button>
+        <h2 id="desempenhoSalaoTitulo" tabindex="-1">Desempenho do salão</h2>
+        <p class="dash-desempenho-periodo" id="desempenhoPeriodo"></p>
+        <p class="dash-desempenho-status" id="desempenhoStatus" role="status"></p>
+        <button type="button" class="btn btn-secondary hidden" id="btnRecarregarDesempenho">Tentar novamente</button>
+        <div id="desempenhoIndicadores" class="hidden">
+          <section class="dash-desempenho-destaque" aria-labelledby="desempenhoParteHoraTitulo">
+            <h3 id="desempenhoParteHoraTitulo">Parte do salão com serviços por hora disponível</h3>
+            <p class="dash-desempenho-valor" id="desempenhoParteHora"></p>
+            <p class="dash-desempenho-nota" id="desempenhoParteHoraBase"></p>
+          </section>
+          <h3 class="dash-desempenho-grupo">Vendas e atendimento</h3>
+          <dl class="dash-desempenho-grade">
+            <div class="dash-desempenho-indicador" data-indicador="faturamento">
+              <dt>Faturamento</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoFaturamento"></dd>
+              <dd><button type="button" class="btn-link dash-desempenho-composicao" id="btnVerResultadoFinanceiro" aria-controls="dobraResultadoFinanceiro">Ver composição do faturamento</button></dd>
+            </div>
+            <div class="dash-desempenho-indicador" data-indicador="ticket">
+              <dt>Ticket por comanda</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoTicket"></dd>
+              <dd class="dash-desempenho-nota" id="desempenhoComandas"></dd>
+            </div>
+            <div class="dash-desempenho-indicador" data-indicador="visitas">
+              <dt>Visitas identificadas</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoVisitas"></dd>
+              <dd class="dash-desempenho-nota" id="desempenhoVisitasNota" hidden>Também houve atendimentos sem cliente identificado.</dd>
+            </div>
+            <div class="dash-desempenho-indicador" data-indicador="produtos">
+              <dt>Produtos vendidos</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoProdutos"></dd>
+              <dd class="dash-desempenho-nota">Em unidades</dd>
+            </div>
+          </dl>
+          <details class="dash-dobra" id="dobraResultadoFinanceiro">
+            <summary id="resultadoFinanceiroTitulo">Resultado financeiro</summary>
+            <div class="dashboard-panel dash-desempenho-resultado">
+              <dl class="dash-desempenho-composicao-lista" id="desempenhoComposicao"></dl>
+              <p class="dash-desempenho-nota" id="desempenhoComposicaoNota"></p>
+            </div>
+          </details>
+          <h3 class="dash-desempenho-grupo">Agenda e clientes</h3>
+          <dl class="dash-desempenho-grade">
+            <div class="dash-desempenho-indicador" data-indicador="ocupacao">
+              <dt>Ocupação da agenda</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoOcupacao"></dd>
+              <dd class="dash-desempenho-nota" id="desempenhoOcupacaoBase"></dd>
+            </div>
+            <div class="dash-desempenho-indicador" data-indicador="fidelizacao">
+              <dt>Fidelização</dt>
+              <dd class="dash-desempenho-valor" id="desempenhoFidelizacao"></dd>
+              <dd class="dash-desempenho-nota" id="desempenhoFidelizacaoBase"></dd>
+              <dd class="dash-desempenho-nota" id="desempenhoFidelizacaoNota" hidden>Clientes com 3 ou mais visitas em dias distintos nos 365 dias até o fim do período.</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
     </section>
 
     <section id="tab-metas" class="tab-content hidden" aria-labelledby="metasTitulo">

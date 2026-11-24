@@ -21,7 +21,10 @@ function installMemoryBackend(seed = {}) {
   const match = (row, filters) => Object.entries(filters).every(([k, v]) => v === undefined || v === null || v === '' || String(row[k]) === String(v));
   const P = SupabaseRepository.prototype;
 
-  P.list = async function (t, f = {}) { return rows(t).filter(r => match(r, f)); };
+  P.list = async function (t, f = {}, { inicio, fim, comandoIds } = {}) {
+    return rows(t).filter(r => match(r, f) && (!inicio || r.data >= inicio) && (!fim || r.data <= fim)
+      && (!comandoIds || comandoIds.includes(r.comando_id)));
+  };
   P.contarDesde = async function (t, f = {}, coluna, desde) {
     const limite = new Date(desde).getTime();
     return rows(t).filter(r => match(r, f) && r[coluna] && new Date(r[coluna]).getTime() >= limite).length;
