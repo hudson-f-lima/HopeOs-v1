@@ -1095,3 +1095,21 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
 - **Contrato:** preservar projeções autorizadas e restringir gasto, prioridade econômica e candidatos de assinatura na retenção. O Painel da recepção consulta os indicadores que exibe. O endpoint legado de resumo permanece disponível. As medianas de intervalo de retorno são reutilizadas por serviço dentro de cada requisição de retenção. Cenários do simulador são independentes.
 - **Tecnologia:** componentes sem dependência gráfica e sem build. Testar ECharts com distribuição fixada e carregamento sob demanda quando houver séries densas, zoom ou filtros cruzados que justifiquem o custo de mantê-lo.
 - **Liberação:** nenhuma migration. Publicação, validação com dispositivo instalado e medições reais exigem sua própria autorização e evidência.
+
+## D-073 — Direção futura: uma rede, várias unidades, CNPJ por unidade (sem código, sem migration)
+- **Decisão (Platform Owner, 2026-11-24):** "Futuramente vamos desenvolver isso. 1 tenant + múltiplas unidades. Mesmo com o CNPJ diferente." Contexto: a "assinatura multi" da legenda de referência é o plano que vale em qualquer unidade da rede.
+- **Situação:** direção registrada, **BLOQUEADA** até a V1.5 (escala de rede; `CLAUDE.md`: não avançar para V1.5 com P0 aberto). Nenhum código, tela ou migration agora.
+- **Modelo alvo:** o tenant continua sendo a empresa, que passa a representar a rede; cada unidade pode ter razão social e CNPJ próprios. O isolamento entre clientes do HOPE OS segue por empresa; a separação por unidade vale dentro da rede.
+- **O que já existe (verificado em 2026-11-24):** tabela `unidades` da empresa (007), permissão por unidade (`membership_units`) e escala com `unidade_id` opcional (013). Não têm unidade: planos e assinaturas (021/022), agendamentos, comandas, caixa e estornos. Hoje todo plano vale para a empresa inteira, e a razão social e o CNPJ ficam na empresa.
+- **O que muda quando a rede for construída:**
+  - razão social, CNPJ e aviso de privacidade por unidade; quem responde pelos dados do cliente (controlador, LGPD) pode variar por unidade e **exige validação jurídica**;
+  - agenda, comanda, caixa, comissão e estorno registram a unidade; o fechamento de caixa passa a ser por unidade;
+  - nota fiscal (quando houver) emitida pelo CNPJ da unidade;
+  - link público por unidade, ou escolha da unidade no link;
+  - assinatura com escopo: uma unidade ou "multi" (qualquer unidade), com a unidade de cada uso registrada;
+  - cadastro de clientes continua da rede;
+  - Painel e Cockpit por unidade e consolidado da rede;
+  - RLS e permissões testadas por unidade, com Red Team antes de declarar isolamento entre unidades.
+- **Risco principal:** dinheiro atravessando CNPJs. Uma assinatura multi paga numa unidade e usada em outra gera receita num CNPJ e serviço prestado por outro. **Antes de implementar:** regra de repasse entre unidades definida com o contador.
+- **Prática a seguir desde já (desenho, sem migration):** tabela nova de operação (agenda, comanda, caixa, assinatura e similares) deve prever `unidade_id`, mesmo vazio. Qualquer migration continua exigindo autorização do Platform Owner (028+).
+- **Pré-requisitos para começar:** decisão contábil sobre repasse entre CNPJs; validação jurídica do aviso de privacidade por unidade; autorização das migrations; plano de Red Team do isolamento por unidade.
