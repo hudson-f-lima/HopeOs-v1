@@ -2,7 +2,7 @@ const express = require('express');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 const { loadDataContract } = require('../services/DataContractService');
 const { getSnapshot } = require('../services/SnapshotService');
-const { buildDashboard } = require('../services/DashboardService');
+const { buildDashboard, indicadoresOperacionais, pagamentosERepassesDoPainel } = require('../services/DashboardService');
 const { buildFinanceReadModel } = require('../services/FinanceReadModel');
 const { previewCheckout } = require('../engines/FinanceEngine');
 const { resolveCheckoutInput } = require('../engines/CheckoutInputResolver');
@@ -158,8 +158,18 @@ router.get('/snapshot', authorize('painel:financeiro'), async (req, res, next) =
 });
 
 router.get('/dashboard', authorize('painel:operacional'), async (req, res, next) => {
-  try { res.json({ ok: true, data: buildDashboard(await getSnapshot(req.auth.empresa_id)) }); }
-  catch (err) { next(err); }
+  try {
+    if (!pode(req.auth, 'painel:financeiro')) {
+      const repo = new SupabaseRepository(req.auth.empresa_id);
+      const agenda = await repo.list('agendamentos', { empresa_id: repo.empresaId }, { campos: 'status', ordem: 'id' });
+      return res.json({ ok: true, data: { kpis: indicadoresOperacionais(agenda) } });
+    }
+    if (req.query.visao === 'painel') {
+      const repo = new SupabaseRepository(req.auth.empresa_id);
+      return res.json({ ok: true, data: await pagamentosERepassesDoPainel(repo) });
+    }
+    res.json({ ok: true, data: buildDashboard(await getSnapshot(req.auth.empresa_id)) });
+  } catch (err) { next(err); }
 });
 
 router.get('/financeiro/resumo', authorize('painel:financeiro'), async (req, res, next) => {
@@ -1178,7 +1188,7 @@ router.post('/comandas/:id/estorno', authorize('comanda:estornar'), async (req, 
 // das 21h às 24h de Brasília já era "amanhã"). Datas reais, de <= ate, até 366 dias.
 const INSIGHTS_PERIODO_MAX_DIAS = 366;
 function periodoInsights(query) {
-  const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+  const { data: hoje, minuto: minutoAtual } = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
   const from = query.from === undefined || query.from === '' ? hoje : String(query.from);
   const to = query.to === undefined || query.to === '' ? hoje : String(query.to);
   const valida = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
@@ -1187,14 +1197,14 @@ function periodoInsights(query) {
   if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5 + 1 > INSIGHTS_PERIODO_MAX_DIAS) {
     throw createAppError('INVALID_DATES', `Período máximo de ${INSIGHTS_PERIODO_MAX_DIAS} dias.`, 400);
   }
-  return { from, to, hoje };
+  return { from, to, hoje, minutoAtual };
 }
 
 router.get('/insights/occupancy', authorize('painel:operacional'), async (req, res, next) => {
   try {
-    const { from, to, hoje } = periodoInsights(req.query);
+    const { from, to, hoje, minutoAtual } = periodoInsights(req.query);
     const service = new InsightsService(req.auth.empresa_id);
-    const data = await service.loadOccupancyInsights(from, to, hoje);
+    const data = await service.loadOccupancyInsights(from, to, hoje, minutoAtual);
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });

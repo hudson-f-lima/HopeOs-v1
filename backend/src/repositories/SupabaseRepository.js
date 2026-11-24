@@ -19,7 +19,7 @@ class SupabaseRepository {
     this.empresaId = empresaId;
   }
 
-  async list(table, filters = {}, { campos = '*', inicio, fim, comandoIds, ordem } = {}) {
+  async list(table, filters = {}, { campos = '*', inicio, fim, comandoIds, ids, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite, ordem } = {}) {
     // PostgREST limita a 1000 linhas por chamada por padrao. Sem paginacao aqui,
     // qualquer tabela que cresca alem disso (ex: clientes) silenciosamente perde
     // registros em toda leitura (snapshot, export, GET /catalog, etc), sem erro.
@@ -34,12 +34,23 @@ class SupabaseRepository {
       if (inicio) query = query.gte('data', inicio);
       if (fim) query = query.lte('data', fim);
       if (comandoIds) query = query.in('comando_id', comandoIds);
+      if (ids) query = query.in('id', ids);
+      if (duracaoMaiorQue !== undefined) query = query.gt('duracao_min', duracaoMaiorQue);
+      if (vinculosAgenda) {
+        // Somente IDs de agendamentos do banco entram nessa expressão. Recibos
+        // antigos preservaram espaços e caixa; a identidade exata é conferida no motor.
+        const termos = vinculosAgenda.map(({ agendaId }) => `snapshot->request->raw->>agendamentoId.ilike.*${agendaId}*`);
+        termos.push(`id.in.(${vinculosAgenda.map(v => v.comandaId).join(',')})`);
+        query = query.or(termos.join(','));
+      }
+      if (foraPeriodo) query = query.or(`data.lt.${foraPeriodo.inicio},data.gt.${foraPeriodo.fim}`);
       // Ordem explícita nas leituras paginadas de indicadores. Outras tabelas têm PK composta.
       if (ordem) query = query.order(ordem);
-      const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+      const tamanho = limite ? Math.min(PAGE_SIZE, limite - from) : PAGE_SIZE;
+      const { data, error } = await query.range(from, from + tamanho - 1);
       if (error) throw error;
       rows.push(...(data || []));
-      if (!data || data.length < PAGE_SIZE) break;
+      if (!data || data.length < tamanho || rows.length === limite) break;
       from += PAGE_SIZE;
     }
     return rows;

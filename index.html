@@ -366,15 +366,17 @@
       <h2 class="dash-precisa-titulo" id="dashPrecisaTitulo">Precisa de você</h2>
       <section class="dashboard-action-strip" id="dashboardActionStrip" aria-labelledby="dashPrecisaTitulo" aria-live="polite"></section>
 
+      <!-- D-071: o Desempenho do salão fica fora da dobra fechada "Análises". -->
+      <button type="button" class="dash-analise-atalho hidden" id="btnAbrirDesempenho">Desempenho do salão</button>
+
       <details class="dash-dobra" id="dobraIndicadores">
       <summary>Análises</summary>
-      <button type="button" class="dash-analise-atalho hidden" id="btnAbrirDesempenho">Desempenho do salão</button>
       <div class="dashboard-insights-grid">
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
             <div>
-              <h2>Ocupação</h2>
-              <p>Semana atual por carga, buracos e profissionais.</p>
+              <h2>Agenda do período</h2>
+              <p>Atendimentos realizados, reservas e horários livres.</p>
             </div>
             <span class="badge-light" id="dbOccRange">Semana</span>
           </div>
@@ -450,11 +452,13 @@
         <div class="ck-alertas" id="ckAlertas"></div>
         <div class="ck-grade">
           <div class="ck-bloco">
-            <h3 class="ck-secao">Ocupação por dia (últimas 4 semanas)</h3>
+            <h3 class="ck-secao">Ocupação realizada por dia da semana</h3>
+            <p class="ck-nota ck-periodo" id="ckDiasPeriodo"></p>
             <div class="ck-dias" id="ckDias"></div>
           </div>
           <div class="ck-bloco">
-            <h3 class="ck-secao">Equipe no mês</h3>
+            <h3 class="ck-secao">Equipe</h3>
+            <p class="ck-nota ck-periodo" id="ckEquipePeriodo"></p>
             <div id="ckEquipe"></div>
           </div>
           <div class="ck-bloco">
@@ -471,33 +475,10 @@
         </div>
       </section>
 
-      <div class="dashboard-bento">
-        <div class="stat-card primary">
-          <div class="label">Receita empresa</div>
-          <div class="value" id="dbReceita">—</div>
-          <div class="hint">Resultado líquido operacional</div>
-        </div>
-        <div class="stat-card accent-teal">
-          <div class="label">Comandas</div>
-          <div class="value" id="dbComandos">—</div>
-          <div class="hint">Fechadas no período</div>
-        </div>
-        <div class="stat-card accent-coral">
-          <div class="label">Comissões</div>
-          <div class="value" id="dbComissoes">—</div>
-          <div class="hint">Previsão de repasse</div>
-        </div>
-        <div class="stat-card accent-blue">
-          <div class="label">Ticket médio</div>
-          <div class="value" id="dbTicketMedio">—</div>
-          <div class="hint">Por comanda fechada</div>
-        </div>
-      </div>
-
       <div class="dashboard-status" id="dashboardInsightsStatus"></div>
 
 
-      <details class="dash-dobra" id="dobraRepasses">
+      <details class="dash-dobra" id="dobraRepasses" hidden>
       <summary>Pagamentos e repasses</summary>
       <div class="dashboard-list-grid">
         <div class="card dashboard-list">
@@ -590,7 +571,7 @@
           <h3 class="dash-desempenho-grupo">Agenda e clientes</h3>
           <dl class="dash-desempenho-grade">
             <div class="dash-desempenho-indicador" data-indicador="ocupacao">
-              <dt>Ocupação da agenda</dt>
+              <dt>Ocupação realizada</dt>
               <dd class="dash-desempenho-valor" id="desempenhoOcupacao"></dd>
               <dd class="dash-desempenho-nota" id="desempenhoOcupacaoBase"></dd>
             </div>
@@ -601,6 +582,7 @@
               <dd class="dash-desempenho-nota" id="desempenhoFidelizacaoNota" hidden>Clientes com 3 ou mais visitas em dias distintos nos 365 dias até o fim do período.</dd>
             </div>
           </dl>
+          <div id="desempenhoOcupacaoDetalhe"></div>
         </div>
       </section>
     </section>
@@ -732,7 +714,7 @@
     </button>
   </nav>
 
-  <footer>HOPE OS V1.3 · Agenda premium · backend real</footer>
+  <footer>HOPE OS</footer>
 </div>
 
 <div class="modal-backdrop hidden" id="modalNovoAgendamento">

@@ -6,6 +6,8 @@
 //   - alerta só aparece quando a regra dispara (nada de "operação estável" para completar a lista);
 //   - "impacto" é sempre uma estimativa rotulada, com a conta explicada em `porque`.
 const occupancy = require('./occupancy');
+const { financeiroDoIntervalo, ocupacaoPorProfissionalDia, somarOcupacao } = require('./metricasPeriodo');
+const { intersecao } = require('../DisponibilidadeEngine');
 const { situacao } = require('../AssinaturaCicloEngine');
 
 const MESES_POR_PERIODO = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
@@ -23,18 +25,7 @@ const soma = (lista, campo) => lista.reduce((s, x) => s + (Number(x[campo]) || 0
 const num = v => String(v).replace('.', ',');
 const brl = c => 'R$ ' + (Math.round(c) / 100).toFixed(2).replace('.', ',');
 
-// Receita e margem de um intervalo [de, ate]: comandas pela data delas, estornos pela data do estorno.
-function financeiroDoIntervalo({ comandos, estornos }, de, ate) {
-  const dentro = x => dia(x.data) >= de && dia(x.data) <= ate;
-  const cs = comandos.filter(dentro);
-  const es = estornos.filter(dentro);
-  const receita = soma(cs, 'itens_liquidos_centavos') - soma(es, 'itens_centavos');
-  const receitaEmpresa = soma(cs, 'receita_empresa_centavos') - soma(es, 'receita_empresa_centavos');
-  const recebido = soma(cs, 'total_recebido_centavos') - soma(es, 'reembolso_centavos');
-  const taxas = soma(cs, 'taxa_total_centavos');
-  return { receita, receitaEmpresa, recebido, taxas, comandas: cs.length };
-}
-
+// Receita e margem de um intervalo: fonte única em metricasPeriodo (D-071).
 function faturamento({ comandos, estornos, metas }, mes, hoje) {
   const inicio = `${mes}-01`;
   const decorridos = Number(hoje.slice(8, 10));
@@ -71,35 +62,47 @@ function margem(fat) {
   };
 }
 
-// Ocupação dos últimos 28 dias (passados) por dia da semana e à tarde; mais a ociosidade.
-function ocupacao({ agendamentos, profissionais, empresa }, hoje) {
-  const ativos = profissionais.filter(p => p.ativo !== false);
+// As quatro semanas completas excluem hoje. A produção tem a mesma regra do
+// indicador mensal; a grade e as janelas livres consideram também as reservas.
+function ocupacao(entrada, hoje, minutoAtual) {
   const de = somaDias(hoje, -JANELA_DIAS);
   const ate = somaDias(hoje, -1);
-  const geral = occupancy.computeLoadFactor(agendamentos, ativos, de, ate, empresa);
-  const heat = occupancy.computeHeatmap(agendamentos, ativos, de, ate, empresa);
-  // O heatmap traz % por (dia, hora); para somar minutos refazemos por dia com computeLoadFactor.
-  const porDia = Array.from({ length: 7 }, (_, dow) => ({ dow, nome: DIAS_SEMANA[dow], vendidos: 0, disponiveis: 0 }));
-  for (const data of occupancy.datasDoPeriodo(de, ate)) {
-    const lf = occupancy.computeLoadFactor(agendamentos, ativos, data, data, empresa);
-    const d = porDia[new Date(`${data}T00:00:00Z`).getUTCDay()];
-    d.vendidos += lf.minutosVendidos; d.disponiveis += lf.minutosDisponiveis;
-  }
-  const dias = porDia.map(d => ({
-    dow: d.dow, nome: d.nome, aberto: d.disponiveis > 0, ocupacaoPct: d.disponiveis ? pct(d.vendidos, d.disponiveis) : null,
-    tardePct: (() => {
-      const h = heat.filter(x => x.dow === d.dow && x.hora >= TARDE.de && x.hora < TARDE.ate);
-      return h.length && d.disponiveis ? Math.round(h.reduce((s, x) => s + x.ocupacaoPct, 0) / h.length) : null;
-    })(),
-    minutosOciosos: Math.max(0, d.disponiveis - d.vendidos)
-  }));
+  const inicioMes = hoje.slice(0, 7) + '-01';
+  const deFaltas = somaDias(hoje, -30);
+  const realizadas = ocupacaoPorProfissionalDia(entrada, deFaltas < inicioMes ? deFaltas : inicioMes, hoje);
+  const grade = occupancy.analisarGrade(entrada, deFaltas, somaDias(hoje, 6), { realizadas, hoje, minutoAtual });
+  const semanas = realizadas.filter(r => r.data >= de && r.data <= ate);
+  const gradeSemanas = grade.filter(r => r.data >= de && r.data <= ate);
+  const porProf = Map.groupBy(semanas, r => r.profissionalId);
+  const gradeProf = Map.groupBy(gradeSemanas, r => r.profissionalId);
+  const producao = somarOcupacao(semanas);
+  const grade28 = occupancy.totaisGrade(gradeSemanas);
+  const faixaTarde = { start: TARDE.de * 60, end: TARDE.ate * 60 };
+  const slot = Number(entrada.empresa.slot_padrao) || 30;
+  const porDiaSemana = Map.groupBy(semanas, l => new Date(l.data + 'T00:00:00Z').getUTCDay());
+  const porDia = DIAS_SEMANA.map((nome, dow) => {
+    const servicos = somarOcupacao(porDiaSemana.get(dow) || []);
+    const linhas = gradeSemanas.filter(l => l.dow === dow);
+    const dia = occupancy.totaisGrade(linhas);
+    const tarde = occupancy.totaisGrade(linhas, faixaTarde, slot);
+    const futuras = grade.filter(l => l.dow === dow && l.data >= hoje);
+    const proxima = futuras.find(l => (tarde.minutosDisponiveis ? intersecao(l.livres, [faixaTarde]) : l.livres)
+      .some(i => i.end - i.start >= slot));
+    return {
+      dow, nome, aberto: servicos.minutosDisponiveis > 0, minutosDisponiveis: servicos.minutosDisponiveis,
+      minutosRealizados: servicos.minutosRealizados, ocupacaoRealizadaPct: servicos.ocupacaoRealizadaPct,
+      ocupacaoPct: dia.preenchimentoGradePct, tardePct: tarde.preenchimentoGradePct,
+      minutosOciosos: dia.minutosLivres, minutosOciososTarde: tarde.minutosLivres, proximaDataLivre: proxima?.data || null
+    };
+  });
   return {
-    janela: { de, ate },
-    ocupacaoPct: geral.minutosDisponiveis ? geral.loadFactorPct : null,
-    minutosVendidos: geral.minutosVendidos,
-    minutosDisponiveis: geral.minutosDisponiveis,
-    minutosOciosos: Math.max(0, geral.minutosDisponiveis - geral.minutosVendidos),
-    porDia: dias
+    historico: {
+      janela: { de, ate }, ...producao,
+      ocupacaoPct: grade28.preenchimentoGradePct, minutosVendidos: grade28.minutosGradeOcupada,
+      minutosOciosos: grade28.minutosLivres, porDia
+    },
+    mensal: { de: inicioMes, ate: hoje, ...somarOcupacao(realizadas.filter(l => l.data >= inicioMes)) },
+    porProf, gradeProf, minutosFalta30d: soma(grade.filter(l => l.data < hoje), 'minutosLivresComFalta')
   };
 }
 
@@ -131,7 +134,7 @@ function recorrencia({ assinaturas, planos, cobrancas }, mes, hoje) {
 // Receita por minuto vendido nos últimos 28 dias: base para estimar o que vale uma hora livre.
 function receitaPorMinuto({ comandos, estornos }, occ) {
   const f = financeiroDoIntervalo({ comandos, estornos }, occ.janela.de, occ.janela.ate);
-  return occ.minutosVendidos > 0 && f.receita > 0 ? f.receita / occ.minutosVendidos : null;
+  return occ.minutosRealizados > 0 && f.receita > 0 ? f.receita / occ.minutosRealizados : null;
 }
 
 function computeCockpit(input) {
@@ -146,7 +149,7 @@ function computeCockpit(input) {
   };
   const fat = faturamento(entrada, mes, hoje);
   const mar = margem(fat);
-  const occ = ocupacao(entrada, hoje);
+  const { historico: occ, mensal: ocupacaoMes, porProf, gradeProf, minutosFalta30d } = ocupacao(entrada, hoje, input.minutoAtual || 0);
   const rec = recorrencia(entrada, mes, hoje);
   const rpm = receitaPorMinuto(entrada, occ);
   const nomeCli = new Map(entrada.clientes.map(c => [c.id, c.nome]));
@@ -154,20 +157,22 @@ function computeCockpit(input) {
 
   // 1. Gargalo: dia aberto abaixo de 50% nas últimas 4 semanas. Usa a tarde (13h–18h) quando o dia
   //    tem expediente à tarde; senão, o dia inteiro (salão que só abre de manhã também tem gargalo).
-  const candidatos = occ.porDia.filter(d => d.aberto && d.ocupacaoPct !== null)
-    .map(d => ({ ...d, valor: d.tardePct !== null ? d.tardePct : d.ocupacaoPct, tarde: d.tardePct !== null }));
-  const pior = candidatos.slice().sort((a, b) => a.valor - b.valor || b.minutosOciosos - a.minutosOciosos)[0];
+  const candidatos = occ.porDia.filter(d => d.proximaDataLivre && d.ocupacaoPct !== null).map(d => {
+    const tarde = d.tardePct !== null;
+    return { ...d, tarde, valor: tarde ? d.tardePct : d.ocupacaoPct, livres: tarde ? d.minutosOciososTarde : d.minutosOciosos };
+  });
+  const pior = candidatos.filter(c => c.livres > 0).sort((a, b) => a.valor - b.valor || b.livres - a.livres)[0];
   if (pior && pior.valor < 50) {
-    const ocioSemana = Math.round(pior.minutosOciosos / 4);
+    const ocioSemana = Math.round(pior.livres / 4);
     const impacto = rpm ? Math.round(ocioSemana * rpm) : null;
     const nomeDia = pior.nome[0].toUpperCase() + pior.nome.slice(1);
     alertas.push({
       id: 'gargalo_ocupacao', nivel: 'alta',
       titulo: `${nomeDia}${pior.tarde ? ' à tarde' : ''}: ${num(pior.valor)}% ocupada`,
       porque: (pior.tarde ? `Média das últimas 4 semanas entre ${TARDE.de}h e ${TARDE.ate}h.` : 'Média das últimas 4 semanas, o dia inteiro.') +
-        ` São cerca de ${Math.round(ocioSemana / 60)} h livres por semana nesse dia` +
-        (impacto !== null ? ` — ${brl(impacto)} por semana ao preço médio do minuto vendido (${brl(rpm * 60)} por hora).` : '.'),
-      impactoCentavos: impacto, acao: { rotulo: 'Ver horários livres', destino: 'agenda', dow: pior.dow }
+        ` Foram cerca de ${num(Math.round(ocioSemana / 60 * 10) / 10)} h livres por semana nessa faixa` +
+        (impacto !== null ? ` — ${brl(impacto)} por semana pela receita média do período por minuto realizado (${brl(rpm * 60)} por hora).` : '.'),
+      impactoCentavos: impacto, acao: { rotulo: 'Ver horários livres', destino: 'agenda', dow: pior.dow, data: pior.proximaDataLivre }
     });
   }
 
@@ -204,19 +209,30 @@ function computeCockpit(input) {
   // 4. Profissional saturado: 90%+ nas últimas 4 semanas e pedidos na lista de espera para ele.
   const ativosProf = entrada.profissionais.filter(p => p.ativo !== false);
   const estornosDoMes = new Set(entrada.estornos.filter(e => dia(e.data).slice(0, 7) === mes).map(e => e.id));
-  const itensServicoDe = new Map(entrada.comandoItens.filter(i => i.tipo === 'servico').map(i => [i.id, i.profissional_id]));
+  const comandasMes = new Set(entrada.comandos.filter(c => dia(c.data).slice(0, 7) === mes).map(c => c.id));
+  const itensServicoDe = new Map();
+  const vendidoPorProf = new Map();
+  for (const i of entrada.comandoItens) {
+    if (i.tipo !== 'servico') continue;
+    itensServicoDe.set(i.id, i.profissional_id);
+    if (comandasMes.has(i.comando_id)) vendidoPorProf.set(i.profissional_id, (vendidoPorProf.get(i.profissional_id) || 0) + (Number(i.valor_liquido_centavos) || 0));
+  }
+  for (const e of entrada.estornoItens) {
+    const id = itensServicoDe.get(e.comando_item_id);
+    if (id && estornosDoMes.has(e.estorno_id)) vendidoPorProf.set(id, (vendidoPorProf.get(id) || 0) - (Number(e.valor_liquido_centavos) || 0));
+  }
+  const esperaPorProf = Map.groupBy(entrada.listaEspera.filter(e => ['aguardando', 'contatado'].includes(e.status)), e => e.profissional_id);
+  const metasPorProf = Map.groupBy(entrada.metas.filter(m => m.mes === mes && m.tipo === 'faturamento'), m => m.profissional_id);
   const equipe = ativosProf.map(p => {
-    const sur = occupancy.computeSur({ agendamentos: entrada.agendamentos, profissional: p, empresa: entrada.empresa, dataInicio: occ.janela.de, dataFim: occ.janela.ate });
-    const metaFat = entrada.metas.filter(m => m.mes === mes && m.tipo === 'faturamento' && m.profissional_id === p.id);
-    const comandasMes = new Set(entrada.comandos.filter(c => dia(c.data).slice(0, 7) === mes).map(c => c.id));
-    // Serviços do profissional no mês, menos os itens dele estornados NO mês (estorno conta no mês do estorno).
-    const vendido = entrada.comandoItens.filter(i => i.tipo === 'servico' && i.profissional_id === p.id && comandasMes.has(i.comando_id)).reduce((s, i) => s + (Number(i.valor_liquido_centavos) || 0), 0);
-    const estornado = entrada.estornoItens.filter(x => estornosDoMes.has(x.estorno_id) && itensServicoDe.get(x.comando_item_id) === p.id).reduce((s, x) => s + (Number(x.valor_liquido_centavos) || 0), 0);
-    const realizado = vendido - estornado;
-    const espera = entrada.listaEspera.filter(e => ['aguardando', 'contatado'].includes(e.status) && e.profissional_id === p.id).length;
+    const exec = somarOcupacao(porProf.get(p.id) || []);
+    const grade = occupancy.totaisGrade(gradeProf.get(p.id) || []);
+    const metaFat = metasPorProf.get(p.id) || [];
+    const realizado = vendidoPorProf.get(p.id) || 0;
+    const espera = esperaPorProf.get(p.id)?.length || 0;
     return {
       profissionalId: p.id, nome: p.nome,
-      ocupacaoPct: sur.minutoDisponivel ? sur.surPct : null,
+      ocupacaoRealizadaPct: exec.ocupacaoRealizadaPct, minutosRealizados: exec.minutosRealizados, minutosDisponiveis: exec.minutosDisponiveis,
+      ocupacaoPct: grade.preenchimentoGradePct,
       metaPct: metaFat.length ? pct(realizado, soma(metaFat, 'valor_alvo')) : null,
       naEspera: espera
     };
@@ -225,7 +241,7 @@ function computeCockpit(input) {
     alertas.push({
       id: 'profissional_saturado:' + e.profissionalId, nivel: 'media',
       titulo: `${e.nome}: ${e.ocupacaoPct}% ocupado e ${e.naEspera} na espera`,
-      porque: 'Agenda quase cheia nas últimas 4 semanas e clientes esperando por esse profissional. Abrir mais horário na escala converte a espera em atendimento.',
+      porque: 'Reservas e atendimentos preencheram pelo menos 90% da grade nas últimas quatro semanas. Há clientes na lista de espera desse profissional.',
       impactoCentavos: null, acao: { rotulo: 'Ajustar escala', destino: 'escalas', profissionalId: e.profissionalId }
     });
   });
@@ -242,13 +258,13 @@ function computeCockpit(input) {
 
   // 6. Faltas nos últimos 30 dias.
   const faltas = entrada.agendamentos.filter(a => a.status === 'no_show' && dia(a.data) >= de30 && dia(a.data) < hoje);
-  const minFalta = faltas.reduce((s, a) => s + (Number(a.duracao_min) || 30), 0);
+  const minFalta = minutosFalta30d;
   if (faltas.length >= 2) {
     const impacto = rpm ? Math.round(minFalta * rpm) : null;
     alertas.push({
       id: 'faltas', nivel: faltas.length >= 5 ? 'alta' : 'info',
       titulo: `${faltas.length} falta(s) nos últimos 30 dias`,
-      porque: `${Math.round(minFalta / 60 * 10) / 10} h de cadeira perdidas` + (impacto !== null ? `, cerca de ${brl(impacto)} ao preço médio do minuto vendido.` : '.') + ' A régua de faltas e os lembretes reduzem isso.',
+      porque: `${Math.round(minFalta / 60 * 10) / 10} h livres na grade coincidiram com faltas` + (impacto !== null ? `, cerca de ${brl(impacto)} pela receita média do período por minuto realizado.` : '.') + ' A régua de faltas e os lembretes reduzem isso.',
       impactoCentavos: impacto, acao: { rotulo: 'Regras da agenda', destino: 'regras' }
     });
   }
@@ -265,6 +281,7 @@ function computeCockpit(input) {
     faturamento: faturamentoPublico,
     margem: mar,
     ocupacao: occ,
+    ocupacaoMes,
     recorrencia: { ativos: rec.ativos, mrrCentavos: rec.mrrCentavos, atrasados: rec.atrasados, valorEmAbertoCentavos: rec.valorEmAbertoCentavos, canceladasNoMes: rec.canceladasNoMes, churnPct: rec.churnPct,
       pctDaReceita: fat.realizadoCentavos ? pct(rec.mrrCentavos, fat.realizadoCentavos) : null },
     alertas,

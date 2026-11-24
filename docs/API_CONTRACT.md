@@ -177,6 +177,7 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - `/caixa/fechamento`: `estornos{quantidadeMovimentos, valorCentavos, porForma}` e `saldoDoDiaCentavos`;
   - `/financeiro/resumo`: `estornos` e `totals.comandasValidas`;
   - `/insights/margin` e `/relatorios/cota-parte`: `estornos` (descontados na data do estorno).
+  - `/insights/margin`, `ticketMedioCentavos` (D-071): mesma regra do Desempenho do salão (valor líquido dos itens, sem gorjeta; vendas do período e os estornos delas). Sem comandas válidas retorna `null`. Com uma comanda válida de valor zero retorna `0`.
 
 ## D-014 — histórico da agenda e agendamento online
 - **`GET /api/agenda/:id/historico`** (`agenda:read`; profissional só vê os próprios)
@@ -255,15 +256,34 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
   - Sem bônus.
 
 ## Cockpit do gestor (D-064)
-`GET /api/cockpit` (`painel:financeiro`): `{ mes, hoje, saude: 'ok'|'ok_com_pontos'|'atencao', faturamento{realizadoCentavos, metaCentavos|null, metaPct|null, projecaoCentavos|null, projecaoNota, mesmoPeriodoAnteriorCentavos, variacaoPct|null, comandas}, margem{margemCentavos, margemPct|null, taxasCentavos, taxasPctDoRecebido|null, taxasPctAnterior|null}, ocupacao{janela, ocupacaoPct|null, minutosVendidos, minutosDisponiveis, minutosOciosos, porDia[{dow, nome, aberto, ocupacaoPct|null, tardePct|null, minutosOciosos}]}, recorrencia{ativos, mrrCentavos, atrasados, valorEmAbertoCentavos, canceladasNoMes, churnPct|null, pctDaReceita|null}, alertas[{id, nivel:'alta'|'media'|'info', titulo, porque, impactoCentavos|null, acao{rotulo, destino:'agenda'|'assinaturas'|'escalas'|'regras'|'financeiro', dow?, profissionalId?}, clientes?}], equipe[{profissionalId, nome, ocupacaoPct|null, metaPct|null, naEspera}], simulador{avulsosFrequentes, planoMaisBaratoMensalCentavos|null, minutosOciosos28d, minutosFalta30d, receitaPorMinutoCentavos|null} }`. Só leitura; nada é gravado.
+`GET /api/cockpit` (`painel:financeiro`): `{ mes, hoje, saude: 'ok'|'ok_com_pontos'|'atencao', faturamento{realizadoCentavos, metaCentavos|null, metaPct|null, projecaoCentavos|null, projecaoNota, mesmoPeriodoAnteriorCentavos, variacaoPct|null, comandas}, margem{margemCentavos, margemPct|null, taxasCentavos, taxasPctDoRecebido|null, taxasPctAnterior|null}, ocupacao{janela, ocupacaoPct|null, minutosVendidos, minutosDisponiveis, minutosOciosos, porDia[{dow, nome, aberto, ocupacaoPct|null, tardePct|null, minutosOciosos}]}, ocupacaoMes{de, ate, ...indicadores de ocupação realizada} (D-071, campos abaixo), recorrencia{ativos, mrrCentavos, atrasados, valorEmAbertoCentavos, canceladasNoMes, churnPct|null, pctDaReceita|null}, alertas[{id, nivel:'alta'|'media'|'info', titulo, porque, impactoCentavos|null, acao{rotulo, destino:'agenda'|'assinaturas'|'escalas'|'regras'|'financeiro', dow?, profissionalId?}, clientes?}], equipe[{profissionalId, nome, ocupacaoRealizadaPct|null, minutosRealizados, minutosDisponiveis, ocupacaoPct|null, metaPct|null, naEspera}], simulador{avulsosFrequentes, planoMaisBaratoMensalCentavos|null, minutosOciosos28d, minutosFalta30d, receitaPorMinutoCentavos|null} }`. Só leitura; nada é gravado.
+
+Com `GET /api/dashboard?visao=painel`, a gestão recebe apenas `paymentsByMethod` e `finance.repassesPorProfissional`. Os dois agregados incluem os ajustes de estornos e gorjetas do modelo financeiro. A chamada sem o parâmetro continua disponível para clientes anteriores. O formato operacional da recepção segue `{kpis:{realizadosPct}}` nos dois casos.
 
 ## Desempenho do salão (D-070)
 
 `GET /api/cockpit/desempenho?inicio=YYYY-MM-DD&fim=YYYY-MM-DD` exige `painel:financeiro`. As duas datas são inclusivas. Por padrão, o fim é hoje no fuso configurado do salão, e o início é o primeiro dia do mês do fim. Intervalos invertidos, futuros ou acima de 366 dias recebem 422.
 
-O objeto `data` contém `inicio`, `fim`, `faturamentoCentavos`, `comandas`, `ticketMedioCentavos`, `visitasIdentificadas`, `atendimentosSemCliente`, `produtosUnidades`, `minutosOcupados`, `minutosDisponiveis`, `clientesIdentificados`, `clientesFieis`, `parteSalaoServicosCentavos`, `parteSalaoServicosPorHoraCentavos` e `resultadoFinanceiro`. O ticket e a parte por hora retornam `null` quando o denominador é zero. A capacidade usa a escala disponível para consulta e os status do motor de ocupação. Não há fotografia imutável da escala histórica.
+O objeto `data` contém `inicio`, `fim`, `faturamentoCentavos`, `comandas`, `ticketMedioCentavos`, `visitasIdentificadas`, `atendimentosSemCliente`, `produtosUnidades`, `minutosOcupados`, `minutosDisponiveis`, os indicadores de ocupação realizada descritos abaixo, `estornosVendasAnterioresCentavos` (D-071: estornos de vendas de outros períodos, fora do ticket), `clientesIdentificados`, `clientesFieis`, `parteSalaoServicosCentavos`, `parteSalaoServicosPorHoraCentavos` e `resultadoFinanceiro`. O ticket e a parte por hora retornam `null` quando o denominador é zero. A capacidade usa a escala disponível para consulta e os status do motor de ocupação. Não há fotografia imutável da escala histórica.
 
-A composição contém `faturamentoCentavos`, `comissoesCentavos`, `taxasItensCentavos`, `custoProdutosVendidosCentavos`, `parteSalaoCentavos` e `diferencaConciliacaoCentavos`. As vendas excluem gorjetas. Estornos entram na sua própria data. Taxas sobre vendas e custos de produtos são os valores lançados nas vendas, conforme o fechamento original. Diferenças ficam explícitas.
+### Indicadores de ocupação (D-071)
+
+O Cockpit (`ocupacaoMes`) e o Desempenho retornam os mesmos indicadores para as mesmas datas. A capacidade soma a disponibilidade de cada profissional. Um profissional escalado sem atendimento participa do denominador. Um profissional hoje inativo com execução registrada entra nos dias com evidência de trabalho.
+
+| Campo | Significado e unidade |
+|---|---|
+| `ocupacaoRealizadaPct` | 100 × `minutosRealizados` / `minutosDisponiveis`. Inclui serviços simultâneos, fora da escala e com duração registrada sem hora de início. Pode superar 100%. |
+| `preenchimentoGradePct` | 100 × `minutosPreenchidos` / `minutosDisponiveis`. Usa a união dos intervalos executados dentro da escala do executor. |
+| `minutosSobrepostos` | Minutos de relógio em que o mesmo profissional teve duas ou mais execuções, dentro ou fora da escala. |
+| `minutosForaDaEscala` | Minutos de relógio executados antes ou após o expediente, em dia sem expediente ou durante pausas e bloqueios. O detalhamento usa `minutosAntesExpediente`, `minutosAposExpediente`, `minutosSemExpediente` e `minutosEmPausasBloqueios`. |
+| `minutosSemHorario`, `minutosDuracaoPrevista` | Serviços com duração cuja posição na grade é desconhecida e minutos atribuídos pela duração prevista da agenda. |
+| `servicosSemDuracao`, `pendenciasVinculo`, `coberturaParcial`, `capacidadeHistoricaEstimada` | Contagens de registros incompletos e indicadores de qualidade. A escala passada é reconstruída com os dados cadastrais consultáveis. |
+
+Os dois percentuais retornam `null` com capacidade zero. Com escala e nenhuma execução retornam zero. Os campos legados `minutosOcupados` e `ocupacaoPct` nesses dois objetos representam os minutos preenchidos e o percentual preenchido. O gráfico de quatro semanas e a equipe acrescentam `ocupacaoRealizadaPct` ao percentual legado da grade de compromissos. O intervalo de quatro semanas termina na véspera.
+
+Em `GET /api/insights/occupancy` (`painel:operacional`), `realizada` contém a parte do período até hoje; `rangePrevisto`, `minutosPrevistos`, `minutosDisponiveisPrevistos` e `ocupacaoPrevistaPct` descrevem a parte futura. No dia atual, a previsão usa o horário local da consulta. `loadFactorPct` continua disponível para a PWA anterior. A rota devolve agregados de agenda e produção sem valores financeiros, dados de cliente ou recibos.
+
+A composição contém `faturamentoCentavos`, `comissoesCentavos`, `taxasItensCentavos`, `custoProdutosVendidosCentavos`, `parteSalaoCentavos`, `diferencaConciliacaoCentavos`, `taxaGorjetaEstornadaCentavos` e `outraDiferencaCentavos` (D-071). O ticket usa a coorte: vendas do período e os estornos delas. As vendas excluem gorjetas. Estornos entram na sua própria data. Taxas sobre vendas e custos de produtos são os valores lançados nas vendas, conforme o fechamento original. Diferenças ficam explícitas.
 
 ## Painel (D-065)
-`GET /api/dashboard`: `{ kpis{servicosLiquidosCentavos, produtosLiquidosCentavos, itensLiquidosCentavos, receitaEmpresaCentavos, realizadosPct|null, ticketMedioCentavos, comandos}, paymentsByMethod, finance }`. **Removidos:** `scoreHope`, `top3Actions` e `kpis.ocupacaoPct` (renomeado para `realizadosPct`). `/insights/piloto`: `referencia.media` e `referencia.topo` sempre `null`.
+`GET /api/dashboard`: `{ kpis{servicosLiquidosCentavos, produtosLiquidosCentavos, itensLiquidosCentavos, receitaEmpresaCentavos, realizadosPct|null, ticketMedioCentavos, comandos}, paymentsByMethod, finance }`. **Removidos:** `scoreHope`, `top3Actions` e `kpis.ocupacaoPct` (renomeado para `realizadosPct`). **D-071:** sem `painel:financeiro` (recepção), a resposta é só `{ kpis{realizadosPct|null} }`; receita, comissões, pagamentos por forma e repasses ficam com quem tem `painel:financeiro`. `/insights/piloto`: `referencia.media` e `referencia.topo` sempre `null`.

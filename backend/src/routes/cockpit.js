@@ -12,6 +12,8 @@ const { addDays, daysBetween } = require('../engines/insights/retention');
 const { FIDELIDADE_JANELA_DIAS } = require('../engines/insights/piloto');
 const { computeDesempenhoSalao } = require('../engines/insights/desempenhoSalao');
 const { computeCockpit } = require('../engines/insights/cockpit');
+const { CAMPOS_AGENDA_PRODUCAO, CAMPOS_COMANDA_PRODUCAO, CAMPOS_ITEM_PRODUCAO } = require('../engines/insights/eventosProducao');
+const { carregarVinculosDeProducao } = require('../repositories/producaoPeriodo');
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
 
 const router = express.Router();
@@ -27,9 +29,9 @@ router.get('/cockpit', authorize('painel:financeiro'), async (req, res, next) =>
       repo.list('assinatura_cobrancas', f), repo.list('clientes', f), repo.list('lista_espera', f), repo.list('comando_itens', f),
       repo.list('comanda_estorno_itens', f)
     ]);
-    const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
+    const { data: hoje, minuto: minutoAtual } = agoraNoFuso(env.APP_TIMEZONE, clock.agora());
     res.json({ ok: true, data: computeCockpit({
-      hoje, comandos, estornos, metas, agendamentos, profissionais, empresa: empresa || {}, assinaturas, planos, cobrancas,
+      hoje, minutoAtual, comandos, estornos, metas, agendamentos, profissionais, empresa: empresa || {}, assinaturas, planos, cobrancas,
       clientes, listaEspera, comandoItens, estornoItens
     }) });
   } catch (err) { next(err); }
@@ -46,21 +48,23 @@ router.get('/cockpit/desempenho', authorize('painel:financeiro'), async (req, re
     const repo = new SupabaseRepository(req.auth.empresa_id);
     const filtro = { empresa_id: repo.empresaId };
     const corte = addDays(fim, 1 - FIDELIDADE_JANELA_DIAS);
-    const historico = { inicio: inicio < corte ? inicio : corte, fim, ordem: 'id' };
+    const vespera = addDays(inicio, -1);
+    const historico = { inicio: vespera < corte ? vespera : corte, fim, ordem: 'id' };
     const [comandos, agendamentos, estornos, profissionais, empresa] = await Promise.all([
-      repo.list('comandos', filtro, { ...historico, campos: 'id,data,status,cliente_id,itens_liquidos_centavos,receita_empresa_centavos,total_comissao_centavos,taxa_servico_centavos,total_custo_produtos_centavos' }),
-      repo.list('agendamentos', filtro, { ...historico, campos: 'id,data,status,cliente_id,profissional_id,duracao_min' }),
-      repo.list('comanda_estornos', filtro, { inicio, fim, ordem: 'id', campos: 'id,data,tipo,comando_id,itens_centavos,receita_empresa_centavos,comissao_centavos' }),
+      repo.list('comandos', filtro, { ...historico, campos: CAMPOS_COMANDA_PRODUCAO + ',itens_liquidos_centavos,receita_empresa_centavos,total_comissao_centavos,taxa_servico_centavos,total_custo_produtos_centavos' }),
+      repo.list('agendamentos', filtro, { ...historico, campos: CAMPOS_AGENDA_PRODUCAO }),
+      repo.list('comanda_estornos', filtro, { inicio, fim, ordem: 'id', campos: 'id,data,tipo,comando_id,itens_centavos,receita_empresa_centavos,comissao_centavos,gorjeta_bruta_centavos,gorjeta_liquida_centavos' }),
       repo.list('profissionais', filtro, { ordem: 'id' }), repo.empresaComDisponibilidade()
     ]);
+    const producao = await carregarVinculosDeProducao(repo, agendamentos, comandos, vespera, fim, historico);
     const devolvidas = estornos.map(e => e.comando_id);
     // A venda original pode anteceder a janela histórica. O tipo do item estornado
     // vem dessa venda; devolve_estoque não muda o número de unidades vendidas.
     const [comandoItens, estornoItens] = await Promise.all([
-      repo.listDasComandas('comando_itens', comandos.map(c => c.id).concat(devolvidas), 'id,comando_id,tipo,quantidade,receita_empresa_centavos'),
+      repo.listDasComandas('comando_itens', producao.comandos.map(c => c.id).concat(devolvidas), CAMPOS_ITEM_PRODUCAO + ',receita_empresa_centavos'),
       repo.listDasComandas('comanda_estorno_itens', devolvidas, 'estorno_id,comando_item_id,quantidade,receita_empresa_centavos')
     ]);
-    const data = computeDesempenhoSalao({ inicio, fim, comandos, agendamentos, estornos, profissionais, empresa: empresa || {}, comandoItens, estornoItens });
+    const data = computeDesempenhoSalao({ inicio, fim, producao: { ...producao, comandoItens }, comandos, agendamentos, estornos, profissionais, empresa: empresa || {}, comandoItens, estornoItens });
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });

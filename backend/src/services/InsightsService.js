@@ -1,10 +1,14 @@
 // F1.4 — OrquestraService que carrega dados e aplica engines puras
 
 const { SupabaseRepository } = require('../repositories/SupabaseRepository');
+const { ticketDoPeriodo, ocupacaoPorProfissionalDia, somarOcupacao } = require('../engines/insights/metricasPeriodo');
+const { CAMPOS_AGENDA_PRODUCAO, CAMPOS_COMANDA_PRODUCAO, CAMPOS_ITEM_PRODUCAO } = require('../engines/insights/eventosProducao');
+const { carregarVinculosDeProducao, agendamentosLongosAnteriores } = require('../repositories/producaoPeriodo');
+const { addDays } = require('../engines/insights/retention');
 const occupancy = require('../engines/insights/occupancy');
 const cashflow = require('../engines/insights/cashflow');
 const margin = require('../engines/insights/margin');
-const { itensNegativos, gorjetasNegativas, pagamentosNegativos, comandasEstornadasTotal } = require('../engines/EstornoEngine');
+const { itensNegativos, gorjetasNegativas, pagamentosNegativos } = require('../engines/EstornoEngine');
 
 class InsightsService {
   constructor(empresaId) {
@@ -12,51 +16,56 @@ class InsightsService {
     this.repo = new SupabaseRepository(empresaId);
   }
 
-  // GET /insights/occupancy?from=YYYY-MM-DD&to=YYYY-MM-DD. `hoje` (fuso da
-  // empresa) só limita os buracos a dias que ainda podem ser vendidos.
-  async loadOccupancyInsights(dataFrom, dataTo, hoje = dataFrom) {
-    const [agendamentos, profissionais, comDisp] = await Promise.all([
-      this.repo.list('agendamentos', { empresa_id: this.repo.empresaId }),
-      this.repo.list('profissionais', { empresa_id: this.repo.empresaId }),
+  // O perfil operacional lê somente dados de execução e grade. A previsão
+  // considera os minutos restantes no fuso do salão a partir do instante atual.
+  async loadOccupancyInsights(dataFrom, dataTo, hoje = dataFrom, minutoAtual = 0) {
+    const filtro = { empresa_id: this.repo.empresaId };
+    const inicio = addDays(dataFrom, -1);
+    const fimRealizado = hoje < dataTo ? hoje : dataTo;
+    const [agenda, vendas, profissionais, config] = await Promise.all([
+      this.repo.list('agendamentos', filtro, { inicio, fim: addDays(dataTo, 1), ordem: 'id', campos: CAMPOS_AGENDA_PRODUCAO }),
+      dataFrom <= fimRealizado ? this.repo.list('comandos', filtro, { inicio, fim: fimRealizado, ordem: 'id', campos: CAMPOS_COMANDA_PRODUCAO }) : [],
+      this.repo.list('profissionais', filtro, { ordem: 'id', campos: 'id,nome,ativo,horario,escala_publicada_em' }),
       this.repo.empresaComDisponibilidade()
     ]);
-
-    const empresa = comDisp || {};
-    const slotPadrao = Number(empresa.slot_padrao) > 0 ? Number(empresa.slot_padrao) : 30;
-    const ativos = profissionais.filter(p => p.ativo !== false);
-    const noPeriodo = a => { const d = String(a.data || '').slice(0, 10); return d >= dataFrom && d <= dataTo; };
-
-    const { loadFactorPct, minutosVendidos, minutosDisponiveis } = occupancy.computeLoadFactor(agendamentos, ativos, dataFrom, dataTo, empresa);
-    const heatmap = occupancy.computeHeatmap(agendamentos, ativos, dataFrom, dataTo, empresa);
-
-    const porProfissional = ativos.map(prof => {
-      const sur = occupancy.computeSur({ agendamentos, profissional: prof, empresa, dataInicio: dataFrom, dataFim: dataTo });
+    const empresa = config || {};
+    let agendamentos = agenda;
+    let realizadas = [];
+    if (dataFrom <= fimRealizado) {
+      const fontes = await carregarVinculosDeProducao(this.repo, agenda, vendas, inicio, fimRealizado, { inicio, fim: fimRealizado }, empresa.buffer_min || 0);
+      const comandoItens = await this.repo.listDasComandas('comando_itens', fontes.comandos.map(c => c.id), CAMPOS_ITEM_PRODUCAO);
+      agendamentos = fontes.agendamentos;
+      realizadas = ocupacaoPorProfissionalDia({ ...fontes, comandoItens, profissionais, empresa }, dataFrom, fimRealizado);
+    } else {
+      const anteriores = await agendamentosLongosAnteriores(this.repo, inicio, empresa.buffer_min || 0);
+      agendamentos = agenda.concat(anteriores);
+    }
+    const entrada = { agendamentos, profissionais, empresa };
+    const grade = occupancy.analisarGrade(entrada, dataFrom, dataTo, { realizadas, hoje, minutoAtual });
+    const carga = occupancy.totaisGrade(grade);
+    const porProf = Map.groupBy(grade, l => l.profissionalId);
+    const porProfissional = [...porProf.entries()].map(([id, linhas]) => {
+      const t = occupancy.totaisGrade(linhas);
       return {
-        profissionalId: prof.id,
-        profissionalNome: prof.nome,
-        surPct: sur.surPct,
-        minutosVendidos: sur.minutoVendido,
-        minutosDisponiveis: sur.minutoDisponivel,
-        // Só faltas do período (antes: todas as faltas da história).
-        noShowMin: agendamentos
-          .filter(a => a.profissional_id === prof.id && a.status === 'no_show' && noPeriodo(a))
-          .reduce((sum, a) => sum + (Number(a.duracao_min) || 30), 0)
+        profissionalId: id, profissionalNome: linhas[0].profissionalNome,
+        preenchimentoGradePct: t.preenchimentoGradePct, minutosGradeOcupada: t.minutosGradeOcupada,
+        surPct: t.preenchimentoGradePct, minutosVendidos: t.minutosGradeOcupada, minutosDisponiveis: t.minutosDisponiveis,
+        noShowMin: linhas.reduce((total, l) => total + l.noShowMin, 0)
       };
     });
-
-    // Buracos de hoje em diante dentro do período (antes: só o 1º dia, mesmo passado).
-    const inicioBuracos = hoje > dataFrom ? hoje : dataFrom;
-    const buracos = occupancy.datasDoPeriodo(inicioBuracos, dataTo)
-      .flatMap(data => occupancy.computeGaps(agendamentos, ativos, data, slotPadrao, empresa));
-
+    const inicioPrevisto = hoje > dataFrom ? hoje : dataFrom;
     return {
       range: { from: dataFrom, to: dataTo },
-      loadFactorPct,
-      minutosVendidos,
-      minutosDisponiveis,
-      heatmap,
-      porProfissional,
-      buracos,
+      realizada: dataFrom <= fimRealizado ? { de: dataFrom, ate: fimRealizado, ...somarOcupacao(realizadas) } : null,
+      rangePrevisto: inicioPrevisto <= dataTo ? {
+        from: inicioPrevisto, to: dataTo, horarioInicio: inicioPrevisto === hoje ? occupancy.minToHHMM(minutoAtual) : '00:00'
+      } : null,
+      ...occupancy.previsaoDaGrade(grade, hoje, minutoAtual),
+      preenchimentoGradePct: carga.preenchimentoGradePct, minutosGradeOcupada: carga.minutosGradeOcupada,
+      loadFactorPct: carga.preenchimentoGradePct, minutosVendidos: carga.minutosGradeOcupada,
+      minutosDisponiveis: carga.minutosDisponiveis, porProfissional,
+      heatmap: occupancy.heatmapDaGrade(grade),
+      buracos: occupancy.janelasDaGrade(grade.filter(l => l.data >= hoje)),
       faixas: [
         { max: 25, cor: '#9490a3' },
         { max: 50, cor: '#f59e0b' },
@@ -97,16 +106,11 @@ class InsightsService {
     });
 
     const itensLiquidos = itemFiltered.concat(negItens);
-    // Ticket: reembolsos do período saem do numerador; comanda 100% estornada sai da base.
-    // Só estornos totais lançados ATÉ o fim do período: um estorno posterior não
-    // pode tirar a comanda da base de um período já fechado (o numerador ainda a
-    // conta inteira porque o reembolso dela cai fora do período).
-    const totalmente = comandasEstornadasTotal(estornos.filter(e => e.data <= dataTo));
-    const cmdValidas = cmdFiltered.filter(c => !totalmente.has(c.id));
+    // Ticket (D-071): a mesma regra do Desempenho do salão (metricasPeriodo.ticketDoPeriodo). Valor
+    // líquido dos itens, sem gorjeta; só as vendas do período e os estornos delas. Antes usava o total
+    // recebido (com gorjeta) e todos os reembolsos do período, inclusive de vendas de meses anteriores.
     const reembolsos = negPagamentos.reduce((s, p) => s + p.valor_centavos, 0);
-    const ticketMedioCentavos = cmdValidas.length
-      ? Math.round((cmdFiltered.reduce((s, c) => s + (c.total_recebido_centavos || 0), 0) + reembolsos) / cmdValidas.length)
-      : 0;
+    const ticketMedioCentavos = ticketDoPeriodo({ comandos, estornos }, dataFrom, dataTo).ticketMedioCentavos;
 
     return {
       porServico: margin.aggregateMarginByServico(itensLiquidos, cmdFiltered),

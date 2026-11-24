@@ -1,14 +1,17 @@
 const { buildFinanceReadModel } = require('./FinanceReadModel');
 
-function buildDashboard(snapshot) {
-  const finance = buildFinanceReadModel(snapshot);
-  const agendamentos = snapshot.agendamentos || [];
+function indicadoresOperacionais(agendamentos) {
   // Atendimentos realizados sobre os agendados (antes chamado de "ocupação", que é outra coisa: a
   // ocupação real, por minuto de cadeira, está no cockpit e em /insights/occupancy). Reagendado foi
   // substituído por outro agendamento que já está na lista: contá-lo duplicaria o atendimento.
   const concluidos = agendamentos.filter(a => ['concluido', 'fechado'].includes(a.status)).length;
   const totalAgenda = agendamentos.filter(a => a.status !== 'reagendado').length;
-  const realizadosPct = totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : null;
+  return { realizadosPct: totalAgenda ? Math.round((concluidos / totalAgenda) * 100) : null };
+}
+
+function buildDashboard(snapshot) {
+  const finance = buildFinanceReadModel(snapshot);
+  const operacionais = indicadoresOperacionais(snapshot.agendamentos || []);
   // Ticket médio: valores já descontam estornos; comanda 100% estornada sai da base (D-013).
   const baseTicket = finance.totals.comandasValidas ?? finance.totals.comandos;
   const ticketMedioCentavos = baseTicket ? Math.round((finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos) / baseTicket) : 0;
@@ -21,7 +24,7 @@ function buildDashboard(snapshot) {
       produtosLiquidosCentavos: finance.totals.produtosLiquidosCentavos || 0,
       itensLiquidosCentavos: finance.totals.itensLiquidosCentavos || finance.totals.servicosLiquidosCentavos,
       receitaEmpresaCentavos: finance.totals.receitaEmpresaCentavos,
-      realizadosPct,
+      ...operacionais,
       ticketMedioCentavos,
       comandos: finance.totals.comandos
     },
@@ -30,4 +33,24 @@ function buildDashboard(snapshot) {
   };
 }
 
-module.exports = { buildDashboard };
+// A dobra da PWA precisa apenas dos agregados de pagamentos e repasses.
+// O mesmo read model aplica estornos e gorjetas nos dois formatos da resposta.
+async function pagamentosERepassesDoPainel(repo) {
+  const ler = (tabela, campos) => repo.list(tabela, { empresa_id: repo.empresaId }, { campos, ordem: 'id' });
+  const [comandoItens, comandoPagamentos, comandoGorjetas, comandaEstornos, comandaEstornoItens, comandaEstornoPagamentos, comandaEstornoGorjetas] = await Promise.all([
+    ler('comando_itens', 'id,tipo,profissional_id,comissao_centavos,valor_liquido_centavos,total_venda_centavos'),
+    ler('comando_pagamentos', 'forma_code,valor_centavos,taxa_total_centavos,taxa_servico_centavos,taxa_gorjeta_centavos'),
+    ler('comando_gorjetas', 'profissional_id,valor_liquido_centavos'),
+    ler('comanda_estornos', 'id'),
+    ler('comanda_estorno_itens', 'estorno_id,comando_item_id,valor_liquido_centavos,comissao_centavos'),
+    ler('comanda_estorno_pagamentos', 'forma_code,valor_centavos'),
+    ler('comanda_estorno_gorjetas', 'estorno_id,profissional_id,valor_liquido_centavos')
+  ]);
+  const { porForma, repassesPorProfissional } = buildFinanceReadModel({
+    comandoItens, comandoPagamentos, comandoGorjetas, comandaEstornos,
+    comandaEstornoItens, comandaEstornoPagamentos, comandaEstornoGorjetas
+  });
+  return { paymentsByMethod: porForma, finance: { repassesPorProfissional } };
+}
+
+module.exports = { buildDashboard, indicadoresOperacionais, pagamentosERepassesDoPainel };

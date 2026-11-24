@@ -13,6 +13,7 @@ const { env } = require('../src/config/env');
 const { setAuthProvider } = require('../src/auth/provider');
 const { setIdentityStore, createMemoryIdentityStore } = require('../src/auth/identityStore');
 const { installMemoryBackend } = require('../src/dev/memoryBackend');
+const { SupabaseRepository } = require('../src/repositories/SupabaseRepository');
 const { ACTIONS, authorizeAuth } = require('../src/auth/rbac');
 const { PERMISSOES, permissoesEfetivas } = require('../src/auth/permissoes');
 const { gerarMatriz } = require('../scripts/gerar-matriz-permissoes');
@@ -323,6 +324,35 @@ test('G19 cadastro rápido: quem não edita clientes grava só nome e WhatsApp; 
   const rec = await request('POST', '/api/clientes', { token: 'h.recep.s', body: { nome: 'Inativo', ativo: false, faltas: 1 } });
   const vr = (await request('GET', '/api/clientes', { token: 'h.recep.s' })).data.data.find(c => c.id === rec.data.data.id);
   assert.deepStrictEqual([vr.ativo, vr.faltas], [false, 1], 'controle negativo: recepção grava o cadastro completo');
+});
+
+test('G19b Painel (D-071): a recepção recebe só o indicador operacional; dados financeiros ficam com quem tem painel:financeiro', async () => {
+  const repo = SupabaseRepository.prototype;
+  const list = repo.list;
+  const leituras = [];
+  let recep;
+  try {
+    repo.list = function(tabela, filtros, opcoes) {
+      leituras.push([tabela, filtros.empresa_id, opcoes?.campos]);
+      return list.call(this, tabela, filtros, opcoes);
+    };
+    recep = await request('GET', '/api/dashboard', { token: 'h.recep.s' });
+  } finally { repo.list = list; }
+  assert.deepStrictEqual(leituras, [['agendamentos', E, 'status']]);
+  assert.strictEqual(recep.status, 200);
+  assert.deepStrictEqual(Object.keys(recep.data.data), ['kpis']);
+  assert.deepStrictEqual(Object.keys(recep.data.data.kpis), ['realizadosPct']);
+  for (const campo of ['finance', 'paymentsByMethod']) assert.ok(!(campo in recep.data.data), campo);
+  // Controle: o admin continua recebendo a visão financeira completa.
+  const adm = await request('GET', '/api/dashboard');
+  assert.ok(adm.data.data.finance && Array.isArray(adm.data.data.paymentsByMethod) && 'receitaEmpresaCentavos' in adm.data.data.kpis);
+  const projecao = await request('GET', '/api/dashboard?visao=painel');
+  assert.deepStrictEqual(projecao.data.data, {
+    paymentsByMethod: adm.data.data.paymentsByMethod,
+    finance: { repassesPorProfissional: adm.data.data.finance.repassesPorProfissional }
+  });
+  const operacional = await request('GET', '/api/dashboard?visao=painel', { token: 'h.recep.s' });
+  assert.deepStrictEqual(operacional.data.data, recep.data.data);
 });
 
 test('G20 corrida com troca de papel: concessão decidida com o papel antigo é recusada', async () => {

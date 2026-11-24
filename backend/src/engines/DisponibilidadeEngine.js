@@ -79,9 +79,10 @@ const texto = periodos => periodos.map(p => `${minutesToTime(p.start)}–${minut
  * @param {Array} p.semanal linhas de disponibilidade_semanal da empresa
  * @param {Array} p.excecoes linhas de disponibilidade_excecoes da empresa
  * @param {{id:string, escala_publicada_em?:string}} p.profissional
+ * @param {boolean} [p.incluirJornada] retorna também os períodos antes dos bloqueios parciais
  * @returns {{periodos:Array<{start:number,end:number}>, codigo:string, origem:string}}
  */
-function disponibilidadeDoDia({ data, semanal = [], excecoes = [], profissional }) {
+function disponibilidadeDoDia({ data, semanal = [], excecoes = [], profissional, incluirJornada = false }) {
   const daUnidade = x => !x.profissional_id;
   const doProf = x => profissional && x.profissional_id === profissional.id;
   const nada = (codigo, origem) => ({ periodos: [], codigo, origem });
@@ -107,10 +108,14 @@ function disponibilidadeDoDia({ data, semanal = [], excecoes = [], profissional 
     ...excU.filter(e => e.tipo === 'fechamento').map(periodo),
     ...excP.filter(e => e.tipo === 'bloqueio').map(periodo)
   ];
-  const periodos = subtrair(intersecao(unidade, prof), retirar);
+  const jornada = intersecao(unidade, prof);
+  const periodos = subtrair(jornada, retirar);
   const bloqueado = retirar.length ? '; com bloqueios' : '';
-  if (!periodos.length) return nada('SEM_HORARIO', `${origemU}; ${origemP}${bloqueado}; sem horário em comum`);
-  return { periodos, codigo: 'OK', origem: `${origemU}; ${origemP}${bloqueado}` };
+  const resultado = periodos.length
+    ? { periodos, codigo: 'OK', origem: `${origemU}; ${origemP}${bloqueado}` }
+    : nada('SEM_HORARIO', `${origemU}; ${origemP}${bloqueado}; sem horário em comum`);
+  if (incluirJornada) resultado.jornada = jornada;
+  return resultado;
 }
 
 // O atendimento [inicio, inicio + duracao) cabe inteiro num período disponível?

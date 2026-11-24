@@ -271,8 +271,9 @@ test('J14b dashboard sem número inventado (D-065): sem score, sem ações de en
 test('J15 ticket médio de um período não muda por estorno total lançado DEPOIS do período', async () => {
   const E3 = 'e0000000-0000-4000-8000-0000000000f3';
   db.comandos.push(
-    { id: 'tk1', empresa_id: E3, data: '2026-10-10', status: 'fechado', total_recebido_centavos: 10000 },
-    { id: 'tk2', empresa_id: E3, data: '2026-10-11', status: 'fechado', total_recebido_centavos: 6000 }
+    // D-071: o ticket usa o valor líquido dos itens (sem gorjeta), como no Desempenho do salão.
+    { id: 'tk1', empresa_id: E3, data: '2026-10-10', status: 'fechado', itens_liquidos_centavos: 10000, total_recebido_centavos: 10000 },
+    { id: 'tk2', empresa_id: E3, data: '2026-10-11', status: 'fechado', itens_liquidos_centavos: 6000, total_recebido_centavos: 6000 }
   );
   db.comanda_estornos.push({ id: 'es1', empresa_id: E3, comando_id: 'tk1', tipo: 'total', data: '2026-11-05', reembolso_centavos: 10000 });
   db.comanda_estorno_pagamentos.push({ id: 'ep1', empresa_id: E3, estorno_id: 'es1', comando_id: 'tk1', forma_code: 'pix', valor_centavos: 10000 });
