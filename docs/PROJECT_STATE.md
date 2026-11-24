@@ -22,6 +22,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 
 ## 2. Estado confirmado
 
+- **D-071 · Painel com uma definição por métrica (PR rascunho):** fonte única em `metricasPeriodo.js`; cards de histórico inteiro removidos; ticket da coorte; banco em memória respeita as colunas pedidas. Sem migration.
 - **D-070 · Desempenho do salão:** implementação no Painel e em `GET /api/cockpit/desempenho`. Base de integração `184b3fa` (PR #61). Validação de implantação em produção pendente.
 
 | Área | Estado | Evidência |

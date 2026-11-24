@@ -16,6 +16,11 @@ async function painel(browser, email) {
   await page.fill('#loginSenha', 'dev12345');
   await page.click('#btnLogin');
   await page.click('#navDashboard');
+  await page.waitForTimeout(600);
+  // D-071: o acesso fica fora da dobra "Análises", que continua fechada.
+  page.atalhoForaDaDobra = await page.evaluate(() => !document.getElementById('dobraIndicadores').open
+    && !document.getElementById('dobraIndicadores').contains(document.getElementById('btnAbrirDesempenho'))
+    && !document.getElementById('btnAbrirDesempenho').classList.contains('hidden'));
   await page.locator('#dobraIndicadores > summary').focus();
   await page.keyboard.press('Enter');
   assert.equal(consultas.length, 0, 'abrir o Painel e o índice não consulta desempenho');
@@ -44,6 +49,7 @@ async function preparar() {
   const browser = await chromium.launch();
   try {
     const { page, consultas } = await painel(browser, 'admin@dev.local');
+    assert.equal(page.atalhoForaDaDobra, true, 'Desempenho do salão visível sem abrir Análises');
     const abrir = page.getByRole('button', { name: 'Desempenho do salão', exact: true });
     await abrir.focus();
     // Queda de rede antes da leitura, seguida de uma nova consulta autorizada.

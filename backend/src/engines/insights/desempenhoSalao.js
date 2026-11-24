@@ -1,9 +1,8 @@
 // Desempenho do salão, D-070. As vendas permanecem na data da comanda e as
 // reversões na data do estorno. Devolver dinheiro não desfaz uma visita.
 const { sumCents } = require('../money');
-const { itensNegativos, comandasEstornadasTotal } = require('../EstornoEngine');
-const { financeiroDoIntervalo } = require('./cockpit');
-const { computeLoadFactor } = require('./occupancy');
+const { itensNegativos } = require('../EstornoEngine');
+const { financeiroDoIntervalo, ticketDoPeriodo, ocupacaoDoPeriodo } = require('./metricasPeriodo');
 const { atendimentosDe, ATENDIDO, FIDELIDADE_JANELA_DIAS, FIDELIDADE_VISITAS } = require('./piloto');
 const { addDays, isClosedCommand } = require('./retention');
 
@@ -13,8 +12,8 @@ function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos,
   const vendas = fechadas.filter(noPeriodo);
   const devolucoes = estornos.filter(noPeriodo);
   const idsVendas = new Set(vendas.map(c => c.id));
-  const totaisEstornadas = comandasEstornadasTotal(devolucoes);
-  const comandas = vendas.filter(c => !totaisEstornadas.has(c.id)).length;
+  // Ticket da coorte (D-071): estorno de venda de outro período não muda o ticket deste.
+  const ticket = ticketDoPeriodo({ comandos: vendas, estornos: devolucoes }, inicio, fim);
   const { receita: faturamentoCentavos, receitaEmpresa: parteSalaoCentavos } = financeiroDoIntervalo({ comandos: vendas, estornos: devolucoes }, inicio, fim);
 
   const itens = comandoItens.filter(i => idsVendas.has(i.comando_id))
@@ -27,6 +26,12 @@ function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos,
   // não há crédito do custo nem da taxa original (o movimento de estoque é separado).
   const custoProdutosVendidosCentavos = sumCents(vendas, 'total_custo_produtos_centavos');
   const diferencaConciliacaoCentavos = faturamentoCentavos - parteSalaoCentavos - comissoesCentavos - taxasItensCentavos - custoProdutosVendidosCentavos;
+  // De onde vem a diferença (D-071). Pela 009, o estorno tira da parte do salão "valor − comissão +
+  // taxa da gorjeta devolvida": a taxa e o custo da venda original ficam como perda do salão, e a taxa
+  // da gorjeta é a única parcela que não tem linha própria nesta composição.
+  const taxaGorjetaEstornadaCentavos = devolucoes.reduce((s, e) =>
+    s + (Number(e.receita_empresa_centavos) || 0) - ((Number(e.itens_centavos) || 0) - (Number(e.comissao_centavos) || 0)), 0);
+  const outraDiferencaCentavos = diferencaConciliacaoCentavos - taxaGorjetaEstornadaCentavos;
 
   const comServico = new Set(comandoItens.filter(i => i.tipo === 'servico').map(i => i.comando_id));
   const comandasServico = fechadas.filter(c => comServico.has(c.id));
@@ -43,14 +48,16 @@ function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos,
   const agendaPeriodo = agendamentos.filter(noPeriodo);
   const atendimentosSemCliente = agendaPeriodo.some(a => !a.cliente_id && ATENDIDO.includes(a.status))
     || comandasServico.some(c => !c.cliente_id && noPeriodo(c));
-  const { minutosVendidos: minutosOcupados, minutosDisponiveis } = computeLoadFactor(agendaPeriodo, profissionais, inicio, fim, empresa);
+  const { minutosOcupados, minutosDisponiveis, ocupacaoPct } = ocupacaoDoPeriodo({ agendamentos: agendaPeriodo, profissionais, empresa }, inicio, fim);
   return {
-    inicio, fim, faturamentoCentavos, comandas, ticketMedioCentavos: comandas ? Math.round(faturamentoCentavos / comandas) : null,
-    visitasIdentificadas: visitasPeriodo.length, atendimentosSemCliente, produtosUnidades, minutosOcupados, minutosDisponiveis,
+    inicio, fim, faturamentoCentavos, comandas: ticket.comandas, ticketMedioCentavos: ticket.ticketMedioCentavos,
+    estornosVendasAnterioresCentavos: ticket.estornosVendasAnterioresCentavos,
+    visitasIdentificadas: visitasPeriodo.length, atendimentosSemCliente, produtosUnidades, minutosOcupados, minutosDisponiveis, ocupacaoPct,
     clientesIdentificados: clientes.size, clientesFieis: [...diasPorCliente.values()].filter(n => n >= FIDELIDADE_VISITAS).length,
     parteSalaoServicosCentavos,
     parteSalaoServicosPorHoraCentavos: minutosDisponiveis ? Math.round(parteSalaoServicosCentavos * 60 / minutosDisponiveis) : null,
-    resultadoFinanceiro: { faturamentoCentavos, parteSalaoCentavos, comissoesCentavos, taxasItensCentavos, custoProdutosVendidosCentavos, diferencaConciliacaoCentavos }
+    resultadoFinanceiro: { faturamentoCentavos, parteSalaoCentavos, comissoesCentavos, taxasItensCentavos, custoProdutosVendidosCentavos, diferencaConciliacaoCentavos,
+      taxaGorjetaEstornadaCentavos, outraDiferencaCentavos }
   };
 }
 

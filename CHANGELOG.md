@@ -1,5 +1,11 @@
 # Changelog
 
+## Painel: um número por indicador (D-071)
+- Ocupação, faturamento e ticket mostram o mesmo valor no Cockpit e no Desempenho do salão, com o período escrito ao lado.
+- Saíram os cards que somavam todo o histórico com o rótulo "no período".
+- O ticket médio não cai mais por causa de estorno de venda de outro mês; esse estorno aparece à parte.
+- "Desempenho do salão" fica visível sem abrir "Análises".
+
 ## Análise de desempenho do salão (D-070)
 - O gestor abre **Painel → Análises → Desempenho do salão** para consultar o faturamento, as visitas identificadas, os produtos vendidos, o ticket por comanda, a ocupação e a fidelização no mesmo período.
 - O destaque mostra quanto fica para o salão em serviços por hora-profissional disponível. A composição financeira detalha o valor das vendas.

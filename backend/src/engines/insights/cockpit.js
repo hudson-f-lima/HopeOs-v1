@@ -6,6 +6,7 @@
 //   - alerta só aparece quando a regra dispara (nada de "operação estável" para completar a lista);
 //   - "impacto" é sempre uma estimativa rotulada, com a conta explicada em `porque`.
 const occupancy = require('./occupancy');
+const { financeiroDoIntervalo, ocupacaoDoPeriodo } = require('./metricasPeriodo');
 const { situacao } = require('../AssinaturaCicloEngine');
 
 const MESES_POR_PERIODO = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
@@ -23,18 +24,7 @@ const soma = (lista, campo) => lista.reduce((s, x) => s + (Number(x[campo]) || 0
 const num = v => String(v).replace('.', ',');
 const brl = c => 'R$ ' + (Math.round(c) / 100).toFixed(2).replace('.', ',');
 
-// Receita e margem de um intervalo [de, ate]: comandas pela data delas, estornos pela data do estorno.
-function financeiroDoIntervalo({ comandos, estornos }, de, ate) {
-  const dentro = x => dia(x.data) >= de && dia(x.data) <= ate;
-  const cs = comandos.filter(dentro);
-  const es = estornos.filter(dentro);
-  const receita = soma(cs, 'itens_liquidos_centavos') - soma(es, 'itens_centavos');
-  const receitaEmpresa = soma(cs, 'receita_empresa_centavos') - soma(es, 'receita_empresa_centavos');
-  const recebido = soma(cs, 'total_recebido_centavos') - soma(es, 'reembolso_centavos');
-  const taxas = soma(cs, 'taxa_total_centavos');
-  return { receita, receitaEmpresa, recebido, taxas, comandas: cs.length };
-}
-
+// Receita e margem de um intervalo: fonte única em metricasPeriodo (D-071).
 function faturamento({ comandos, estornos, metas }, mes, hoje) {
   const inicio = `${mes}-01`;
   const decorridos = Number(hoje.slice(8, 10));
@@ -147,6 +137,8 @@ function computeCockpit(input) {
   const fat = faturamento(entrada, mes, hoje);
   const mar = margem(fat);
   const occ = ocupacao(entrada, hoje);
+  // Card "Ocupação da agenda": mesmo período e mesma regra do Desempenho do salão (D-071).
+  const ocupacaoMes = { de: `${mes}-01`, ate: hoje, ...ocupacaoDoPeriodo(entrada, `${mes}-01`, hoje) };
   const rec = recorrencia(entrada, mes, hoje);
   const rpm = receitaPorMinuto(entrada, occ);
   const nomeCli = new Map(entrada.clientes.map(c => [c.id, c.nome]));
@@ -265,6 +257,7 @@ function computeCockpit(input) {
     faturamento: faturamentoPublico,
     margem: mar,
     ocupacao: occ,
+    ocupacaoMes,
     recorrencia: { ativos: rec.ativos, mrrCentavos: rec.mrrCentavos, atrasados: rec.atrasados, valorEmAbertoCentavos: rec.valorEmAbertoCentavos, canceladasNoMes: rec.canceladasNoMes, churnPct: rec.churnPct,
       pctDaReceita: fat.realizadoCentavos ? pct(rec.mrrCentavos, fat.realizadoCentavos) : null },
     alertas,

@@ -51,10 +51,8 @@ function widthPct(value) {
 }
 
 function renderLegacyDashboard(dash) {
-  setText('dbReceita', centsToBRL(dash.kpis.receitaEmpresaCentavos));
-  setText('dbComandos', dash.kpis.comandos ?? 0);
-  setText('dbComissoes', centsToBRL(dash.finance.totals.totalComissaoCentavos));
-  setText('dbTicketMedio', centsToBRL(dash.kpis.ticketMedioCentavos));
+  // D-071: saíram os cards "Receita empresa", "Comandas", "Comissões" e "Ticket médio". Somavam todo o
+  // histórico com o rótulo "no período" e repetiam, com outra regra, o que o Cockpit e o Desempenho mostram.
   setText('dashUpdatedAt', new Date().toLocaleTimeString('pt-BR'));
 
   const porForma = dash.paymentsByMethod || [];

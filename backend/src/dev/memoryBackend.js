@@ -21,9 +21,16 @@ function installMemoryBackend(seed = {}) {
   const match = (row, filters) => Object.entries(filters).every(([k, v]) => v === undefined || v === null || v === '' || String(row[k]) === String(v));
   const P = SupabaseRepository.prototype;
 
-  P.list = async function (t, f = {}, { inicio, fim, comandoIds } = {}) {
+  // `campos` como no PostgREST (D-071): só as colunas pedidas voltam. Sem isto, um motor que lê uma
+  // coluna esquecida no select passa nos testes com o banco em memória e erra em produção.
+  const projetar = campos => {
+    if (!campos || campos === '*') return r => r;
+    const lista = String(campos).split(',').map(c => c.trim()).filter(Boolean);
+    return r => Object.fromEntries(lista.filter(c => Object.prototype.hasOwnProperty.call(r, c)).map(c => [c, r[c]]));
+  };
+  P.list = async function (t, f = {}, { campos, inicio, fim, comandoIds } = {}) {
     return rows(t).filter(r => match(r, f) && (!inicio || r.data >= inicio) && (!fim || r.data <= fim)
-      && (!comandoIds || comandoIds.includes(r.comando_id)));
+      && (!comandoIds || comandoIds.includes(r.comando_id))).map(projetar(campos));
   };
   P.contarDesde = async function (t, f = {}, coluna, desde) {
     const limite = new Date(desde).getTime();
@@ -33,9 +40,9 @@ function installMemoryBackend(seed = {}) {
     const set = new Set(ids || []);
     return rows('comando_pagamentos').filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
   };
-  P.listDasComandas = async function (t, ids) {
+  P.listDasComandas = async function (t, ids, campos) {
     const set = new Set(ids || []);
-    return rows(t).filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id));
+    return rows(t).filter(r => r.empresa_id === this.empresaId && set.has(r.comando_id)).map(projetar(campos));
   };
   P.getByIdScoped =async function (t, id) { return rows(t).find(r => r.id === id && r.empresa_id === this.empresaId) || null; };
   function insert(t, p) {

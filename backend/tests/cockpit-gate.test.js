@@ -286,19 +286,68 @@ test('D02 desempenho reconcilia o ledger misto, conta visitas identificadas e di
   };
   const r = await relatorio(dia, dia);
   assert.deepStrictEqual(r, {
-    inicio: dia, fim: dia, faturamentoCentavos: 12000, comandas: 4, ticketMedioCentavos: 3000,
+    // Ticket da coorte (D-071): (16000 + 0 + 0 + 2000 − 4000 do estorno parcial da própria "mista") ÷ 4 = 3500.
+    // O estorno de "antiga" (venda de 2025) não entra no ticket: aparece em estornosVendasAnteriores (2000).
+    // Antes da D-071 o ticket era 12000 ÷ 4 = 3000, puxado para baixo por aquele estorno antigo.
+    inicio: dia, fim: dia, faturamentoCentavos: 12000, comandas: 4, ticketMedioCentavos: 3500, estornosVendasAnterioresCentavos: 2000,
     visitasIdentificadas: 3, atendimentosSemCliente: true, produtosUnidades: 3,
-    minutosOcupados: 95, minutosDisponiveis: 600, clientesIdentificados: 3, clientesFieis: 1,
+    minutosOcupados: 95, minutosDisponiveis: 600, ocupacaoPct: 15.8, clientesIdentificados: 3, clientesFieis: 1,
     parteSalaoServicosCentavos: 4000, parteSalaoServicosPorHoraCentavos: 400,
     resultadoFinanceiro: { faturamentoCentavos: 12000, parteSalaoCentavos: 7900, comissoesCentavos: 1800,
-      taxasItensCentavos: 300, custoProdutosVendidosCentavos: 2000, diferencaConciliacaoCentavos: 0 }
+      taxasItensCentavos: 300, custoProdutosVendidosCentavos: 2000, diferencaConciliacaoCentavos: 0,
+      taxaGorjetaEstornadaCentavos: 0, outraDiferencaCentavos: 0 }
   });
   const soEstorno = await relatorio('2026-11-18', '2026-11-18');
   assert.deepStrictEqual([soEstorno.faturamentoCentavos, soEstorno.produtosUnidades, soEstorno.comandas, soEstorno.ticketMedioCentavos,
     soEstorno.minutosDisponiveis, soEstorno.parteSalaoServicosPorHoraCentavos, soEstorno.atendimentosSemCliente],
     [-2000, -1, 0, null, 0, null, false]);
+  assert.strictEqual(soEstorno.estornosVendasAnterioresCentavos, 2000, 'estorno do dia 18 é de venda do dia 17');
+  // 17 a 18: "so-produto" foi estornada por inteiro dentro do período e sai da coorte.
+  // Ticket = (16000 + 0 + 0 − 4000) ÷ 3 = 4000 (antes da D-071: 10000 ÷ 3 = 3333).
   const incluiEstornoTotal = await relatorio(dia, '2026-11-18');
-  assert.deepStrictEqual([incluiEstornoTotal.faturamentoCentavos, incluiEstornoTotal.comandas, incluiEstornoTotal.ticketMedioCentavos], [10000, 3, 3333]);
+  assert.deepStrictEqual([incluiEstornoTotal.faturamentoCentavos, incluiEstornoTotal.comandas, incluiEstornoTotal.ticketMedioCentavos,
+    incluiEstornoTotal.estornosVendasAnterioresCentavos], [10000, 3, 4000, 2000]);
+});
+
+test('D04 fonte única (D-071): Cockpit e Desempenho mostram o mesmo faturamento e a mesma ocupação no mesmo período', async () => {
+  installMemoryBackend({
+    empresas: [EMPRESA], profissionais: PROFS, comandos: COMANDOS, comando_itens: ITENS, comanda_estornos: ESTORNOS,
+    comanda_estorno_itens: ESTORNO_ITENS, metas: METAS, agendamentos: AGENDA, assinatura_planos: PLANOS, assinaturas: ASSINATURAS,
+    assinatura_cobrancas: COBRANCAS, clientes: CLIENTES, lista_espera: []
+  });
+  const ck = (await request('/api/cockpit')).data.data;
+  const de = (await request(pathDesempenho)).data.data; // padrão: 1º do mês até hoje
+  assert.deepStrictEqual([de.inicio, de.fim], ['2026-11-01', '2026-11-22']);
+  assert.deepStrictEqual([ck.ocupacaoMes.de, ck.ocupacaoMes.ate], [de.inicio, de.fim], 'mesmo período');
+  // Faturamento 1–22/11: 10000 + 5000 + 8000 − 2000 (estorno de 21/11) = 21000.
+  assert.strictEqual(ck.faturamento.realizadoCentavos, 21000);
+  assert.strictEqual(de.faturamentoCentavos, ck.faturamento.realizadoCentavos);
+  // Ocupação 1–22/11: terças 03, 10 e 17 × 300 min × 2 profissionais = 1800 min; ocupados 3 × 60 = 180 → 10,0%.
+  // As faltas (no_show) não ocupam a cadeira.
+  assert.deepStrictEqual([ck.ocupacaoMes.minutosOcupados, ck.ocupacaoMes.minutosDisponiveis, ck.ocupacaoMes.ocupacaoPct], [180, 1800, 10]);
+  assert.deepStrictEqual([de.minutosOcupados, de.minutosDisponiveis, de.ocupacaoPct],
+    [ck.ocupacaoMes.minutosOcupados, ck.ocupacaoMes.minutosDisponiveis, ck.ocupacaoMes.ocupacaoPct]);
+  // Ticket da coorte: (10000 + 5000 + 8000 − 2000 do estorno parcial de k3) ÷ 3 = 7000.
+  assert.deepStrictEqual([de.comandas, de.ticketMedioCentavos, de.estornosVendasAnterioresCentavos], [3, 7000, 0]);
+});
+
+test('D05 conciliação discrimina a taxa da gorjeta devolvida (009: receita do estorno = valor − comissão + taxa da gorjeta)', async () => {
+  const d = '2026-11-17';
+  installMemoryBackend({
+    empresas: [EMPRESA], profissionais: PROFS, agendamentos: [],
+    comandos: [{ id: 'g', empresa_id: E, cliente_id: C(1), data: d, status: 'fechado', itens_liquidos_centavos: 10000,
+      total_comissao_centavos: 4000, taxa_servico_centavos: 300, total_custo_produtos_centavos: 0, receita_empresa_centavos: 5700 }],
+    comando_itens: [{ id: 'gi', empresa_id: E, comando_id: 'g', tipo: 'servico', quantidade: 1, receita_empresa_centavos: 5700 }],
+    // Estorno total: itens 10000, comissão 4000, gorjeta bruta 1000 com taxa 50 → receita do estorno 10000 − 4000 + 50 = 6050.
+    comanda_estornos: [{ id: 'ge', empresa_id: E, comando_id: 'g', tipo: 'total', data: d, itens_centavos: 10000, comissao_centavos: 4000, receita_empresa_centavos: 6050 }],
+    comanda_estorno_itens: [{ id: 'gx', empresa_id: E, estorno_id: 'ge', comando_id: 'g', comando_item_id: 'gi', quantidade: 1, receita_empresa_centavos: 6000 }]
+  });
+  const r = (await request(pathDesempenho + '?inicio=' + d + '&fim=' + d)).data.data.resultadoFinanceiro;
+  // Faturamento 0; parte do salão 5700 − 6050 = −350 (a taxa de 300 e a da gorjeta, 50, não voltam); comissão 0; taxas 300.
+  // Diferença = 0 − (−350) − 0 − 300 − 0 = 50, toda ela da taxa da gorjeta devolvida.
+  assert.deepStrictEqual([r.faturamentoCentavos, r.parteSalaoCentavos, r.comissoesCentavos, r.taxasItensCentavos],
+    [0, -350, 0, 300]);
+  assert.deepStrictEqual([r.diferencaConciliacaoCentavos, r.taxaGorjetaEstornadaCentavos, r.outraDiferencaCentavos], [50, 50, 0]);
 });
 
 test('D03 o repositório pagina mais de 1000 itens do mesmo lote, em ordem e com tenant', async () => {

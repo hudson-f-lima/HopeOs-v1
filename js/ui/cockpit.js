@@ -24,10 +24,18 @@ function card(titulo, valor, linhas) {
     + linhas.filter(Boolean).map(l => '<div class="ck-card-linha">' + escapeHtml(l) + '</div>').join('') + '</div>';
 }
 
+const diaMes = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+const periodoTxt = (de, ate) => diaMes(de) + ' a ' + diaMes(ate);
+function horasTxt(min) {
+  const h = Math.floor(min / 60); const m = min % 60;
+  return h ? h + ' h' + (m ? ' ' + m + ' min' : '') : m + ' min';
+}
+
 function renderCards(d) {
-  const f = d.faturamento; const m = d.margem; const o = d.ocupacao; const r = d.recorrencia;
+  const f = d.faturamento; const m = d.margem; const om = d.ocupacaoMes; const r = d.recorrencia;
   el('ckCards').innerHTML = [
     card('Faturamento do mês', centsToBRL(f.realizadoCentavos), [
+      periodoTxt(om.de, om.ate),
       f.metaCentavos ? pctTxt(f.metaPct) + ' da meta (' + centsToBRL(f.metaCentavos) + ', soma das metas da equipe)' : 'Sem meta cadastrada para o mês',
       f.projecaoCentavos !== null ? 'No ritmo atual: ' + centsToBRL(f.projecaoCentavos) : f.projecaoNota,
       f.variacaoPct !== null ? (f.variacaoPct >= 0 ? '+' : '') + pctTxt(f.variacaoPct) + ' vs. o mesmo período do mês passado' : 'Sem base no mês passado'
@@ -36,9 +44,10 @@ function renderCards(d) {
       m.margemPct === null ? 'Sem comandas no mês' : centsToBRL(m.margemCentavos) + ' depois de comissão e taxas',
       m.taxasPctDoRecebido !== null ? 'Taxas: ' + pctTxt(m.taxasPctDoRecebido) + ' do recebido' + (m.taxasPctAnterior !== null ? ' (mês passado ' + pctTxt(m.taxasPctAnterior) + ')' : '') : null
     ]),
-    card('Ocupação da agenda', pctTxt(o.ocupacaoPct), [
-      o.ocupacaoPct === null ? 'Sem expediente configurado nas últimas 4 semanas' : 'Últimas 4 semanas',
-      o.ocupacaoPct === null ? null : Math.round(o.minutosOciosos / 60) + ' h livres no período'
+    // Mesmo período e mesma regra do Desempenho do salão (D-071).
+    card('Ocupação da agenda', pctTxt(om.ocupacaoPct), [
+      periodoTxt(om.de, om.ate),
+      om.ocupacaoPct === null ? 'Sem expediente na escala neste período' : horasTxt(om.minutosOcupados) + ' ocupadas de ' + horasTxt(om.minutosDisponiveis)
     ]),
     card('Recorrência', r.ativos + ' assinante(s) ativo(s)', [
       centsToBRL(r.mrrCentavos) + ' por mês' + (r.pctDaReceita !== null ? ' (' + pctTxt(r.pctDaReceita) + ' do faturamento)' : ''),

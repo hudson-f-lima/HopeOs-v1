@@ -366,9 +366,11 @@
       <h2 class="dash-precisa-titulo" id="dashPrecisaTitulo">Precisa de você</h2>
       <section class="dashboard-action-strip" id="dashboardActionStrip" aria-labelledby="dashPrecisaTitulo" aria-live="polite"></section>
 
+      <!-- D-071: o Desempenho do salão fica fora da dobra fechada "Análises". -->
+      <button type="button" class="dash-analise-atalho hidden" id="btnAbrirDesempenho">Desempenho do salão</button>
+
       <details class="dash-dobra" id="dobraIndicadores">
       <summary>Análises</summary>
-      <button type="button" class="dash-analise-atalho hidden" id="btnAbrirDesempenho">Desempenho do salão</button>
       <div class="dashboard-insights-grid">
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
@@ -470,29 +472,6 @@
           </div>
         </div>
       </section>
-
-      <div class="dashboard-bento">
-        <div class="stat-card primary">
-          <div class="label">Receita empresa</div>
-          <div class="value" id="dbReceita">—</div>
-          <div class="hint">Resultado líquido operacional</div>
-        </div>
-        <div class="stat-card accent-teal">
-          <div class="label">Comandas</div>
-          <div class="value" id="dbComandos">—</div>
-          <div class="hint">Fechadas no período</div>
-        </div>
-        <div class="stat-card accent-coral">
-          <div class="label">Comissões</div>
-          <div class="value" id="dbComissoes">—</div>
-          <div class="hint">Previsão de repasse</div>
-        </div>
-        <div class="stat-card accent-blue">
-          <div class="label">Ticket médio</div>
-          <div class="value" id="dbTicketMedio">—</div>
-          <div class="hint">Por comanda fechada</div>
-        </div>
-      </div>
 
       <div class="dashboard-status" id="dashboardInsightsStatus"></div>
 
@@ -732,7 +711,7 @@
     </button>
   </nav>
 
-  <footer>HOPE OS V1.3 · Agenda premium · backend real</footer>
+  <footer>HOPE OS</footer>
 </div>
 
 <div class="modal-backdrop hidden" id="modalNovoAgendamento">

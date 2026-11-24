@@ -43,8 +43,12 @@ function renderResultado(resultado) {
     ['Custo dos produtos vendidos', resultado.custoProdutosVendidosCentavos],
     ['Parte do salão', resultado.parteSalaoCentavos]
   ];
-  if (resultado.diferencaConciliacaoCentavos) {
-    linhas.push(['Diferença de conciliação', resultado.diferencaConciliacaoCentavos]);
+  // D-071: a diferença aparece separada pela causa conhecida (taxa da gorjeta devolvida em estorno).
+  if (resultado.taxaGorjetaEstornadaCentavos) {
+    linhas.push(['Taxa de gorjetas devolvidas em estornos', resultado.taxaGorjetaEstornadaCentavos]);
+  }
+  if (resultado.outraDiferencaCentavos) {
+    linhas.push(['Diferença sem causa identificada (conferir)', resultado.outraDiferencaCentavos]);
   }
   for (const [rotulo, valor] of linhas) {
     const linha = document.createElement('div');
@@ -55,7 +59,8 @@ function renderResultado(resultado) {
     linha.append(label, dado);
     composicao.append(linha);
   }
-  setText('desempenhoComposicaoNota', 'A parte do salão inclui serviços e produtos. As taxas sobre vendas excluem gorjetas.');
+  setText('desempenhoComposicaoNota', 'A parte do salão inclui serviços e produtos. As taxas sobre vendas excluem gorjetas.'
+    + ' Num estorno, a taxa e o custo da venda devolvida não voltam: saem da parte do salão.');
 }
 
 function render(dados) {
@@ -71,13 +76,16 @@ function render(dados) {
 
   setText('desempenhoFaturamento', dinheiro(dados.faturamentoCentavos));
   setText('desempenhoTicket', Number.isFinite(dados.ticketMedioCentavos) ? dinheiro(dados.ticketMedioCentavos) : 'Sem comandas válidas');
-  setText('desempenhoComandas', Number.isFinite(dados.comandas)
+  // Ticket da coorte (D-071): estorno de venda de outro período não entra; aparece à parte.
+  setText('desempenhoComandas', (Number.isFinite(dados.comandas)
     ? inteiro.format(dados.comandas) + (dados.comandas === 1 ? ' comanda no cálculo' : ' comandas no cálculo')
-    : '');
+    : '') + (dados.estornosVendasAnterioresCentavos > 0
+    ? '. Estornos de vendas de períodos anteriores, fora do ticket: ' + dinheiro(dados.estornosVendasAnterioresCentavos)
+    : ''));
   setText('desempenhoVisitas', Number.isFinite(dados.visitasIdentificadas) ? inteiro.format(dados.visitasIdentificadas) : 'Indisponível');
   el('desempenhoVisitasNota').hidden = !dados.atendimentosSemCliente;
   setText('desempenhoProdutos', Number.isFinite(dados.produtosUnidades) ? inteiro.format(dados.produtosUnidades) : 'Indisponível');
-  setText('desempenhoOcupacao', disponivel ? percentual.format(dados.minutosOcupados / dados.minutosDisponiveis) : 'Sem base');
+  setText('desempenhoOcupacao', Number.isFinite(dados.ocupacaoPct) ? percentual.format(dados.ocupacaoPct / 100) : 'Sem base');
   setText('desempenhoOcupacaoBase', disponivel
     ? horas(dados.minutosOcupados) + ' ocupados de ' + horas(dados.minutosDisponiveis) + ' disponíveis'
     : 'Sem tempo disponível registrado no período.');
