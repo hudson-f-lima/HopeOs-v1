@@ -529,13 +529,13 @@
       <section class="dash-desempenho hidden" id="painelDesempenho" aria-labelledby="desempenhoSalaoTitulo">
         <button type="button" class="btn-link" id="btnVoltarAnalises">‹ Voltar para Análises</button>
         <h2 id="desempenhoSalaoTitulo" tabindex="-1">Desempenho do salão</h2>
-        <label class="dash-desempenho-filtro hidden" id="desempenhoFiltro">
-          Período
+        <div class="dash-desempenho-filtro hidden" id="desempenhoFiltro">
+          <label for="desempenhoMes">Período</label>
           <select id="desempenhoMes">
             <option value="atual">Mês atual até hoje</option>
             <option value="anterior">Mês anterior completo</option>
           </select>
-        </label>
+        </div>
         <p class="dash-desempenho-periodo" id="desempenhoPeriodo"></p>
         <p class="dash-desempenho-status" id="desempenhoStatus" role="status"></p>
         <button type="button" class="btn btn-secondary hidden" id="btnRecarregarDesempenho">Tentar novamente</button>

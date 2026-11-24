@@ -146,11 +146,10 @@ async function conferirCapacidade(pagina) {
   } else {
     confere('sem base de faltas: controle desligado e motivo escrito', /sem faltas/.test(await a.textContent('#ckSimFaltasRes')));
   }
+  const alturas = await a.locator('#ckAlertas button:visible').evaluateAll(botoes => botoes.map(b => b.getBoundingClientRect().height));
+  confere('alvo de toque das ações ≥ 44px', alturas.every(h => h >= 44), alturas.join(', '));
   await conferirCapacidade(a);
-  for (const btn of await a.locator('#ckAlertas button').all()) {
-    const h = (await btn.boundingBox()).height;
-    if (h < 44) confere('alvo de toque das ações ≥ 44px', false, `${h}px`);
-  }
+  await a.waitForLoadState('networkidle');
   const avulso = a.locator('#ckAlertas .ck-alerta').filter({ hasText: 'avulso' });
   confere('alerta de avulsos frequentes com o cliente e o valor', (await avulso.count()) === 1 && (await avulso.textContent()).includes(cliente.nome) && /94,90/.test(await avulso.textContent()), (await a.textContent('#ckAlertas')).replace(/\s+/g, ' ').slice(0, 300));
   if (await avulso.count()) {

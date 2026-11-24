@@ -181,7 +181,7 @@ async function legado(route, reduzir) {
     const operacional = await respostaOperacional;
     assert.equal((await dadoDaResposta(operacional)).realizada.minutosRealizados, 90);
     await page.click('#dobraIndicadores > summary');
-    await page.locator('#dbOccupancyWidget').getByText('Sem escala para calcular', { exact: true }).waitFor();
+    await page.locator('#dbOccupancyWidget b').filter({ hasText: /^Sem escala para calcular$/ }).waitFor();
     assert.ok(!requisicoes.includes('/api/dashboard'), 'A recepção já recebe a ocupação pela consulta operacional.');
     const headers = { authorization: await operacional.request().headerValue('authorization') };
     const empresa = await operacional.request().headerValue('x-empresa-id');

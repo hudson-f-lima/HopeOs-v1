@@ -87,11 +87,14 @@ async function preparar() {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
 
     await page.setViewportSize({ width: 390, height: 844 });
-    const anterior = page.waitForResponse(r => requisicao(r.request()) && new URL(r.url()).searchParams.get('mes') === 'anterior' && r.ok());
-    const seletor = page.getByLabel('Período', { exact: true });
+    const seletor = page.getByRole('combobox', { name: 'Período', exact: true });
     await seletor.focus();
-    await seletor.selectOption('anterior');
-    const mensal = (await (await anterior).json()).data;
+    const [respostaAnterior] = await Promise.all([
+      page.waitForResponse(r => requisicao(r.request()) && new URL(r.url()).searchParams.get('mes') === 'anterior'),
+      seletor.selectOption('anterior')
+    ]);
+    assert.equal(respostaAnterior.status(), 200, await respostaAnterior.text());
+    const mensal = (await respostaAnterior.json()).data;
     const vespera = new Date(Date.parse(dados.inicio + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
     assert.equal(mensal.fim, vespera);
     assert.equal(mensal.inicio, vespera.slice(0, 7) + '-01');
