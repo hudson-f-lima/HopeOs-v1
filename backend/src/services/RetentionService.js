@@ -115,17 +115,21 @@ class RetentionService {
     this.repo = new SupabaseRepository(empresaId);
   }
 
-  async loadRetentionInsights(hoje = todaySaoPaulo()) {
+  async loadRetentionInsights({ financeiro = false, contato = false, hoje = todaySaoPaulo() } = {}) {
+    const filtro = { empresa_id: this.repo.empresaId };
+    const camposComanda = 'id,cliente_id,status,data,hora,created_at';
+    const ler = (tabela, campos) => this.repo.list(tabela, filtro, { campos, ordem: 'id' });
     const [clientes, comandos, comandoItens, agendamentos] = await Promise.all([
-      this.repo.list('clientes', { empresa_id: this.repo.empresaId }),
-      this.repo.list('comandos', { empresa_id: this.repo.empresaId }),
-      this.repo.list('comando_itens', { empresa_id: this.repo.empresaId }),
-      this.repo.list('agendamentos', { empresa_id: this.repo.empresaId })
+      ler('clientes', contato ? 'id,nome,whatsapp' : 'id,nome'),
+      ler('comandos', financeiro ? `${camposComanda},total_recebido_centavos` : camposComanda),
+      ler('comando_itens', 'comando_id,tipo,servico_id'),
+      ler('agendamentos', 'cliente_id,created_at')
     ]);
 
     const clientesById = byId(clientes);
     const comandosByCliente = groupByCliente(comandos);
     const rfm = retention.computeRfm(comandos, hoje);
+    const intervaloPorServico = retention.prepararIntervaloPorServico(comandos, comandoItens);
     const segmentosMap = new Map(retention.SEGMENTS.map(segment => [
       segment.nome,
       { nome: segment.nome, label: segment.label, n: 0, valor180dCentavos: 0 }
@@ -136,7 +140,7 @@ class RetentionService {
 
     rfm.clientes.forEach(entry => {
       const cliente = clientesById.get(entry.clienteId) || {};
-      const segment = segmentosMap.get(entry.segmento);
+      const segment = financeiro && segmentosMap.get(entry.segmento);
       if (segment) {
         segment.n += 1;
         segment.valor180dCentavos += entry.valor180dCentavos;
@@ -144,26 +148,24 @@ class RetentionService {
 
       const churn = retention.computeChurnRisk({
         comandosCliente: comandosByCliente.get(entry.clienteId) || [],
-        comandos,
-        comandoItens,
+        intervaloPorServico,
         hoje,
         valor180dCentavos: entry.valor180dCentavos
       });
 
-      if (churn.risco !== 'ok' && churn.prioridade > 0) {
+      if (churn.risco !== 'ok' && (!financeiro || churn.prioridade > 0)) {
         quemChamar.push({
           clienteId: entry.clienteId,
           nome: cliente.nome || 'Cliente',
-          whatsapp: cliente.whatsapp || cliente.telefone || null,
+          ...(contato ? { whatsapp: cliente.whatsapp || null } : {}),
           diasDesdeUltima: churn.diasDesdeUltima,
           intervaloMedianoDias: churn.intervaloMedianoDias,
           risco: churn.risco,
-          valor180dCentavos: entry.valor180dCentavos,
-          prioridade: churn.prioridade
+          ...(financeiro ? { valor180dCentavos: entry.valor180dCentavos, prioridade: churn.prioridade } : {})
         });
       }
 
-      if (entry.visitas180d >= 4 && entry.mScore >= 4) {
+      if (financeiro && entry.visitas180d >= 4 && entry.mScore >= 4) {
         assinaturaCandidatos.push({
           clienteId: entry.clienteId,
           nome: cliente.nome || 'Cliente',
@@ -173,14 +175,20 @@ class RetentionService {
       }
     });
 
+    // A operação prioriza os dias de atraso em relação ao intervalo habitual.
+    const atraso = c => c.diasDesdeUltima - c.intervaloMedianoDias;
+    quemChamar.sort(financeiro
+      ? (a, b) => b.prioridade - a.prioridade
+      : (a, b) => atraso(b) - atraso(a) || a.clienteId.localeCompare(b.clienteId));
+
     return {
-      segmentos: Array.from(segmentosMap.values()),
-      quemChamar: quemChamar.sort((a, b) => b.prioridade - a.prioridade).slice(0, 20),
+      quemChamar: quemChamar.slice(0, 20),
       novosRetencao: computeNovosRetention(comandos, hoje),
       rebookingRatePct: computeRebookingRate(comandos, agendamentos),
-      assinaturaCandidatos: assinaturaCandidatos
-        .sort((a, b) => b.gastoMensalMedioCentavos - a.gastoMensalMedioCentavos)
-        .slice(0, 20)
+      ...(financeiro ? {
+        segmentos: Array.from(segmentosMap.values()),
+        assinaturaCandidatos: assinaturaCandidatos.sort((a, b) => b.gastoMensalMedioCentavos - a.gastoMensalMedioCentavos).slice(0, 20)
+      } : {})
     };
   }
 

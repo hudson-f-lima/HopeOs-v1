@@ -1233,7 +1233,10 @@ router.get('/insights/cashflow', authorize('painel:financeiro'), async (req, res
 router.get('/insights/retention', authorize('painel:operacional'), async (req, res, next) => {
   try {
     const service = new RetentionService(req.auth.empresa_id);
-    const data = await service.loadRetentionInsights();
+    const data = await service.loadRetentionInsights({
+      financeiro: pode(req.auth, 'painel:financeiro'),
+      contato: pode(req.auth, 'clientes:contato')
+    });
     res.json({ ok: true, data });
   } catch (err) { next(err); }
 });

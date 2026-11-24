@@ -419,7 +419,7 @@
           <div class="panel-head">
             <div>
               <h2>Agenda e clientes</h2>
-              <p>Últimos 30 dias, comparados ao mercado.</p>
+              <p>Indicadores dos últimos 30 dias.</p>
             </div>
             <label class="janela-retorno"><span>Retorno em</span>
               <select id="dbRetornoDias" aria-label="Janela de retorno do cliente novo">
@@ -452,9 +452,9 @@
         <div class="ck-alertas" id="ckAlertas"></div>
         <div class="ck-grade">
           <div class="ck-bloco">
-            <h3 class="ck-secao">Ocupação realizada por dia da semana</h3>
+            <h3 class="ck-secao" id="ckDiasTitulo">Ocupação por dia da semana</h3>
             <p class="ck-nota ck-periodo" id="ckDiasPeriodo"></p>
-            <div class="ck-dias" id="ckDias"></div>
+            <div class="ck-dias" id="ckDias" role="group" aria-labelledby="ckDiasTitulo" aria-describedby="ckDiasPeriodo"></div>
           </div>
           <div class="ck-bloco">
             <h3 class="ck-secao">Equipe</h3>
@@ -469,8 +469,8 @@
               <input type="range" id="ckSimPreencher" min="0" max="50" step="5" value="10"/><span id="ckSimPreencherRes"></span></label>
             <label class="ck-sim">Reduzir faltas <b id="ckSimFaltasVal"></b>
               <input type="range" id="ckSimFaltas" min="0" max="100" step="10" value="50"/><span id="ckSimFaltasRes"></span></label>
-            <div class="ck-sim-total">Potencial: <b id="ckSimTotal"></b></div>
-            <p class="ck-nota">Contas feitas com os números reais do salão (preço médio do minuto vendido e plano mais barato à venda). É uma estimativa, não uma promessa.</p>
+            <p class="ck-nota">Cenários independentes. Capacidade e receita podem se sobrepor.</p>
+            <span id="ckSimTotal" hidden></span>
           </div>
         </div>
       </section>
@@ -529,6 +529,13 @@
       <section class="dash-desempenho hidden" id="painelDesempenho" aria-labelledby="desempenhoSalaoTitulo">
         <button type="button" class="btn-link" id="btnVoltarAnalises">‹ Voltar para Análises</button>
         <h2 id="desempenhoSalaoTitulo" tabindex="-1">Desempenho do salão</h2>
+        <div class="dash-desempenho-filtro hidden" id="desempenhoFiltro">
+          <label for="desempenhoMes">Período</label>
+          <select id="desempenhoMes">
+            <option value="atual">Mês atual até hoje</option>
+            <option value="anterior">Mês anterior completo</option>
+          </select>
+        </div>
         <p class="dash-desempenho-periodo" id="desempenhoPeriodo"></p>
         <p class="dash-desempenho-status" id="desempenhoStatus" role="status"></p>
         <button type="button" class="btn btn-secondary hidden" id="btnRecarregarDesempenho">Tentar novamente</button>
@@ -564,6 +571,7 @@
           <details class="dash-dobra" id="dobraResultadoFinanceiro">
             <summary id="resultadoFinanceiroTitulo">Resultado financeiro</summary>
             <div class="dashboard-panel dash-desempenho-resultado">
+              <div id="desempenhoGraficoComposicao"></div>
               <dl class="dash-desempenho-composicao-lista" id="desempenhoComposicao"></dl>
               <p class="dash-desempenho-nota" id="desempenhoComposicaoNota"></p>
             </div>

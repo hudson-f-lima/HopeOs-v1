@@ -72,10 +72,37 @@ async function preparar() {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     assert.equal(consultas.length, 2, 'uma falha e uma leitura após tentar novamente');
     assert.equal(await page.locator('#desempenhoIndicadores [data-indicador]').count(), 6);
+    const grafico = page.locator('#desempenhoGraficoComposicao figure');
+    assert.equal(await grafico.count(), 0);
+    const leituraGrafico = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/graficoComposicao.js') && r.ok());
     await page.click('#btnVerResultadoFinanceiro');
     assert.equal(await page.locator('#dobraResultadoFinanceiro').evaluate(n => n.open), true);
     assert.match(await page.locator('#desempenhoComposicao').innerText(), /Parte do salão/);
     assert.equal(consultas.length, 2, 'a composição reutiliza a leitura do período');
+    await leituraGrafico;
+    await grafico.waitFor();
+    assert.equal(consultas.length, 2, 'carregar o gráfico não consulta a API');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 320, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const seletor = page.getByRole('combobox', { name: 'Período', exact: true });
+    await seletor.focus();
+    const [respostaAnterior] = await Promise.all([
+      page.waitForResponse(r => requisicao(r.request()) && new URL(r.url()).searchParams.get('mes') === 'anterior'),
+      seletor.selectOption('anterior')
+    ]);
+    assert.equal(respostaAnterior.status(), 200, await respostaAnterior.text());
+    const mensal = (await respostaAnterior.json()).data;
+    const vespera = new Date(Date.parse(dados.inicio + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
+    assert.equal(mensal.fim, vespera);
+    assert.equal(mensal.inicio, vespera.slice(0, 7) + '-01');
+    await page.locator('#desempenhoIndicadores').waitFor();
+    assert.equal(await grafico.count(), 0, 'trocar o período limpa a visualização anterior');
+    assert.equal(await page.locator('#desempenhoTicket').innerText(), 'Sem comandas válidas');
+    assert.equal(await seletor.evaluate(n => n === document.activeElement), true);
+    assert.equal(consultas.length, 3, 'uma leitura para cada seleção de período');
     await page.click('#btnVoltarAnalises');
     assert.equal(await abrir.evaluate(n => n === document.activeElement), true);
     assert.equal(await page.locator('#dobraIndicadores').evaluate(n => n.open), true);

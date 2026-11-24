@@ -1,5 +1,6 @@
 import {
   api,
+  StaleContextError,
   getInsightsAttach,
   getInsightsCashflow,
   getInsightsMargin,
@@ -48,13 +49,7 @@ function insightRange() {
   return { from, to };
 }
 
-function renderLegacyDashboard(dash) {
-  // D-071: saíram os cards "Receita empresa", "Comandas", "Comissões" e "Ticket médio". Somavam todo o
-  // histórico com o rótulo "no período" e repetiam, com outra regra, o que o Cockpit e o Desempenho mostram.
-  setText('dashUpdatedAt', new Date().toLocaleTimeString('pt-BR'));
-  // D-071: pagamentos por forma e repasses são dado gerencial; a recepção nem recebe esses campos.
-  if (!sessionPode('painel:financeiro')) return;
-
+function renderPagamentosERepasses(dash) {
   const porForma = dash.paymentsByMethod || [];
   const formasVisiveis = porForma.slice(0, 5);
   const pagamentos = el('dbPagamentos');
@@ -302,7 +297,7 @@ function renderPeople() {
     return `<div class="row"><span>${nome}</span><b>${detalhe}${link}</b></div>`;
   }, 'Ninguém para chamar agora.');
 
-  const candidatos = safeArray(ret.assinaturaCandidatos).slice(0, 5);
+  const candidatos = sessionPode('painel:financeiro') ? safeArray(ret.assinaturaCandidatos).slice(0, 5) : [];
   const candidatosHtml = candidatos.length
     ? candidatos.map(c => `<div class="row"><span>${escapeHtml(c.nome || '—')}</span><b>${safeNumber(c.visitas180d)} visitas · ${centsToBRL(safeNumber(c.gastoMensalMedioCentavos))}/mês</b></div>`).join('')
     : '';
@@ -469,7 +464,7 @@ async function loadPiloto() {
   }
 }
 
-async function atualizarInsights() {
+async function atualizarInsights(atual) {
   state.insights.loading = true;
   state.insights.error = null;
   
@@ -497,8 +492,10 @@ async function atualizarInsights() {
     loadRetentionAndAttach()
   ]);
 
+  if (!atual()) return;
   state.insights.loading = false;
   state.insights.updatedAt = new Date().toLocaleTimeString('pt-BR');
+  setText('dashUpdatedAt', state.insights.updatedAt);
 
   if (status) {
     status.innerHTML = '';
@@ -506,19 +503,28 @@ async function atualizarInsights() {
   }
 }
 
-export async function atualizarDashboard() {
-  // D-071: a dobra "Pagamentos e repasses" nasce oculta e aparece já pela permissão da sessão,
-  // antes da resposta (sem a dobra aparecer e sumir na tela da recepção).
-  const dobraRepasses = el('dobraRepasses');
-  if (dobraRepasses) dobraRepasses.hidden = !sessionPode('painel:financeiro');
+let atualizacaoPainel = 0;
+
+async function atualizarPagamentosERepasses(atual) {
   try {
     const dash = await api('/dashboard?visao=painel');
-    renderLegacyDashboard(dash);
+    if (atual() && sessionPode('painel:financeiro')) renderPagamentosERepasses(dash);
   } catch (err) {
-    showBanner('Dashboard: ' + err.message, 'error');
+    if (atual() && !(err instanceof StaleContextError)) showBanner('Pagamentos e repasses: ' + err.message, 'error');
   }
+}
 
-  await atualizarInsights();
+export async function atualizarDashboard() {
+  const atualizacao = ++atualizacaoPainel;
+  const sessao = state.session;
+  const atual = () => atualizacao === atualizacaoPainel && state.session === sessao && state.activeTab === 'dashboard';
+  const financeiro = sessionPode('painel:financeiro');
+  const dobraRepasses = el('dobraRepasses');
+  if (dobraRepasses) dobraRepasses.hidden = !financeiro;
+  await Promise.all([
+    atualizarInsights(atual),
+    financeiro ? atualizarPagamentosERepasses(atual) : Promise.resolve()
+  ]);
 }
 
 export function initDashboard() {

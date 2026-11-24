@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { state, stateBus, sessionPode, loadWeekAgenda } from '../state.js';
 import { escapeHtml, centsToBRL, startOfWeek, todayStr, addDays, showBanner } from '../utils.js';
 import {
-  atualizandoOcupacao, detalheOcupacao, notaEscalaHistorica, ocupacaoPctTxt, resumoOcupacao, temOcupacaoRealizada
+  atualizandoOcupacao, detalheOcupacao, minutosTxt, notaEscalaHistorica, ocupacaoPctTxt, resumoOcupacao, temOcupacaoRealizada
 } from './ocupacao.js';
 
 const el = id => document.getElementById(id);
@@ -37,12 +37,14 @@ function renderCards(d) {
   el('ckCards').innerHTML = [
     card('Faturamento do mês', centsToBRL(f.realizadoCentavos), [
       periodoTxt(om.de, om.ate),
-      f.metaCentavos ? pctTxt(f.metaPct) + ' da meta (' + centsToBRL(f.metaCentavos) + ', soma das metas da equipe)' : 'Sem meta cadastrada para o mês',
-      f.projecaoCentavos !== null ? 'No ritmo atual: ' + centsToBRL(f.projecaoCentavos) : f.projecaoNota,
+      f.metaCentavos ? pctTxt(f.metaPct) + ' da soma das metas cadastradas de faturamento e produtos (' + centsToBRL(f.metaCentavos) + ')' : 'Sem meta cadastrada para o mês',
+      f.projecaoCentavos !== null
+        ? 'Estimativa linear: ' + centsToBRL(f.projecaoCentavos) + ' até o fim do mês. Sem intervalo de confiança calculado.'
+        : 'Estimativa linear indisponível. ' + f.projecaoNota,
       f.variacaoPct !== null ? (f.variacaoPct >= 0 ? '+' : '') + pctTxt(f.variacaoPct) + ' vs. o mesmo período do mês passado' : 'Sem base no mês passado'
     ]),
-    card('Margem real do salão', m.margemPct === null ? '—' : pctTxt(m.margemPct), [
-      f.comandas === 0 ? 'Sem comandas válidas' : centsToBRL(m.margemCentavos) + ' depois de comissão e taxas',
+    card('Margem antes das despesas fixas', m.margemPct === null ? '—' : pctTxt(m.margemPct), [
+      f.comandas === 0 ? 'Sem comandas válidas' : centsToBRL(m.margemCentavos) + ' · Parte do salão após comissões, taxas e custos registrados',
       m.taxasPctDoRecebido !== null ? 'Taxas: ' + pctTxt(m.taxasPctDoRecebido) + ' do recebido' + (m.taxasPctAnterior !== null ? ' (mês passado ' + pctTxt(m.taxasPctAnterior) + ')' : '') : null
     ]),
     // Mesmo período e mesma regra do Desempenho do salão (D-071).
@@ -51,7 +53,7 @@ function renderCards(d) {
       ocupacao.base
     ], detalheOcupacao(om)),
     card('Recorrência', r.ativos + ' assinante(s) ativo(s)', [
-      centsToBRL(r.mrrCentavos) + ' por mês' + (r.pctDaReceita !== null ? ' (' + pctTxt(r.pctDaReceita) + ' do faturamento)' : ''),
+      centsToBRL(r.mrrCentavos) + ' de receita recorrente nominal por mês',
       r.atrasados ? r.atrasados + ' com pagamento atrasado' : 'Nenhum atraso',
       r.churnPct !== null ? 'Cancelamentos no mês: ' + r.canceladasNoMes + ' (' + pctTxt(r.churnPct) + ')' : null
     ])
@@ -70,6 +72,32 @@ function renderAlertas(alertas) {
     + '</article>').join('');
 }
 
+const SERIES_DIA = [
+  ['Ocupação realizada', 'ck-dia-realizada'],
+  ['Preenchimento realizado da grade', 'ck-dia-preenchida']
+];
+
+function detalheDoDia(dia, periodo, valores, semHorarioConfiavel) {
+  const linhas = [
+    ['Ocupação realizada', valores[0] + ' · ' + resumoOcupacao(dia).base],
+    ['Preenchimento realizado da grade', valores[1]]
+  ];
+  if (!semHorarioConfiavel) {
+    if (Number.isFinite(dia.minutosForaDaEscala)) linhas.push(['Fora da escala', minutosTxt(dia.minutosForaDaEscala)]);
+    if (Number.isFinite(dia.minutosSobrepostos)) linhas.push(['Sobreposição de serviços', minutosTxt(dia.minutosSobrepostos)]);
+  }
+  const notaParcial = semHorarioConfiavel
+    ? 'Cobertura parcial. Horários insuficientes para medir o preenchimento, o tempo fora da escala e a sobreposição.'
+    : 'Cobertura parcial. O preenchimento, o tempo fora da escala e a sobreposição consideram os serviços com horário e duração identificados.';
+  return '<div class="ck-dia-detalhe"><p class="ck-nota">' + escapeHtml(periodo) + '</p><dl>'
+    + linhas.map(([rotulo, valor]) => '<div><dt>' + escapeHtml(rotulo) + '</dt><dd>' + escapeHtml(valor) + '</dd></div>').join('')
+    + '</dl>'
+    + (dia.coberturaParcial ? '<p class="ck-nota">' + escapeHtml(notaParcial) + '</p>' : '')
+    + (dia.proximaDataLivre ? '<button type="button" class="ck-dia-agenda btn-secondary" data-ck-agenda="' + escapeHtml(String(dia.dow)) + '">Ver agenda de '
+      + escapeHtml(diaMes(dia.proximaDataLivre)) + '</button>' : '')
+    + '</div>';
+}
+
 function renderDias(d) {
   if (!temOcupacaoRealizada(d.ocupacao)) {
     el('ckDias').textContent = '';
@@ -77,15 +105,28 @@ function renderDias(d) {
     return;
   }
   const { de, ate } = d.ocupacao.janela;
-  el('ckDiasPeriodo').textContent = periodoTxt(de, ate)
+  const periodo = periodoTxt(de, ate);
+  el('ckDiasPeriodo').textContent = periodo
     + (d.ocupacao.capacidadeHistoricaEstimada ? '. ' + notaEscalaHistorica : '');
   const dias = d.ocupacao.porDia.slice(1).concat(d.ocupacao.porDia.slice(0, 1)); // segunda primeiro
-  const max = Math.max(100, ...dias.map(x => x.ocupacaoRealizadaPct ?? 0));
-  el('ckDias').innerHTML = dias.map(x => {
-    const v = x.ocupacaoRealizadaPct;
-    return '<div class="ck-dia"><small title="' + escapeHtml(x.nome) + '">' + escapeHtml(x.nome.slice(0, 3)) + '</small>'
-      + '<div class="ck-dia-barra" aria-hidden="true"><span style="height:' + (Number.isFinite(v) ? 100 * v / max : 0) + '%"></span></div>'
-      + '<b>' + escapeHtml(Number.isFinite(v) ? ocupacaoPctTxt(v) : 'Sem escala') + '</b></div>';
+  const max = Math.ceil(Math.max(100, ...dias.map(dia => dia.ocupacaoRealizadaPct ?? 0)) / 50) * 50;
+  const legenda = '<div class="ck-dias-legenda">' + SERIES_DIA.map(([rotulo, classe]) =>
+    '<span class="' + classe + '">' + rotulo + '</span>').join('') + '</div>';
+  const escala = '<div class="ck-dias-escala"><span>Escala</span><span class="ck-dias-eixo"><span>0%</span><span>'
+    + escapeHtml(ocupacaoPctTxt(max)) + '</span></span></div>';
+  el('ckDias').innerHTML = legenda + escala + dias.map(dia => {
+    const semHorarioConfiavel = dia.coberturaParcial && dia.minutosRealizados === dia.minutosSemHorario;
+    const medidas = [dia.ocupacaoRealizadaPct, semHorarioConfiavel ? null : dia.preenchimentoGradePct];
+    const valores = medidas.map(v => v === null ? 'Sem base' : Number.isFinite(v) ? ocupacaoPctTxt(v) : 'Indisponível');
+    const series = SERIES_DIA.map(([, classe], i) => '<span class="ck-dia-serie">'
+      + (Number.isFinite(medidas[i]) ? '<meter class="' + classe + '" min="0" max="' + max + '" value="' + medidas[i] + '"></meter>'
+        : '<span class="ck-dia-sem-base"></span>')
+      + '<b>' + escapeHtml(valores[i]) + '</b></span>').join('');
+    const rotulo = [dia.nome, ...SERIES_DIA.map(([serie], i) => serie + ' ' + valores[i])].join('. ');
+    return '<details class="ck-dia" name="ck-dias-semana"><summary class="ck-dia-resumo" aria-label="' + escapeHtml(rotulo) + '">'
+      + '<span class="ck-dia-nome">' + escapeHtml(dia.nome.slice(0, 3)) + '</span>'
+      + '<span class="ck-dia-series" aria-hidden="true">' + series + '</span></summary>'
+      + detalheDoDia(dia, periodo, valores, semHorarioConfiavel) + '</details>';
   }).join('');
 }
 
@@ -111,14 +152,12 @@ function simular() {
     ['ckSimPreencher', temOcupacaoRealizada(dados.ocupacao) && rpm && s.minutosOciosos28d ? (s.minutosOciosos28d * 30 / 28) * v('ckSimPreencher') * rpm : null, temOcupacaoRealizada(dados.ocupacao) ? 'sem horas livres ou sem receita por minuto' : atualizandoOcupacao],
     ['ckSimFaltas', rpm && s.minutosFalta30d ? s.minutosFalta30d * v('ckSimFaltas') * rpm : null, 'sem faltas nos últimos 30 dias']
   ];
-  let total = 0;
   for (const [id, valor, semBase] of linhas) {
     el(id).disabled = valor === null;
     el(id + 'Val').textContent = el(id).value + '%';
-    el(id + 'Res').textContent = valor === null ? semBase : '+' + centsToBRL(Math.round(valor)) + '/mês';
-    total += valor || 0;
+    const prefixo = id === 'ckSimConverter' ? 'Receita recorrente bruta estimada de ' : '+';
+    el(id + 'Res').textContent = valor === null ? semBase : prefixo + centsToBRL(Math.round(valor)) + '/mês';
   }
-  el('ckSimTotal').textContent = '+' + centsToBRL(Math.round(total)) + '/mês';
 }
 
 function irParaGestao(subtab) {
@@ -179,6 +218,12 @@ export function initCockpit() {
   el('ckAlertas').addEventListener('click', ev => {
     const b = ev.target.closest('[data-ck-acao]');
     if (b && dados) executar(dados.alertas[Number(b.dataset.ckAcao)].acao);
+  });
+  el('ckDias').addEventListener('click', ev => {
+    const botao = ev.target.closest('[data-ck-agenda]');
+    if (!botao || !dados) return;
+    const dia = dados.ocupacao.porDia.find(dia => dia.dow === Number(botao.dataset.ckAgenda));
+    if (dia?.proximaDataLivre) executar({ destino: 'agenda', data: dia.proximaDataLivre });
   });
   for (const id of ['ckSimConverter', 'ckSimPreencher', 'ckSimFaltas']) el(id).addEventListener('input', simular);
 }

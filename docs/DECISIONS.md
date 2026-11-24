@@ -1085,3 +1085,13 @@ Contar uma visita por cliente identificado por dia, reunindo atendimentos conclu
   - Reservas futuras alimentam a previsão. Para orientar o gestor a abrir a agenda, o alerta deve encontrar janela reservável compatível com o intervalo analisado. O fechamento, a política da grade e as regras do link público continuam sob seus contratos de agendamento.
   - **Conciliação:** a taxa da gorjeta devolvida passou a vir do que o estorno registrou (bruta − líquida), não de uma conta por diferença. Se os totais não fecharem, o resto aparece como "diferença sem causa identificada" (D05b).
 - **Eficiência:** para a recepção, `/dashboard` lê somente o status dos agendamentos da empresa autorizada. A PWA utiliza a projeção `visao=painel` para receber somente os agregados de pagamentos e repasses autorizados. O Cockpit gerencial ainda consulta histórico. O custo relativo em produção segue **DESCONHECIDO** até haver medição autorizada.
+
+## D-072 — Inteligência do Painel e Desempenho, primeira entrega (2026-11-24)
+
+Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementação isolada sobre o PR #63. Registros e critérios em [Métricas do Dashboard](METRICAS_DASHBOARD.md).
+
+- **Operação:** comparar produção e preenchimento realizado por dia da semana na mesma escala. O detalhe explica as bases e abre a Agenda apenas com data reservável entregue pelo servidor.
+- **Gestão:** composição do faturamento em cascata com tabela dos valores registrados. Exibir o mês corrente ou o mês anterior completo por consulta explícita. Montar o gráfico somente ao abrir o resultado, com módulo disponível no cache do app.
+- **Contrato:** preservar projeções autorizadas e restringir gasto, prioridade econômica e candidatos de assinatura na retenção. O Painel da recepção consulta os indicadores que exibe. O endpoint legado de resumo permanece disponível. As medianas de intervalo de retorno são reutilizadas por serviço dentro de cada requisição de retenção. Cenários do simulador são independentes.
+- **Tecnologia:** componentes sem dependência gráfica e sem build. Testar ECharts com distribuição fixada e carregamento sob demanda quando houver séries densas, zoom ou filtros cruzados que justifiquem o custo de mantê-lo.
+- **Liberação:** nenhuma migration. Publicação, validação com dispositivo instalado e medições reais exigem sua própria autorização e evidência.

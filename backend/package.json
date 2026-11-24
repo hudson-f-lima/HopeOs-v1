@@ -31,7 +31,7 @@
     "test:estorno": "node tests/estorno-gate.test.js",
     "test:security": "node tests/security-headers-gate.test.js",
     "test:agendamento-atomico": "node tests/agendamento-atomico-gate.test.js",
-    "test:cockpit": "node tests/cockpit-gate.test.js && node --test tests/ocupacao-realizada-gate.test.js tests/ocupacao-grade-gate.test.js tests/eventos-producao-gate.test.js",
+    "test:cockpit": "node tests/cockpit-gate.test.js && node --test tests/ocupacao-realizada-gate.test.js tests/ocupacao-grade-gate.test.js tests/eventos-producao-gate.test.js tests/dashboard-composicao-gate.test.js tests/dashboard-capacidade-gate.test.js tests/retencao-painel-gate.test.js",
     "test:publico": "node tests/agendamento-publico-gate.test.js",
     "test:online": "node tests/agendamento-online-config-gate.test.js",
     "test:link": "node tests/meu-agendamento-gate.test.js",

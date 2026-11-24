@@ -11,6 +11,23 @@ const percentual = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFra
 const competencia = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 let pedido = 0;
 let posicao = 0;
+let resultadoDoPeriodo = null;
+
+async function desenharComposicao() {
+  const atual = pedido;
+  const resultado = resultadoDoPeriodo;
+  const dobra = el('dobraResultadoFinanceiro');
+  const destino = el('desempenhoGraficoComposicao');
+  if (!destino || !dobra.open || !resultado || destino.firstChild) return;
+  try {
+    const { renderGraficoComposicao } = await import('./graficoComposicao.js');
+    if (atual !== pedido || !dobra.open || !podeVer() || destino.firstChild) return;
+    const grafico = renderGraficoComposicao(resultado);
+    if (grafico) destino.replaceChildren(grafico);
+  } catch {
+    // A tabela da mesma resposta continua disponível se o módulo gráfico falhar.
+  }
+}
 
 const dinheiro = valor => Number.isFinite(valor) ? centsToBRL(valor) : 'Indisponível';
 
@@ -41,16 +58,20 @@ function renderResultado(resultado) {
     ['Faturamento', resultado.faturamentoCentavos],
     ['Comissões', resultado.comissoesCentavos],
     ['Taxas sobre vendas', resultado.taxasItensCentavos],
-    ['Custo dos produtos vendidos', resultado.custoProdutosVendidosCentavos],
-    ['Parte do salão', resultado.parteSalaoCentavos]
+    ['Custo dos produtos vendidos', resultado.custoProdutosVendidosCentavos]
   ];
   // D-071: a diferença aparece separada pela causa conhecida (taxa da gorjeta devolvida em estorno).
   if (resultado.taxaGorjetaEstornadaCentavos) {
     linhas.push(['Taxa de gorjetas devolvidas em estornos', resultado.taxaGorjetaEstornadaCentavos]);
   }
+  if (resultado.taxaGorjetaEstornadaCentavos === undefined && resultado.outraDiferencaCentavos === undefined
+      && resultado.diferencaConciliacaoCentavos) {
+    linhas.push(['Diferença de conciliação', resultado.diferencaConciliacaoCentavos]);
+  }
   if (resultado.outraDiferencaCentavos) {
     linhas.push(['Diferença sem causa identificada (conferir)', resultado.outraDiferencaCentavos]);
   }
+  linhas.push(['Parte do salão', resultado.parteSalaoCentavos]);
   for (const [rotulo, valor] of linhas) {
     const linha = document.createElement('div');
     const label = document.createElement('dt');
@@ -60,7 +81,7 @@ function renderResultado(resultado) {
     linha.append(label, dado);
     composicao.append(linha);
   }
-  setText('desempenhoComposicaoNota', 'A parte do salão inclui serviços e produtos. As taxas sobre vendas excluem gorjetas.'
+  setText('desempenhoComposicaoNota', 'A parte do salão é o faturamento menos comissões, taxas, custos e diferenças registradas. Uma parcela negativa eleva o saldo. O resultado é anterior às despesas fixas. As taxas sobre vendas excluem gorjetas.'
     + ' Num estorno, a taxa e o custo da venda devolvida não voltam: saem da parte do salão.');
 }
 
@@ -96,12 +117,16 @@ function render(dados) {
       + (dados.clientesIdentificados === 1 ? ' cliente identificado' : ' clientes identificados')
     : 'Sem clientes identificados no período.');
   el('desempenhoFidelizacaoNota').hidden = !identificados;
-  renderResultado(dados.resultadoFinanceiro);
+  resultadoDoPeriodo = dados.resultadoFinanceiro;
+  renderResultado(resultadoDoPeriodo);
 }
 
 function limpar() {
   el('desempenhoIndicadores').classList.add('hidden');
   el('desempenhoOcupacaoDetalhe').replaceChildren();
+  el('desempenhoGraficoComposicao')?.replaceChildren();
+  el('desempenhoComposicao').replaceChildren();
+  resultadoDoPeriodo = null;
   el('btnRecarregarDesempenho').classList.add('hidden');
   el('dobraResultadoFinanceiro').open = false;
   el('desempenhoStatus').classList.remove('carregado');
@@ -115,15 +140,22 @@ async function carregar(painel) {
   limpar();
   setText('desempenhoStatus', 'Carregando desempenho…');
   try {
-    const dados = await api('/cockpit/desempenho');
+    const periodo = el('desempenhoMes')?.value || 'atual';
+    const dados = await api('/cockpit/desempenho?' + new URLSearchParams({ mes: periodo }));
     if (!ativo()) return;
+    if (periodo === 'anterior' && dados.periodoPredefinido !== periodo) {
+      throw new Error('O período anterior está indisponível.');
+    }
     render(dados);
+    el('desempenhoFiltro')?.classList.toggle('hidden', dados.periodoPredefinido !== periodo);
     el('desempenhoIndicadores').classList.remove('hidden');
     el('desempenhoStatus').classList.add('carregado');
-    setText('desempenhoStatus', 'Desempenho carregado.');
+    setText('desempenhoStatus', 'Desempenho carregado. ' + el('desempenhoPeriodo').textContent);
   } catch (erro) {
     if (!ativo() || erro instanceof StaleContextError) return;
-    setText('desempenhoStatus', 'Não foi possível carregar o desempenho agora.');
+    setText('desempenhoStatus', navigator.onLine
+      ? 'Não foi possível carregar este período.'
+      : 'Você está sem conexão. Reconecte-se para consultar o desempenho.');
     el('btnRecarregarDesempenho').classList.remove('hidden');
   }
 }
@@ -135,6 +167,9 @@ export function atualizarAcessoDesempenho() {
 export function fecharDesempenho(restaurarFoco = false) {
   if (el('painelDesempenho').classList.contains('hidden')) return;
   pedido++;
+  const seletor = el('desempenhoMes');
+  if (seletor) seletor.value = 'atual';
+  el('desempenhoFiltro')?.classList.add('hidden');
   limpar();
   el('painelDesempenho').classList.add('hidden');
   el('dashboardResumo').classList.remove('hidden');
@@ -153,6 +188,8 @@ export function initDesempenho() {
     window.scrollTo(0, 0);
     carregar(painel);
   });
+  el('desempenhoMes')?.addEventListener('change', () => carregar(painel));
+  el('dobraResultadoFinanceiro').addEventListener('toggle', desenharComposicao);
   el('btnVoltarAnalises').addEventListener('click', () => fecharDesempenho(true));
   el('btnRecarregarDesempenho').addEventListener('click', () => {
     if (!podeVer()) return;
