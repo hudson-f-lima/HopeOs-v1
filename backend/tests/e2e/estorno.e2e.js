@@ -35,7 +35,8 @@ async function entrar(b, email, errs) {
 
   const b = await chromium.launch();
   const p = await entrar(b, 'admin@dev.local', errs);
-  await p.click('#navDashboard'); for (const d of await p.locator('#tab-dashboard summary:visible').all()) await d.click(); /* abre as seções recolhidas */ await p.waitForTimeout(800);
+  await p.click('#navDashboard'); await p.click('#dobraComandas > summary');
+  await p.locator('#estornoLista [data-estornar]').first().waitFor();
   const cardVisivel = await p.isVisible('#cardComandasEstorno');
   const botoes = await p.locator('#estornoLista [data-estornar]').count();
   console.log('ADMIN: card visível =', cardVisivel, '| botões Estornar =', botoes);
