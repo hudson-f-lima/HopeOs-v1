@@ -7,7 +7,8 @@ import {
   getInsightsRetention
 } from '../api.js';
 import { state, findProfissionalNome, stateBus, sessionRoleIn, sessionPode } from '../state.js';
-import { addDays, baixarArquivo, centsToBRL, centsToDecimal, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, toCsv, waLink, WEEKDAY_LABELS } from '../utils.js';
+import { addDays, baixarArquivo, centsToBRL, centsToDecimal, escapeHtml, formatDDMM, showBanner, startOfWeek, todayStr, toCsv, waLink } from '../utils.js';
+import { atualizandoOcupacao, detalheOcupacao, minutosTxt, ocupacaoPctTxt, resumoOcupacao } from './ocupacao.js';
 
 const SEGMENT_COLORS = ['#7c6af7', '#14b8a6', '#3b82f6', '#f59e0b', '#ff7a68', '#b794f6', '#22c55e', '#9490a3'];
 
@@ -45,16 +46,6 @@ function insightRange() {
   const from = state.currentWeekStart || startOfWeek(todayStr());
   const to = addDays(from, 6);
   return { from, to };
-}
-
-function colorForPct(pct, faixas = []) {
-  const sorted = [...faixas].sort((a, b) => Number(a.max || 0) - Number(b.max || 0));
-  const found = sorted.find(f => Number(pct || 0) <= Number(f.max || 0));
-  return (found && found.cor) || (sorted[sorted.length - 1] && sorted[sorted.length - 1].cor) || 'var(--primary)';
-}
-
-function widthPct(value) {
-  return Math.max(0, Math.min(100, Number(value || 0)));
 }
 
 function renderLegacyDashboard(dash) {
@@ -171,17 +162,23 @@ function renderOccupancy() {
 
   const range = occ.range || {};
   if (range.from && range.to) {
-    setText('dbOccRange', `${safeDDMM(range.from)} - ${safeDDMM(range.to)}`);
+    setText('dbOccRange', `${safeDDMM(range.from)} a ${safeDDMM(range.to)}`);
   }
 
-  const loadPct = safeNumber(occ.loadFactorPct, null);
-  const vendidos = safeNumber(occ.minutosVendidos);
-  const disponiveis = safeNumber(occ.minutosDisponiveis);
+  if (!Object.hasOwn(occ, 'realizada')) {
+    node.innerHTML = emptyState(atualizandoOcupacao);
+    return;
+  }
+
+  const realizada = occ.realizada && resumoOcupacao(occ.realizada);
+  const futura = occ.rangePrevisto;
+  const periodoPrevisto = futura && (safeDDMM(futura.from)
+    + (futura.horarioInicio ? ' às ' + futura.horarioInicio : '') + ' até ' + safeDDMM(futura.to));
 
   const profRows = topRows(occ.porProfissional, p => `
     <div class="row">
       <span>${escapeHtml(p.profissionalNome || findProfissionalNome(p.profissionalId))}</span>
-      <b>${pctText(p.surPct)}</b>
+      <b>${escapeHtml(ocupacaoPctTxt(p.preenchimentoGradePct))}</b>
     </div>
   `, 'Sem dados por profissional.');
 
@@ -196,12 +193,17 @@ function renderOccupancy() {
     : '';
 
   node.innerHTML = `
-    <div class="row"><span>Carga da semana</span><b style="color:${colorForPct(loadPct, occ.faixas)}">${pctText(loadPct)}</b></div>
-    <div class="row"><span>Minutos vendidos</span><b>${vendidos}</b></div>
-    <div class="row"><span>Minutos disponíveis</span><b>${disponiveis}</b></div>
-    <h4 class="insight-subtitle">Por profissional</h4>
+    ${realizada ? `<div class="row"><strong>Ocupação realizada</strong><b>${escapeHtml(realizada.valor)}</b></div>
+      <p class="dash-desempenho-nota">${escapeHtml(safeDDMM(occ.realizada.de) + ' a ' + safeDDMM(occ.realizada.ate))} · ${escapeHtml(realizada.base)}</p>
+      ${detalheOcupacao(occ.realizada)}` : ''}
+    ${futura ? `<div class="row"><span>Ocupação prevista</span><b>${escapeHtml(ocupacaoPctTxt(occ.ocupacaoPrevistaPct))}</b></div>
+      <p class="dash-desempenho-nota">${escapeHtml(periodoPrevisto)} · ${escapeHtml(minutosTxt(occ.minutosPrevistos) + ' reservados para ' + minutosTxt(occ.minutosDisponiveisPrevistos) + ' disponíveis')}</p>` : ''}
+    <h4 class="insight-subtitle">Grade ocupada por compromissos</h4>
+    <div class="row"><span>Atendimentos e reservas</span><b>${escapeHtml(ocupacaoPctTxt(occ.preenchimentoGradePct))}</b></div>
+    <p class="dash-desempenho-nota">${escapeHtml(minutosTxt(occ.minutosGradeOcupada) + ' na grade de ' + minutosTxt(occ.minutosDisponiveis) + ' disponíveis')}</p>
+    <h4 class="insight-subtitle">Grade ocupada por profissional</h4>
     ${profRows}
-    ${buracosHtml ? `<h4 class="insight-subtitle">Buracos na agenda</h4>${buracosHtml}` : ''}
+    ${buracosHtml ? `<h4 class="insight-subtitle">Horários livres para reservar</h4>${buracosHtml}` : ''}
   `;
 }
 
@@ -271,7 +273,7 @@ function renderMargin() {
   }, 'Sem pagamentos no período.');
 
   node.innerHTML = `
-    <div class="row"><span>Ticket médio (${escapeHtml(periodoCurto())})</span><b>${centsToBRL(safeNumber(margin.ticketMedioCentavos))}</b></div>
+    <div class="row"><span>Ticket médio (${escapeHtml(periodoCurto())})</span><b>${Number.isFinite(margin.ticketMedioCentavos) ? centsToBRL(margin.ticketMedioCentavos) : 'Sem comandas válidas'}</b></div>
     <h4 class="insight-subtitle">Top serviços</h4>
     ${servicosHtml}
     <h4 class="insight-subtitle">Por profissional (produção · o que fica no salão)</h4>
@@ -510,7 +512,7 @@ export async function atualizarDashboard() {
   const dobraRepasses = el('dobraRepasses');
   if (dobraRepasses) dobraRepasses.hidden = !sessionPode('painel:financeiro');
   try {
-    const dash = await api('/dashboard');
+    const dash = await api('/dashboard?visao=painel');
     renderLegacyDashboard(dash);
   } catch (err) {
     showBanner('Dashboard: ' + err.message, 'error');

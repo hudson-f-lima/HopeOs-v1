@@ -375,8 +375,8 @@
         <section class="dashboard-panel dashboard-panel-wide">
           <div class="panel-head">
             <div>
-              <h2>Ocupação</h2>
-              <p>Semana atual por carga, buracos e profissionais.</p>
+              <h2>Agenda do período</h2>
+              <p>Atendimentos realizados, reservas e horários livres.</p>
             </div>
             <span class="badge-light" id="dbOccRange">Semana</span>
           </div>
@@ -452,11 +452,13 @@
         <div class="ck-alertas" id="ckAlertas"></div>
         <div class="ck-grade">
           <div class="ck-bloco">
-            <h3 class="ck-secao">Ocupação por dia (últimas 4 semanas)</h3>
+            <h3 class="ck-secao">Ocupação realizada por dia da semana</h3>
+            <p class="ck-nota ck-periodo" id="ckDiasPeriodo"></p>
             <div class="ck-dias" id="ckDias"></div>
           </div>
           <div class="ck-bloco">
-            <h3 class="ck-secao">Equipe no mês</h3>
+            <h3 class="ck-secao">Equipe</h3>
+            <p class="ck-nota ck-periodo" id="ckEquipePeriodo"></p>
             <div id="ckEquipe"></div>
           </div>
           <div class="ck-bloco">
@@ -569,7 +571,7 @@
           <h3 class="dash-desempenho-grupo">Agenda e clientes</h3>
           <dl class="dash-desempenho-grade">
             <div class="dash-desempenho-indicador" data-indicador="ocupacao">
-              <dt>Ocupação da agenda</dt>
+              <dt>Ocupação realizada</dt>
               <dd class="dash-desempenho-valor" id="desempenhoOcupacao"></dd>
               <dd class="dash-desempenho-nota" id="desempenhoOcupacaoBase"></dd>
             </div>
@@ -580,6 +582,7 @@
               <dd class="dash-desempenho-nota" id="desempenhoFidelizacaoNota" hidden>Clientes com 3 ou mais visitas em dias distintos nos 365 dias até o fim do período.</dd>
             </div>
           </dl>
+          <div id="desempenhoOcupacaoDetalhe"></div>
         </div>
       </section>
     </section>

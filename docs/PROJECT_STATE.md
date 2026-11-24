@@ -1,7 +1,7 @@
 # PROJECT STATE — KortexOS / HOPE OS
 
-**Atualizado:** 2026-11-23 · `main` em `3358bf8` (PR #58). **Fonte canônica do estado operacional.**
-Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A cronologia das decisões (D-001 a D-067) está em [`DECISIONS.md`](DECISIONS.md); o histórico de entregas, em [`../CHANGELOG.md`](../CHANGELOG.md).
+**Atualizado:** 2026-11-24 · base do PR #63 em `ec19f15` (PR #62). **Fonte canônica do estado operacional.**
+Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A cronologia das decisões (D-001 a D-071) está em [`DECISIONS.md`](DECISIONS.md); o histórico de entregas, em [`../CHANGELOG.md`](../CHANGELOG.md).
 
 ## 1. Identificação e produção (conferido em 2026-11-23, só leitura)
 
@@ -22,7 +22,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 
 ## 2. Estado confirmado
 
-- **D-071 · Painel com uma definição por métrica (PR rascunho):** fonte única em `metricasPeriodo.js`; cards de histórico inteiro removidos; ticket da coorte; banco em memória respeita as colunas pedidas. Sem migration.
+- **D-071 · Painel com uma definição por métrica (PR rascunho):** o Painel e o Desempenho distinguem produção realizada, preenchimento da grade e compromissos futuros. Serviços fora do expediente e encaixes contam na produção. Recepção lê os status da agenda para montar o resumo operacional. O ticket da coorte distingue ausência de comandas e valor zero. A publicação e a validação do app instalado em produção seguem pendentes. Sem migration.
 - **D-070 · Desempenho do salão:** implementação no Painel e em `GET /api/cockpit/desempenho`. Base de integração `184b3fa` (PR #61). Validação de implantação em produção pendente.
 
 | Área | Estado | Evidência |

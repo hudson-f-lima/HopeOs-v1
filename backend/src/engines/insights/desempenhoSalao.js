@@ -6,7 +6,7 @@ const { financeiroDoIntervalo, ticketDoPeriodo, ocupacaoDoPeriodo } = require('.
 const { atendimentosDe, ATENDIDO, FIDELIDADE_JANELA_DIAS, FIDELIDADE_VISITAS } = require('./piloto');
 const { addDays, isClosedCommand } = require('./retention');
 
-function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos, estornoItens, agendamentos, profissionais, empresa }) {
+function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos, estornoItens, agendamentos, profissionais, empresa, producao }) {
   const noPeriodo = r => r.data >= inicio && r.data <= fim;
   const fechadas = comandos.filter(isClosedCommand);
   const vendas = fechadas.filter(noPeriodo);
@@ -49,11 +49,12 @@ function computeDesempenhoSalao({ inicio, fim, comandos, comandoItens, estornos,
   const agendaPeriodo = agendamentos.filter(noPeriodo);
   const atendimentosSemCliente = agendaPeriodo.some(a => !a.cliente_id && ATENDIDO.includes(a.status))
     || comandasServico.some(c => !c.cliente_id && noPeriodo(c));
-  const { minutosOcupados, minutosDisponiveis, minutosForaDaEscala, ocupacaoPct } = ocupacaoDoPeriodo({ agendamentos: agendaPeriodo, profissionais, empresa }, inicio, fim);
+  const ocupacao = ocupacaoDoPeriodo({ ...(producao || { agendamentos, comandos, comandoItens }), profissionais, empresa }, inicio, fim);
+  const { minutosDisponiveis } = ocupacao;
   return {
     inicio, fim, faturamentoCentavos, comandas: ticket.comandas, ticketMedioCentavos: ticket.ticketMedioCentavos,
     estornosVendasAnterioresCentavos: ticket.estornosVendasAnterioresCentavos,
-    visitasIdentificadas: visitasPeriodo.length, atendimentosSemCliente, produtosUnidades, minutosOcupados, minutosDisponiveis, minutosForaDaEscala, ocupacaoPct,
+    visitasIdentificadas: visitasPeriodo.length, atendimentosSemCliente, produtosUnidades, ...ocupacao,
     clientesIdentificados: clientes.size, clientesFieis: [...diasPorCliente.values()].filter(n => n >= FIDELIDADE_VISITAS).length,
     parteSalaoServicosCentavos,
     parteSalaoServicosPorHoraCentavos: minutosDisponiveis ? Math.round(parteSalaoServicosCentavos * 60 / minutosDisponiveis) : null,

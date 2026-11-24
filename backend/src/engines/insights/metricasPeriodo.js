@@ -4,7 +4,7 @@
 //   - dinheiro em centavos inteiros; venda pela data da comanda, estorno pela data do estorno (D-013);
 //   - só comandas fechadas contam;
 //   - sem base para uma razão, o campo é null (D-065), nunca 0 inventado.
-const { OCUPA, datasDoPeriodo, minutosDisponiveis } = require('./occupancy');
+const { ocupacaoDoPeriodo, ocupacaoPorProfissionalDia, somarOcupacao } = require('./ocupacaoRealizada');
 const { isClosedCommand } = require('./retention');
 const { comandasEstornadasTotal } = require('../EstornoEngine');
 
@@ -42,36 +42,4 @@ function ticketDoPeriodo({ comandos, estornos }, de, ate) {
   };
 }
 
-// Ocupação: minutos ocupados DENTRO da escala sobre os minutos da escala. Por profissional e dia, o que
-// passa do expediente (atendimento num dia fechado, de profissional inativo, ou além das horas do dia)
-// vai para minutosForaDaEscala: não infla a ocupação e aparece para o gestor conferir a escala.
-function ocupacaoDoPeriodo({ agendamentos, profissionais, empresa }, de, ate) {
-  const ativos = (profissionais || []).filter(p => p && p.ativo !== false);
-  const idsAtivos = new Set(ativos.map(p => p.id));
-  const porProfDia = new Map();
-  for (const a of agendamentos || []) {
-    const d = dia(a.data);
-    if (d < de || d > ate || !OCUPA.includes(a.status)) continue;
-    const k = a.profissional_id + '|' + d;
-    porProfDia.set(k, (porProfDia.get(k) || 0) + Number(a.duracao_min || a.duracaoMin || 30));
-  }
-  let ocupados = 0; let disponiveis = 0; let fora = 0;
-  for (const data of datasDoPeriodo(de, ate)) {
-    for (const p of ativos) {
-      const disp = minutosDisponiveis(p, empresa || {}, data);
-      const usados = porProfDia.get(p.id + '|' + data) || 0;
-      disponiveis += disp;
-      ocupados += Math.min(usados, disp);
-      fora += Math.max(0, usados - disp);
-    }
-  }
-  for (const [k, minutos] of porProfDia) if (!idsAtivos.has(k.split('|')[0])) fora += minutos;
-  return {
-    minutosOcupados: ocupados,
-    minutosDisponiveis: disponiveis,
-    minutosForaDaEscala: fora,
-    ocupacaoPct: disponiveis ? Math.round((ocupados / disponiveis) * 1000) / 10 : null
-  };
-}
-
-module.exports = { financeiroDoIntervalo, ticketDoPeriodo, ocupacaoDoPeriodo };
+module.exports = { financeiroDoIntervalo, ticketDoPeriodo, ocupacaoDoPeriodo, ocupacaoPorProfissionalDia, somarOcupacao };

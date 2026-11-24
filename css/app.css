@@ -848,6 +848,21 @@ progress{accent-color:var(--primary);}
 #resultadoFinanceiroTitulo{scroll-margin-top:80px;}
 @media (max-width:350px){.dash-desempenho-grade{grid-template-columns:1fr;}}
 
+.ocupacao-detalhe{margin-top:8px;border-top:1px solid var(--border);}
+.ocupacao-detalhe>summary{
+  box-sizing:border-box;min-height:44px;padding:12px 4px;cursor:pointer;
+  color:var(--primary);font-size:.875rem;font-weight:700;
+}
+.ocupacao-detalhe>summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px;}
+.ocupacao-detalhe dl{margin:0;font-size:.8125rem;}
+.ocupacao-detalhe dl div{
+  display:flex;justify-content:space-between;gap:8px;padding:6px 0;
+  border-bottom:1px solid var(--border-light);
+}
+.ocupacao-detalhe dd{flex:none;max-width:50%;margin:0;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;}
+.ocupacao-detalhe h4,.ocupacao-detalhe p{margin:8px 0 0;font-size:.8125rem;line-height:1.4;}
+.ocupacao-detalhe p{color:var(--text-secondary);}
+
 /* Cadastros (area Gestao via avatar) */
 .cadastro-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid rgba(111,109,122,.14);border-radius:14px;background:var(--bg-surface);box-shadow:0 1px 8px rgba(15,23,42,.06);gap:10px;margin-bottom:8px;}
 .cadastro-row:last-child{margin-bottom:0;}
@@ -1505,14 +1520,12 @@ body{font-variant-numeric:tabular-nums;}
 .ck-alerta button{min-height:44px}
 .ck-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .ck-bloco{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px}
-.ck-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end}
-.ck-dia{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px}
+.ck-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.ck-dia{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;text-align:center}
 .ck-dia small{color:var(--text-secondary)}
 .ck-dia-barra{height:90px;width:100%;max-width:36px;background:var(--surface-variant);border-radius:6px;display:flex;align-items:flex-end;overflow:hidden}
-.ck-dia-barra span{display:block;width:100%;background:var(--success)}
-.ck-dia-baixo .ck-dia-barra span{background:var(--warning)}
-.ck-dia-cheio .ck-dia-barra span{background:var(--error)}
-.ck-dia-fechado b{color:var(--text-tertiary);font-weight:500}
+.ck-dia-barra span{display:block;width:100%;background:var(--primary)}
+.ck-dia b{overflow-wrap:anywhere}
 .ck-tabela{width:100%;border-collapse:collapse;font-size:13px}
 .ck-tabela th,.ck-tabela td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--border-light)}
 .ck-tabela td:not(:first-child),.ck-tabela th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
@@ -1521,3 +1534,4 @@ body{font-variant-numeric:tabular-nums;}
 .ck-sim span{color:var(--text-secondary);font-variant-numeric:tabular-nums}
 .ck-sim-total{font-size:15px;margin-top:4px}
 .ck-nota{font-size:12px;color:var(--text-tertiary);margin:6px 0 0}
+.ck-periodo{margin:0 0 8px}

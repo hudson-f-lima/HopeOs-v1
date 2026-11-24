@@ -26,11 +26,20 @@ function installMemoryBackend(seed = {}) {
   const projetar = campos => {
     if (!campos || campos === '*') return r => r;
     const lista = String(campos).split(',').map(c => c.trim()).filter(Boolean);
-    return r => Object.fromEntries(lista.filter(c => Object.prototype.hasOwnProperty.call(r, c)).map(c => [c, r[c]]));
+    return r => Object.fromEntries(lista.flatMap(c => {
+      if (c === 'agendamento_checkout:snapshot->request->raw->agendamentoId::text') {
+        return [['agendamento_checkout', JSON.stringify(r.snapshot?.request?.raw?.agendamentoId) ?? null]];
+      }
+      return Object.hasOwn(r, c) ? [[c, r[c]]] : [];
+    }));
   };
-  P.list = async function (t, f = {}, { campos, inicio, fim, comandoIds } = {}) {
+  P.list = async function (t, f = {}, { campos, inicio, fim, comandoIds, ids, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite } = {}) {
     return rows(t).filter(r => match(r, f) && (!inicio || r.data >= inicio) && (!fim || r.data <= fim)
-      && (!comandoIds || comandoIds.includes(r.comando_id))).map(projetar(campos));
+      && (!comandoIds || comandoIds.includes(r.comando_id)) && (!ids || ids.includes(r.id))
+      && (duracaoMaiorQue === undefined || r.duracao_min > duracaoMaiorQue)
+      && (!foraPeriodo || r.data < foraPeriodo.inicio || r.data > foraPeriodo.fim)
+      && (!vinculosAgenda || vinculosAgenda.some(v => v.comandaId === r.id
+        || String(r.snapshot?.request?.raw?.agendamentoId || '').trim().toLowerCase() === v.agendaId))).slice(0, limite).map(projetar(campos));
   };
   P.contarDesde = async function (t, f = {}, coluna, desde) {
     const limite = new Date(desde).getTime();

@@ -1,6 +1,8 @@
 # Changelog
 
 ## Painel: um número por indicador (D-071)
+- O Painel distingue **ocupação realizada** (minutos de serviços concluídos por minuto de escala) de **preenchimento da grade** (quanto tempo da escala teve atendimento). A produção pode ultrapassar 100%. O detalhe informa minutos sobrepostos, fora da escala e sem horário conhecido.
+- O gráfico, a equipe e os horários livres indicam a janela usada. A previsão considera os compromissos futuros. O ticket exibe “Sem comandas válidas” quando falta a base, e uma cortesia válida pode resultar em R$ 0,00.
 - Ocupação, faturamento e ticket mostram o mesmo valor no Cockpit e no Desempenho do salão, com o período escrito ao lado.
 - Saíram os cards que somavam todo o histórico com o rótulo "no período".
 - O ticket médio não cai mais por causa de estorno de venda de outro mês; esse estorno aparece à parte.

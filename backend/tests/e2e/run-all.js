@@ -68,6 +68,7 @@ const CASOS = [
   { nome: 'dashboard' },
   { nome: 'cockpit' },
   { nome: 'desempenho-salao' },
+  { nome: 'ocupacao-realizada' },
   { nome: 'split' },
   { nome: 'permissoes' },
   { nome: 'escalas' },

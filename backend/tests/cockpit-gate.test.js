@@ -285,18 +285,20 @@ test('D02 desempenho reconcilia o ledger misto, conta visitas identificadas e di
     return r.data.data;
   };
   const r = await relatorio(dia, dia);
-  assert.deepStrictEqual(r, {
+  const esperado = {
     // Ticket da coorte (D-071): (16000 + 0 + 0 + 2000 − 4000 do estorno parcial da própria "mista") ÷ 4 = 3500.
     // O estorno de "antiga" (venda de 2025) não entra no ticket: aparece em estornosVendasAnteriores (2000).
     // Antes da D-071 o ticket era 12000 ÷ 4 = 3000, puxado para baixo por aquele estorno antigo.
     inicio: dia, fim: dia, faturamentoCentavos: 12000, comandas: 4, ticketMedioCentavos: 3500, estornosVendasAnterioresCentavos: 2000,
     visitasIdentificadas: 3, atendimentosSemCliente: true, produtosUnidades: 3,
-    minutosOcupados: 95, minutosDisponiveis: 600, minutosForaDaEscala: 0, ocupacaoPct: 15.8, clientesIdentificados: 3, clientesFieis: 1,
+    minutosOcupados: 30, minutosDisponiveis: 600, minutosForaDaEscala: 0, ocupacaoPct: 5, clientesIdentificados: 3, clientesFieis: 1,
+    minutosRealizados: 80, minutosSobrepostos: 30, ocupacaoRealizadaPct: 13.3, preenchimentoGradePct: 5,
     parteSalaoServicosCentavos: 4000, parteSalaoServicosPorHoraCentavos: 400,
     resultadoFinanceiro: { faturamentoCentavos: 12000, parteSalaoCentavos: 7900, comissoesCentavos: 1800,
       taxasItensCentavos: 300, custoProdutosVendidosCentavos: 2000, diferencaConciliacaoCentavos: 0,
       taxaGorjetaEstornadaCentavos: 0, outraDiferencaCentavos: 0 }
-  });
+  };
+  for (const [campo, valor] of Object.entries(esperado)) assert.deepStrictEqual(r[campo], valor, campo);
   const soEstorno = await relatorio('2026-11-18', '2026-11-18');
   assert.deepStrictEqual([soEstorno.faturamentoCentavos, soEstorno.produtosUnidades, soEstorno.comandas, soEstorno.ticketMedioCentavos,
     soEstorno.minutosDisponiveis, soEstorno.parteSalaoServicosPorHoraCentavos, soEstorno.atendimentosSemCliente],
@@ -365,7 +367,7 @@ test('D05b conciliação: se o estorno registrou uma taxa de gorjeta que não ba
   assert.deepStrictEqual([r.diferencaConciliacaoCentavos, r.taxaGorjetaEstornadaCentavos, r.outraDiferencaCentavos], [80, 50, 30]);
 });
 
-test('D06 ocupação não conta atendimento fora da escala (domingo fechado) e mostra esses minutos à parte', async () => {
+test('D06 atendimento em domingo fechado entra na produção e deixa a grade de segunda livre', async () => {
   // Cenário da revisão do PR #63: segunda 23/11 com 60 min de escala e nenhum atendimento; domingo 22/11
   // fechado com um atendimento concluído de 30 min. Antes: 30 ocupados ÷ 60 disponíveis = 50%.
   const SEG = { ativo: true, inicio: '09:00', fim: '10:00' };
@@ -375,7 +377,7 @@ test('D06 ocupação não conta atendimento fora da escala (domingo fechado) e m
     empresa, profissionais: [{ id: P1, empresa_id: E, nome: 'Ana', ativo: true }],
     agendamentos: [{ ...ag('dom', P1, '2026-11-22', '10:00:00', 'concluido'), duracao_min: 30 }]
   }, '2026-11-22', '2026-11-23');
-  assert.deepStrictEqual(r, { minutosOcupados: 0, minutosDisponiveis: 60, minutosForaDaEscala: 30, ocupacaoPct: 0 });
+  assert.deepStrictEqual([r.ocupacaoRealizadaPct, r.preenchimentoGradePct, r.minutosRealizados, r.minutosDisponiveis, r.minutosForaDaEscala], [50, 0, 30, 60, 30]);
 });
 
 test('D07 ticket igual no quadro Margem e no Desempenho: venda com gorjeta e estorno de venda do mês anterior', async () => {
@@ -398,6 +400,40 @@ test('D07 ticket igual no quadro Margem e no Desempenho: venda com gorjeta e est
   // Coorte de novembro: só n1, sem gorjeta → 10000. Antes, a Margem dava (11000 − 4000) ÷ 1 = 7000.
   assert.strictEqual(desempenho.ticketMedioCentavos, 10000);
   assert.strictEqual(margem.ticketMedioCentavos, desempenho.ticketMedioCentavos);
+});
+
+test('D08 Cockpit e Desempenho entregam 150% realizados, 100% preenchidos e 15 min em cada diagnóstico', async () => {
+  const dia = '2026-11-01'; // domingo, 1º dia do mês: mesma janela nas duas rotas
+  const escala = Object.fromEntries(Object.keys(EMPRESA.horario_por_dia).map(d => [d, fechado]));
+  escala.dom = { ativo: true, inicio: '09:00', fim: '10:00' };
+  installMemoryBackend({
+    empresas: [{ ...EMPRESA, horario_por_dia: escala }], profissionais: [PROFS[0]],
+    agendamentos: ['09:00:00', '09:30:00'].map((hora, i) => ({
+      ...ag('encaixe' + i, P1, dia, hora, 'concluido'), duracao_min: 45
+    }))
+  });
+  clock.definirRelogio(() => new Date('2026-11-01T16:00:00Z'));
+  try {
+    for (const path of ['/api/cockpit', pathDesempenho]) {
+      const resposta = await request(path);
+      assert.strictEqual(resposta.status, 200, path);
+      const dados = resposta.data.data;
+      const o = dados.ocupacaoMes || dados;
+      assert.deepStrictEqual([o.ocupacaoRealizadaPct, o.preenchimentoGradePct, o.minutosSobrepostos, o.minutosForaDaEscala], [150, 100, 15, 15], path);
+    }
+  } finally { clock.definirRelogio(() => new Date('2026-11-22T15:00:00Z')); }
+});
+
+test('D09 Margem e Desempenho distinguem ausência de comandas de uma cortesia de valor zero', async () => {
+  const dia = '2026-11-17';
+  for (const [comandos, esperado] of [[[], null], [[{ ...comanda('cortesia', dia, C(1), 0, 0, 0, 0), status: 'fechado' }], 0]]) {
+    installMemoryBackend({ empresas: [EMPRESA], profissionais: PROFS, comandos });
+    for (const path of [pathDesempenho + '?inicio=' + dia + '&fim=' + dia, '/api/insights/margin?from=' + dia + '&to=' + dia]) {
+      const resposta = await request(path);
+      assert.strictEqual(resposta.status, 200, path);
+      assert.strictEqual(resposta.data.data.ticketMedioCentavos, esperado, path);
+    }
+  }
 });
 
 test('D03 o repositório pagina mais de 1000 itens do mesmo lote, em ordem e com tenant', async () => {
