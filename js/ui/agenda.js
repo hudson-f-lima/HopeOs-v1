@@ -26,11 +26,15 @@ import {
 } from '../utils.js';
 
 export const PX_POR_MIN = 3;
-export const HORA_INICIO = 8;
-export const HORA_FIM = 20;
+// Janela da grade (D-074): começa em 8h–20h e cresce até a escala do dia e até os atendimentos
+// dos profissionais na tela. Nunca encolhe abaixo de 8h–20h: o trecho fora da escala continua
+// tocável para encaixe, e nenhum atendimento fica fora da tela (antes, um horário às 7h sumia).
+const JANELA_PADRAO = [8, 20];
+export let HORA_INICIO = JANELA_PADRAO[0];
+export let HORA_FIM = JANELA_PADRAO[1];
 export const GRID_MIN = 20;
 export const SNAP_MIN = 20;
-export const TIMELINE_TOTAL_HEIGHT = (HORA_FIM - HORA_INICIO) * 60 * PX_POR_MIN;
+export let TIMELINE_TOTAL_HEIGHT = (HORA_FIM - HORA_INICIO) * 60 * PX_POR_MIN;
 
 export const AGENDA_STATUS_META = {
   agendado: { label: 'Agendado', cls: 'badge' },
@@ -81,6 +85,58 @@ function profItemsForDay(profId) {
 function itemStartMinutes(item) {
   const [h, m] = String(item.horario).slice(0, 5).split(':').map(Number);
   return (h - HORA_INICIO) * 60 + m;
+}
+
+const minDoDia = hhmmTxt => { const [h, m] = String(hhmmTxt).slice(0, 5).split(':').map(Number); return h * 60 + m; };
+const ATIVOS_NA_GRADE = it => !['concluido', 'no_show', 'cancelado', 'reagendado'].includes(it.status);
+
+// Calcula a janela do dia para os profissionais na tela e atualiza HORA_INICIO/HORA_FIM.
+// Devolve quantas horas o início andou (para manter a mesma parte da grade na tela).
+function ajustarJanela(dia, profs) {
+  let ini = JANELA_PADRAO[0] * 60; let fim = JANELA_PADRAO[1] * 60;
+  const g = gradeDoDia(dia);
+  for (const p of profs) {
+    for (const x of (g && g[p.id] && g[p.id].periodos) || []) { ini = Math.min(ini, minDoDia(x.inicio)); fim = Math.max(fim, minDoDia(x.fim)); }
+    for (const it of profItemsForDay(p.id)) {
+      const a = minDoDia(it.horario); ini = Math.min(ini, a); fim = Math.max(fim, a + (Number(it.duracao_min) || 30));
+    }
+  }
+  const novoIni = Math.max(0, Math.floor(ini / 60)); const novoFim = Math.min(24, Math.ceil(fim / 60));
+  const deslocamento = HORA_INICIO - novoIni;
+  HORA_INICIO = novoIni; HORA_FIM = novoFim;
+  TIMELINE_TOTAL_HEIGHT = (HORA_FIM - HORA_INICIO) * 60 * PX_POR_MIN;
+  return deslocamento;
+}
+
+// Atendimentos ativos fora da escala no dia (os mesmos que o card marca com ⚠ fora da escala).
+function foraDaEscalaNoDia(dia, profs) {
+  return profs.flatMap(p => profItemsForDay(p.id).filter(it => {
+    if (!ATIVOS_NA_GRADE(it)) return false;
+    const a = minDoDia(it.horario);
+    return foraDaEscala(it.profissional_id, dia, a, a + (Number(it.duracao_min) || 30));
+  })).sort((x, y) => minDoDia(x.horario) - minDoDia(y.horario));
+}
+
+// Selo "N fora da escala" (D-074): pequeno, ao lado do total do dia; tocar leva ao primeiro.
+function atualizarSeloFora(dia, profs) {
+  const selo = document.getElementById('agSeloFora');
+  if (!selo) return;
+  const lista = foraDaEscalaNoDia(dia, profs);
+  selo.classList.toggle('hidden', !lista.length);
+  selo.dataset.alvo = lista.length ? lista[0].id : '';
+  selo.textContent = lista.length + ' fora da escala';
+  selo.setAttribute('aria-label', lista.length + (lista.length === 1 ? ' atendimento' : ' atendimentos') + ' fora da escala neste dia. Tocar mostra o primeiro.');
+}
+
+function irParaForaDaEscala() {
+  const id = document.getElementById('agSeloFora')?.dataset.alvo;
+  const bloco = id && document.querySelector('.ag-block[data-ag-id="' + CSS.escape(id) + '"]');
+  const cont = document.getElementById('timelineContainer');
+  if (!bloco || !cont) return;
+  const reduzir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  cont.scrollTo({ top: Math.max(0, bloco.offsetTop - 16), behavior: reduzir ? 'auto' : 'smooth' });
+  bloco.classList.add('ag-flash');
+  setTimeout(() => bloco.classList.remove('ag-flash'), 1600);
 }
 
 function minutesSinceStartToHHMM(m) {
@@ -191,6 +247,7 @@ export function renderTimeline() {
   }
   
   container.style.setProperty('--prof-count', profs.length);
+  const deslocamento = ajustarJanela(state.selectedDay, profs);
 
   let html = '';
   // Corner
@@ -233,6 +290,10 @@ export function renderTimeline() {
   }).join('');
 
   container.innerHTML = html;
+  // A grade cresceu para cima: mantém na tela o mesmo horário que estava antes.
+  const rolagem = document.getElementById('timelineContainer');
+  if (deslocamento && rolagem) rolagem.scrollTop += deslocamento * 60 * PX_POR_MIN;
+  atualizarSeloFora(state.selectedDay, profs);
 
   positionRedline();
   // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez (também
@@ -1241,6 +1302,7 @@ export function initAgenda() {
 
   const timelineCols = document.getElementById('agendaGrid');
   timelineCols.addEventListener('click', onTimelineClick);
+  document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
 
   timelineCols.addEventListener('mousedown', e => {
     const handle = e.target.closest('.drag-handle');

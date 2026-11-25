@@ -1,5 +1,9 @@
 # Changelog
 
+## Agenda: nada fica fora da grade (D-074)
+- A grade do dia cresce até o primeiro e o último atendimento. Um encaixe às 7h ou às 20h30 agora aparece e pode ser tocado.
+- Um selo pequeno ao lado do total do dia mostra quantos atendimentos estão fora da escala; tocar leva ao primeiro.
+
 ## Painel: um número por indicador (D-071)
 - O Painel distingue **ocupação realizada** (minutos de serviços concluídos por minuto de escala) de **preenchimento da grade** (quanto tempo da escala teve atendimento). A produção pode ultrapassar 100%. O detalhe informa minutos sobrepostos, fora da escala e sem horário conhecido.
 - O gráfico, a equipe e os horários livres indicam a janela usada. A previsão considera os compromissos futuros. O ticket exibe “Sem comandas válidas” quando falta a base, e uma cortesia válida pode resultar em R$ 0,00.
