@@ -48,9 +48,11 @@ function renderCards(d) {
       m.taxasPctDoRecebido !== null ? 'Taxas: ' + pctTxt(m.taxasPctDoRecebido) + ' do recebido' + (m.taxasPctAnterior !== null ? ' (mês passado ' + pctTxt(m.taxasPctAnterior) + ')' : '') : null
     ]),
     // Mesmo período e mesma regra do Desempenho do salão (D-071).
+    // D-075: o preenchimento da grade aparece no próprio cartão, ao lado da ocupação realizada.
     card('Ocupação realizada', ocupacao.valor, [
       periodoTxt(om.de, om.ate),
-      ocupacao.base
+      ocupacao.base,
+      om.preenchimentoGradePct != null ? 'Preenchimento da grade: ' + ocupacaoPctTxt(om.preenchimentoGradePct) : null
     ], detalheOcupacao(om)),
     card('Recorrência', r.ativos + ' assinante(s) ativo(s)', [
       centsToBRL(r.mrrCentavos) + ' de receita recorrente nominal por mês',
