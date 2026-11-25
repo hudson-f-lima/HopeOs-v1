@@ -19,7 +19,7 @@ class SupabaseRepository {
     this.empresaId = empresaId;
   }
 
-  async list(table, filters = {}, { campos = '*', inicio, fim, comandoIds, ids, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite, ordem } = {}) {
+  async list(table, filters = {}, { campos = '*', inicio, fim, comandoIds, ids, clienteIds, agendamentoIds, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite, ordem } = {}) {
     // PostgREST limita a 1000 linhas por chamada por padrao. Sem paginacao aqui,
     // qualquer tabela que cresca alem disso (ex: clientes) silenciosamente perde
     // registros em toda leitura (snapshot, export, GET /catalog, etc), sem erro.
@@ -35,6 +35,8 @@ class SupabaseRepository {
       if (fim) query = query.lte('data', fim);
       if (comandoIds) query = query.in('comando_id', comandoIds);
       if (ids) query = query.in('id', ids);
+      if (clienteIds) query = query.in('cliente_id', clienteIds);
+      if (agendamentoIds) query = query.in('agendamento_id', agendamentoIds);
       if (duracaoMaiorQue !== undefined) query = query.gt('duracao_min', duracaoMaiorQue);
       if (vinculosAgenda) {
         // Somente IDs de agendamentos do banco entram nessa expressão. Recibos

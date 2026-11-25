@@ -66,7 +66,7 @@ const db = installMemoryBackend({
     { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: '2026-01-05', horario: '10:00:00', duracao_min: 30, status: 'no_show', valor_centavos: 4000 },
     { id: randomUUID(), empresa_id: E, profissional_id: PROF, servico_id: BARBA, cliente_id: CLIENTE, data: '2026-01-12', horario: '10:00:00', duracao_min: 30, status: 'no_show', valor_centavos: 4000 }
   ],
-  produtos: [], lista_espera: [], cargos: [], servico_categorias: [], comandos: [], comando_itens: [],
+  produtos: [], lista_espera: [], agendamento_eventos: [], cargos: [], servico_categorias: [], comandos: [], comando_itens: [],
   formas_pagamento: [{ empresa_id: E, code: 'pix', label: 'Pix', taxa_pct: 0, taxa_fixa_centavos: 0, dias_recebimento: 0, ativo: true }]
 });
 

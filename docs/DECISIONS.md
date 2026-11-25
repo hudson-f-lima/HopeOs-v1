@@ -1147,3 +1147,34 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - E2E `series` (prévia e criação normais) e `agenda-bloqueio`, `agenda-inteligente` passam.
   - **Não coberto por navegador:** a pergunta de encaixe na tela. A base de teste não tem data fora da escala no fluxo de "Repetir". Fica como pendência de teste.
 - **Não muda:** escala, conflitos, link público, cancelar e alterar, permissões existentes. Sem migration.
+
+## D-077 — Agenda: card novo com ícones de situação do cliente (cards etapa 2; sem migration)
+- **Pedido (Platform Owner, 2026-11-25):** "Faz a etapa 2 dos cards", conforme o protótipo aprovado em 25/11 (skill `agenda-cards`). Escolhas do dono: suave por padrão, situação no canto, concluído e pago acinzentado + chanfro, só os 7 ícones que já têm dado.
+- **Servidor:** `GET /api/agenda?data=AAAA-MM-DD&marcadores=1` devolve em cada agendamento `marcadores` (códigos dos ícones, na ordem do card) e `pago`. Sem `marcadores=1`, ou sem `data`, a resposta não muda. Motor puro `MarcadoresAgendaEngine`. As leituras são por lista de ids, em lotes de 100: nada de uma consulta por card.
+- **Fonte de cada ícone (conferida no código e nas migrations):**
+  | Ícone | Fonte |
+  |---|---|
+  | Assinante / assinatura em atraso | `situacao()` das assinaturas do cliente HOJE (em dia; atrasada ou suspensa). Só para quem tem `assinatura:ver`: o profissional não recebe |
+  | Primeira visita | Nenhum atendimento concluído/fechado nem comanda fechada em **dia anterior** |
+  | Recorrente | `agendamentos.serie_id` (018) |
+  | Pelo link | Evento `origem_link_publico` na trilha `agendamento_eventos` |
+  | Veio da espera | Evento `criado` com `espera_baixada` (D-060) |
+  | Faltas | `computeReguaFaltas` em `alerta` ou `exigir_sinal`, só com o que veio **antes** do horário do card |
+- **Pago:** status `fechado`, ou `concluido` com o evento de status do checkout (`origem: 'checkout'`). Concluído à mão não é pago.
+- **Limite conhecido:** a trilha de eventos é best-effort (AgendaEventosService). "Pelo link", "veio da espera" e "pago" podem **faltar** se o evento não foi gravado, nunca sobrar.
+- **Tela:** cor do serviço sempre suave. O matiz vem da categoria conhecida; sem categoria conhecida, o matiz é estável pelo id do serviço. Densidade pela duração:
+  - sempre aparecem horário, cliente, ícones e situação;
+  - o serviço aparece a partir de 30 min;
+  - o aviso (observações) aparece a partir de 45 min.
+
+  A falta tem contorno tracejado e nome riscado. O concluído e pago fica acinzentado, com chanfro, "PAGO" e sem alça de arraste. Contraste do texto medido nos 12 matizes: pior caso 5,54:1 (escuro) e 7,16:1 (claro); AA exige 4,5:1.
+- **Verificação:**
+  - `marcadores-gate` M01–M08: valores calculados à mão, papéis, isolamento entre empresas e pago.
+  - Controles negativos:
+    - eventos sem filtro de empresa → M01, M03 e M04 caem;
+    - faltas sem o corte "antes do horário" → M06 cai;
+    - assinatura para todos os papéis → M03 cai;
+    - pago sem exigir o evento do caixa → M08 cai.
+  - E2E `agenda-cards` (390×844, CSP, claro e escuro). Controle negativo: sem a marca de pago, o E2E cai.
+  - `test:offline` verde; E2E 48/48.
+- **Não muda:** arraste (etapa 3), cores por serviço no cadastro (migration 028+, não autorizada), permissões, rotas de escrita. O seed de desenvolvimento passa a declarar `agendamento_eventos` (para o E2E plantar eventos).

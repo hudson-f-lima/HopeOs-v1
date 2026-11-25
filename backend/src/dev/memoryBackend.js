@@ -33,9 +33,10 @@ function installMemoryBackend(seed = {}) {
       return Object.hasOwn(r, c) ? [[c, r[c]]] : [];
     }));
   };
-  P.list = async function (t, f = {}, { campos, inicio, fim, comandoIds, ids, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite } = {}) {
+  P.list = async function (t, f = {}, { campos, inicio, fim, comandoIds, ids, clienteIds, agendamentoIds, vinculosAgenda, foraPeriodo, duracaoMaiorQue, limite } = {}) {
     return rows(t).filter(r => match(r, f) && (!inicio || r.data >= inicio) && (!fim || r.data <= fim)
       && (!comandoIds || comandoIds.includes(r.comando_id)) && (!ids || ids.includes(r.id))
+      && (!clienteIds || clienteIds.includes(r.cliente_id)) && (!agendamentoIds || agendamentoIds.includes(r.agendamento_id))
       && (duracaoMaiorQue === undefined || r.duracao_min > duracaoMaiorQue)
       && (!foraPeriodo || r.data < foraPeriodo.inicio || r.data > foraPeriodo.fim)
       && (!vinculosAgenda || vinculosAgenda.some(v => v.comandaId === r.id

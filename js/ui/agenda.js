@@ -5,7 +5,7 @@ import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAg
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
 import { api, getClientReliability, getListaEspera, getAgendaSlots, getAgendaHistorico } from '../api.js';
-import { state, stateBus, sessionRoleIn, activeProfissionais, profColor, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode, podeFecharAtendimento, semanaPronta } from '../state.js';
+import { state, stateBus, sessionRoleIn, activeProfissionais, findClienteNome, findServicoNome, findProfissionalNome, findAgendaItemById, computeEndTime, loadWeekAgenda, PROF_COLORS, sessionPode, podeFecharAtendimento, semanaPronta } from '../state.js';
 import {
   todayStr,
   addDays,
@@ -47,16 +47,34 @@ export const AGENDA_STATUS_META = {
   reagendado: { label: 'Reagendado', cls: 'badge badge-cancelado' }
 };
 
-const SERVICE_COLORS = {
-  'corte':      { bg: '#1976d2', border: '#0d47a1' },
-  'barba':      { bg: '#0d47a1', border: '#01579b' },
-  'manicure':   { bg: '#e91e8c', border: '#880e4f' },
-  'pedicure':   { bg: '#e91e8c', border: '#880e4f' },
-  'coloracao':  { bg: '#f57c00', border: '#e65100' },
-  'quimica':    { bg: '#f57c00', border: '#e65100' },
-  'estetica':   { bg: '#2e7d32', border: '#1b5e20' },
-  'tratamento': { bg: '#2e7d32', border: '#1b5e20' },
-  'default':    { bg: '#546e7a', border: '#37474f' }
+// Card da agenda (D-077, cards etapa 2). A cor é do serviço, sempre suave (fundo claro, texto escuro;
+// no tema escuro, o inverso). A intensidade por serviço depende de coluna nova (migration 028+,
+// não autorizada): até lá, todos suaves. Matiz pela categoria conhecida; sem categoria conhecida,
+// um matiz estável pelo id do serviço (cada serviço fica sempre com a mesma cor).
+const MATIZ_CATEGORIA = { corte: 215, barba: 200, manicure: 330, pedicure: 330, coloracao: 28, quimica: 28, estetica: 150, tratamento: 150 };
+const MATIZES = [215, 265, 330, 28, 150, 190, 95, 0, 45, 285, 175, 240];
+const SVG_ST = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+// Situação no canto superior (a cor do card nunca muda com a situação).
+const SITUACAO_CARD = {
+  agendado: { nome: 'Agendado', svg: SVG_ST('<circle cx="12" cy="12" r="8"/>') },
+  confirmado: { nome: 'Confirmado', svg: SVG_ST('<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>') },
+  aguardando: { nome: 'Chegou', svg: SVG_ST('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>') },
+  em_atendimento: { nome: 'Em atendimento', svg: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="6"/></svg>' },
+  concluido: { nome: 'Concluído', svg: SVG_ST('<path d="m4 12 5 5 11-11"/>') },
+  pago: { nome: 'Concluído e pago', svg: SVG_ST('<path d="m2 13 4 4 8-9M10 17l1 1 10-11"/>') },
+  no_show: { nome: 'Faltou', svg: SVG_ST('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>') }
+};
+const ESTRELA = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.6.7-5 4.5 1.4 6.6L12 17.2l-5.9 3.3 1.4-6.6-5-4.5 6.6-.7z"/></svg>';
+const TRACO = d => `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+// Só os 7 ícones com dado gravado (skill agenda-cards). O servidor diz quais valem (GET /agenda?marcadores=1).
+export const ICONES_CARD = {
+  assinatura: { nome: 'Assinante', cor: '#b45309', html: ESTRELA },
+  assinatura_atraso: { nome: 'Assinatura em atraso', cor: '#b91c1c', html: ESTRELA },
+  primeira_visita: { nome: 'Primeira visita', cor: '#0f766e', html: '<b>1ª</b>' },
+  recorrente: { nome: 'Horário recorrente', cor: '#4338ca', html: TRACO('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>') },
+  link: { nome: 'Agendou pelo link', cor: '#0369a1', html: TRACO('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>') },
+  espera: { nome: 'Veio da lista de espera', cor: '#6d28d9', html: TRACO('<path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/>') },
+  faltas: { nome: 'Histórico de faltas', cor: '#c2410c', html: '<b>!</b>' }
 };
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -160,31 +178,38 @@ function emptySlotsForProf(profId) {
   return slots;
 }
 
-function getServiceColor(ag) {
-  const servico = state.catalog.servicos.find(s => s.id === ag.servico_id || s.id === ag.servicoId);
-  if (!servico) return SERVICE_COLORS.default;
-  const cat = (servico.categoria || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  
-  for (const key of Object.keys(SERVICE_COLORS)) {
-    if (key !== 'default' && cat.includes(key)) {
-      return SERVICE_COLORS[key];
-    }
-  }
-  return SERVICE_COLORS.default;
+function matizDoServico(item) {
+  const id = item.servico_id || item.servicoId || '';
+  const servico = state.catalog.servicos.find(s => s.id === id);
+  const cat = ((servico && servico.categoria) || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  for (const [chave, matiz] of Object.entries(MATIZ_CATEGORIA)) if (cat.includes(chave)) return matiz;
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return MATIZES[h % MATIZES.length];
 }
 
-function renderAgBlock(item, color) {
+const horaDoMinuto = min => String(Math.floor(min / 60) % 24).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+
+export function iconesDoCard(marcadores) {
+  return (Array.isArray(marcadores) ? marcadores : []).filter(c => ICONES_CARD[c]).map(c => {
+    const i = ICONES_CARD[c];
+    return `<span class="ag-ic" data-icone="${c}" style="background:${i.cor}" title="${escapeHtml(i.nome)}" role="img" aria-label="${escapeHtml(i.nome)}">${i.html}</span>`;
+  }).join('');
+}
+
+// Densidade pela duração (D-077): horário, cliente, ícones e situação sempre; o serviço a partir de
+// 30 min; o aviso (observações) a partir de 45 min. O que não cabe corta com reticências.
+function renderAgBlock(item) {
   const top = itemStartMinutes(item) * PX_POR_MIN;
   const duracao = item.duracao_min || 30;
   const height = toHeight(duracao);
   const horario = String(item.horario).slice(0, 5);
-  const compact = height < 40;
-  let opacity = 1;
-  if (item.status === 'no_show') opacity = 0.55;
-  if (item.status === 'concluido') opacity = 0.7;
+  const [hIni, mIni] = horario.split(':').map(Number);
+  const fim = horaDoMinuto(hIni * 60 + mIni + duracao);
+  const compact = duracao <= 20;
+  const pago = item.pago === true;
+  const situacao = SITUACAO_CARD[pago ? 'pago' : item.status] || SITUACAO_CARD.agendado;
 
-  const sColor = getServiceColor(item);
   // Conflito visível (D-050): agendamento fora do horário de trabalho do dia ou sobre bloqueio.
   // Fica marcado até alguém resolver (remarcar ou cancelar); nada é movido sozinho.
   const iniDia = HORA_INICIO * 60 + itemStartMinutes(item);
@@ -192,27 +217,43 @@ function renderAgBlock(item, color) {
   const conflito = ativo && (foraDaEscala(item.profissional_id, state.selectedDay, iniDia, iniDia + duracao)
     ? 'fora da escala'
     : bloqueiosDoDia(item.profissional_id, state.selectedDay).some(b => iniDia < b.fim && iniDia + duracao > b.ini) ? 'sobre bloqueio' : '');
-  const line2 = compact ? '' : `<div class="ag-line2" class="pointer-none">${escapeHtml(findServicoNome(item.servico_id))}</div>`;
-  
+
   const isEditable = !['concluido', 'no_show'].includes(item.status);
   const dragHtml = isEditable ? `<div class="drag-handle" data-ag-id="${item.id}"></div>` : '';
   const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}"></div>` : '';
+  const cliente = findClienteNome(item.cliente_id);
+  const servico = findServicoNome(item.servico_id);
+  const icones = iconesDoCard(item.marcadores);
+  const nomesIcones = (item.marcadores || []).filter(c => ICONES_CARD[c]).map(c => ICONES_CARD[c].nome);
+  const cls = ['ag-block', 'ag-card'];
+  if (compact) cls.push('compact');
+  if (isEditable) cls.push('editavel');
+  if (conflito) cls.push('ag-conflito');
+  if (item.status === 'no_show') cls.push('st-falta');
+  if (pago) cls.push('ag-pago');
+  const stHtml = `<span class="ag-st" title="${escapeHtml(situacao.nome)}" role="img" aria-label="${escapeHtml(situacao.nome)}">${situacao.svg}</span>`;
+  const tag = conflito ? '<span class="ag-conf-tag">⚠ ' + conflito + '</span> ' : '';
+  const line1 = `<div class="ag-line1">${tag}<span class="ag-t">${horario}</span> <span class="ag-n">${escapeHtml(cliente)}</span>${compact && icones ? `<span class="ag-icons">${icones}</span>` : ''}</div>`;
+  const corpo = compact ? '' : [
+    duracao >= 30 ? `<div class="ag-line2">${escapeHtml(servico)}${pago ? ' <span class="ag-pago-chip">PAGO</span>' : ''}</div>` : '',
+    duracao >= 45 && item.observacoes ? `<div class="ag-aviso">⚠ ${escapeHtml(item.observacoes)}</div>` : '',
+    icones ? `<div class="ag-icons">${icones}</div>` : ''
+  ].join('');
+  const rotulo = [`${horario}–${fim}`, cliente, servico, situacao.nome, ...nomesIcones].filter(Boolean).join(', ');
 
   return `
-    <div class="ag-block ${compact ? 'compact' : ''}${conflito ? ' ag-conflito' : ''}" 
-         style="top:${top}px;height:${height}px;background:${sColor.bg};border-left:4px solid ${sColor.border};color:#ffffff;opacity:${opacity};position:absolute;box-sizing:border-box;" 
-         data-action="open-sheet" 
+    <div class="${cls.join(' ')}"
+         style="top:${top}px;height:${height}px;--h:${matizDoServico(item)};"
+         aria-label="${escapeHtml(rotulo)}"
+         data-action="open-sheet"
          data-id="${item.id}"
          data-ag-id="${item.id}">
-      ${dragHtml}
-      <div class="ag-line1" style="pointer-events:none;padding-top:${isEditable ? '12px' : '4px'};">${conflito ? '<span class="ag-conf-tag">⚠ ' + conflito + '</span> ' : ''}${horario} ${escapeHtml(findClienteNome(item.cliente_id))}</div>
-      ${line2}
+      ${dragHtml}${line1}${corpo}${stHtml}
       ${resizeHtml}
     </div>`;
 }
 
 function renderProfColInner(p) {
-  const color = profColor(p.id);
   // Disponibilidade desconhecida (D-055): o horário vazio não é "livre confirmado". Fica hachurado,
   // com o motivo; tocar ainda leva ao agendar e o servidor confere ao gravar.
   const incerto = motivoIncerto(p.id, state.selectedDay);
@@ -224,7 +265,7 @@ function renderProfColInner(p) {
     return `<div class="slot-vazio${fora}${extra}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
   const foraHtml = htmlFora(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN });
-  const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item, color)).join('');
+  const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item)).join('');
   return foraHtml + emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
 }
 

@@ -74,6 +74,7 @@ const CASOS = [
   { nome: 'escalas' },
   { nome: 'agenda-bloqueio' },
   { nome: 'agenda-grade-dinamica' },
+  { nome: 'agenda-cards' },
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
   { nome: 'agenda-mes' },
