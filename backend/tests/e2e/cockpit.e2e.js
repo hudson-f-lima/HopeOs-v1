@@ -129,6 +129,9 @@ async function conferirCapacidade(pagina) {
   await a.waitForSelector('#cockpit:not(.hidden) .ck-card', { timeout: 10000 });
   await a.waitForFunction(() => !/Calculando/.test(document.getElementById('ckStatus').textContent));
   confere('admin: cockpit visível com 4 indicadores', (await a.locator('#ckCards .ck-card').count()) === 4);
+  // D-075: o preenchimento da grade aparece no próprio cartão de ocupação realizada.
+  const cartaoOcupacao = (await a.locator('#ckCards .ck-card').filter({ hasText: 'Ocupação realizada' }).innerText()).replace(/\s+/g, ' ');
+  confere('cartão mensal mostra o preenchimento da grade', /Preenchimento da grade: \d+(,\d)?%/.test(cartaoOcupacao), cartaoOcupacao.slice(0, 140));
   confere('status de saúde preenchido', /Operação|Decisões/.test(await a.textContent('#ckStatus')), await a.textContent('#ckStatus'));
   const alertas = await a.locator('#ckAlertas .ck-alerta').count();
   const vazio = await a.locator('#ckAlertas .empty-state').count();
