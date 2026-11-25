@@ -1,5 +1,9 @@
 # Changelog
 
+## Recorrência: encaixe fora da escala (D-076)
+- A série recorrente agora oferece encaixe para as datas fora da escala, como o agendamento avulso, para quem tem a permissão de encaixe.
+- Horário já ocupado continua fora da série.
+
 ## Cockpit: preenchimento da grade no cartão de ocupação (D-075)
 - O cartão "Ocupação realizada" mostra o preenchimento da grade na mesma tela, sem precisar abrir o detalhe.
 

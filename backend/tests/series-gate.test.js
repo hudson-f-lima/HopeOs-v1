@@ -320,6 +320,41 @@ test('S17 editar pelo card: trocar só o profissional mantém "Confirmado"; muda
   assert.strictEqual(hora.data.data.novo.status, 'agendado', 'outra hora: o cliente reconfirma');
 });
 
+test('S18 encaixe fora da escala (D-076): recepção (com agenda:encaixar) encaixa as datas fora da escala; conflito continua de fora; cada encaixe fica na trilha', async () => {
+  const corpo = { ...SERIE, horario: '15:00', ocorrencias: 8, foraDaDisponibilidade: true };
+  const previa = await request('POST', '/api/agenda/series/previa', { token: 'h.recep.s', body: corpo });
+  assert.strictEqual(previa.status, 200, previa.raw);
+  const foraSeqs = previa.data.data.ocorrencias.filter(o => o.situacao === 'fora_da_disponibilidade').map(o => o.seq);
+  const conflSeqs = previa.data.data.ocorrencias.filter(o => o.situacao === 'conflito').map(o => o.seq);
+  assert.ok(foraSeqs.length > 0, 'o cenário precisa ter pelo menos uma data fora da escala');
+  const r = await request('POST', '/api/agenda/series', { token: 'h.recep.s', body: corpo });
+  assert.strictEqual(r.status, 201, r.raw);
+  const criados = r.data.data.criados;
+  for (const seq of foraSeqs) assert.ok(criados.some(c => c.seq === seq), `encaixe da data ${seq} criado`);
+  assert.ok(!criados.some(c => conflSeqs.includes(c.seq)), 'conflito nunca é encaixado');
+  assert.deepStrictEqual(r.data.data.datas.filter(d => d.encaixe).map(d => d.seq).sort(), [...foraSeqs].sort(), 'só as datas de fora da escala vêm marcadas como encaixe');
+  assert.deepStrictEqual(r.data.data.pulados.map(p => p.seq).sort(), [...conflSeqs].sort(), 'o que sobra é só o conflito');
+  const idEncaixe = criados.find(c => foraSeqs.includes(c.seq)).agendamentoId;
+  const ev = db.agendamento_eventos.filter(e => e.agendamento_id === idEncaixe && e.tipo === 'criado');
+  assert.ok(ev.some(e => e.payload && e.payload.fora_da_disponibilidade === 'serie_encaixe'), 'encaixe registrado na trilha');
+  assert.ok(!db.agendamentos.some(a => a.id === idEncaixe && a.status !== 'agendado'), 'encaixe gravado como agendado');
+});
+
+test('S19 pedido de encaixe sem permissão de recorrência: 403 e nada é gravado (a recorrência segue só para a recepção, gestão e proprietário)', async () => {
+  const corpo = { ...SERIE, horario: '16:00', ocorrencias: 8 };
+  const antes = db.agendamentos.length;
+  const serieAntes = (db.agendamento_series || []).length;
+  const com = await request('POST', '/api/agenda/series', { token: 'h.prof.s', body: { ...corpo, foraDaDisponibilidade: true } });
+  assert.strictEqual(com.status, 403, com.raw);
+  assert.strictEqual(db.agendamentos.length, antes, 'nada gravado');
+  assert.strictEqual((db.agendamento_series || []).length, serieAntes, 'nenhuma série criada');
+});
+
+test('S20 validação: foraDaDisponibilidade só aceita verdadeiro ou falso (422)', async () => {
+  const r = await request('POST', '/api/agenda/series/previa', { token: 'h.recep.s', body: { ...SERIE, foraDaDisponibilidade: 'sim' } });
+  assert.strictEqual(r.status, 422, r.raw);
+});
+
 test('NC1 controle negativo: com "este e os próximos" pegando a série inteira, o S04 alteraria as anteriores', () => {
   const arquivo = path.join(__dirname, '../src/routes/series.js');
   const src = fs.readFileSync(arquivo, 'utf8');

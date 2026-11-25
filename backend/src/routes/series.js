@@ -36,7 +36,7 @@ const hhmm = h => String(h || '').slice(0, 5);
 
 function validarSerie(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw createAppError('INVALID_PAYLOAD', 'Payload inválido.', 422);
-  const { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias, duracaoMin } = body;
+  const { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias, duracaoMin, foraDaDisponibilidade } = body;
   for (const [campo, v] of [['clienteId', clienteId], ['servicoId', servicoId], ['profissionalId', profissionalId]]) validateUUID(v, campo);
   if (typeof dataInicio !== 'string' || !DATA_RE.test(dataInicio) || Number.isNaN(Date.parse(`${dataInicio}T00:00:00Z`))) throw invalido('dataInicio', 'dataInicio deve ser AAAA-MM-DD.');
   if (typeof horario !== 'string' || !HORA_RE.test(horario)) throw invalido('horario', 'horario deve ser HH:MM.');
@@ -44,7 +44,9 @@ function validarSerie(body) {
   const n = Number(ocorrencias);
   if (!Number.isInteger(n) || n < MIN_OCORRENCIAS || n > MAX_OCORRENCIAS) throw invalido('ocorrencias', `ocorrencias deve ser de ${MIN_OCORRENCIAS} a ${MAX_OCORRENCIAS}.`);
   if (duracaoMin !== undefined && (!Number.isInteger(Number(duracaoMin)) || Number(duracaoMin) < 5 || Number(duracaoMin) > 600)) throw invalido('duracaoMin', 'duracaoMin deve ser de 5 a 600.');
-  return { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias: n, duracaoMin: duracaoMin === undefined ? undefined : Number(duracaoMin) };
+  if (foraDaDisponibilidade !== undefined && typeof foraDaDisponibilidade !== 'boolean') throw invalido('foraDaDisponibilidade', 'foraDaDisponibilidade deve ser verdadeiro ou falso.');
+  // D-076: encaixe fora da escala na série só com agenda:encaixar (checado em prepararSerie).
+  return { clienteId, servicoId, profissionalId, dataInicio, horario, frequencia, ocorrencias: n, duracaoMin: duracaoMin === undefined ? undefined : Number(duracaoMin), foraDaDisponibilidade: foraDaDisponibilidade === true };
 }
 
 async function ativo(repo, table, id, label, code) {
@@ -97,6 +99,8 @@ async function prepararSerie(req) {
     ativo(repo, 'profissionais', s.profissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND')
   ]);
   assertOwn(req, profissional.id);
+  // Antes de ler a agenda: quem não pode encaixar recebe 403 sem nada gravado.
+  if (s.foraDaDisponibilidade) exigirTambem(req, 'agenda:encaixar');
   const duracaoMin = resolveDuracaoMin({ servico, profissional, duracaoMin: s.duracaoMin });
   const datas = datasDaSerie(s.dataInicio, s.frequencia, s.ocorrencias);
   // D-058: versão da escala lida antes de avaliar as datas; o banco recusa se mudar até gravar.
@@ -208,7 +212,10 @@ async function criarSerie(req, pedido) {
   if (igual) {
     throw createAppError('SERIE_DUPLICADA', 'Esta série já foi criada (mesmo cliente, serviço, profissional, dia e horário). Veja as datas dela pelo card do horário.', 409, { serieId: igual.id });
   }
-  const livres = ocorrencias.filter(o => o.situacao === 'livre');
+  // Encaixe (D-076): as datas fora da escala entram só quando a pessoa pediu e tem agenda:encaixar.
+  // Conflito com outro atendimento continua de fora: encaixe nunca sobrepõe.
+  const encaixa = s.foraDaDisponibilidade === true;
+  const livres = ocorrencias.filter(o => o.situacao === 'livre' || (encaixa && o.situacao === 'fora_da_disponibilidade'));
   if (!livres.length) throw createAppError('SERIE_SEM_HORARIOS', 'Nenhuma data da série está livre. Escolha outro horário ou outro profissional.', 409, { ocorrencias });
   const { actorId } = autoriaDe(req.auth);
   const agoraIso = clock.agora().toISOString();
@@ -219,19 +226,21 @@ async function criarSerie(req, pedido) {
   });
   const criadosIds = [];
   const criados = [];
-  const pulados = ocorrencias.filter(o => o.situacao !== 'livre').map(o => ({ ...o, motivo: motivoDe(o.situacao) }));
+  const pulados = ocorrencias.filter(o => !livres.includes(o)).map(o => ({ ...o, motivo: motivoDe(o.situacao) }));
   // Datas que ficam de fora por conflito ou escala vão na trilha da 1ª ocorrência: é de lá que a
   // tela, depois, explica por que a série tem menos horários que o previsto.
   let primeiroId = null;
   try {
     for (const o of livres) {
       let ag;
+      // Encaixe sem disp_versao: o banco não recusa por escala mudada (como o avulso forçado, 026).
+      const forcado = o.situacao === 'fora_da_disponibilidade';
       try {
         ag = await repo.criarAgendamento({
           agendamento: {
             cliente_id: s.clienteId, servico_id: s.servicoId, profissional_id: s.profissionalId, data: o.data, horario: s.horario,
             duracao_min: duracaoMin, valor_centavos: precoDe(servico, profissional), status: 'agendado',
-            ...(dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
+            ...(!forcado && dispVersao !== null && dispVersao !== undefined ? { disp_versao: dispVersao } : {})
           },
           permitirConflito: false, createdBy: actorId || null
         });
@@ -244,7 +253,7 @@ async function criarSerie(req, pedido) {
       criadosIds.push(ag.id);
       await vincularASerie(repo, ag.id, serie.id, o.seq);
       if (!primeiroId) primeiroId = ag.id;
-      criados.push({ seq: o.seq, data: o.data, horario: s.horario, agendamentoId: ag.id });
+      criados.push({ seq: o.seq, data: o.data, horario: s.horario, agendamentoId: ag.id, forcado });
     }
   } catch (err) {
     // Erro que não é conflito (banco, vínculo): tudo ou nada. Nada fica pela metade.
@@ -263,12 +272,12 @@ async function criarSerie(req, pedido) {
   pulados.sort((a, b) => a.seq - b.seq);
   await registrarEventoAgenda(repo, req.auth, {
     agendamentoId: primeiroId, tipo: 'criado', de: null, para: 'agendado',
-    extra: { serie_id: serie.id, serie_seq: criados[0].seq, serie_resumo: true, puladas: pulados.map(p => ({ seq: p.seq, data: p.data, situacao: p.situacao })) }
+    extra: { serie_id: serie.id, serie_seq: criados[0].seq, serie_resumo: true, puladas: pulados.map(p => ({ seq: p.seq, data: p.data, situacao: p.situacao })), ...(criados.some(c => c.forcado) ? { encaixes: criados.filter(c => c.forcado).map(c => c.seq) } : {}) }
   });
   for (const c of criados.slice(1)) {
-    await registrarEventoAgenda(repo, req.auth, { agendamentoId: c.agendamentoId, tipo: 'criado', de: null, para: 'agendado', extra: { serie_id: serie.id, serie_seq: c.seq } });
+    await registrarEventoAgenda(repo, req.auth, { agendamentoId: c.agendamentoId, tipo: 'criado', de: null, para: 'agendado', extra: { serie_id: serie.id, serie_seq: c.seq, ...(c.forcado ? { fora_da_disponibilidade: 'serie_encaixe' } : {}) } });
   }
-  const datas = [...criados.map(c => ({ seq: c.seq, data: c.data, horario: c.horario, situacao: 'criada', agendamentoId: c.agendamentoId })),
+  const datas = [...criados.map(c => ({ seq: c.seq, data: c.data, horario: c.horario, situacao: 'criada', agendamentoId: c.agendamentoId, ...(c.forcado ? { encaixe: true } : {}) })),
     ...pulados.map(p => ({ seq: p.seq, data: p.data, horario: s.horario, situacao: p.situacao, motivo: p.motivo }))].sort((a, b) => a.seq - b.seq);
   return {
     serie: { id: serie.id, frequencia: serie.frequencia, ocorrencias: serie.ocorrencias, status: serie.status },
