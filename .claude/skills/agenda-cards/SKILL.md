@@ -12,7 +12,7 @@ Protótipo aprovado (25/11): artifact "Cards da Agenda" (claude.ai/artifact/2TnU
 |---|---|---|
 | 1 | Grade do tamanho do dia + selo "N fora" | Feita (D-074, PR #66) |
 | 2 | Card novo: densidade por altura, situação no canto, 7 ícones com dados, concluído e pago | Feita (D-077), sem migration |
-| 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda, passo do salão | Aberta, sem migration |
+| 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda | Feita (D-078), sem migration. Pendente: passo do salão (`slot_padrao` não chega à tela) |
 | — | Cor e intensidade escolhidas no cadastro do serviço | **BLOQUEADO**: coluna nova = migration 028+, só com autorização |
 
 Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
@@ -70,8 +70,8 @@ Regras:
 4. Fora da escala: contorno âmbar. Soltar ali pede o encaixe, como no avulso, só com `agenda:encaixar` (D-076 vale para a série; no arraste, a mesma regra).
 5. Depois de soltar aparece "Desfazer" por 8 s. Desfazer é outra chamada ao servidor, nunca só estado local.
 6. Concluído e pago não se arrasta. Mudar o registro financeiro só pelo estorno.
-7. Passo: hoje `SNAP_MIN = 20` fixo. O passo do salão (15/20/30) só entra se já existir configuração gravada. Senão, mantenha 20 e registre a pendência.
-8. Teclado: setas movem um passo, ← → trocam de profissional. Rolagem automática perto da borda.
+7. Passo: `SNAP_MIN = 20`. `empresas.slot_padrao` existe, mas não chega à tela da agenda; trocar o passo exige trocar também a grade (`GRID_MIN`) e os testes de arraste, num PR próprio.
+8. Teclado: setas movem um passo, ← → trocam de profissional; o foco segue o card novo. Rolagem automática só depois de 0,4 s parado na faixa de 32 px da borda: soltar no último horário visível não pode rolar.
 9. Mudar situação só no toque, nunca no arraste.
 
 ## Regras da grade (etapa 1, não quebrar)
