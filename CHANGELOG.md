@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: card novo com ícones do cliente (D-077)
+- O card mostra, sem abrir, se o cliente é assinante (ou está com a assinatura em atraso), se é a primeira visita, se o horário é recorrente, se veio pelo link ou da lista de espera e se tem histórico de faltas.
+- A situação (agendado, confirmado, chegou, em atendimento, concluído, faltou) aparece num ícone no canto; a cor do card continua sendo a do serviço, agora em tom suave.
+- O atendimento concluído e pago fica acinzentado, com o canto recortado e a marca "PAGO".
+
 ## Cockpit: alertas não contam trabalho fora da escala (teste)
 - Um teste novo (K07b) garante que atendimentos fora da escala não geram o alerta "profissional saturado" nem escondem horas livres no alerta de gargalo. O comportamento já estava certo; agora ele é verificado. Nada mudou na tela.
 

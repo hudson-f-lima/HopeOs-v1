@@ -144,7 +144,7 @@ export async function loadWeekAgenda() {
   const excecoes = sessionPode('escala:ver')
     ? api('/disponibilidade?de=' + encodeURIComponent(dates[0])).then(d => (d && d.excecoes) || []).catch(() => null)
     : Promise.resolve([]);
-  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d)).catch(() => { falhasDias.push(d); return []; })));
+  const results = await Promise.all(dates.map(d => api('/agenda?data=' + encodeURIComponent(d) + '&marcadores=1').catch(() => { falhasDias.push(d); return []; })));
   const exc = await excecoes;
   if (meu !== seqSemana) return false; // resposta antiga: outra semana já foi pedida
   state.agendaCarregando = false;

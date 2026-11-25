@@ -11,7 +11,7 @@ Protótipo aprovado (25/11): artifact "Cards da Agenda" (claude.ai/artifact/2TnU
 | Etapa | Escopo | Estado |
 |---|---|---|
 | 1 | Grade do tamanho do dia + selo "N fora" | Feita (D-074, PR #66) |
-| 2 | Card novo: densidade por altura, situação no canto, 7 ícones com dados, concluído e pago | Aberta, **sem migration** |
+| 2 | Card novo: densidade por altura, situação no canto, 7 ícones com dados, concluído e pago | Feita (D-077), sem migration |
 | 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda, passo do salão | Aberta, sem migration |
 | — | Cor e intensidade escolhidas no cadastro do serviço | **BLOQUEADO**: coluna nova = migration 028+, só com autorização |
 
@@ -33,22 +33,23 @@ Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
 | Pago online | Depende de fornecedor (skill `integracao-futura`) |
 | Assinatura multi (rede) | D-073, bloqueado até V1.5 |
 
-## Dados dos 7 ícones: provar antes de desenhar
-O card não pode inventar. Para cada ícone, ache a fonte gravada e escreva um gate. Ícone sem fonte confirmada fica fora da etapa 2. Ele **não** é liberado com valor fixo.
+## Dados dos 7 ícones (D-077, confirmados)
+O servidor calcula em `MarcadoresAgendaEngine`; a tela só desenha (`GET /agenda?data=…&marcadores=1`).
 
-| Ícone | Fonte provável (conferir) |
+| Ícone | Fonte |
 |---|---|
 | Recorrente | `agendamentos.serie_id` (018) |
-| Pelo link | origem do agendamento (017/027). Confirmar em qual coluna/evento fica |
-| Lista de espera | vínculo da espera atendida (`listaEsperaId` ao agendar). Confirmar onde fica gravado |
-| Faltas | régua de faltas que o modal já usa (`regua.nivel`, `faltasSeguidas`) |
-| Assinante / em atraso | o mesmo motor de `/assinaturas/cobertura` (D-043). Só para quem tem `assinatura:ver` |
-| Primeira visita | nenhum atendimento concluído antes da data, calculado no servidor |
+| Pelo link | evento `origem_link_publico` em `agendamento_eventos` |
+| Lista de espera | evento `criado` com `espera_baixada` (D-060) |
+| Faltas | `computeReguaFaltas` em alerta/exigir_sinal, só com o que veio antes do horário |
+| Assinante / em atraso | `situacao()` de HOJE; só com `assinatura:ver` |
+| Primeira visita | nenhum concluído/fechado nem comanda fechada em dia anterior |
+| Pago (não é ícone) | `fechado`, ou `concluido` com evento de status `origem: 'checkout'` |
 
 Regras:
-- O cálculo é **do servidor**, num campo do item da agenda (ex.: `marcadores: [...]`). Nada de N requisições por card.
-- Respeite o RBAC: o profissional não recebe marcador de assinatura se não tem `assinatura:ver`.
-- Use a projeção `campos` do `memoryBackend` sem quebrar o dev.
+- A trilha de eventos é best-effort: link, espera e pago podem faltar, nunca sobrar. Não "corrija" isso com valor fixo.
+- Ícone novo só com fonte gravada, gate com controle negativo e linha nesta tabela.
+- Leitura por lista de ids, em lotes de 100 (`clienteIds`, `agendamentoIds` no repositório). Nunca uma requisição por card.
 
 ## Densidade por altura (minutos)
 - Sempre aparecem: horário, cliente, ícones e situação.

@@ -70,6 +70,7 @@ const { assertRefsDaEmpresa } = require('./estrutura');
 const { computeCotaParte } = require('../engines/insights/cotaParte');
 const { autoriaDe } = require('../middleware/auth');
 const { registrarEventoAgenda, montarHistorico } = require('../services/AgendaEventosService');
+const { marcadoresDoDia, pagosDoDia } = require('../engines/MarcadoresAgendaEngine');
 const { validateEstornoPayload } = require('../validators/estorno.validator');
 const { saldoDaComanda, diasEntre, PRAZO_DIAS } = require('../engines/EstornoEngine');
 const clock = require('../config/clock');
@@ -455,16 +456,55 @@ router.patch('/profissionais/:id/servicos/:servicoId/override', authorize('catal
   } catch (err) { next(err); }
 });
 
+// Lê, por lista de ids e em lotes de 100, só o que os ícones do card precisam (D-077).
+async function emLotes(ids, ler) {
+  const saida = [];
+  for (let i = 0; i < ids.length; i += 100) saida.push(...await ler(ids.slice(i, i + 100)));
+  return saida;
+}
+async function marcadoresDaAgenda(repo, agendamentos, verAssinatura) {
+  const clienteIds = [...new Set(agendamentos.map(a => a.cliente_id).filter(Boolean))];
+  const agendamentoIds = agendamentos.map(a => a.id);
+  const f = { empresa_id: repo.empresaId };
+  const [empresas, historico, comandas, eventos, assinaturas] = await Promise.all([
+    repo.list('empresas', { id: repo.empresaId }, { campos: 'id,regua_alerta_faltas,regua_sinal_faltas' }),
+    emLotes(clienteIds, l => repo.list('agendamentos', f, { clienteIds: l, campos: 'id,cliente_id,data,horario,status' })),
+    emLotes(clienteIds, l => repo.list('comandos', f, { clienteIds: l, campos: 'id,cliente_id,data,status' })),
+    emLotes(agendamentoIds, l => repo.list('agendamento_eventos', f, { agendamentoIds: l, campos: 'agendamento_id,tipo,payload' })),
+    verAssinatura ? emLotes(clienteIds, l => repo.list('assinaturas', f, { clienteIds: l })) : []
+  ]);
+  const assinaturaIds = new Set(assinaturas.map(a => a.id));
+  const [planos, cobrancas] = assinaturas.length ? await Promise.all([
+    repo.list('assinatura_planos', f),
+    repo.list('assinatura_cobrancas', f).then(r => r.filter(c => assinaturaIds.has(c.assinatura_id)))
+  ]) : [[], []];
+  return {
+    marcadores: marcadoresDoDia({
+      agendamentos, historico, comandas, eventos, assinaturas, planos, cobrancas,
+      empresa: empresas[0] || {}, hoje: agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data, verAssinatura
+    }),
+    pagos: pagosDoDia({ agendamentos, eventos })
+  };
+}
+
 router.get('/agenda', authorize('agenda:ver'), async (req, res, next) => {
   try {
     const filters = { empresa_id: req.auth.empresa_id };
     if (req.query.data) filters.data = req.query.data;
     if (req.authz.own) filters.profissional_id = req.authz.profissionalId;
-    const lista = await new SupabaseRepository(req.auth.empresa_id).list('agendamentos', filters);
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const lista = await repo.list('agendamentos', filters);
     // Observações (texto livre, pode ter contato do cliente) dos horários de colegas só para
     // quem vê contato de clientes; as do próprio profissional continuam (Red Team D-032).
     const proprio = req.auth.profissional_id || null;
-    res.json({ ok: true, data: pode(req.auth, 'clientes:contato') ? lista : lista.map(a => (a.profissional_id === proprio ? a : { ...a, observacoes: undefined })) });
+    let data = pode(req.auth, 'clientes:contato') ? lista : lista.map(a => (a.profissional_id === proprio ? a : { ...a, observacoes: undefined }));
+    // Ícones do card (D-077): só a pedido da tela e só com o dia informado, para não pesar
+    // em quem lê a agenda inteira. Assinatura só para quem pode ver assinaturas.
+    if (req.query.marcadores === '1' && req.query.data && data.length) {
+      const { marcadores, pagos } = await marcadoresDaAgenda(repo, data, pode(req.auth, 'assinatura:ver'));
+      data = data.map(a => ({ ...a, marcadores: marcadores[a.id] || [], pago: pagos.has(a.id) }));
+    }
+    res.json({ ok: true, data });
   } catch (err) { next(err); }
 });
 

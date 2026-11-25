@@ -56,6 +56,14 @@ PRODUCT_BELOW_COST
 PAYMENT_TOTAL_MISMATCH
 ```
 
+## Agenda — leitura do dia com ícones do card (D-077)
+
+`GET /api/agenda?data=YYYY-MM-DD[&marcadores=1]` (`agenda:ver`; profissional vê só os próprios). Com `marcadores=1` e `data`, cada agendamento traz:
+- `marcadores`: lista, na ordem do card, entre `assinatura`, `assinatura_atraso`, `primeira_visita`, `recorrente`, `link`, `espera` e `faltas`. Os de assinatura só vêm para quem tem `assinatura:ver`.
+- `pago`: `true` só para `fechado` ou `concluido` pelo checkout.
+
+Sem `marcadores=1`, a resposta é a de sempre.
+
 ## Agenda — sugestão de horários
 
 `GET /api/agenda/slots?data=YYYY-MM-DD&profissionalId=uuid&servicoId=uuid[&duracaoMin=5..480]` — somente leitura; tenant vem de `req.auth` (nunca da query).

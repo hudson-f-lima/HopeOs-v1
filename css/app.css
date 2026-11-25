@@ -1589,3 +1589,36 @@ body{font-variant-numeric:tabular-nums;}
 .ck-sim span{color:var(--text-secondary);font-variant-numeric:tabular-nums}
 .ck-nota{font-size:12px;color:var(--text-tertiary);margin:6px 0 0}
 .ck-periodo{margin:0 0 8px}
+
+/* ============ Card da agenda (D-077, cards etapa 2) ============
+   Suave: fundo claro e texto escuro da cor do serviço (no tema escuro, o inverso). A situação vem no
+   ícone do canto; a cor nunca muda com ela. Concluído e pago: acinzentado + chanfro, sem perder a cor. */
+:root{--card-l:94%;--card-text-l:17%;--card-border-l:42%;--card-s:55%;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--card-l:22%;--card-text-l:90%;--card-border-l:62%;}}
+:root[data-theme="dark"]{--card-l:22%;--card-text-l:90%;--card-border-l:62%;}
+.ag-block.ag-card{--h:215;background:hsl(var(--h) var(--card-s) var(--card-l));color:hsl(var(--h) 35% var(--card-text-l));
+  border:1px solid hsl(var(--h) var(--card-s) calc(var(--card-l) - 10%));border-left:4px solid hsl(var(--h) var(--card-s) var(--card-border-l));
+  padding:4px 22px 4px 7px;display:flex;flex-direction:column;gap:1px;box-shadow:none;}
+.ag-card.editavel{padding-top:12px;}
+.ag-card .ag-line1{display:flex;align-items:center;gap:4px;min-width:0;font-size:12px;letter-spacing:0;pointer-events:none;}
+.ag-card .ag-t{font-weight:700;font-variant-numeric:tabular-nums;opacity:.85;flex:none;}
+.ag-card .ag-n{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;}
+.ag-card .ag-line2{font-size:11px;font-weight:600;opacity:.9;margin-top:0;pointer-events:none;}
+.ag-card .ag-aviso{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;}
+.ag-card .ag-icons{display:flex;gap:3px;align-items:center;flex:none;pointer-events:none;}
+.ag-card .ag-ic{width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;flex:none;color:#fff;font-size:9px;line-height:1;box-shadow:0 0 0 1.5px rgba(255,255,255,.85);}
+.ag-card .ag-ic svg{width:10px;height:10px;}
+.ag-card .ag-st{position:absolute;top:3px;right:4px;width:15px;height:15px;display:grid;place-items:center;pointer-events:none;}
+.ag-card.editavel .ag-st{top:12px;}
+.ag-card .ag-st svg{width:15px;height:15px;}
+.ag-card.compact{padding-top:2px;padding-bottom:2px;justify-content:center;}
+.ag-card.compact.editavel{padding-top:12px;}
+.ag-card.compact .ag-line1{font-size:11px;padding-top:0;}
+.ag-card.st-falta{outline:2px dashed var(--md-error);outline-offset:-2px;}
+.ag-card.st-falta .ag-n{text-decoration:line-through;text-decoration-thickness:1.5px;}
+.ag-card.ag-pago{filter:saturate(.25) brightness(1.02);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);}
+.ag-card.ag-pago::after{content:"";position:absolute;top:0;right:0;width:14px;height:14px;background:linear-gradient(225deg,transparent 50%,rgba(0,0,0,.18) 50%);}
+.ag-card.ag-pago .ag-st{right:14px;}
+.ag-card .ag-pago-chip{font-size:9px;font-weight:800;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.12);}
+.ag-card .drag-handle{background:hsl(var(--h) var(--card-s) calc(var(--card-l) - 7%));color:inherit;border-radius:9px 9px 0 0;}
+.ag-card .resize-handle{background:none;}

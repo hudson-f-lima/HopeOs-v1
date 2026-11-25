@@ -125,13 +125,13 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }) {
 
   // 4) Dia sem resposta.
   const diaFalho = await r.evaluate(() => document.querySelector('.day-pill.selected').dataset.day);
-  await r.route(`**/api/agenda?data=${diaFalho}`, route => route.abort());
+  await r.route(`**/api/agenda?data=${diaFalho}*`, route => route.abort());
   await r.click('#btnAgTentar').catch(() => {});
   await r.evaluate(() => document.getElementById('btnNextWeekMobile').click()); await r.waitForTimeout(800);
   await r.evaluate(() => document.getElementById('btnPrevWeekMobile').click()); await r.waitForTimeout(1500);
   await r.locator(`.day-pill[data-day="${diaFalho}"]`).click(); await r.waitForTimeout(800);
   confere('dia sem resposta: aviso de que os agendamentos não carregaram e nada parece livre', /agendamentos deste dia não carregaram/i.test(await r.textContent('#agStatus')) && await r.locator('#agendaGrid .slot-vazio:not(.incerto)').count() === 0);
-  await r.unroute(`**/api/agenda?data=${diaFalho}`);
+  await r.unroute(`**/api/agenda?data=${diaFalho}*`);
   console.log('RECEPÇÃO erros:', JSON.stringify(r.erros.filter(e => !/ERR_FAILED|net::/.test(e)))); falhas.push(...r.erros.filter(e => !/ERR_FAILED|net::/.test(e)));
 
   // 5) e 6) Três profissionais; filtro com quem foi desativado.
