@@ -1178,3 +1178,27 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - E2E `agenda-cards` (390×844, CSP, claro e escuro). Controle negativo: sem a marca de pago, o E2E cai.
   - `test:offline` verde; E2E 48/48.
 - **Não muda:** arraste (etapa 3), cores por serviço no cadastro (migration 028+, não autorizada), permissões, rotas de escrita. O seed de desenvolvimento passa a declarar `agendamento_eventos` (para o E2E plantar eventos).
+
+## D-079 — Lista de horários do app pela grade por duração, sem exceção (substitui em parte a D-069; sem migration)
+- **Relato (Platform Owner, 2026-11-25, com print):** "a lista de horários disponíveis não segue a regra absoluta". No print (Sandrinho, Corte masculino de 30 min), a lista mostrava `… 13:00 13:10 | 14:20 14:30 15:00 …`.
+- **Diagnóstico (fato):** não era defeito de código. A D-069 tinha decidido que "a recepção conserva sua grade atual": a grade do salão a partir da abertura mais as duas bordas de cada janela livre.
+  - Reproduzi o print exatamente no motor: expediente 09:00–19:30, ocupado 13:40–14:20, serviço de 30.
+  - Pela grade por duração (a do link), o mesmo dia dá `… 13:00 | 14:20 14:50 15:20 …`.
+  - O problema da regra antiga é o mesmo que a D-069 corrigiu no link: horários em sequência que se sobrepõem (14:20 e 14:30) e deixam sobras inúteis de 10 min.
+- **Decisão do dono (pergunta com 3 opções):** "Grade por duração, sem exceção".
+- **Regra nova:**
+  - `GET /api/agenda/slots` (recepção, profissional e edição do card) usa `gradePorDuracao: true`, igual ao link: de cada janela livre, em passos da duração efetiva. A borda final só entra se cair na grade. A grade do salão + bordas não aparece mais em nenhuma lista.
+  - A política de sugestão (D-054) continua marcando `sugerido` dentro dessa grade. "Ver todos" mostra a grade inteira.
+  - **Não muda:** o horário digitado à mão continua aceito no `POST /api/agenda`, que revalida conflito, escala e regras. O atendimento com vários serviços (`/agenda/combinacoes`) já seguia a duração total (D-040).
+- **Correção junto:** a régua de faltas escrevia "1 faltas seguidas". Agora escreve "1 falta seguida" (servidor e tela).
+- **Verificação:**
+  - Gates reescritos para a regra nova, com valores calculados à mão:
+    - `onda-b` B06: buffer de 10 → `09:00, 10:40, 11:10, 11:40, 12:10`; as bordas 09:20 e 12:30 saem.
+    - `agenda-politica` PE02: a borda 10:45 sai, 11:00 fica.
+    - `agenda-politica` PE04b: a recepção é igual à grade do link.
+    - `disponibilidade` D23: o horário liberado volta a partir de 14:30.
+    - B07b: concordância de "1 falta seguida".
+  - E2E `grade-link`: a recepção recebe `09:35, 10:20, 11:05, 11:50`.
+  - **Controle negativo:** com `gradePorDuracao: false` na rota, B06, PE02 e PE04b caem. O D23 passa nas duas regras, porque 14:30 também era borda na regra antiga.
+  - `test:offline` verde; E2E 48/48.
+- **Custo aceito:** menos horários na lista. No print, 13:10 some, e a tarde passa a andar de 14:20 em 30 em 30. Um encaixe fora da grade só é feito digitando o horário.

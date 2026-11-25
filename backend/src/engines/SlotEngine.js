@@ -156,7 +156,7 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
 }
 
 // Política de sugestão (D-054, migration 025). Regras explicáveis, nada reservado:
-//   null          como antes: recepção vê primeiro os encaixes ideais; o link mostra todos
+//   null          recepção vê primeiro os encaixes ideais; o link mostra toda a grade (D-069/D-079)
 //   'flexivel'    todo horário livre
 //   'equilibrada' só o que não deixa sobra inútil (menor que o menor serviço); se o dia ficar
 //                 sem nenhum, ficam os encaixes ideais (melhor sobra do que nada)
@@ -165,7 +165,7 @@ function computeSlots({ janela, ocupados, duracaoMin, passoMin, minUtilMin, inic
 // canal 'online' devolve só os oferecidos (o link não marca fora da política).
 const POLITICAS = ['flexivel', 'equilibrada', 'compacta'];
 const POLITICA_TEXTO = {
-  padrao: 'Sem política definida: a recepção vê primeiro os encaixes ideais; o link mostra todos os horários livres.',
+  padrao: 'Sem política definida: horários a partir de cada janela livre, na duração do serviço; a recepção vê primeiro os encaixes ideais.',
   flexivel: 'Flexível: oferece todo horário livre.',
   equilibrada: 'Equilibrada: só horários que não deixam sobra menor que o menor serviço.',
   compacta: 'Compacta: só os encaixes ideais, colados em outro horário, com a menor sobra.'

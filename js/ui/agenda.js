@@ -826,7 +826,7 @@ async function loadReliabilityBadge(clienteId) {
     valueEl.textContent = `${r.score} · ${label}`;
     valueEl.style.color = reliabilityColor(r.faixa);
     valueEl.title = `No-shows (365d): ${r.fatores.noShows365d} · Cancelamentos tardios: ${r.fatores.cancelTardios365d} · Sequência de comparecimentos: ${r.fatores.streakConcluidos}`;
-    if (r.regua && ['alerta', 'exigir_sinal'].includes(r.regua.nivel)) valueEl.textContent += ` · ⚠ ${r.regua.faltasSeguidas} faltas seguidas`;
+    if (r.regua && ['alerta', 'exigir_sinal'].includes(r.regua.nivel)) valueEl.textContent += ` · ⚠ ${r.regua.faltasSeguidas === 1 ? '1 falta seguida' : r.regua.faltasSeguidas + ' faltas seguidas'}`;
   } catch (err) {
     rowEl.classList.add('hidden');
   }

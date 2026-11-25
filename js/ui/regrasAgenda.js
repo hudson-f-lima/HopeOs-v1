@@ -17,7 +17,7 @@ const opcoes = (lista, atual, rotulo) => {
 // recepção sempre pode ver todos os horários livres.
 const POLITICAS = [['', 'Padrão (como antes)'], ['flexivel', 'Flexível'], ['equilibrada', 'Equilibrada'], ['compacta', 'Compacta']];
 const DICA_POLITICA = {
-  '': 'A recepção vê primeiro os encaixes ideais; o link do cliente mostra todos os horários livres.',
+  '': 'Os horários partem de cada janela livre, na duração do serviço (recepção, profissional e link). A recepção vê primeiro os encaixes ideais; o link mostra todos.',
   flexivel: 'Oferece todo horário livre, na recepção e no link. Mais escolha para o cliente; a agenda pode ficar com buracos.',
   equilibrada: 'Só horários que não deixam uma sobra menor que o menor serviço (tempo que ninguém consegue usar). Se o dia ficar sem nenhum, oferece os encaixes ideais.',
   compacta: 'Só os encaixes ideais: colados no início, no fim ou em outro horário, com a menor sobra. Agenda mais cheia e sem buracos; menos opções no link.'

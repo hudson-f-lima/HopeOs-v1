@@ -57,7 +57,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
-- **D-077 (25/11, PR rascunho):** card novo da agenda (cards etapa 2): 7 ícones calculados no servidor (`GET /agenda?marcadores=1`), situação no canto, concluído e pago acinzentado + chanfro, cor suave. Sem migration.
+- **D-079 (25/11, PR rascunho):** a lista de horários livres do app (recepção e profissional) passa a usar a grade por duração do link (D-069), sem a grade do salão + bordas. Corrige também "1 faltas seguidas". Sem migration.
+- **D-077 (25/11, PR #73):** card novo da agenda (cards etapa 2): 7 ícones calculados no servidor (`GET /agenda?marcadores=1`), situação no canto, concluído e pago acinzentado + chanfro, cor suave. Sem migration.
 - **D-076 (25/11, PR #69):** recorrência com encaixe fora da escala para quem tem agenda:encaixar (conflito continua de fora). Substitui em parte a D-039. Sem migration.
 - **D-074 (25/11, PR #66):** agenda com grade do tamanho do dia (encaixe às 07:00 ou depois das 20:00 aparece) e selo "N fora da escala". Etapa 1 do projeto dos cards. Sem migration.
 - **D-069 (23/11, PR #61):** no link público (reserva e remarcação), a grade parte do início de cada janela livre e anda pela duração efetiva do serviço; a recepção mantém a grade do salão. Interpretação da D-054 registrada. Sem migration.

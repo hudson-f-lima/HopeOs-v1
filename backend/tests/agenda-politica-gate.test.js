@@ -138,7 +138,8 @@ test('PE02 recepção sem política: sugere os ideais e recebe todos os livres',
   assert.strictEqual(r.politica, null);
   assert.match(r.politicaTexto, /Sem política/);
   assert.deepStrictEqual(sugeridos(r), ['09:30', '10:30', '17:30']);
-  assert.ok(r.slots.some(s => s.horario === '10:45') && r.slots.some(s => s.horario === '11:00'), 'todos os livres continuam na resposta');
+  // D-079: a recepção usa a grade por duração (D-069); 10:45 (borda fora da grade) não aparece mais.
+  assert.ok(r.slots.some(s => s.horario === '11:00') && !r.slots.some(s => s.horario === '10:45'), 'toda a grade continua na resposta, sem a borda fora dela');
 });
 
 test('PE03 equilibrada na recepção: tira 10:45 e 17:15 (sobra de 15 min)', async () => {
@@ -165,7 +166,7 @@ test('PE04 link: sem política mostra todos; compacta só os ideais e recusa gra
   politica(null);
 });
 
-test('PE04b grade do link (D-069) nas três políticas e sem política; recepção mantém a grade do salão', async () => {
+test('PE04b grade do link (D-069) nas três políticas e sem política; recepção usa a mesma grade (D-079)', async () => {
   const D = '2026-11-12';
   const beto = db.profissionais.find(p => p.id === BETO);
   const overridesAntes = beto.overrides;
@@ -183,7 +184,7 @@ test('PE04b grade do link (D-069) nas três políticas e sem política; recepç�
     }
     politica(null);
     const recep = (await request('GET', `/api/agenda/slots?data=${D}&profissionalId=${BETO}&servicoId=${CORTE}`)).data.data.slots.map(s => s.horario);
-    assert.ok(recep.includes('09:45') && recep.includes('10:00') && recep.includes('17:15'), 'recepção: grade de 15 do salão + bordas: ' + recep.join(','));
+    assert.deepStrictEqual(recep, grade, 'recepção: a mesma grade por duração do link (D-079)');
   } finally {
     politica(null);
     beto.overrides = overridesAntes;

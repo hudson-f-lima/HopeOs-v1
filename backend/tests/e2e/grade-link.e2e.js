@@ -2,7 +2,7 @@
 // Ana faz Corte em 45 min (override do seed) e o salão abre 09:00–13:00 com grade de 30.
 // Com a Ana ocupada das 09:00 às 09:35 amanhã, o link oferece 09:35 → 10:20 → 11:05 → 11:50:
 // a grade parte do início da janela livre e anda pela duração efetiva; 12:15 (borda final) fica de fora.
-// A recepção continua com a grade do salão (10:00, 10:30, ... e a borda 12:15).
+// A recepção usa a mesma grade (D-079): 09:35, 10:20, 11:05, 11:50; 10:00 e a borda 12:15 não aparecem.
 // Nas três políticas, o link só oferece pontos dessa grade. Depois de reservar 10:20, a lista recomeça
 // em cada janela livre: 09:35, 11:05, 11:50. Conta as reservas no banco de teste.
 // Uso: NODE_PATH=$(npm root -g) node backend/tests/e2e/run-all.js grade-link
@@ -59,7 +59,7 @@ async function login(email) {
   const rRecep = await (await fetch(`${API}/api/agenda/slots?data=${amanha}&profissionalId=${ana.id}&servicoId=${corte.id}`, { headers: recep })).json();
   const recepH = rRecep.data.slots.map(s => s.horario);
   console.log('RECEPÇÃO:', recepH.join(' '));
-  confere('recepção mantém a grade do salão', recepH.includes('10:00') && recepH.includes('10:30') && recepH.includes('12:15'));
+  confere('recepção usa a mesma grade do link (D-079)', recepH.join(',') === '09:35,10:20,11:05,11:50', recepH.join(','));
 
   const admin = await login('admin@dev.local');
   for (const pol of ['flexivel', 'equilibrada', 'compacta']) {
