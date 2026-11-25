@@ -52,8 +52,20 @@ async function preparar() {
     assert.equal(page.atalhoForaDaDobra, true, 'Desempenho do salão visível sem abrir Análises');
     const abrir = page.getByRole('button', { name: 'Desempenho do salão', exact: true });
     await abrir.focus();
-    // Queda de rede antes da leitura, seguida de uma nova consulta autorizada.
-    await page.route(/\/api\/cockpit\/desempenho(?:\?|$)/, route => route.abort('failed'), { times: 1 });
+    // Queda de rede antes da leitura, seguida de uma nova consulta autorizada. A falha é simulada
+    // na própria página (o fetch rejeita com TypeError, como numa queda real), e não com
+    // page.route: no CI de 25/11 o bloqueio da rota não pegou a requisição, que chegou ao
+    // servidor e respondeu 200, e o teste esperou um botão que nunca aparece.
+    await page.evaluate(() => {
+      const original = window.fetch;
+      window.__tentativasDesempenho = 0;
+      window.fetch = function (url, ...resto) {
+        if (/\/api\/cockpit\/desempenho(?:\?|$)/.test(String(url)) && window.__tentativasDesempenho++ === 0) {
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        return original.call(this, url, ...resto);
+      };
+    });
     await page.keyboard.press('Enter');
     const tentar = page.locator('#btnRecarregarDesempenho');
     await tentar.waitFor({ state: 'visible' });
@@ -70,7 +82,8 @@ async function preparar() {
     assert.match(await page.locator('#desempenhoIndicadores').innerText(), /40,00/);
     assert.ok(await page.locator('#desempenhoPeriodo').innerText());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-    assert.equal(consultas.length, 2, 'uma falha e uma leitura após tentar novamente');
+    assert.equal(await page.evaluate(() => window.__tentativasDesempenho), 2, 'uma falha e uma leitura após tentar novamente');
+    assert.equal(consultas.length, 1, 'só a leitura depois de tentar novamente chega à rede');
     assert.equal(await page.locator('#desempenhoIndicadores [data-indicador]').count(), 6);
     const grafico = page.locator('#desempenhoGraficoComposicao figure');
     assert.equal(await grafico.count(), 0);
@@ -78,10 +91,10 @@ async function preparar() {
     await page.click('#btnVerResultadoFinanceiro');
     assert.equal(await page.locator('#dobraResultadoFinanceiro').evaluate(n => n.open), true);
     assert.match(await page.locator('#desempenhoComposicao').innerText(), /Parte do salão/);
-    assert.equal(consultas.length, 2, 'a composição reutiliza a leitura do período');
+    assert.equal(consultas.length, 1, 'a composição reutiliza a leitura do período');
     await leituraGrafico;
     await grafico.waitFor();
-    assert.equal(consultas.length, 2, 'carregar o gráfico não consulta a API');
+    assert.equal(consultas.length, 1, 'carregar o gráfico não consulta a API');
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.setViewportSize({ width: 320, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
@@ -102,7 +115,7 @@ async function preparar() {
     assert.equal(await grafico.count(), 0, 'trocar o período limpa a visualização anterior');
     assert.equal(await page.locator('#desempenhoTicket').innerText(), 'Sem comandas válidas');
     assert.equal(await seletor.evaluate(n => n === document.activeElement), true);
-    assert.equal(consultas.length, 3, 'uma leitura para cada seleção de período');
+    assert.equal(consultas.length, 2, 'uma leitura para cada seleção de período');
     await page.click('#btnVoltarAnalises');
     assert.equal(await abrir.evaluate(n => n === document.activeElement), true);
     assert.equal(await page.locator('#dobraIndicadores').evaluate(n => n.open), true);
