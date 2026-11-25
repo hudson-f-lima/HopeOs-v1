@@ -69,7 +69,7 @@ const regua = p => p.locator('.agenda-grid-ruler .ruler-mark').allInnerTexts();
   // 2) Selo: conta os dois e leva ao primeiro (07:00).
   await p.waitForSelector('#agSeloFora:not(.hidden)', { timeout: 10000 });
   const selo = (await p.textContent('#agSeloFora')).trim();
-  confere('selo conta 2 fora da escala', selo === '2 fora da escala', selo);
+  confere('selo conta 2 fora', selo === '2 fora', selo);
   await p.evaluate(() => { document.getElementById('timelineContainer').scrollTop = 99999; });
   await p.click('#agSeloFora'); await p.waitForTimeout(900);
   const foco = await p.evaluate(id => {

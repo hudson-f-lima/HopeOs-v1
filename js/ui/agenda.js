@@ -124,7 +124,7 @@ function atualizarSeloFora(dia, profs) {
   const lista = foraDaEscalaNoDia(dia, profs);
   selo.classList.toggle('hidden', !lista.length);
   selo.dataset.alvo = lista.length ? lista[0].id : '';
-  selo.textContent = lista.length + ' fora da escala';
+  selo.textContent = lista.length + ' fora';
   selo.setAttribute('aria-label', lista.length + (lista.length === 1 ? ' atendimento' : ' atendimentos') + ' fora da escala neste dia. Tocar mostra o primeiro.');
 }
 
