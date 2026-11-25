@@ -1122,4 +1122,22 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
 - **Não muda:** escala, servidor, regras de encaixe, card, arrastar. Nenhuma migration.
 - **Verificação:** E2E `agenda-grade-dinamica` (CSP de produção, celular): encaixe às 07:00 e às 20:30 aparecem dentro da grade e tocáveis; régua de 07:00 a 21:00; selo "2 fora da escala" leva ao das 07:00 com destaque; num dia sem encaixe a grade continua 08:00–20:00 e o selo some. **Controle negativo:** com a janela fixa de antes, caem a régua, os dois atendimentos e o selo (o das 07:00 fica coberto pelo cabeçalho dos dias).
 - **Achado sem mudança:** a barra de navegação fixa cobre o que estiver encostado no rodapé da tela; rolando, o horário fica tocável. Já era assim antes.
-- **Pendente nesta frente:** série recorrente fora da escala ainda não oferece encaixe (a série descarta a data); fica para depois das etapas dos cards, por decisão de ordem.
+- **Pendente nesta frente:** série recorrente fora da escala: ver D-076.
+
+## D-076 — Recorrência: encaixe fora da escala, como no avulso (substitui em parte a D-039; sem migration)
+- **Pedido (Platform Owner, 2026-11-25):** uma série recorrente às 07:00, feita na simulação, foi bloqueada inteira sem o aviso de permissão de encaixe que o agendamento avulso já oferece. Pediu que a série ofereça o mesmo encaixe.
+- **Regra anterior (D-039):** "a série nunca encaixa à força": datas fora da escala ficavam de fora e a tela não oferecia encaixe. Esta decisão substitui essa parte. O restante da D-039 continua valendo (sem encaixe pelo link público, cancelar e alterar por escopo, trilha, série respeita conflito).
+- **Regra nova:**
+  - Só datas **fora da escala** entram como encaixe. **Conflito com outro atendimento continua de fora**: encaixe nunca sobrepõe.
+  - Quem pode: quem tem `agenda:encaixar`, além de `agenda:recorrencia`. O pedido é explícito: `foraDaDisponibilidade: true` no corpo de `POST /api/agenda/series`. Sem o pedido, a série se comporta como antes.
+  - Pedido com o flag sem `agenda:encaixar` → 403 antes de ler a agenda; nada é gravado.
+  - Cada data encaixada grava sem `disp_versao` (como o avulso forçado) e fica na trilha com `fora_da_disponibilidade: serie_encaixe`; a resposta marca essas datas com `encaixe: true`.
+  - A tela pergunta, após a prévia, só para quem tem `agenda:encaixar` e só quando há datas fora da escala. Cancelar a pergunta cria só as livres.
+- **Observação de permissão (verificada):** hoje nenhum papel tem `agenda:recorrencia` sem `agenda:encaixar`, e o profissional não recebe recorrência. Por isso o teste de negação por encaixe não tem usuário real hoje: a defesa existe no código, e o teste de navegação cobre que quem não pode criar série não grava nada.
+- **Verificação:**
+  - `series-gate` S18: recepção encaixa a data fora da escala; o conflito fica de fora; a trilha registra o encaixe. **Controle negativo:** com o encaixe desligado no servidor, S18 cai.
+  - S19: pedido de encaixe sem permissão de recorrência → 403, nada gravado.
+  - S20: flag que não é booleano → 422.
+  - E2E `series` (prévia e criação normais) e `agenda-bloqueio`, `agenda-inteligente` passam.
+  - **Não coberto por navegador:** a pergunta de encaixe na tela. A base de teste não tem data fora da escala no fluxo de "Repetir". Fica como pendência de teste.
+- **Não muda:** escala, conflitos, link público, cancelar e alterar, permissões existentes. Sem migration.
