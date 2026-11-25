@@ -159,6 +159,23 @@ test('K07 profissional saturado: 90%+ e alguém esperando por ele → alerta par
   assert.ok(!semEspera.alertas.some(x => x.id.startsWith('profissional_saturado')), 'sem espera não há alerta');
 });
 
+test('K07b trabalho fora da escala não satura nem esconde ociosidade: alertas usam só a grade', () => {
+  // P2 trabalha 08h–13h nas 4 terças (5 × 60 min), antes da escala de 13h–18h, com alguém na espera.
+  //   Realizada de P2: 1200 ÷ 1200 = 100%. Preenchimento da grade: 0 ÷ 1200 = 0% → sem "saturado".
+  //   Terça (dia da semana): a grade continua 240 ÷ 2400 = 10% → o gargalo segue igual ao da base (K-série).
+  const cedo = ['2026-10-27', '2026-11-03', '2026-11-10', '2026-11-17'].flatMap((d, i) => ['08', '09', '10', '11', '12'].map(h => ag(`c2${i}${h}`, P2, d, `${h}:00:00`, 'concluido')));
+  const base = computeCockpit(dados);
+  const r = computeCockpit({ ...dados, agendamentos: AGENDA.concat(cedo), listaEspera: [{ id: 'w1', empresa_id: E, profissional_id: P2, status: 'aguardando' }] });
+  const bia = r.equipe.find(e => e.profissionalId === P2);
+  assert.deepStrictEqual([bia.ocupacaoRealizadaPct, bia.ocupacaoPct], [100, 0]);
+  assert.ok(!r.alertas.some(x => x.id.startsWith('profissional_saturado')), 'fora da escala não pode gerar alerta de saturado');
+  const terca = l => l.ocupacao.porDia.find(d => d.dow === 2);
+  assert.strictEqual(terca(r).ocupacaoPct, terca(base).ocupacaoPct);
+  const gargalo = l => l.alertas.find(x => x.id === 'gargalo_ocupacao');
+  assert.ok(gargalo(r) && gargalo(base), 'gargalo deve continuar');
+  assert.strictEqual(gargalo(r).titulo, gargalo(base).titulo);
+});
+
 test('K08 sem dados: nada inventado — sem alertas, sem meta, ocupação e churn nulos, saúde "ok"', () => {
   const r = computeCockpit({ hoje: HOJE });
   assert.deepStrictEqual(r.alertas, []);
