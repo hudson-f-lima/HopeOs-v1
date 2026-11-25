@@ -1,5 +1,8 @@
 # Changelog
 
+## Cockpit: alertas não contam trabalho fora da escala (teste)
+- Um teste novo (K07b) garante que atendimentos fora da escala não geram o alerta "profissional saturado" nem escondem horas livres no alerta de gargalo. O comportamento já estava certo; agora ele é verificado. Nada mudou na tela.
+
 ## Agenda: nada fica fora da grade (D-074)
 - A grade do dia cresce até o primeiro e o último atendimento. Um encaixe às 7h ou às 20h30 agora aparece e pode ser tocado.
 - Um selo pequeno ao lado do total do dia mostra quantos atendimentos estão fora da escala; tocar leva ao primeiro.
