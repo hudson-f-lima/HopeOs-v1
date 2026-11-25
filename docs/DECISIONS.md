@@ -1179,6 +1179,32 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - `test:offline` verde; E2E 48/48.
 - **Não muda:** arraste (etapa 3), cores por serviço no cadastro (migration 028+, não autorizada), permissões, rotas de escrita. O seed de desenvolvimento passa a declarar `agendamento_eventos` (para o E2E plantar eventos).
 
+## D-078 — Agenda: arrastar e soltar com prévia, desfazer e teclado (cards etapa 3; sem migration)
+- **Pedido (Platform Owner, 2026-11-25):** "Reiniciar etapa 3", com as regras do protótipo aprovado (skill `agenda-cards`).
+- **O que muda na agenda:**
+  - **O card inteiro é a alça.**
+    - Mouse: o arraste começa quando o ponteiro anda mais de 6 px com o botão apertado. Sem andar, é clique e abre o card.
+    - Toque: segurar 0,3 s pega o card. Mexer o dedo antes disso é rolagem.
+    - O soltar de um arraste não abre o card.
+  - **Prévia no destino, antes de soltar:** "início–fim · profissional".
+    - Verde: livre.
+    - Vermelho: "Ocupado: <cliente>". Soltar ali **não muda nada**, e a tela diz por quem está ocupado. Isto substitui o diálogo "Encaixar mesmo assim" no arraste. A remarcação pelo menu continua como estava.
+    - Âmbar: "Fora da escala". Soltar pede o encaixe, como no avulso. O servidor decide, e só quem tem a permissão de encaixe pode.
+  - **Desfazer por 8 s:** depois de soltar, um aviso traz "Desfazer". Desfazer é outra remarcação no servidor, de volta ao horário e ao profissional de antes, com as mesmas checagens. Se o horário antigo foi tomado nesse meio-tempo, o servidor recusa e a tela mostra o erro.
+  - **Teclado:** o card recebe foco (Tab).
+    - Enter ou espaço abrem o card.
+    - ↑/↓ movem um passo; ←/→ trocam de profissional no mesmo horário.
+    - Depois de mover, o foco fica no card novo, e redesenhar a grade não tira o foco.
+  - **Rolagem automática:** começa quando o dedo fica 0,4 s numa faixa de 32 px na borda de cima ou de baixo da grade. Assim é possível soltar no último horário visível sem a grade rolar.
+  - Concluído, falta e pago não se arrastam e não se movem pelo teclado.
+- **Passo:** continua 20 min (`SNAP_MIN`). O passo do salão (`empresas.slot_padrao`) está gravado, mas não chega à tela da agenda. Fica como pendência, para não ter grade de 20 com arraste de 30.
+- **Verificação:**
+  - E2E `agenda-arraste` (390×844, CSP): clique abre o card; prévia livre; grava; desfazer pelo servidor; ocupado não muda nada e diz quem ocupa; fora da escala em âmbar; teclado com foco; pago não se arrasta; rolagem na borda.
+  - Controles negativos: com "Desfazer" sem chamar o servidor, o E2E cai; com o card pago arrastável, o E2E cai.
+  - `agenda-confiavel` passa a ler o início da prévia em `.dh-ini`. A medição mostrou que o teste soltava a 9 px da borda: com a rolagem imediata, o horário mudava. Daí a espera de 0,4 s.
+  - `test:offline` verde; E2E 49/49.
+- **Não coberto por navegador:** o toque com segurar 0,3 s. O Playwright não simula bem o gesto, e o mouse cobre a mesma lógica de destino.
+- **Não muda:** servidor, permissões, regras de conflito e de escala, a remarcação pelo menu. Sem migration.
 ## D-079 — Lista de horários do app pela grade por duração, sem exceção (substitui em parte a D-069; sem migration)
 - **Relato (Platform Owner, 2026-11-25, com print):** "a lista de horários disponíveis não segue a regra absoluta". No print (Sandrinho, Corte masculino de 30 min), a lista mostrava `… 13:00 13:10 | 14:20 14:30 15:00 …`.
 - **Diagnóstico (fato):** não era defeito de código. A D-069 tinha decidido que "a recepção conserva sua grade atual": a grade do salão a partir da abertura mais as duas bordas de cada janela livre.
