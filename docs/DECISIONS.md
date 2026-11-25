@@ -1114,6 +1114,12 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
 - **Prática a seguir desde já (desenho, sem migration):** tabela nova de operação (agenda, comanda, caixa, assinatura e similares) deve prever `unidade_id`, mesmo vazio. Qualquer migration continua exigindo autorização do Platform Owner (028+).
 - **Pré-requisitos para começar:** decisão contábil sobre repasse entre CNPJs; validação jurídica do aviso de privacidade por unidade; autorização das migrations; plano de Red Team do isolamento por unidade.
 
+## D-075 — Cockpit: preenchimento da grade no cartão de ocupação realizada (sem migration)
+- **Pedido (pendência do PR #64):** o cartão mensal mostrava a ocupação realizada (ex.: 150%) sem o preenchimento da grade ao lado; o preenchimento só aparecia no detalhe. Pedido para os dois aparecerem juntos.
+- **Regra:** o cartão mensal ganha a linha "Preenchimento da grade: X%" logo abaixo da base em minutos. Nenhum cálculo novo: é o `preenchimentoGradePct` que o servidor já devolve em `ocupacaoMes`.
+- **Verificação:** E2E `cockpit` lê o cartão "Ocupação realizada" e confere a linha de preenchimento (cenário local: 10,4% realizada e 2,8% preenchida).
+- **Não muda:** cálculo, permissão, grade e demais cartões. Sem migration.
+
 ## D-074 — Agenda: grade do tamanho do dia e selo de fora da escala (cards, etapa 1; sem migration)
 - **Pedido (Platform Owner, 2026-11-24/25):** um agendamento avulso encaixado às 07:00 "não ficou visível, pois a grade não se adapta". No retorno ao projeto dos cards, o dono escolheu a ordem grade → cards → arraste, com cada etapa num PR de rascunho. Decisões do projeto registradas para as próximas etapas: concluído e pago fica acinzentado e com chanfro; a intensidade padrão é suave; a primeira entrega de ícones usa só os 7 que já têm dado (assinante, assinatura em atraso, primeira visita, recorrente, agendou pelo link, lista de espera, faltas).
 - **Problema (verificado no código):** `js/ui/agenda.js` fixava a grade em 08:00–20:00. Um atendimento fora disso era desenhado com posição negativa (acima da grade) ou além do fim, ficando invisível e impossível de tocar.
