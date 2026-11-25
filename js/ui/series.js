@@ -1,10 +1,11 @@
-// Recorrência pela equipe (C4, D-039). "Repetir" no novo agendamento: o servidor mostra a prévia
-// (quais datas estão livres e quais serão puladas) e só então grava. No card de um horário da
-// série: cancelar ou alterar "só este", "este e os próximos" ou "todos". Nada é encaixado à força:
-// o que não couber fica de fora e a tela diz qual.
+// Recorrência pela equipe (C4, D-039; encaixe fora da escala, D-076). "Repetir" no novo agendamento:
+// o servidor mostra a prévia (quais datas estão livres e quais serão puladas) e só então grava.
+// Datas fora da escala entram só se a pessoa tiver agenda:encaixar e confirmar; conflito com outro
+// atendimento nunca é encaixado. No card de um horário da série: cancelar ou alterar "só este",
+// "este e os próximos" ou "todos". O que não couber fica de fora e a tela diz qual.
 import { api } from '../api.js';
 import { state, sessionPode, loadWeekAgenda } from '../state.js';
-import { escapeHtml, showBanner, formatDDMM } from '../utils.js';
+import { escapeHtml, showBanner, formatDDMM, confirmAction } from '../utils.js';
 
 const el = id => document.getElementById(id);
 const ROTULO_DATA = { criada: 'criada', agendada: 'agendada', concluida: 'concluída', cancelada: 'cancelada', faltou: 'faltou', remarcada: 'remarcada', nao_criada: 'não criada', conflito: 'horário ocupado', fora_da_disponibilidade: 'fora da escala', passado: 'já passou' };
@@ -32,16 +33,33 @@ export async function criarSerieComPrevia({ clienteId, servicoId, profissionalId
   const corpo = { clienteId, servicoId, profissionalId, dataInicio: data, horario, frequencia: repeticao.frequencia, ocorrencias: repeticao.ocorrencias };
   let previa;
   try { previa = await api('/agenda/series/previa', { method: 'POST', body: corpo }); } catch (err) { showBanner(err.message, 'error'); return false; }
+  const foraEscala = previa.ocorrencias.filter(o => o.situacao === 'fora_da_disponibilidade');
   const fora = previa.ocorrencias.filter(o => o.situacao !== 'livre');
-  if (!previa.livres) { showBanner(`Nenhuma data livre nesse horário: ${lista(fora)}.`, 'error'); return false; }
-  const texto = `${previa.total} horários ${FREQ[repeticao.frequencia]}, às ${horario}.\n\n${previa.livres} livres.` +
-    (fora.length ? `\n${fora.length} ficam de fora: ${lista(fora)}.` : '') + '\n\nCriar a série?';
+  if (!previa.livres && !foraEscala.length) { showBanner(`Nenhuma data livre nesse horário: ${lista(fora)}.`, 'error'); return false; }
+  // Encaixe (D-076): só quem tem agenda:encaixar é perguntado; o servidor confere de novo ao gravar.
+  let encaixar = false;
+  if (foraEscala.length && sessionPode('agenda:encaixar')) {
+    const plural = foraEscala.length === 1;
+    encaixar = await confirmAction({
+      title: plural ? 'Data fora da escala' : 'Datas fora da escala',
+      message: `${plural ? 'Esta data está' : 'Estas datas estão'} fora da escala: ${lista(foraEscala)}. Encaixar ${plural ? 'ela' : 'elas'} na série? Ficam registradas como encaixe. Horários já ocupados continuam de fora.`,
+      confirmLabel: plural ? 'Encaixar' : 'Encaixar datas'
+    });
+  }
+  const livres = previa.livres + (encaixar ? foraEscala.length : 0);
+  const sobra = fora.filter(o => !(encaixar && o.situacao === 'fora_da_disponibilidade'));
+  if (!livres) { showBanner(`Nenhuma data livre nesse horário: ${lista(fora)}.`, 'error'); return false; }
+  const texto = `${previa.total} horários ${FREQ[repeticao.frequencia]}, às ${horario}.\n\n${livres} livres.` +
+    (encaixar ? `\n${foraEscala.length} encaixada(s) fora da escala.` : '') +
+    (sobra.length ? `\n${sobra.length} ficam de fora: ${lista(sobra)}.` : '') + '\n\nCriar a série?';
   if (!window.confirm(texto)) return false;
   try {
-    const r = await api('/agenda/series', { method: 'POST', body: corpo });
-    const fora = r.datas.filter(d => d.situacao !== 'criada');
-    const detalhe = fora.length ? ' Ficaram de fora: ' + fora.map(d => formatDDMM(d.data) + ' (' + (d.motivo || ROTULO_DATA[d.situacao] || d.situacao) + ')').join(', ') + '.' : '';
-    showBanner('Série criada: ' + r.resumo.criadas + ' de ' + r.resumo.total + ' horários (' + r.datas.filter(d => d.situacao === 'criada').map(d => formatDDMM(d.data)).join(', ') + ').' + detalhe, fora.length ? 'warning' : 'ok');
+    const r = await api('/agenda/series', { method: 'POST', body: { ...corpo, foraDaDisponibilidade: encaixar } });
+    const naoCriadas = r.datas.filter(d => d.situacao !== 'criada');
+    const encaixadas = r.datas.filter(d => d.encaixe);
+    const detalhe = (encaixadas.length ? ' Encaixes fora da escala: ' + encaixadas.map(d => formatDDMM(d.data)).join(', ') + '.' : '')
+      + (naoCriadas.length ? ' Ficaram de fora: ' + naoCriadas.map(d => formatDDMM(d.data) + ' (' + (d.motivo || ROTULO_DATA[d.situacao] || d.situacao) + ')').join(', ') + '.' : '');
+    showBanner('Série criada: ' + r.resumo.criadas + ' de ' + r.resumo.total + ' horários (' + r.datas.filter(d => d.situacao === 'criada').map(d => formatDDMM(d.data)).join(', ') + ').' + detalhe, naoCriadas.length ? 'warning' : 'ok');
     await loadWeekAgenda();
     return true;
   } catch (err) {
