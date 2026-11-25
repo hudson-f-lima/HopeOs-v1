@@ -568,9 +568,13 @@ router.get('/agenda/slots', authorize('agenda:ver'), async (req, res, next) => {
       servicosAtivos: servicos.filter(s => s.ativo !== false),
       agendamentos,
       duracaoMin: query.duracaoMin,
-      agora: agoraNoFuso(env.APP_TIMEZONE, clock.agora())
+      agora: agoraNoFuso(env.APP_TIMEZONE, clock.agora()),
+      // D-079: a recepção e o profissional usam a mesma grade do link (D-069): de cada janela livre,
+      // em passos da duração efetiva. A grade do salão + bordas deixou de aparecer na lista. Horário
+      // digitado à mão continua aceito no POST, que revalida conflito e escala.
+      gradePorDuracao: true
     });
-    // Política de sugestão (D-054): marca `sugerido`; a recepção ainda vê e escolhe qualquer livre.
+    // Política de sugestão (D-054): marca `sugerido` dentro da grade; "Ver todos" mostra a grade inteira.
     res.json({ ok: true, data: { ...result, slots: aplicarPolitica(result.slots, result.politica, 'recepcao'), profissionalId: profissional.id, servicoId: servico.id } });
   } catch (err) { next(err); }
 });

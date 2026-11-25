@@ -409,7 +409,8 @@ test('D23 encurtar: só dentro do original; o do profissional só ele; o da gest
   const ok = await enc({ fim: '14:30' });
   assert.strictEqual(ok.status, 200, JSON.stringify(ok.data));
   assert.deepStrictEqual([ok.data.data.antes.fim, ok.data.data.depois.fim, ok.data.data.depois.id], ['16:00', '14:30', id], 'mesmo bloqueio, menor');
-  assert.ok(horas(await slots(P.edu, SEG)).includes('15:00'), 'o horário liberado volta a ser oferecido');
+  // D-079: a grade parte do início da janela liberada (14:30) e anda pela duração.
+  assert.ok(horas(await slots(P.edu, SEG)).includes('14:30'), 'o horário liberado volta a ser oferecido');
   const g = await marca({ periodos: [{ inicio: '17:00', fim: '18:00' }] }, 'h.gestor.s');
   assert.strictEqual((await enc({ fim: '17:30' }, 'h.recep.s', g.data.data.ids[0])).status, 200, 'o da equipe a equipe encurta');
   const aus = await excecao({ profissionalId: P.edu, tipo: 'ausencia', dataInicio: add(SEG, 21), dataFim: add(SEG, 23) }, 'h.edu.s');

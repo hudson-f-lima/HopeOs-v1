@@ -161,8 +161,9 @@ test('B06 buffer: slots e gravação seguem a mesma regra do banco', async () =>
   const horarios = slots.slots.map(s => s.horario);
   assert.ok(!horarios.includes('10:30'), '10:30 cai no buffer');
   assert.ok(!horarios.includes('09:30'), '09:30–10:00 não deixa o buffer antes das 10:00');
-  assert.ok(horarios.includes('09:20') && horarios.includes('10:40'), 'bordas exatas com buffer');
-  assert.ok(slots.slots.find(s => s.horario === '12:30'), 'último horário encosta no fechamento sem buffer');
+  // D-079: grade por duração a partir de cada janela livre. A janela depois do atendimento começa
+  // em 10:40 (10:30 + buffer 10) e anda de 30 em 30; as bordas fora da grade (09:20, 12:30) saem.
+  assert.deepStrictEqual(horarios, ['09:00', '10:40', '11:10', '11:40', '12:10'], horarios.join(','));
   for (const s of slots.slots) {
     assert.strictEqual(findScheduleConflicts({ agendamento: { profissionalId: PROF, data, horario: s.horario, duracaoMin: 30 }, existing: db.agendamentos, bufferMin: 10 }).length, 0, `slot ${s.horario} conflita`);
   }
@@ -172,6 +173,14 @@ test('B06 buffer: slots e gravação seguem a mesma regra do banco', async () =>
   const semBuffer = computeSlots({ janela: { inicio: 540, fim: 780 }, ocupados: [{ start: 600, end: 630, atendimento: true }], duracaoMin: 30, passoMin: 15, bufferMin: 0 });
   assert.ok(semBuffer.some(s => s.horario === '09:30') && semBuffer.some(s => s.horario === '10:30'), 'buffer 0 mantém o comportamento antigo');
   await request('PATCH', '/api/empresa', { body: { bufferMin: 0 } });
+});
+
+test('B07b régua de faltas: concordância de "1 falta seguida" (limite de alerta 1)', () => {
+  const r = computeReguaFaltas([{ data: '2026-11-10', horario: '10:00', status: 'no_show' }], { alerta: 1, sinal: 3 });
+  assert.strictEqual(r.nivel, 'alerta');
+  assert.match(r.mensagem, /^1 falta seguida:/);
+  const r2 = computeReguaFaltas([{ data: '2026-11-03', horario: '10:00', status: 'no_show' }, { data: '2026-11-10', horario: '10:00', status: 'no_show' }], { alerta: 1, sinal: 3 });
+  assert.match(r2.mensagem, /^2 faltas seguidas:/);
 });
 
 test('B07 régua de faltas: só faltas seguidas; atendimento concluído zera; limites da empresa', async () => {
