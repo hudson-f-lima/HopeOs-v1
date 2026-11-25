@@ -73,6 +73,7 @@ const CASOS = [
   { nome: 'permissoes' },
   { nome: 'escalas' },
   { nome: 'agenda-bloqueio' },
+  { nome: 'agenda-grade-dinamica' },
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
   { nome: 'agenda-mes' },
