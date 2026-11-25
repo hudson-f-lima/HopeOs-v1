@@ -28,7 +28,7 @@ Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](
 ## 4. Runbooks
 - [`RUNBOOK_MIGRATION_007.md`](RUNBOOK_MIGRATION_007.md): 007 já aplicada; mantém a verificação (§4) e a limpeza de dados (§4.1).
 - [`RUNBOOK_BACKUP.md`](RUNBOOK_BACKUP.md): backup e teste de restauração; a rotina diária está adiada pelo dono.
-- Skills em [`../.claude/skills/`](../.claude/skills/): `steward` (como trabalhar), `completar-lacuna`, `red-team`, `deploy-producao`, `auditoria-estado`, `avaliar-proposta`, `integracao-futura`, `usabilidade-pwa`, `agendamento-inteligente`.
+- Skills em [`../.claude/skills/`](../.claude/skills/): `steward` (como trabalhar), `completar-lacuna`, `red-team`, `deploy-producao`, `auditoria-estado`, `avaliar-proposta`, `integracao-futura`, `usabilidade-pwa`, `agendamento-inteligente`, `agenda-cards` (grade, cards e arraste da agenda), `fechar-pendencias` (triar e ordenar o que está em aberto).
 
 ## 5. Planejamento e análises (novembro de 2026)
 SQL dentro destes documentos é **DRAFT ONLY**: o schema real está em `supabase/migrations/`. O status de cada um está no cabeçalho do próprio documento.
