@@ -1,6 +1,6 @@
 # KortexOS / HOPE OS — Índice documental
 
-Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](PROJECT_STATE.md). Atualizado em 2026-11-23.
+Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](PROJECT_STATE.md). Atualizado em 2026-11-25.
 
 ## 1. Comece por aqui (ordem de leitura)
 1. [`../AGENTS.md`](../AGENTS.md): regras permanentes para agentes (bloqueios, classificação de achados, formato de entrega).
@@ -33,8 +33,9 @@ Este arquivo é só índice. O estado operacional está em [`PROJECT_STATE.md`](
 ## 5. Planejamento e análises (novembro de 2026)
 SQL dentro destes documentos é **DRAFT ONLY**: o schema real está em `supabase/migrations/`. O status de cada um está no cabeçalho do próprio documento.
 
-| Documento | Situação em 2026-11-23 |
+| Documento | Situação registrada |
 |---|---|
+| [`planning/APP_CLIENTE_ARQUITETURA.md`](planning/APP_CLIENTE_ARQUITETURA.md) | Proposta de produto de 25/11, com organograma, contratos, critérios de aceite e protótipo simulado |
 | [`planning/INTELLIGENCE_DASHBOARD.md`](planning/INTELLIGENCE_DASHBOARD.md) | D-072: inventário, arquitetura, seleção de gráficos e critérios de validação |
 | [`planning/BLUEPRINT_MASTER_V2_ANALISE.md`](planning/BLUEPRINT_MASTER_V2_ANALISE.md) | Ondas 1 e 2 feitas (D-062, D-063); decisões da Onda 3 pendentes |
 | [`planning/CADASTROS_PROFUNDIDADE_ANALISE.md`](planning/CADASTROS_PROFUNDIDADE_ANALISE.md) | Análise; decisões do dono pendentes (ficha do cliente, leitura do AppBarber) |
