@@ -1,3 +1,4 @@
+import { showToast } from './toast.js';
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { initAgendaMes, desenharFiltro, recarregarMesSeAberto, profsNaGrade, atualizarPaineis } from './agendaMes.js';
 import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
@@ -245,6 +246,7 @@ function renderAgBlock(item) {
     <div class="${cls.join(' ')}"
          style="top:${top}px;height:${height}px;--h:${matizDoServico(item)};"
          aria-label="${escapeHtml(rotulo)}"
+         tabindex="0" role="button"
          data-action="open-sheet"
          data-id="${item.id}"
          data-ag-id="${item.id}">
@@ -330,7 +332,15 @@ export function renderTimeline() {
     return `<div class="agenda-grid-col" data-prof-id="${p.id}" style="grid-column: ${i + 2}; height:${TIMELINE_TOTAL_HEIGHT}px;">${renderProfColInner(p)}</div>`;
   }).join('');
 
+  // Foco do teclado (D-078): redesenhar não tira o foco do card; depois de uma remarcação pelo
+  // teclado, o foco vai para o card novo assim que ele aparecer.
+  const focoAntes = document.activeElement && document.activeElement.closest && document.activeElement.closest('.ag-card[data-ag-id]');
+  const focoId = (focoPendente && Date.now() < focoPendente.ate && focoPendente.id) || (focoAntes && focoAntes.dataset.agId);
   container.innerHTML = html;
+  if (focoId) {
+    const el = container.querySelector(`.ag-card[data-ag-id="${CSS.escape(focoId)}"]`);
+    if (el) { el.focus({ preventScroll: true }); if (focoPendente && focoPendente.id === focoId) focoPendente = null; }
+  }
   // A grade cresceu para cima: mantém na tela o mesmo horário que estava antes.
   const rolagem = document.getElementById('timelineContainer');
   if (deslocamento && rolagem) rolagem.scrollTop += deslocamento * 60 * PX_POR_MIN;
@@ -967,23 +977,33 @@ function proximoSlotLivre(profId, data, duracaoMin, aPartirDeMin) {
   return null;
 }
 
-function highlightSlot(profId, minC, temConflito, duracaoMin = 20) {
+// Prévia do destino (D-078): início–fim e profissional antes de soltar. Verde = livre; vermelho =
+// ocupado, com o nome de quem ocupa (soltar ali não muda nada); âmbar = fora da escala (soltar
+// pede o encaixe, como no avulso, só para quem tem a permissão; o servidor decide).
+function highlightSlot(profId, minC, alvo, duracaoMin = 20) {
   clearHighlights();
   const col = document.querySelector(`.agenda-grid-col[data-prof-id="${profId}"]`);
   if (!col) return;
-  const top = minC * PX_POR_MIN;
   const div = document.createElement('div');
-  div.className = 'drag-highlight';
-  div.style.cssText = `
-    position: absolute; left: 2px; right: 2px;
-    top: ${top}px; height: ${duracaoMin * PX_POR_MIN}px;
-    border-radius: 6px; pointer-events: none; z-index: 10;
-    background: ${temConflito ? '#ffebee' : '#e8f5e9'};
-    border: 2px dashed ${temConflito ? '#f44336' : '#4caf50'};
-    font-size: 11px; font-weight: 800; color: #1b1b1b; padding: 2px 4px;
-  `;
-  div.textContent = minutesSinceStartToHHMM(minC); // a prévia diz o horário que será gravado
+  div.className = 'drag-highlight ' + alvo.estado;
+  div.style.top = minC * PX_POR_MIN + 'px';
+  div.style.height = duracaoMin * PX_POR_MIN + 'px';
+  div.innerHTML = `<span class="dh-rot"><span class="dh-ini">${minutesSinceStartToHHMM(minC)}</span>–${minutesSinceStartToHHMM(minC + duracaoMin)} · ${escapeHtml(findProfissionalNome(profId) || '')}</span>`
+    + (alvo.estado === 'conflito' ? `<span class="dh-msg">Ocupado: ${escapeHtml(alvo.ocupantes)}</span>` : '')
+    + (alvo.estado === 'fora' ? '<span class="dh-msg">Fora da escala</span>' : '');
   col.appendChild(div);
+}
+
+// Situação do destino de um arraste ou de uma seta: livre, ocupado (com quem) ou fora da escala.
+function avaliarDestino(ag, profId, minC) {
+  const dur = ag.duracao_min || 30;
+  const hora = HORA_INICIO + Math.floor(minC / 60);
+  const mins = minC % 60;
+  const conf = detectConflict(profId, state.selectedDay, hora, mins, dur, ag.id);
+  if (conf.length) return { estado: 'conflito', ocupantes: [...new Set(conf.map(c => findClienteNome(c.cliente_id) || 'outro atendimento'))].join(', '), hora, mins };
+  const ini = HORA_INICIO * 60 + minC;
+  if (foraDaEscala(profId, state.selectedDay, ini, ini + dur)) return { estado: 'fora', hora, mins };
+  return { estado: 'livre', hora, mins };
 }
 
 function clearHighlights() {
@@ -1058,8 +1078,8 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
   dialog.showModal();
 }
 
-function executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false) {
-  api('/agenda/' + agId + '/status', {
+function executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade = false, aceitarAvisos = false, opcoes = {}) {
+  return api('/agenda/' + agId + '/status', {
     method: 'PATCH',
     body: {
       novoStatus: 'reagendado',
@@ -1071,115 +1091,191 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
       aceitarAvisos
     }
   })
-  .then(() => {
-    loadWeekAgenda();
+  .then(async r => {
     navigator.vibrate?.([10, 50, 10]);
+    const novoId = r && r.novo && r.novo.id;
+    await loadWeekAgenda();
+    if (novoId && opcoes.focar) focarCard(novoId);
+    // Desfazer (D-078): 8 s para voltar ao horário e ao profissional de antes. É outra
+    // remarcação no servidor (com as mesmas checagens), nunca só a tela.
+    if (novoId && opcoes.voltar) {
+      const v = opcoes.voltar;
+      showToast({
+        type: 'success',
+        message: 'Remarcado para ' + horario + ' com ' + (findProfissionalNome(profId) || 'o profissional') + '.', // showToast escapa o texto
+        duration: 8000,
+        action: { label: 'Desfazer', onClick: () => executarReagendar(novoId, v.profId, v.data, v.horario, false, false, false, { focar: opcoes.focar }) }
+      });
+    }
+    return r;
   })
   .catch(async err => {
-    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true, aceitarAvisos);
-    if (!aceitarAvisos && await confirmarRegras(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade, true);
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true, aceitarAvisos, opcoes);
+    if (!aceitarAvisos && await confirmarRegras(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade, true, opcoes);
     showBanner('Erro ao reagendar: ' + err.message, 'error');
   });
 }
 
-function startDrag(agId, e) {
-  const block = document.querySelector(`[data-ag-id="${agId}"]`);
-  if (!block) return;
+// Foco no card novo depois da remarcação pelo teclado. A grade pode ser redesenhada mais de uma vez
+// depois da leitura da semana; o redesenho (renderTimeline) reaplica o foco por até 2 s.
+let focoPendente = null;
+function focarCard(id) {
+  focoPendente = { id, ate: Date.now() + 2000 };
+  const el = document.querySelector(`.ag-card[data-ag-id="${CSS.escape(id)}"]`);
+  if (el) el.focus({ preventScroll: false });
+}
+
+// Mover um card (arraste ou teclado) para outro profissional/horário do mesmo dia (D-078).
+// Ocupado: nada muda, e a tela diz por quem. Mesmo lugar: nada a fazer.
+function moverCard(ag, profId, minC, { focar = false } = {}) {
+  const alvo = avaliarDestino(ag, profId, minC);
+  const horario = formatTime(alvo.hora, alvo.mins);
+  if (profId === ag.profissional_id && horario === String(ag.horario).slice(0, 5)) return;
+  if (alvo.estado === 'conflito') {
+    showBanner(`Horário ocupado por ${alvo.ocupantes}. Nada mudou.`, 'warning');
+    return;
+  }
+  executarReagendar(ag.id, profId, state.selectedDay, horario, false, false, false, {
+    focar, voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5) }
+  });
+}
+
+// Arraste (D-055, D-078): o card inteiro é a alça. O bloco acompanha o dedo a partir do ponto em
+// que foi pego; o horário vem do TOPO do bloco medido na coluna (que já desconta o cabeçalho fixo e
+// a rolagem). Prévia, régua e horário gravado usam a mesma conta.
+let ultimoArrasteEm = 0;
+let rolagemAuto = null;
+function startDrag(agId, e, origem) {
+  const block = document.querySelector(`.ag-card[data-ag-id="${CSS.escape(agId)}"]`);
+  if (!block || !block.classList.contains('editavel')) return;
 
   block.classList.add('dragging');
   const clientX = e.touches?.[0].clientX ?? e.clientX;
   const clientY = e.touches?.[0].clientY ?? e.clientY;
-
-  // Arraste (D-055): o bloco acompanha o dedo a partir do ponto em que foi pego; o horário vem do
-  // TOPO do bloco medido na coluna (que já desconta o cabeçalho fixo e a rolagem). Prévia, régua e
-  // horário gravado usam a mesma conta.
   const r = block.getBoundingClientRect();
-  const pegaY = clientY - r.top;
-  const pegaX = clientX - r.left;
+  const pegaY = (origem ? origem.y : clientY) - r.top;
+  const pegaX = (origem ? origem.x : clientX) - r.left;
   const clone = block.cloneNode(true);
-  clone.style.cssText = `
-    position: fixed; opacity: 0.9; pointer-events: none;
-    z-index: 9999; width: ${block.offsetWidth}px;
-    box-shadow: var(--elevation-2);
-    left: ${clientX - pegaX}px;
-    top: ${clientY - pegaY}px;
-  `;
+  clone.removeAttribute('tabindex');
+  clone.classList.add('ag-clone');
+  clone.style.width = block.offsetWidth + 'px';
+  clone.style.height = block.offsetHeight + 'px';
+  clone.style.left = clientX - pegaX + 'px';
+  clone.style.top = clientY - pegaY + 'px';
   document.body.appendChild(clone);
 
-  state.dragging = { agId, clone, targetProf: null, targetMin: null, originalBlock: block, pegaY, pegaX };
+  state.dragging = { agId, clone, targetProf: null, targetMin: null, originalBlock: block, pegaY, pegaX, x: clientX, y: clientY };
 
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('touchmove', onDragMove, { passive: false });
   document.addEventListener('mouseup', onDragEnd);
   document.addEventListener('touchend', onDragEnd);
+  document.addEventListener('touchcancel', onDragEnd);
+  atualizarAlvo(clientX, clientY);
+}
+
+function atualizarAlvo(clientX, clientY) {
+  const d = state.dragging;
+  if (!d) return;
+  d.x = clientX; d.y = clientY;
+  d.clone.style.left = clientX - d.pegaX + 'px';
+  d.clone.style.top = clientY - d.pegaY + 'px';
+  const el = document.elementFromPoint(clientX, clientY);
+  const profCol = el?.closest('.agenda-grid-col[data-prof-id]');
+  if (profCol) {
+    const yRel = clientY - d.pegaY - profCol.getBoundingClientRect().top;
+    const min = Math.round(yRel / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
+    const ag = findAgendaItemById(d.agId);
+    const dur = ag.duracao_min || 30;
+    const minC = Math.max(0, Math.min(min, (HORA_FIM - HORA_INICIO) * 60 - dur));
+    d.targetProf = profCol.dataset.profId;
+    d.targetMin = minC;
+    const alvo = avaliarDestino(ag, d.targetProf, minC);
+    highlightSlot(d.targetProf, minC, alvo, dur);
+    profCol.closest('.agenda-grid')?.setAttribute('data-arraste-horario', formatTime(alvo.hora, alvo.mins));
+  }
+  ajustarRolagemAuto(clientY);
+}
+
+// Rolagem automática perto da borda de cima ou de baixo da grade. Só começa depois de o dedo
+// ficar 0,4 s na faixa da borda: passar por ela, ou soltar no último horário visível, não rola.
+const BORDA_ROLAGEM_PX = 32;
+const ESPERA_ROLAGEM_MS = 400;
+function ajustarRolagemAuto(clientY) {
+  const c = document.getElementById('timelineContainer');
+  if (!c || !state.dragging) return pararRolagemAuto();
+  const r = c.getBoundingClientRect();
+  const passo = clientY < r.top + BORDA_ROLAGEM_PX ? -12 : clientY > r.bottom - BORDA_ROLAGEM_PX ? 12 : 0;
+  if (!passo) return pararRolagemAuto();
+  if (rolagemAuto && rolagemAuto.passo === passo) return;
+  pararRolagemAuto();
+  const desde = performance.now();
+  const tick = agora => {
+    if (!state.dragging || !rolagemAuto) return;
+    if (agora - desde >= ESPERA_ROLAGEM_MS) {
+      const antes = c.scrollTop;
+      c.scrollTop += passo;
+      if (c.scrollTop !== antes) atualizarAlvo(state.dragging.x, state.dragging.y);
+    }
+    if (rolagemAuto) rolagemAuto.raf = requestAnimationFrame(tick);
+  };
+  rolagemAuto = { passo, raf: requestAnimationFrame(tick) };
+}
+function pararRolagemAuto() {
+  if (rolagemAuto) cancelAnimationFrame(rolagemAuto.raf);
+  rolagemAuto = null;
 }
 
 function onDragMove(e) {
+  if (!state.dragging) return;
   if (e.cancelable) e.preventDefault();
-  const clientX = e.touches?.[0].clientX ?? e.clientX;
-  const clientY = e.touches?.[0].clientY ?? e.clientY;
-
-  state.dragging.clone.style.left = clientX - state.dragging.pegaX + 'px';
-  state.dragging.clone.style.top  = clientY - state.dragging.pegaY + 'px';
-
-  state.dragging.clone.style.pointerEvents = 'none';
-  const el = document.elementFromPoint(clientX, clientY);
-
-  const profCol = el?.closest('[data-prof-id]');
-
-  if (profCol) {
-    const yRel = clientY - state.dragging.pegaY - profCol.getBoundingClientRect().top;
-    const min  = Math.round(yRel / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
-    const minC = Math.max(0, Math.min(min, (HORA_FIM - HORA_INICIO) * 60 - 20));
-
-    state.dragging.targetProf = profCol.dataset.profId;
-    state.dragging.targetMin  = minC;
-
-    const hora = HORA_INICIO + Math.floor(minC / 60);
-    const mins = minC % 60;
-    const ag   = findAgendaItemById(state.dragging.agId);
-    const conf = detectConflict(state.dragging.targetProf, state.selectedDay, hora, mins, ag.duracao_min || 30, ag.id);
-
-    highlightSlot(profCol.dataset.profId, minC, conf.length > 0, ag.duracao_min || 30);
-    profCol.closest('.agenda-grid')?.setAttribute('data-arraste-horario', formatTime(hora, mins));
-  }
+  atualizarAlvo(e.touches?.[0].clientX ?? e.clientX, e.touches?.[0].clientY ?? e.clientY);
 }
 
-function onDragEnd(e) {
+function onDragEnd() {
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('touchmove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
   document.removeEventListener('touchend', onDragEnd);
+  document.removeEventListener('touchcancel', onDragEnd);
+  pararRolagemAuto();
   clearHighlights();
-  
-  const currentDragging = state.dragging;
-  if (!currentDragging) return;
 
-  if (currentDragging.clone) {
-    currentDragging.clone.remove();
-  }
-  if (currentDragging.originalBlock) {
-    currentDragging.originalBlock.classList.remove('dragging');
-  }
-
-  if (!currentDragging.targetProf) {
-    state.dragging = null;
-    return;
-  }
-
-  const ag = findAgendaItemById(currentDragging.agId);
-  const hora = HORA_INICIO + Math.floor(currentDragging.targetMin / 60);
-  const mins = currentDragging.targetMin % 60;
-  const conflitos = detectConflict(currentDragging.targetProf, state.selectedDay, hora, mins, ag.duracao_min || 30, ag.id);
-
-  if (conflitos.length > 0) {
-    showConflictDialog(currentDragging.targetProf, state.selectedDay, hora, mins, ag.duracao_min || 30, (horarioEscolhido, forced) => {
-      executarReagendar(ag.id, currentDragging.targetProf, state.selectedDay, horarioEscolhido, forced);
-    });
-  } else {
-    executarReagendar(ag.id, currentDragging.targetProf, state.selectedDay, formatTime(hora, mins));
-  }
+  const d = state.dragging;
   state.dragging = null;
+  if (!d) return;
+  ultimoArrasteEm = Date.now();
+  d.clone?.remove();
+  d.originalBlock?.classList.remove('dragging');
+  if (!d.targetProf) return;
+  const ag = findAgendaItemById(d.agId);
+  if (ag) moverCard(ag, d.targetProf, d.targetMin);
+}
+
+// Teclado (D-078): ↑/↓ movem um passo; ←/→ trocam de profissional no mesmo horário;
+// Enter ou espaço abrem o card. Concluído, falta e pago não se movem.
+function onCardKeydown(ev) {
+  const card = ev.target.closest?.('.ag-card[data-ag-id]');
+  if (!card || ev.target !== card) return;
+  const ag = findAgendaItemById(card.dataset.agId);
+  if (!ag) return;
+  if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openActionSheet(ag); return; }
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
+  ev.preventDefault();
+  if (!card.classList.contains('editavel')) { showBanner('Este atendimento não pode ser movido.', 'warning'); return; }
+  const minAtual = itemStartMinutes(ag);
+  const dur = ag.duracao_min || 30;
+  let profId = ag.profissional_id;
+  let minC = minAtual;
+  if (ev.key === 'ArrowUp') minC = Math.max(0, minAtual - SNAP_MIN);
+  if (ev.key === 'ArrowDown') minC = Math.min((HORA_FIM - HORA_INICIO) * 60 - dur, minAtual + SNAP_MIN);
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+    const ids = profsNaGrade().map(p => p.id);
+    const i = ids.indexOf(ag.profissional_id) + (ev.key === 'ArrowRight' ? 1 : -1);
+    if (i < 0 || i >= ids.length) return;
+    profId = ids[i];
+  }
+  moverCard(ag, profId, minC, { focar: true });
 }
 
 function startResize(agId, e) {
@@ -1290,9 +1386,8 @@ function formatTime(h, m) {
 let longPressTimer = null;
 
 function onTimelineClick(ev) {
-  if (ev.target.classList.contains('drag-handle') || ev.target.classList.contains('resize-handle')) {
-    return;
-  }
+  if (ev.target.classList.contains('resize-handle')) return;
+  if (Date.now() - ultimoArrasteEm < 400) return; // o soltar de um arraste não abre o card
   const block = ev.target.closest('[data-action="open-sheet"]');
   if (block) {
     const item = findAgendaItemById(block.dataset.id);
@@ -1345,42 +1440,51 @@ export function initAgenda() {
   timelineCols.addEventListener('click', onTimelineClick);
   document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
 
+  timelineCols.addEventListener('keydown', onCardKeydown);
+
+  // Mouse: o arraste começa quando o ponteiro anda mais de 6 px com o botão apertado; sem andar,
+  // é um clique e abre o card como sempre.
   timelineCols.addEventListener('mousedown', e => {
-    const handle = e.target.closest('.drag-handle');
-    if (handle) {
-      startDrag(handle.dataset.agId, e);
-    }
+    if (e.button !== 0) return;
     const resizeHandle = e.target.closest('.resize-handle');
-    if (resizeHandle) {
-      startResize(resizeHandle.dataset.agId, e);
-    }
+    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e); return; }
+    const card = e.target.closest('.ag-card.editavel');
+    if (!card) return;
+    const origem = { x: e.clientX, y: e.clientY };
+    const mover = ev => {
+      if (Math.hypot(ev.clientX - origem.x, ev.clientY - origem.y) <= 6) return;
+      parar();
+      startDrag(card.dataset.agId, ev, origem);
+    };
+    const parar = () => { document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', parar); };
+    document.addEventListener('mousemove', mover);
+    document.addEventListener('mouseup', parar);
   });
 
+  // Toque: segurar o card 0,3 s pega; mexer o dedo antes disso é rolagem e cancela.
+  let toqueInicio = null;
   timelineCols.addEventListener('touchstart', e => {
-    const handle = e.target.closest('.drag-handle');
-    if (handle) {
-      const agId = handle.dataset.agId;
-      longPressTimer = setTimeout(() => {
-        navigator.vibrate?.([10]);
-        startDrag(agId, e);
-      }, 500);
-    }
-
     const resizeHandle = e.target.closest('.resize-handle');
-    if (resizeHandle) {
-      startResize(resizeHandle.dataset.agId, e);
-    }
+    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e); return; }
+    const card = e.target.closest('.ag-card.editavel');
+    if (!card || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    toqueInicio = { x: t.clientX, y: t.clientY };
+    clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      navigator.vibrate?.([10]);
+      startDrag(card.dataset.agId, { clientX: toqueInicio.x, clientY: toqueInicio.y }, toqueInicio);
+    }, 300);
   }, { passive: true });
 
-  timelineCols.addEventListener('touchend', () => {
-    clearTimeout(longPressTimer);
-  });
+  timelineCols.addEventListener('touchend', () => { clearTimeout(longPressTimer); longPressTimer = null; });
 
-  timelineCols.addEventListener('touchmove', () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-    }
-  });
+  timelineCols.addEventListener('touchmove', e => {
+    if (!longPressTimer || !toqueInicio) return;
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - toqueInicio.x, t.clientY - toqueInicio.y) > 8) { clearTimeout(longPressTimer); longPressTimer = null; }
+  }, { passive: true });
 
   document.getElementById('agHorario').addEventListener('input', () => {
     updateNovoAgendamentoPreview();

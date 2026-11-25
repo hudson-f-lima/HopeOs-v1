@@ -99,7 +99,7 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }) {
     await r.mouse.move(a2.x, a2.y); await r.mouse.down();
     const yFinal = d2.top + a2.pega + 2; // topo do bloco 2 px abaixo da linha do horário
     for (let i = 1; i <= 8; i++) { await r.mouse.move(a2.x + (d2.x - a2.x) * i / 8, a2.y + (yFinal - a2.y) * i / 8); await r.waitForTimeout(30); }
-    const previa = await r.evaluate(() => { const h = document.querySelector('.drag-highlight'); return h ? h.textContent.trim() : null; });
+    const previa = await r.evaluate(() => { const h = document.querySelector('.drag-highlight .dh-ini'); return h ? h.textContent.trim() : null; });
     confere('prévia do arraste mostra o horário da linha (' + destino.hora + ')', previa === destino.hora, String(previa));
     await r.mouse.up();
     await r.waitForTimeout(1200);

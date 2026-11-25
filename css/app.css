@@ -1622,3 +1622,18 @@ body{font-variant-numeric:tabular-nums;}
 .ag-card .ag-pago-chip{font-size:9px;font-weight:800;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.12);}
 .ag-card .drag-handle{background:hsl(var(--h) var(--card-s) calc(var(--card-l) - 7%));color:inherit;border-radius:9px 9px 0 0;}
 .ag-card .resize-handle{background:none;}
+
+/* ============ Arraste da agenda (D-078, cards etapa 3) ============ */
+.ag-card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y;}
+.ag-card.editavel{cursor:grab;}
+.ag-card:focus-visible{outline:3px solid var(--primary);outline-offset:1px;z-index:6;}
+.ag-clone{position:fixed!important;pointer-events:none;z-index:9999;opacity:.92;box-shadow:var(--elevation-2);transform:scale(1.03);cursor:grabbing;}
+.drag-highlight{position:absolute;left:2px;right:2px;border-radius:8px;pointer-events:none;z-index:10;border:2px dashed;
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:2px 4px;font-size:11px;font-weight:800;}
+.drag-highlight.livre{border-color:#15803d;background:color-mix(in srgb,#15803d 12%,transparent);}
+.drag-highlight.conflito{border-color:var(--md-error,#b91c1c);background:color-mix(in srgb,#b91c1c 14%,transparent);}
+.drag-highlight.fora{border-color:#b45309;background:color-mix(in srgb,#b45309 14%,transparent);}
+.drag-highlight .dh-rot{background:var(--text-primary);color:var(--bg-surface);padding:1px 6px;border-radius:6px;white-space:nowrap;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.drag-highlight.conflito .dh-rot{background:#b91c1c;color:#fff;}
+.drag-highlight.fora .dh-rot{background:#b45309;color:#fff;}
+.drag-highlight .dh-msg{background:var(--bg-surface);color:var(--text-primary);padding:1px 6px;border-radius:6px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}

@@ -1,5 +1,12 @@
 # Changelog
 
+## Agenda: arrastar e soltar mais seguro (D-078)
+- Dá para arrastar pelo card inteiro. No celular, segure o card por um instante; deslizar continua rolando a agenda.
+- Antes de soltar, aparece o horário de início e fim e o profissional. Se o horário estiver ocupado, a tela diz por quem e nada muda.
+- Depois de soltar, um aviso traz "Desfazer" por 8 segundos.
+- Pelo teclado: Tab até o card, setas para cima e para baixo mudam o horário, para os lados mudam o profissional.
+- Segurar o card perto da borda de cima ou de baixo rola a agenda.
+
 ## Agenda: card novo com ícones do cliente (D-077)
 - O card mostra, sem abrir, se o cliente é assinante (ou está com a assinatura em atraso), se é a primeira visita, se o horário é recorrente, se veio pelo link ou da lista de espera e se tem histórico de faltas.
 - A situação (agendado, confirmado, chegou, em atendimento, concluído, faltou) aparece num ícone no canto; a cor do card continua sendo a do serviço, agora em tom suave.
