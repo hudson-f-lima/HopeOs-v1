@@ -152,7 +152,7 @@
             <button type="button" class="agx-ic" id="btnAgBuscar" aria-expanded="false" aria-controls="agBusca" aria-label="Buscar cliente na semana"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
             <button type="button" class="agx-ic" id="btnAgMes" aria-expanded="false" aria-controls="agMes" aria-label="Abrir o calendário do mês"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/><line x1="3.5" y1="10" x2="20.5" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
             <button type="button" class="agx-ic" id="btnAgendaLembretes" aria-label="Lembretes de confirmação"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-            <button type="button" class="agx-ic" id="btnAgInfo" aria-expanded="false" aria-controls="agInfo" aria-label="Legenda, totais, passo do arraste e lista de espera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg></button>
+            <button type="button" class="agx-ic" id="btnAgInfo" aria-expanded="false" aria-controls="agInfo" aria-label="Legenda, totais, zoom e lista de espera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg></button>
           </div>
         </div>
         <div class="agx-data">
@@ -173,13 +173,11 @@
           <p class="agx-escopo" id="agBuscaEscopo"></p>
           <div id="agBuscaResultado" aria-live="polite"></div>
         </section>
-        <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais, passo do arraste e lista de espera">
+        <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais, zoom e lista de espera">
           <p class="agx-escopo" id="weekCountLabel">—</p>
           <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span><span><i class="lg lg-incerto"></i>Não confirmado</span></div>
           <p class="agx-escopo">Contam os agendamentos ativos (sem cancelados e remarcados) dos profissionais selecionados. Nenhum número aqui é estimado.</p>
-          <label class="agx-passo" for="agPasso">Passo do arraste neste aparelho
-            <select id="agPasso"><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
-          </label>
+          <button type="button" class="btn btn-secondary" id="btnAgAparencia">Zoom e passo do arraste</button>
           <button class="btn btn-secondary" id="btnAbrirListaEspera" type="button">+ Lista de espera</button>
         </section>
         <div class="agx-profs">
@@ -669,36 +667,46 @@
       </div>
       <p id="gestaoSemResultados" class="empty-state hidden" role="status">Nenhum recurso encontrado.</p>
       <div class="gestao-grupos" id="subtabRow">
-        <section class="gestao-grupo" aria-labelledby="gestaoAgendaTitulo">
-          <h3 id="gestaoAgendaTitulo">Agenda e atendimento</h3>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="escalas" id="subtabBtnEscalas" aria-haspopup="dialog" aria-controls="subtab-escalas">Horários e escalas</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="regras" id="subtabBtnRegras" aria-haspopup="dialog" aria-controls="subtab-regras">Regras da agenda</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="online" id="subtabBtnOnline" aria-haspopup="dialog" aria-controls="subtab-online" data-termos="link">Agendamento online</button>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="espera" aria-haspopup="dialog" aria-controls="subtab-espera">Lista de espera</button>
+        <section class="gestao-grupo" aria-labelledby="gestaoFuncionaTitulo">
+          <h3 id="gestaoFuncionaTitulo">Como o salão funciona</h3>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="escalas" id="subtabBtnEscalas" aria-haspopup="dialog" aria-controls="subtab-escalas" data-termos="agenda e atendimento expediente folga">Horários e escalas</button>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="regras" id="subtabBtnRegras" aria-haspopup="dialog" aria-controls="subtab-regras" data-termos="agenda e atendimento antecedência tolerância atraso faltas no-show intervalo buffer sugestão de horários">Regras da agenda</button>
         </section>
-        <section class="gestao-grupo" aria-labelledby="gestaoPessoasTitulo">
-          <h3 id="gestaoPessoasTitulo">Pessoas e acessos</h3>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="profissionais" aria-haspopup="dialog" aria-controls="subtab-profissionais">Profissionais</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe" aria-haspopup="dialog" aria-controls="subtab-equipe" data-termos="permissões convites">Equipe e acessos</button>
-          <button type="button" class="gestao-atalho hidden" id="btnAbrirAssistente">Assistente de configuração</button>
+        <section class="gestao-grupo" aria-labelledby="gestaoApareceTitulo">
+          <h3 id="gestaoApareceTitulo">Como a agenda aparece</h3>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="aparencia" id="subtabBtnAparencia" aria-haspopup="dialog" aria-controls="subtab-aparencia" data-termos="neste aparelho zoom grade passo arraste">Zoom e passo do arraste</button>
         </section>
-        <section class="gestao-grupo" aria-labelledby="gestaoCatalogoTitulo">
-          <h3 id="gestaoCatalogoTitulo">Serviços e produtos</h3>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="servicos" aria-haspopup="dialog" aria-controls="subtab-servicos">Serviços</button>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="produtos" aria-haspopup="dialog" aria-controls="subtab-produtos" data-termos="estoque">Produtos</button>
+        <section class="gestao-grupo" aria-labelledby="gestaoSozinhosTitulo">
+          <h3 id="gestaoSozinhosTitulo">Clientes que agendam sozinhos</h3>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="online" id="subtabBtnOnline" aria-haspopup="dialog" aria-controls="subtab-online" data-termos="agenda e atendimento link">Agendamento online</button>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="espera" aria-haspopup="dialog" aria-controls="subtab-espera" data-termos="agenda e atendimento fila">Lista de espera</button>
+        </section>
+        <section class="gestao-grupo" aria-labelledby="gestaoEquipeTitulo">
+          <h3 id="gestaoEquipeTitulo">Equipe</h3>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="profissionais" aria-haspopup="dialog" aria-controls="subtab-profissionais" data-termos="pessoas e acessos">Profissionais</button>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="equipe" id="subtabBtnEquipe" aria-haspopup="dialog" aria-controls="subtab-equipe" data-termos="pessoas e acessos permissões convites usuários">Equipe e acessos</button>
+        </section>
+        <section class="gestao-grupo" aria-labelledby="gestaoVendeTitulo">
+          <h3 id="gestaoVendeTitulo">O que o salão vende</h3>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="servicos" aria-haspopup="dialog" aria-controls="subtab-servicos" data-termos="serviços e produtos duração preço">Serviços</button>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="produtos" aria-haspopup="dialog" aria-controls="subtab-produtos" data-termos="serviços e produtos estoque">Produtos</button>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="planos" id="subtabBtnPlanos" aria-haspopup="dialog" aria-controls="subtab-planos" data-termos="clientes e assinaturas clube">Planos de assinatura</button>
         </section>
         <section class="gestao-grupo" aria-labelledby="gestaoClientesTitulo">
-          <h3 id="gestaoClientesTitulo">Clientes e assinaturas</h3>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="clientes" aria-haspopup="dialog" aria-controls="subtab-clientes">Clientes</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="planos" id="subtabBtnPlanos" aria-haspopup="dialog" aria-controls="subtab-planos">Planos de assinatura</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="assinantes" id="subtabBtnAssinantes" aria-haspopup="dialog" aria-controls="subtab-assinantes">Assinantes</button>
+          <h3 id="gestaoClientesTitulo">Clientes</h3>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="clientes" aria-haspopup="dialog" aria-controls="subtab-clientes" data-termos="clientes e assinaturas cadastro">Clientes</button>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="assinantes" id="subtabBtnAssinantes" aria-haspopup="dialog" aria-controls="subtab-assinantes" data-termos="clientes e assinaturas inadimplente">Assinantes</button>
         </section>
-        <section class="gestao-grupo" aria-labelledby="gestaoFinanceiroTitulo">
-          <h3 id="gestaoFinanceiroTitulo">Financeiro</h3>
-          <button type="button" class="gestao-atalho subtab-btn" data-subtab="formas" aria-haspopup="dialog" aria-controls="subtab-formas" data-termos="taxas">Formas de pagamento</button>
-          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes" aria-haspopup="dialog" aria-controls="subtab-comissoes">Regras de comissão</button>
-          <button type="button" class="gestao-atalho hidden" id="navMetas" aria-controls="tab-metas" data-termos="desempenho"><span id="navMetasLabel">Metas e ganhos</span></button>
-          <button type="button" class="gestao-atalho hidden" id="gestaoCaixa" aria-controls="dobraCaixa">Caixa</button>
+        <section class="gestao-grupo" aria-labelledby="gestaoDinheiroTitulo">
+          <h3 id="gestaoDinheiroTitulo">Dinheiro</h3>
+          <button type="button" class="gestao-atalho subtab-btn" data-subtab="formas" aria-haspopup="dialog" aria-controls="subtab-formas" data-termos="financeiro taxas pix cartão">Formas de pagamento</button>
+          <button type="button" class="gestao-atalho subtab-btn hidden" data-subtab="comissoes" id="subtabBtnComissoes" aria-haspopup="dialog" aria-controls="subtab-comissoes" data-termos="financeiro">Regras de comissão</button>
+          <button type="button" class="gestao-atalho hidden" id="gestaoCaixa" aria-controls="dobraCaixa" data-termos="financeiro">Caixa</button>
+          <button type="button" class="gestao-atalho hidden" id="navMetas" aria-controls="tab-metas" data-termos="financeiro desempenho"><span id="navMetasLabel">Metas e ganhos</span></button>
+        </section>
+        <section class="gestao-grupo" aria-labelledby="gestaoPassosTitulo">
+          <h3 id="gestaoPassosTitulo">Primeiros passos</h3>
+          <button type="button" class="gestao-atalho hidden" id="btnAbrirAssistente" data-termos="pessoas e acessos onboarding">Assistente de configuração</button>
         </section>
       </div>
     </section>
@@ -976,6 +984,19 @@
       <button type="button" class="gestao-close" id="btnFecharGestao" aria-label="Voltar para Gestão">×</button>
     </div>
 
+    <div class="subtab-content hidden" id="subtab-aparencia">
+      <p class="aparelho-aviso" role="note"><b>Só neste aparelho.</b> Cada pessoa escolhe a sua. Não muda a agenda de mais ninguém.</p>
+      <div class="field">
+        <label for="agZoom">Zoom da grade</label>
+        <select id="agZoom" aria-describedby="agZoomDica"><option value="compacto">Compacto</option><option value="normal">Normal</option><option value="largo">Largo</option></select>
+        <p class="body-sm" id="agZoomDica">Compacto mostra o dia em menos espaço; largo mostra mais detalhe em cada card.</p>
+      </div>
+      <div class="field">
+        <label for="agPasso">Passo do arraste</label>
+        <select id="agPasso" aria-describedby="agPassoDica"><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
+        <p class="body-sm" id="agPassoDica">De quantos em quantos minutos o card anda ao arrastar ou ao puxar as bordas.</p>
+      </div>
+    </div>
     <div class="subtab-content hidden" id="subtab-assinantes">
       <section class="card" aria-labelledby="assinantesTitulo">
         <h2 class="m-0" id="assinantesTitulo" style="margin-bottom:4px;">Assinantes</h2>

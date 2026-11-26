@@ -26,7 +26,20 @@ import {
   centsToBRL
 } from '../utils.js';
 
-export const PX_POR_MIN = 3;
+// Zoom da grade (D-083): escolha deste aparelho, em pixels por minuto. Normal = 3, como antes.
+export const ZOOMS = { compacto: 2, normal: 3, largo: 4 };
+function lerZoom() {
+  try { const v = localStorage.getItem('hopeos.agenda.zoom'); if (Object.hasOwn(ZOOMS, v)) return v; } catch { /* sem armazenamento: padrão */ }
+  return 'normal';
+}
+export let ZOOM = lerZoom();
+export let PX_POR_MIN = ZOOMS[ZOOM];
+export function definirZoom(nome) {
+  if (!Object.hasOwn(ZOOMS, nome)) return;
+  ZOOM = nome; PX_POR_MIN = ZOOMS[nome];
+  TIMELINE_TOTAL_HEIGHT = (HORA_FIM - HORA_INICIO) * 60 * PX_POR_MIN;
+  try { localStorage.setItem('hopeos.agenda.zoom', nome); } catch { /* vale só nesta sessão */ }
+}
 // Janela da grade (D-074): começa em 8h–20h e cresce até a escala do dia e até os atendimentos
 // dos profissionais na tela. Nunca encolhe abaixo de 8h–20h: o trecho fora da escala continua
 // tocável para encaixe, e nenhum atendimento fica fora da tela (antes, um horário às 7h sumia).
@@ -1505,11 +1518,25 @@ export function initAgenda() {
   document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
 
   timelineCols.addEventListener('keydown', onCardKeydown);
+  // Como a agenda aparece (D-083): os dois controles moram na Gestão; o (i) da agenda leva até lá.
   const passoSel = document.getElementById('agPasso');
   if (passoSel) {
     passoSel.value = String(SNAP_MIN);
     passoSel.addEventListener('change', () => { definirPasso(Number(passoSel.value)); showBanner('Passo do arraste: ' + SNAP_MIN + ' min neste aparelho.', 'ok'); });
   }
+  const zoomSel = document.getElementById('agZoom');
+  if (zoomSel) {
+    zoomSel.value = ZOOM;
+    zoomSel.addEventListener('change', () => {
+      definirZoom(zoomSel.value);
+      renderTimeline();
+      showBanner('Zoom da grade: ' + zoomSel.options[zoomSel.selectedIndex].text.toLowerCase() + ' neste aparelho.', 'ok');
+    });
+  }
+  document.getElementById('btnAgAparencia')?.addEventListener('click', () => {
+    stateBus.dispatchEvent(new CustomEvent('tab:change', { detail: 'gestao' }));
+    setTimeout(() => document.getElementById('subtabBtnAparencia')?.click(), 0);
+  });
 
   // Mouse: o arraste começa quando o ponteiro anda mais de 6 px com o botão apertado; sem andar,
   // é um clique e abre o card como sempre.

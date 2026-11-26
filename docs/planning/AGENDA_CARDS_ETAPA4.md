@@ -50,7 +50,10 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 1. **4a. Legenda e ícones** (5, 6, 9): **feita (D-080)**, junto com a agenda de 2 profissionais por vez no celular (pedido de 26/11), sem barra extra acima da grade.
 2. **4b. Alças de cima e de baixo, e etiqueta de horário** (2, 3, 4): **feita (D-081)**, junto com o passo de 10 min por aparelho (item 1).
 3. **4c. Passo** (1), depois da decisão do dono. A grade (`GRID_MIN`) acompanha o passo, para o card cair na linha.
-4. **4d. Ideias da seção 4**, uma por vez, na ordem: buraco aproveitável, visita ligada, cliente atrasado.
+4. **4d. Ideias da seção 4**, uma por vez, cada uma com a sua chave em Gestão › Como a agenda aparece (por aparelho, ligada por padrão; decidido em 26/11):
+   - **feita (D-083):** reorganização da Gestão por intenção, zoom da grade e passo do arraste;
+   - depois, na ordem: espaço livre aproveitável, visita ligada, lado a lado;
+   - destaque de atraso no card: depois de "Cliente chegou" virar opção do salão (caminho B, precisa da migration 028).
 - Bloqueados: estrela laranja (V1.5), pago online (gateway), tempo de pausa (migration).
 
 ## 6. Critérios de aceite comuns

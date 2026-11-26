@@ -1,5 +1,10 @@
 # Changelog
 
+## Gestão organizada pelo que você quer fazer (D-083)
+- A aba Gestão agora tem 8 grupos: Como o salão funciona, Como a agenda aparece, Clientes que agendam sozinhos, Equipe, O que o salão vende, Clientes, Dinheiro e Primeiros passos.
+- A busca continua achando pelos nomes antigos, como "financeiro" e "pessoas e acessos".
+- Novo: zoom da grade (compacto, normal, largo) neste aparelho. O passo do arraste mudou para o mesmo lugar: Gestão › Como a agenda aparece. O (i) da agenda tem um atalho para lá.
+
 ## Comandas: histórico por período (D-082)
 - No histórico de comandas, escolha o período com um toque: Hoje, Ontem, Esta semana, Este mês ou Mês anterior.
 - Em "Personalizado", toque no primeiro dia e no último, como no extrato do banco.
