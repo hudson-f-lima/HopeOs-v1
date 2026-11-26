@@ -8,7 +8,7 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 
 | # | Pedido | Fato no código hoje | Classe | Proposta |
 |---|---|---|---|---|
-| 1 | Passo do arraste de 10 em 10 min ou configurável | `SNAP_MIN = 20` e `GRID_MIN = 20` fixos em `js/ui/agenda.js`. `empresas.slot_padrao` existe, mas é usado pelo Cockpit, não chega à agenda | DECISÃO | Padrão 10 min. A escolha é por aparelho (5/10/15/20/30), guardada no navegador, sem migration. Configuração por salão precisa de coluna nova (028) |
+| 1 | Passo do arraste de 10 em 10 min ou configurável | `SNAP_MIN = 20` e `GRID_MIN = 20` fixos em `js/ui/agenda.js`. `empresas.slot_padrao` existe, mas é usado pelo Cockpit, não chega à agenda | **Decidido (26/11): 10 min, escolha por aparelho** | Padrão 10 min. A escolha é por aparelho (5/10/15/20/30), guardada no navegador, sem migration. Configuração por salão precisa de coluna nova (028) |
 | 2 | O horário do encaixe aparece enquanto arrasta | A prévia no destino já mostra "início–fim · profissional" (D-078). O dedo cobre parte da coluna no celular | LIVRE | Repetir o horário numa etiqueta presa ao card que acompanha o dedo, acima do dedo |
 | 3 | O horário aparece ao redimensionar para cima e para baixo | Embaixo existe a dica de duração (`showResizeTooltip`); em cima não há alça | LIVRE | Etiqueta "início–fim (duração)" durante o gesto, nas duas bordas |
 | 4 | Topo do card redimensiona, base redimensiona, meio arrasta | A faixa de cima é só visual desde a D-078; só a base redimensiona. Remarcar não aceita duração nova | LIVRE (servidor sem migration) | Alça de cima muda o início e mantém o fim. O servidor passa a aceitar `novaDuracaoMin` na remarcação. A função atômica da 027 já recebe a duração no `jsonb`. Em card menor que 30 min só a base redimensiona, para o meio continuar pegável |
@@ -58,3 +58,18 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 - E2E 390×844 sob a CSP de produção, claro e escuro, sem resposta ≥ 400 nova por papel.
 - Contraste AA medido em cada ícone novo.
 - `CACHE_NAME` trocado em cada PR que muda JS ou CSS.
+
+## 7. Comandas: filtro por período (pedido de 26/11)
+- **Hoje:** `GET /comandas?data=` aceita um dia só; a tela tem um campo de data único.
+- **Pedido:** como no extrato do banco: atalhos de um toque e um calendário em que se toca no primeiro e no último dia.
+- **Proposta (LIVRE, sem migration):**
+  - Atalhos: Hoje, Ontem, Esta semana (a partir de domingo, como a agenda), Este mês, Mês anterior e Personalizado.
+  - Personalizado: calendário com dois toques. O primeiro toque marca o início e o segundo marca o fim; um terceiro toque começa outro intervalo. Datas futuras ficam desligadas. Limite de 92 dias.
+  - Resumo no topo: quantidade de comandas e total do período, vindos do servidor. Lista agrupada por dia, com o total de cada dia.
+  - Servidor: `GET /comandas?inicio=&fim=` com o mesmo cálculo de saldo e estorno de hoje; `data=` continua valendo. A fila "Atendimentos da agenda" continua por dia.
+- **Aceite:**
+  - gate com 422 para intervalo invertido, maior que 92 dias e datas inválidas;
+  - isolamento entre empresas;
+  - total igual à soma calculada à mão;
+  - E2E com os atalhos e com os dois toques.
+- Protótipo: claude.ai/artifact/5c1FUM8HsyGvHoRWpznKsE (seção 3).
