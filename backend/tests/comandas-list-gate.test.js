@@ -40,6 +40,7 @@ let montagem = 0;
 async function montar(permissoes, responder) {
   const utils = await import(pathToFileURL(resolve(raiz, 'js/utils.js')));
   const { alcanceDaPermissao, podeFecharAtendimento } = await import(pathToFileURL(resolve(raiz, 'js/state.js')));
+  const periodoMod = await import(pathToFileURL(resolve(raiz, 'js/ui/periodo.js'))); // D-082
   const els = new Map();
   const document = {
     getElementById(id) {
@@ -77,7 +78,8 @@ async function montar(permissoes, responder) {
     api: rota => {
       chamadas.push(rota);
       return responder(rota);
-    }
+    },
+    ...periodoMod
   };
   globalThis.__comandasListFixture = fixture;
   let mod;

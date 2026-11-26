@@ -174,6 +174,10 @@ Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/me
 
 Na remarcação pela equipe, `novaDuracaoMin` (opcional, inteiro de 10 a 480; fora disso, 422 `INVALID_DURATION`) grava o novo horário com outra duração na mesma operação. Conflito e escala são conferidos com a duração nova (D-081). Sem o campo, a duração é mantida.
 
+## Comandas por período (D-082)
+
+`GET /api/comandas?data=AAAA-MM-DD` (um dia, como antes) ou `?inicio=&fim=` (até 92 dias, inclusive), com permissão `comanda:historico`. Devolve `{data, inicio, fim, hoje, prazoDias, comandas, resumo:{comandas, recebidoCentavos, estornadoCentavos}}`, com as mais recentes primeiro. Erros 422: `INVALID_RANGE` (fim antes do início), `RANGE_TOO_LONG` e `INVALID_DATE`.
+
 ## D-013 — estorno de comanda (migration 009)
 - `POST /api/comandas/:id/estorno` (`checkout:estornar`: admin/gestor, só usuário)
   - Corpo: `{tipo:'total'|'parcial', idempotencyKey, motivoCodigo: erro_lancamento|desistencia_cliente|insatisfacao|duplicidade|outro, motivo (10–500), devolverEstoque? (total), itens?:[{comandoItemId, quantidade, devolveEstoque?}] (parcial), reembolsos?:[{formaCode, valorCentavos}] | reembolsoForma? (parcial)}`.

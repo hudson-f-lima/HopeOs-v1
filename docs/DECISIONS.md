@@ -1301,3 +1301,33 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - `agenda-arraste`: ↓ anda 10 min (09:10).
   - `test:offline` verde; E2E 51/51.
 - **Não coberto por navegador:** o toque com o dedo nas alças. O Playwright não simula bem; o mouse cobre a mesma conta.
+
+## D-082 — Comandas: histórico por período, com atalhos e calendário de dois toques (sem migration)
+- **Pedido (Platform Owner, 2026-11-26):** "o filtro que hoje é com data única… um calendário inteligente, aonde você clica na primeira data e na última… e também botões de toque: hoje, esta semana, este mês, mês anterior, e o calendário dentro do personalizado. Vi algo parecido no sistema bancário para consulta de extratos." Protótipo aprovado no mesmo dia.
+- **Tela (Comandas › Histórico de comandas):**
+  - Atalhos de um toque: Hoje, Ontem, Esta semana (a partir de domingo, como a agenda), Este mês, Mês anterior e Personalizado.
+  - Personalizado abre um calendário: o primeiro toque marca o início e o segundo o fim. O primeiro toque sozinho não consulta nada. Datas futuras ficam desligadas; o limite é de 92 dias, contados inclusive. Tocar duas vezes no mesmo dia consulta esse dia.
+  - No topo, o resumo vindo do servidor: "3 comandas · 24/11 a 25/11 · Recebido R$ 130,00" e, se houver, "Estornado R$ X". Com mais de um dia, a lista fica agrupada por dia.
+  - No histórico, o campo de data some; na fila "Atendimentos da agenda", ele continua, com um dia só.
+  - Voltar de uma comanda mantém o período, sem consultar de novo.
+- **Servidor:** `GET /api/comandas?inicio=&fim=`, além do `?data=`, que continua.
+  - Erros de período devolvem 422: `INVALID_RANGE` para intervalo invertido, `RANGE_TOO_LONG` acima de 92 dias e `INVALID_DATE` para data inválida ou só `fim`.
+  - Mesmo cálculo de saldo e estorno de antes. Ordem: data e hora, mais recentes primeiro.
+  - Novo campo `resumo {comandas, recebidoCentavos, estornadoCentavos}`. O recebido é a soma do recebido nas vendas; o estornado, a soma dos reembolsos dos estornos dessas comandas.
+- **Verificação:**
+  - Gate `comandas-periodo` CP01–CP04:
+    - novembro tem 3 comandas, recebido 16000 e estornado 2000;
+    - `data` continua valendo;
+    - os 422, com 92 dias aceito e 93 recusado;
+    - profissional recebe 403 e quem não tem token recebe 401.
+    - **Controles negativos:** sem o limite, o CP03 cai; sem o filtro de empresa no período, o CP01 cai.
+  - E2E `comandas-periodo`:
+    - atalhos visíveis e campo de data escondido; "Hoje" consulta `?data=`;
+    - o primeiro toque não consulta; o segundo consulta `?inicio=&fim=`;
+    - 3 comandas e "Recebido R$ 130,00" em 2 dias;
+    - voltar sem nova consulta;
+    - na fila da agenda, a data volta.
+    - **Controle negativo:** consultando já no primeiro toque, o E2E cai.
+  - `comandas-list-gate` (7/7) passou a injetar o módulo `periodo.js`. O `comandas-navegacao` usa "Ontem" e "Hoje" no lugar de digitar a data no histórico.
+  - `test:offline` verde; E2E 52/52.
+- **Não muda:** estorno, prazos, permissões (`comanda:historico`) e a fila da agenda.

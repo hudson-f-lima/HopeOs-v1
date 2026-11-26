@@ -59,7 +59,7 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 - Contraste AA medido em cada ícone novo.
 - `CACHE_NAME` trocado em cada PR que muda JS ou CSS.
 
-## 7. Comandas: filtro por período (pedido de 26/11)
+## 7. Comandas: filtro por período (pedido de 26/11) — feito (D-082)
 - **Hoje:** `GET /comandas?data=` aceita um dia só; a tela tem um campo de data único.
 - **Pedido:** como no extrato do banco: atalhos de um toque e um calendário em que se toca no primeiro e no último dia.
 - **Proposta (LIVRE, sem migration):**
