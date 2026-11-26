@@ -57,7 +57,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
-- **D-080 (26/11, PR rascunho):** legenda dos ícones no modal do card (fechada por padrão), estrela amarela, "$" verde do pago e agenda com 2 profissionais por vez no celular (o resto ao lado, com indicador). Sem migration.
+- **D-080 (26/11, PR rascunho):** legenda dos ícones no modal do card (fechada por padrão), estrela amarela, "$" verde do pago e agenda com 2 profissionais por vez no celular (o resto ao deslizar de lado). Sem migration.
 - **D-079 (25/11, PR #75):** a lista de horários livres do app (recepção e profissional) passa a usar a grade por duração do link (D-069), sem a grade do salão + bordas. Corrige também "1 faltas seguidas". Sem migration.
 - **D-078 (25/11, PR #74):** arrastar e soltar da agenda (cards etapa 3): card inteiro como alça, prévia com início–fim e profissional, ocupado não muda nada e diz por quem, desfazer por 8 s no servidor, teclado e rolagem na borda. Passo do salão fica pendente. Sem migration.
 - **D-077 (25/11, PR #73):** card novo da agenda (cards etapa 2): 7 ícones calculados no servidor (`GET /agenda?marcadores=1`), situação no canto, concluído e pago acinzentado + chanfro, cor suave. Sem migration.

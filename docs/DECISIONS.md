@@ -1245,13 +1245,13 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - O card pago perde cor **só no fundo** (saturação 12%). Antes era `filter` no card inteiro, que apagaria o verde. Continua com o chanfro.
 - **Agenda no celular (até 767 px):**
   - Com 3 ou mais profissionais, cada coluna ocupa metade da largura útil (fora a régua de 44 px). As outras ficam ao lado, com encaixe por coluna ao deslizar.
-  - Um indicador "‹ Ana e Bruno · 1–2 de 4 ›" diz quem está na tela e anda de 2 em 2.
+  - **Sem barra extra acima da grade.** A primeira versão tinha um indicador "‹ Ana e Bruno · 1–2 de 4 ›"; o dono testou e pediu para tirar ("acaba poluindo… o movimento rolar de lado é mais inteligente"). Ficou só o deslizar, com encaixe por coluna; os nomes no cabeçalho dizem quem está na tela.
   - No arraste, segurar perto da borda esquerda (depois da régua) ou direita rola para o lado, com a mesma espera de 0,4 s da rolagem vertical.
   - Com 1 ou 2 profissionais e em telas largas, nada muda.
   - **Substitui** a regra da D-055 "no celular cabem até 3 profissionais sem rolar de lado".
 - **Verificação:**
-  - E2E `agenda-colunas`: com 4 profissionais, a coluna mede 149 px de 298 úteis; o indicador mostra "Ana e Bruno · 1–2 de 4" e "Carla e Davi · 3–4 de 4"; o card da Davi aparece na tela; filtrando 2, o indicador some. **Controle negativo:** sem a classe de 2 colunas, as colunas voltam a 96 px e o teste cai.
+  - E2E `agenda-colunas`: com 4 profissionais, a coluna mede 149 px de 298 úteis e 2 cabem na tela; não há barra extra; a grade desliza de lado com encaixe até o card da Davi; filtrando 2, a grade não rola de lado. **Controle negativo:** sem a classe de 2 colunas, as colunas voltam a 96 px e o teste cai.
   - E2E `agenda-cards`: "$" verde primeiro, sem `filter`, com recorte do canto; legenda fechada por padrão com os 2 ícones do card; "Ver todos" mostra 8 e esconde os do card. **Controle negativo:** sem a regra que esconde a lista completa, o teste cai. Esse defeito apareceu na captura de tela e foi corrigido antes de entregar.
-  - `agenda-confiavel`: a asserção da D-055 passou a conferir 2 por vez com indicador.
+  - `agenda-confiavel`: a asserção da D-055 passou a conferir 2 por vez, com o terceiro ao deslizar.
   - `test:offline` verde; E2E 50/50.
 - **Não muda:** servidor, permissões, ícones bloqueados (estrela laranja até a V1.5; pago online até haver fornecedor).

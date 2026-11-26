@@ -357,7 +357,6 @@ export function renderTimeline() {
   const rolagem = document.getElementById('timelineContainer');
   if (deslocamento && rolagem) rolagem.scrollTop += deslocamento * 60 * PX_POR_MIN;
   atualizarSeloFora(state.selectedDay, profs);
-  atualizarPagina();
 
   positionRedline();
   // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez (também
@@ -1162,34 +1161,6 @@ function focarCard(id) {
   if (el) el.focus({ preventScroll: false });
 }
 
-// Agenda com 2 profissionais por vez (D-080): diz quem está na tela e anda de 2 em 2 colunas.
-// Só aparece quando as colunas não cabem todas (celular com 3 ou mais profissionais).
-function colunasDaGrade() {
-  const c = document.getElementById('timelineContainer');
-  const heads = [...document.querySelectorAll('#agendaGrid .agenda-grid-header')];
-  const largura = heads[0] ? heads[0].getBoundingClientRect().width : 0;
-  return { c, heads, largura };
-}
-function atualizarPagina() {
-  const el = document.getElementById('agPagina');
-  if (!el) return;
-  const { c, heads, largura } = colunasDaGrade();
-  const cabem = largura ? Math.max(1, Math.round((c.clientWidth - 44) / largura)) : heads.length;
-  if (!c || !heads.length || cabem >= heads.length) { el.classList.add('hidden'); return; }
-  const primeira = Math.min(heads.length - cabem, Math.max(0, Math.round(c.scrollLeft / largura)));
-  const nomes = profsNaGrade().slice(primeira, primeira + cabem).map(p => (p.nome || '').split(' ')[0]);
-  document.getElementById('agPagTxt').textContent = `${nomes.join(' e ')} · ${primeira + 1}–${primeira + cabem} de ${heads.length}`;
-  document.getElementById('agPagAnt').disabled = primeira === 0;
-  document.getElementById('agPagProx').disabled = primeira + cabem >= heads.length;
-  el.classList.remove('hidden');
-}
-function andarColunas(direcao) {
-  const { c, largura } = colunasDaGrade();
-  if (!c || !largura) return;
-  const cabem = Math.max(1, Math.round((c.clientWidth - 44) / largura));
-  c.scrollBy({ left: direcao * cabem * largura, behavior: 'smooth' });
-}
-
 // Mover um card (arraste ou teclado) para outro profissional/horário do mesmo dia (D-078).
 // Ocupado: nada muda, e a tela diz por quem. Mesmo lugar: nada a fazer.
 function moverCard(ag, profId, minC, { focar = false } = {}) {
@@ -1509,13 +1480,6 @@ export function initAgenda() {
   const timelineCols = document.getElementById('agendaGrid');
   timelineCols.addEventListener('click', onTimelineClick);
   document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
-  document.getElementById('agPagAnt')?.addEventListener('click', () => andarColunas(-1));
-  document.getElementById('agPagProx')?.addEventListener('click', () => andarColunas(1));
-  let pagRaf = 0;
-  document.getElementById('timelineContainer')?.addEventListener('scroll', () => {
-    cancelAnimationFrame(pagRaf); pagRaf = requestAnimationFrame(atualizarPagina);
-  }, { passive: true });
-  window.addEventListener('resize', () => requestAnimationFrame(atualizarPagina));
 
   timelineCols.addEventListener('keydown', onCardKeydown);
 

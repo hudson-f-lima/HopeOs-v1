@@ -1,9 +1,8 @@
 // E2E (Playwright/Chromium, 390×844) do D-080 sob a CSP de produção: agenda com 2 profissionais por vez
 // no celular. O seed tem Ana e Bruno; este caso planta Carla e Davi (4 no total).
 //   1) cada coluna ocupa metade da largura útil (a régua de 44 px fica de fora);
-//   2) o indicador diz "Ana e Bruno · 1–2 de 4"; "›" leva a "Carla e Davi · 3–4 de 4" e mostra o card da Davi;
-//   3) "‹" volta; o botão fica desligado na primeira página;
-//   4) com só 2 profissionais no filtro, as colunas ocupam a largura toda e o indicador some.
+//   2) não há barra extra acima da grade: desliza de lado, com encaixe por coluna, até o card da Davi;
+//   3) com só 2 profissionais no filtro, as colunas ocupam a largura toda e a grade não rola de lado.
 const { chromium } = require('playwright');
 const { randomUUID } = require('crypto');
 const API = 'http://127.0.0.1:3399';
@@ -45,38 +44,38 @@ const amanha = new Date(Date.now() + 864e5).toLocaleDateString('en-CA', { timeZo
   const medida = () => p.evaluate(() => {
     const c = document.getElementById('timelineContainer');
     const heads = [...document.querySelectorAll('#agendaGrid .agenda-grid-header')];
-    return { util: c.clientWidth - 44, col: Math.round(heads[0].getBoundingClientRect().width), n: heads.length,
-      pagina: !document.getElementById('agPagina').classList.contains('hidden'), txt: document.getElementById('agPagTxt').textContent,
-      antDesligado: document.getElementById('agPagAnt').disabled, scroll: c.scrollLeft, larguraPagina: document.documentElement.scrollWidth <= innerWidth };
+    const cr = c.getBoundingClientRect();
+    const naTela = heads.filter(h => { const r = h.getBoundingClientRect(); return r.left >= cr.left + 40 && r.right <= cr.right + 1; }).map(h => h.textContent.trim().split(/\s+/)[1] || h.textContent.trim());
+    return { util: c.clientWidth - 44, col: Math.round(heads[0].getBoundingClientRect().width), n: heads.length, naTela,
+      rolaDeLado: c.scrollWidth > c.clientWidth + 1, encaixe: getComputedStyle(c).scrollSnapType,
+      barraExtra: !!document.getElementById('agPagina'), larguraPagina: document.documentElement.scrollWidth <= innerWidth };
   });
   const m1 = await medida();
   console.log('4 PROFISSIONAIS:', JSON.stringify(m1));
   confere('4 colunas na grade', m1.n === 4);
-  confere('cada coluna ocupa metade da largura útil', Math.abs(m1.col - m1.util / 2) <= 2, `${m1.col} vs ${m1.util / 2}`);
-  confere('indicador: "Ana e Bruno · 1–2 de 4", "‹" desligado', m1.pagina && m1.txt === 'Ana e Bruno · 1–2 de 4' && m1.antDesligado, m1.txt);
+  confere('cada coluna ocupa metade da largura útil (2 na tela)', Math.abs(m1.col - m1.util / 2) <= 2 && m1.naTela.length === 2, `${m1.col} vs ${m1.util / 2} · ${m1.naTela}`);
+  confere('sem barra extra acima da grade; desliza de lado com encaixe por coluna', !m1.barraExtra && m1.rolaDeLado && /x/.test(m1.encaixe), JSON.stringify({ barra: m1.barraExtra, encaixe: m1.encaixe }));
   confere('a página não rola de lado (só a grade)', m1.larguraPagina);
 
-  await p.click('#agPagProx'); await p.waitForTimeout(900);
+  // Deslizar até o fim mostra Carla e Davi, e o card da Davi.
+  await p.evaluate(() => { const c = document.getElementById('timelineContainer'); c.scrollTo({ left: c.scrollWidth }); });
+  await p.waitForTimeout(600);
   const m2 = await medida();
   const cardDavi = await p.evaluate(id => {
     const el = document.querySelector(`.ag-card[data-ag-id="${id}"]`); const c = document.getElementById('timelineContainer').getBoundingClientRect();
     const r = el.getBoundingClientRect(); return r.left >= c.left + 40 && r.right <= c.right + 1;
   }, agDavi);
-  console.log('DEPOIS DE ›:', JSON.stringify(m2));
-  confere('"›" mostra Carla e Davi', m2.txt === 'Carla e Davi · 3–4 de 4', m2.txt);
-  confere('o card da Davi fica dentro da tela', cardDavi);
+  console.log('DEPOIS DE DESLIZAR:', JSON.stringify(m2));
+  confere('deslizando, o card da Davi fica dentro da tela', cardDavi && m2.naTela.length === 2, JSON.stringify(m2.naTela));
+  await p.evaluate(() => { document.getElementById('timelineContainer').scrollTo({ left: 0 }); }); await p.waitForTimeout(300);
 
-  await p.click('#agPagAnt'); await p.waitForTimeout(900);
-  const m3 = await medida();
-  confere('"‹" volta para Ana e Bruno', m3.txt === 'Ana e Bruno · 1–2 de 4', m3.txt);
-
-  // Só 2 no filtro: largura toda, sem indicador.
+  // Só 2 no filtro: largura toda, sem rolar de lado.
   await p.click('#btnAgProfs'); await p.waitForTimeout(300);
   for (const nome of ['Ana', 'Bruno']) { await p.locator('#agFiltroProfs .chip', { hasText: nome }).click(); await p.waitForTimeout(300); }
   await p.waitForTimeout(600);
   const m4 = await medida();
   console.log('FILTRO COM 2:', JSON.stringify(m4));
-  confere('com 2 profissionais: colunas na largura toda, sem indicador', m4.n === 2 && !m4.pagina && Math.abs(m4.col - m4.util / 2) <= 2, JSON.stringify(m4));
+  confere('com 2 profissionais: cabem na largura, sem rolar de lado', m4.n === 2 && !m4.rolaDeLado && Math.abs(m4.col - m4.util / 2) <= 2, JSON.stringify(m4));
 
   const csp = await p.evaluate(() => window.__csp);
   confere('sem violação de CSP', csp.length === 0, JSON.stringify(csp));

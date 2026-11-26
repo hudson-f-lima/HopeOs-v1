@@ -1649,14 +1649,9 @@ body{font-variant-numeric:tabular-nums;}
 
 /* ============ Agenda com 2 profissionais por vez no celular (D-080) ============
    Com 3 ou mais profissionais, cada coluna ocupa metade da largura útil; as outras ficam ao lado,
-   com encaixe por coluna ao deslizar. A régua e os nomes continuam presos. Com 1 ou 2, nada muda. */
+   com encaixe por coluna ao deslizar (sem barra extra, pedido do dono). A régua e os nomes continuam presos. */
 @media (max-width:767px){
   .agenda-android .agenda-scroll-container{container-type:inline-size;scroll-snap-type:x proximity;scroll-padding-left:44px;}
   .agenda-android .agenda-grid.ag-paginada{grid-template-columns:44px repeat(var(--prof-count,1),calc((100cqw - 44px) / 2));min-width:max-content;}
   .agenda-android .agenda-grid.ag-paginada .agenda-grid-header{scroll-snap-align:start;}
 }
-.agx-pagina{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 4px;}
-.agx-pagina.hidden{display:none;}
-.agx-pagina button{min-width:44px;min-height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:18px;font-weight:700;}
-.agx-pagina button:disabled{opacity:.35;}
-.agx-pagina span{font-size:12px;font-weight:700;color:var(--text-secondary);text-align:center;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
