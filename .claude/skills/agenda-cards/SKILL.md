@@ -15,7 +15,8 @@ Protótipo aprovado (25/11): artifact "Cards da Agenda" (claude.ai/artifact/2TnU
 | 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda | Feita (D-078), sem migration. Pendente: passo do salão (`slot_padrao` não chega à tela) |
 | 4a | Legenda dos ícones no modal (fechada, como o Histórico), estrela amarela, "$" verde do pago (sem `filter`), 2 profissionais por vez no celular | Feita (D-080) |
 | 4b | Alças de cima (início, fim parado) e de baixo, etiqueta "início–fim (duração)" nos três gestos, Esc, passo de 10 min por aparelho, `novaDuracaoMin` | Feita (D-081) |
-| 4c–4d | Comandas por período; ideias de baixo esforço cognitivo | Planejadas: `docs/planning/AGENDA_CARDS_ETAPA4.md` |
+| 4c | Comandas por período | Feita (D-082) |
+| 4d | Opções em Gestão › Como a agenda aparece (zoom e passo: D-083); depois espaço livre, visita ligada, atraso e lado a lado, cada uma com a sua chave, ligada por padrão | Em andamento: `docs/planning/AGENDA_CARDS_ETAPA4.md` |
 | — | Cor e intensidade escolhidas no cadastro do serviço | **BLOQUEADO**: coluna nova = migration 028+, só com autorização |
 
 Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.

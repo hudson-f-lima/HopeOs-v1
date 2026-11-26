@@ -58,7 +58,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
 - **D-084 (26/11, PR rascunho, migration 028):** "Cliente chegou" vira opção do salão em Regras da agenda. Desligado: card e tela Agora oferecem "Iniciar atendimento" direto e o aviso de atraso some. Corrige também as regras do salão que nunca chegavam à tela da recepção e do profissional.
-- **D-082 (26/11, PR rascunho):** Comandas › Histórico por período: atalhos (Hoje, Ontem, Esta semana, Este mês, Mês anterior) e calendário de dois toques, resumo do servidor (recebido e estornado) e lista por dia; `GET /comandas?inicio=&fim=` (até 92 dias). Sem migration.
+- **D-083 (26/11, PR #80):** Gestão em 8 grupos por intenção (busca acha pelos nomes antigos) e grupo novo "Como a agenda aparece", com zoom da grade e passo do arraste por aparelho. "Cliente chegou" como opção do salão veio na D-084. Sem migration.
+- **D-082 (26/11, PR #79):** Comandas › Histórico por período: atalhos (Hoje, Ontem, Esta semana, Este mês, Mês anterior) e calendário de dois toques, resumo do servidor (recebido e estornado) e lista por dia; `GET /comandas?inicio=&fim=` (até 92 dias). Sem migration.
 - **D-081 (26/11, PR #78):** alças de cima (início com fim parado) e de baixo (fim) no card, etiqueta "início–fim (duração)" nos três gestos, Esc cancela, passo de 10 min por aparelho; remarcação aceita `novaDuracaoMin`. Sem migration.
 - **D-080 (26/11, PR #77):** legenda dos ícones no modal do card (fechada por padrão), estrela amarela, "$" verde do pago e agenda com 2 profissionais por vez no celular (o resto ao deslizar de lado). Sem migration.
 - **D-079 (25/11, PR #75):** a lista de horários livres do app (recepção e profissional) passa a usar a grade por duração do link (D-069), sem a grade do salão + bordas. Corrige também "1 faltas seguidas". Sem migration.

@@ -36,8 +36,8 @@ async function esperarFoco(p, id) {
     await admin.locator('#navGestao').press('Enter');
     await gestao.waitFor();
     assert.equal(await admin.getAttribute('#navGestao', 'aria-current'), 'page');
-    for (const grupo of ['Agenda e atendimento', 'Pessoas e acessos', 'Serviços e produtos', 'Clientes e assinaturas', 'Financeiro']) {
-      await gestao.getByText(grupo, { exact: true }).waitFor();
+    for (const grupo of ['Como o salão funciona', 'Como a agenda aparece', 'Clientes que agendam sozinhos', 'Equipe', 'O que o salão vende', 'Clientes', 'Dinheiro']) {
+      await gestao.getByRole('heading', { name: grupo, exact: true }).waitFor();
     }
     assert.equal(await conta.isVisible(), false);
     const busca = admin.locator('#buscaGestao');

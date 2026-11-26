@@ -1332,6 +1332,44 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - `test:offline` verde; E2E 52/52.
 - **Não muda:** estorno, prazos, permissões (`comanda:historico`) e a fila da agenda.
 
+## D-083 — Gestão organizada por intenção e "Como a agenda aparece" (zoom e passo por aparelho; sem migration)
+- **Pedido (Platform Owner, 2026-11-26):** as ideias da 4d "podem ser um campo de configuração (ativar desativar) na aba gestão. E também reorganizar/combinar ou agrupar todas as configurações de forma mais intuitiva por intenção". Escolhas no mesmo dia, depois do protótipo (claude.ai/artifact/7C9vndSEoHvmRSsjSYAJie):
+  - opções da agenda **por aparelho, agora**;
+  - novas opções **ligadas por padrão**;
+  - "Cliente chegou" como opção **do salão (caminho B)**, que precisa da migration 028 e **não entra aqui**.
+- **Gestão em 8 grupos, pelo que a pessoa quer fazer:**
+  - Como o salão funciona: Horários e escalas, Regras da agenda.
+  - Como a agenda aparece (novo): Zoom e passo do arraste.
+  - Clientes que agendam sozinhos: Agendamento online, Lista de espera.
+  - Equipe: Profissionais, Equipe e acessos.
+  - O que o salão vende: Serviços, Produtos, Planos de assinatura.
+  - Clientes: Clientes, Assinantes.
+  - Dinheiro: Formas de pagamento, Regras de comissão, Caixa, Metas e ganhos.
+  - Primeiros passos: Assistente de configuração.
+- **Não muda:** os nomes dos atalhos, os ids, quem vê cada atalho (mesmas permissões) e o que cada tela faz.
+- **Busca:** cada atalho carrega o nome do grupo antigo e palavras do que faz. Por isso "financeiro", "pessoas e acessos", "buffer", "tolerância" e "zoom" continuam achando.
+- **Como a agenda aparece (só neste aparelho, guardado no navegador):**
+  - **Zoom da grade:** compacto 2, normal 3 (como antes) ou largo 4 px por minuto. Chave `hopeos.agenda.zoom`.
+  - **Passo do arraste:** sai do (i) da agenda e vem para cá (D-081, mesma chave `hopeos.agenda.passo`). O (i) ganha o botão "Zoom e passo do arraste", que abre esta tela.
+  - Todo papel vê, inclusive o profissional: é escolha do aparelho, não regra do salão.
+- **Ainda não entra, de propósito:** as chaves de espaço livre, visita ligada, destaque de atraso e lado a lado. Cada uma entra **no PR da própria função**, já ligada por padrão. Uma chave que ainda não faz nada seria enganosa.
+- **Achado no caminho:**
+  - O aviso de atraso já existe para o salão (D-049): tolerância em Regras da agenda, 0 desliga. Hoje ele aparece só no modal do card.
+  - "Cliente chegou" é o status `aguardando`.
+  - O servidor já aceita `agendado → em_atendimento` direto.
+  - O destaque de atraso no card dependerá de o salão usar "Cliente chegou". Por isso o caminho B (opção do salão, migration 028) precisa vir antes ou junto do destaque.
+- **Verificação:**
+  - E2E novo `gestao-aparencia`:
+    - admin vê os 8 grupos na ordem;
+    - "financeiro", "buffer" e "zoom" acham os atalhos certos;
+    - card de 30 min tem 90 px no normal e 60 px no compacto, e continua compacto depois de recarregar;
+    - o (i) leva à tela;
+    - o profissional vê o grupo;
+    - sem CSP nem 5xx.
+    - **Controle negativo:** com compacto = 3 px, o E2E cai (90 px).
+  - `gestao-navegacao` passou a conferir os grupos novos pelo título.
+  - `agenda-alcas` passou a escolher o passo pelo caminho novo.
+
 ## D-084 — "Cliente chegou" como opção do salão (migration 028)
 - **Pedido (Platform Owner, 2026-11-26):** "Chegou pode ser uma função ligada e desligada". Entre as opções (A por aparelho, B do salão, C sem migration), o dono escolheu **B** e aprovou a migration ("Migração aprovada") depois da proposta `agenda_usa_chegada`.
 - **Migration 028 `agenda_usa_chegada`:** `empresas.agenda_usa_chegada boolean not null default true`. O padrão `true` mantém tudo como antes. Rollback em `supabase/rollback/028_down.sql`.

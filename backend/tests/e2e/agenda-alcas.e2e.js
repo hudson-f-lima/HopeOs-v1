@@ -112,7 +112,9 @@ const PX = 3;
   confere('Esc cancela o arraste: nada muda e a etiqueta some', !sobrou && JSON.stringify(await ativo(cli[1])) === JSON.stringify(['10:00/70']), JSON.stringify(await ativo(cli[1])));
 
   // 6) Passo do aparelho: 30 min; continua depois de recarregar.
+  // D-083: o passo mora na Gestão ("Como a agenda aparece"); o (i) da agenda leva até lá.
   await p.click('#btnAgInfo').catch(() => {}); await p.waitForTimeout(300);
+  await p.click('#btnAgAparencia'); await p.waitForSelector('#subtab-aparencia:not(.hidden)');
   await p.selectOption('#agPasso', '30'); await p.waitForTimeout(300);
   await p.reload(); await p.waitForSelector('#appRoot:not(.hidden)', { timeout: 15000 }); await p.waitForTimeout(800);
   await abrirDia();
