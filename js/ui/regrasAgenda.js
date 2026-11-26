@@ -39,7 +39,11 @@ function render(e) {
       ${campo('rgMaxFuturos', 'Horários futuros por cliente', opcoes([null, 1, 2, 3, 4, 5, 6, 8, 10], v('agenda_max_futuros_recepcao'), x => (x === null ? 'Sem limite' : String(x))))}
       ${campo('rgIntervalo', 'Intervalo mínimo no mesmo serviço', opcoes([null, 3, 7, 10, 14, 21, 30], v('agenda_intervalo_min_dias'), x => (x === null ? 'Desligado' : `${x} dias`)),
         'Evita marcar o mesmo serviço duas vezes perto demais (engano ou duplicata). No link online, bloqueia.')}
-      <h3 class="esc-sub">Atrasos e faltas</h3>
+      <h3 class="esc-sub">Chegada, atrasos e faltas</h3>
+      <div class="field"><label for="rgChegada">Marcar "Cliente chegou"</label><select id="rgChegada">
+        <option value="sim"${v('agenda_usa_chegada') === false ? '' : ' selected'}>Sim, a recepção marca a chegada</option>
+        <option value="nao"${v('agenda_usa_chegada') === false ? ' selected' : ''}>Não, inicia o atendimento direto</option></select>
+        <p class="body-sm text-tertiary">Vale para toda a equipe. Sem marcar a chegada, o card não avisa atraso: todo cliente pareceria atrasado.</p></div>
       ${campo('rgAtraso', 'Avisar atraso no card depois de', opcoes([0, 5, 10, 15, 20, 30], v('agenda_atraso_alerta_min') ?? 15, x => (x === 0 ? 'Desligado' : `${x} min`)),
         'O card mostra "atrasado" e destaca o no-show. Nada é marcado sozinho.')}
       ${campo('rgReguaAlerta', 'Alerta de faltas a partir de', opcoes([1, 2, 3, 4, 5], v('regua_alerta_faltas') ?? 2, x => `${x} falta(s) seguida(s)`))}
@@ -61,6 +65,7 @@ async function salvar(ev) {
     agendaMaxFuturosRecepcao: num('rgMaxFuturos'),
     agendaIntervaloMinDias: num('rgIntervalo'),
     agendaAtrasoAlertaMin: num('rgAtraso'),
+    agendaUsaChegada: el('rgChegada').value !== 'nao',
     agendaPolitica: el('rgPolitica').value || null,
     reguaAlertaFaltas: num('rgReguaAlerta'),
     reguaSinalFaltas: num('rgReguaSinal')
@@ -77,6 +82,8 @@ async function salvar(ev) {
 
 export async function carregarRegrasAgenda() {
   if (!sessionPode('empresa:configurar')) return;
+  // Sem formulário velho enquanto busca (D-084): mexer nele e a resposta chegar depois apagava a escolha.
+  el('regrasConteudo').innerHTML = '<p class="body-sm text-tertiary" role="status">Carregando as regras…</p>';
   try { render(await api('/empresa')); } catch (err) { el('regrasConteudo').textContent = err.message; }
 }
 

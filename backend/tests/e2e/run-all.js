@@ -82,6 +82,7 @@ const CASOS = [
   { nome: 'agenda-alcas' },
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
+  { nome: 'chegada-salao' },
   { nome: 'agenda-mes' },
   { nome: 'agenda-inteligente' },
   { nome: 'agenda-politica-espera' },

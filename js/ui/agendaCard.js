@@ -6,7 +6,7 @@
 //   duração → PATCH /agenda/:id/duracao.
 // Fora da escala e horário ocupado: quem pode encaixar decide, como no resto da agenda.
 import { api, getAgendaSlots, getListaEspera } from '../api.js';
-import { state, sessionPode, loadWeekAgenda, findServicoNome, findProfissionalNome, findAgendaItemById, findClienteNome } from '../state.js';
+import { state, stateBus, sessionPode, loadWeekAgenda, findServicoNome, findProfissionalNome, findAgendaItemById, findClienteNome } from '../state.js';
 import { escapeHtml, showBanner, closeModal, confirmAction } from '../utils.js';
 
 const el = id => document.getElementById(id);
@@ -23,11 +23,13 @@ export async function confirmarRegras(err) {
   return confirmAction({ title: 'Regras da agenda', message: avisos.join(' • ') + ' Seguir mesmo assim? Fica registrado como exceção.', confirmLabel: 'Seguir mesmo assim' });
 }
 
-// Regras do salão para a tela (prazo de cancelamento e alerta de atraso). Carregadas uma vez.
+// Regras do salão para a tela (prazo de cancelamento, alerta de atraso, "Cliente chegou").
+// Guarda só a resposta que deu certo (D-084): antes, a primeira chamada (antes do login) falhava,
+// ficava guardada como {} e a recepção e o profissional nunca recebiam as regras do salão.
 let regras = null;
 export async function carregarRegras(forcar = false) {
   if (regras && !forcar) return regras;
-  try { regras = await api('/empresa'); } catch (_) { regras = regras || {}; }
+  try { regras = await api('/empresa'); } catch (_) { return regras || {}; }
   return regras;
 }
 const agoraSP = () => {
@@ -55,9 +57,14 @@ export function textoCancelamento(item) {
   if (falta >= prazo) return 'Dentro do prazo (' + horasTxt(prazo) + ' antes): não conta contra o cliente.';
   return 'Cancelamento tardio: ' + (falta > 0 ? 'faltam ' + horasTxt(falta) : 'o horário já passou') + ' e o prazo é ' + horasTxt(prazo) + '. Conta na confiabilidade do cliente.';
 }
+// "Cliente chegou" como opção do salão (028, D-084). Sem a regra carregada (ou backend antigo): usa, como sempre.
+export function usaChegada() {
+  return !(regras && regras.agenda_usa_chegada === false);
+}
 // Atraso: hoje, ainda não chegou e passou do alerta configurado → minutos de atraso (ou 0).
+// Salão que não marca a chegada: sem aviso (todo cliente pareceria atrasado).
 export function atrasoMin(item) {
-  if (!['agendado', 'confirmado'].includes(item.status)) return 0;
+  if (!usaChegada() || !['agendado', 'confirmado'].includes(item.status)) return 0;
   const alerta = regras && Number.isInteger(regras.agenda_atraso_alerta_min) ? regras.agenda_atraso_alerta_min : 15;
   const atraso = -minutosAte(item);
   return alerta > 0 && atraso >= alerta && atraso < 24 * 60 ? atraso : 0;
@@ -279,6 +286,7 @@ export function initCardAgendamento() {
   const raiz = el('actionSheetContent');
   if (!raiz) return;
   carregarRegras();
+  stateBus.addEventListener('agenda:updated', () => { if (!regras) carregarRegras(); });
   raiz.addEventListener('click', ev => {
     const c = ev.target.closest('[data-editar]');
     if (c) {

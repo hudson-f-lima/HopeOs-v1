@@ -1369,4 +1369,39 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - **Controle negativo:** com compacto = 3 px, o E2E cai (90 px).
   - `gestao-navegacao` passou a conferir os grupos novos pelo título.
   - `agenda-alcas` passou a escolher o passo pelo caminho novo.
+
+## D-084 — "Cliente chegou" como opção do salão (migration 028)
+- **Pedido (Platform Owner, 2026-11-26):** "Chegou pode ser uma função ligada e desligada". Entre as opções (A por aparelho, B do salão, C sem migration), o dono escolheu **B** e aprovou a migration ("Migração aprovada") depois da proposta `agenda_usa_chegada`.
+- **Migration 028 `agenda_usa_chegada`:** `empresas.agenda_usa_chegada boolean not null default true`. O padrão `true` mantém tudo como antes. Rollback em `supabase/rollback/028_down.sql`.
+  - Gate `gate_028`: padrão `true`, `null` recusado, `false` grava, tabela sem acesso de `anon`/`authenticated`.
+  - Suíte SQL completa verde, com o ciclo de rollback.
+  - **Controles negativos:** padrão `false` derruba o bloco 1; coluna aceitando `null` derruba o bloco 2.
+- **Servidor:** `PATCH /empresa` aceita `agendaUsaChegada`, só booleano, e só quem tem `empresa:configurar`. `GET /empresa` devolve o campo.
+  - O servidor não bloqueia nenhum status: `agendado → em_atendimento` já era permitido, e `aguardando` continua aceito.
+  - É uma escolha de processo do salão, não uma regra de segurança.
+- **Tela:**
+  - Gestão › Regras da agenda › "Marcar 'Cliente chegou'" (Sim/Não), que vale para toda a equipe.
+  - Com "Não":
+    - o card de um horário agendado ou confirmado oferece "Iniciar atendimento" no lugar de "Cliente chegou";
+    - a tela Agora do profissional faz o mesmo;
+    - o aviso de atraso não aparece, porque sem a chegada marcada todo cliente pareceria atrasado.
+  - A escolha chega a quem abrir ou recarregar o app depois de salva.
+- **Bug corrigido no caminho (REAL, desde a D-049):** `carregarRegras()` roda ao abrir o app, antes do login.
+  - A falha era guardada como `{}` e a busca nunca se repetia. Recepção e profissional nunca recebiam as regras do salão.
+  - O aviso de atraso usava sempre 15 min, e o prazo de cancelamento do salão, no aviso ao cancelar, usava sempre 2 h, mesmo com outro valor configurado.
+  - Agora só a resposta que deu certo é guardada, e a busca se repete quando a agenda carrega.
+- **Segundo bug corrigido (REAL, desde a D-049; achado pelo CI):** abrir Regras da agenda buscava `GET /empresa` com o formulário antigo ainda na tela. Se a pessoa mudasse um campo antes da resposta chegar, o redesenho trazia o valor salvo de volta e "Salvar" gravava o valor antigo, sem aviso.
+  - Agora a tela mostra "Carregando as regras…" até a resposta chegar.
+  - Reproduzido com a resposta atrasada de propósito: o teste antigo cai igual ao CI; com a correção da tela, ele passa.
+- **Numeração:** a 028 estava prevista para consentimento e aniversário. Esses itens passam para a 029, ainda não autorizada.
+- **Verificação:**
+  - Gate `agenda-regras` R04b: `false` grava e o profissional lê; `"sim"`, `1`, `0`, `null` e `"false"` dão 422; recepção recebe 403.
+    - **Controle negativo:** sem a checagem de tipo, R04b cai.
+  - E2E novo `chegada-salao`:
+    - admin desliga pela tela;
+    - a tela Agora do profissional mostra "Iniciar atendimento";
+    - o card da recepção mostra "Iniciar atendimento", sem "Cliente chegou" e sem "atrasado";
+    - tocar grava `em_atendimento`;
+    - religado, "Cliente chegou" e "atrasado" voltam.
+    - **Controles negativos:** com o cache antigo de `{}`, 3 conferências caem; com a opção ignorada, 3 caem.
   - `test:offline` verde.

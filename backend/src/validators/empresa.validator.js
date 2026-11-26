@@ -7,7 +7,8 @@ const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const TEXTOS = ['nome', 'telefone', 'whatsapp', 'endereco', 'cidade'];
 const PERMITIDOS = [...TEXTOS, 'horarioPorDia', 'slotPadrao', 'intervaloAlmoco', 'almocoInicio', 'almocoFim',
   'cnpj', 'razaoSocial', 'salaoParceiro', 'bufferMin', 'reguaAlertaFaltas', 'reguaSinalFaltas', 'rankingVisivelEquipe', 'atendimentoEsperaMaxMin',
-  'cancelamentoPrazoMin', 'agendaJanelaDiasRecepcao', 'agendaMaxFuturosRecepcao', 'agendaIntervaloMinDias', 'agendaAtrasoAlertaMin', 'agendaPolitica'];
+  'cancelamentoPrazoMin', 'agendaJanelaDiasRecepcao', 'agendaMaxFuturosRecepcao', 'agendaIntervaloMinDias', 'agendaAtrasoAlertaMin', 'agendaPolitica',
+  'agendaUsaChegada'];
 
 const invalido = (field, message) => createAppError('INVALID_FIELD', message, 422, { field });
 const minutos = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
@@ -109,6 +110,11 @@ function validateUpdateEmpresaPayload(payload = {}) {
   // Prazo de cancelamento único (D-049): o mesmo do link (016), da recepção e da confiabilidade.
   if (payload.cancelamentoPrazoMin !== undefined) out.online_cancelamento_prazo_min = inteiro(payload.cancelamentoPrazoMin, 'cancelamentoPrazoMin', 0, 10080);
   if (payload.agendaAtrasoAlertaMin !== undefined) out.agenda_atraso_alerta_min = inteiro(payload.agendaAtrasoAlertaMin, 'agendaAtrasoAlertaMin', 0, 240);
+  // "Cliente chegou" como opção do salão (028, D-084). Só true ou false: nada de "sim", 1 ou null.
+  if (payload.agendaUsaChegada !== undefined) {
+    if (typeof payload.agendaUsaChegada !== 'boolean') throw invalido('agendaUsaChegada', 'agendaUsaChegada deve ser true ou false.');
+    out.agenda_usa_chegada = payload.agendaUsaChegada;
+  }
   // Política de sugestão de horários (025, D-054). Vazio/null = sem política (como antes).
   if (payload.agendaPolitica !== undefined) {
     const v = payload.agendaPolitica === '' ? null : payload.agendaPolitica;

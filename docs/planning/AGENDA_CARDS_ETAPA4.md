@@ -56,6 +56,10 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
    - destaque de atraso no card: depois de "Cliente chegou" virar opção do salão (caminho B, precisa da migration 028).
 - Bloqueados: estrela laranja (V1.5), pago online (gateway), tempo de pausa (migration).
 
+## 5b. "Cliente chegou" do salão (D-084, migration 028)
+- Pedido de 26/11; o dono escolheu o caminho B (opção do salão) e aprovou a migration.
+- O destaque de atraso no card (4d) só aparece quando o salão usa "Cliente chegou".
+
 ## 6. Critérios de aceite comuns
 - Gate do servidor com controle negativo para cada mudança de regra (ex.: `novaDuracaoMin` fora de 10–480 dá 422; o fim fica fixo ao redimensionar pelo topo).
 - E2E 390×844 sob a CSP de produção, claro e escuro, sem resposta ≥ 400 nova por papel.

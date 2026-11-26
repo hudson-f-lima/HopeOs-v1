@@ -1,5 +1,10 @@
 # Changelog
 
+## "Cliente chegou" pode ser desligado no salão (D-084)
+- Em Gestão › Regras da agenda, escolha se a recepção marca a chegada do cliente.
+- Desligado, o card e a tela Agora oferecem "Iniciar atendimento" direto, e o aviso de atraso não aparece.
+- Corrigido: a recepção e o profissional agora recebem as regras do salão (tolerância de atraso e prazo de cancelamento). Antes, a tela usava sempre o padrão.
+
 ## Gestão organizada pelo que você quer fazer (D-083)
 - A aba Gestão agora tem 8 grupos: Como o salão funciona, Como a agenda aparece, Clientes que agendam sozinhos, Equipe, O que o salão vende, Clientes, Dinheiro e Primeiros passos.
 - A busca continua achando pelos nomes antigos, como "financeiro" e "pessoas e acessos".
