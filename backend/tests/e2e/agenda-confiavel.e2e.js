@@ -137,8 +137,10 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }) {
   // 5) e 6) Três profissionais; filtro com quem foi desativado.
   const caio = (await (await fetch(`${API}/api/profissionais`, { method: 'POST', headers: adm, body: JSON.stringify({ nome: 'Caio Terceiro' }) })).json()).data;
   const g = await entrar(b, 'admin@dev.local');
-  const lado = await g.evaluate(() => { const c = document.getElementById('timelineContainer'); return { cols: document.querySelectorAll('.agenda-grid-col').length, cabe: c.scrollWidth <= c.clientWidth + 1 }; });
-  confere('três profissionais cabem no celular sem rolar de lado', lado.cols === 3 && lado.cabe, JSON.stringify(lado));
+  // D-080 (substitui a regra da D-055 de 3 colunas no celular): 2 por vez, o resto ao deslizar de lado.
+  const lado = await g.evaluate(() => { const c = document.getElementById('timelineContainer'); const h = document.querySelector('.agenda-grid-header').getBoundingClientRect().width;
+    return { cols: document.querySelectorAll('.agenda-grid-col').length, visiveis: Math.round((c.clientWidth - 44) / h), rola: c.scrollWidth > c.clientWidth + 1 }; });
+  confere('três profissionais: 2 por vez no celular, o terceiro ao deslizar', lado.cols === 3 && lado.visiveis === 2 && lado.rola, JSON.stringify(lado));
   await g.click('#btnAgProfs'); await g.click(`#agFiltroProfs [data-agf="${caio.id}"]`); await g.waitForTimeout(300);
   confere('filtro só com o Caio', JSON.stringify(await g.$$eval('.agenda-grid-col', cs => cs.map(c => c.dataset.profId))) === JSON.stringify([caio.id]));
   await fetch(`${API}/api/profissionais/${caio.id}`, { method: 'PATCH', headers: adm, body: JSON.stringify({ ativo: false }) });

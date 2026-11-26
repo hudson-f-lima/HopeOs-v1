@@ -1228,3 +1228,30 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - **Controle negativo:** com `gradePorDuracao: false` na rota, B06, PE02 e PE04b caem. O D23 passa nas duas regras, porque 14:30 também era borda na regra antiga.
   - `test:offline` verde; E2E 48/48.
 - **Custo aceito:** menos horários na lista. No print, 13:10 some, e a tarde passa a andar de 14:20 em 30 em 30. Um encaixe fora da grade só é feito digitando o horário.
+
+## D-080 — Legenda dos ícones no card, estrela amarela, "$" do pago e agenda com 2 profissionais por vez (cards 4a; sem migration)
+- **Pedido (Platform Owner, 2026-11-26):**
+  - Depois do protótipo da etapa 4: legenda dos ícones dentro do modal do card, "como o Histórico" (o dono confirmou: o mesmo modal, com um campo a mais).
+  - Estrela amarela para plano ativo e pago; "$" verde para pago no local.
+  - "A agenda está apresentando quatro profissionais mas ficou muito apertado… manter com a visibilidade de apenas dois".
+- **Legenda:**
+  - Campo "Ícones deste card (N)" no modal, fechado por padrão, igual ao Histórico. Só aparece quando o card tem ícone.
+  - Cada linha tem o ícone, o nome e o motivo.
+  - "Ver todos os ícones" troca para a legenda completa (os 8 que existem hoje).
+- **Ícones:**
+  - Assinante em dia: fundo amarelo com estrela escura.
+  - Em atraso ou suspensa: vermelha, sem mudança.
+  - "$" verde (pago no local) entra quando `pago` é verdadeiro (comanda fechada pelo caixa, D-077), logo depois das estrelas. O texto "PAGO" saiu.
+  - O card pago perde cor **só no fundo** (saturação 12%). Antes era `filter` no card inteiro, que apagaria o verde. Continua com o chanfro.
+- **Agenda no celular (até 767 px):**
+  - Com 3 ou mais profissionais, cada coluna ocupa metade da largura útil (fora a régua de 44 px). As outras ficam ao lado, com encaixe por coluna ao deslizar.
+  - **Sem barra extra acima da grade.** A primeira versão tinha um indicador "‹ Ana e Bruno · 1–2 de 4 ›"; o dono testou e pediu para tirar ("acaba poluindo… o movimento rolar de lado é mais inteligente"). Ficou só o deslizar, com encaixe por coluna; os nomes no cabeçalho dizem quem está na tela.
+  - No arraste, segurar perto da borda esquerda (depois da régua) ou direita rola para o lado, com a mesma espera de 0,4 s da rolagem vertical.
+  - Com 1 ou 2 profissionais e em telas largas, nada muda.
+  - **Substitui** a regra da D-055 "no celular cabem até 3 profissionais sem rolar de lado".
+- **Verificação:**
+  - E2E `agenda-colunas`: com 4 profissionais, a coluna mede 149 px de 298 úteis e 2 cabem na tela; não há barra extra; a grade desliza de lado com encaixe até o card da Davi; filtrando 2, a grade não rola de lado. **Controle negativo:** sem a classe de 2 colunas, as colunas voltam a 96 px e o teste cai.
+  - E2E `agenda-cards`: "$" verde primeiro, sem `filter`, com recorte do canto; legenda fechada por padrão com os 2 ícones do card; "Ver todos" mostra 8 e esconde os do card. **Controle negativo:** sem a regra que esconde a lista completa, o teste cai. Esse defeito apareceu na captura de tela e foi corrigido antes de entregar.
+  - `agenda-confiavel`: a asserção da D-055 passou a conferir 2 por vez, com o terceiro ao deslizar.
+  - `test:offline` verde; E2E 50/50.
+- **Não muda:** servidor, permissões, ícones bloqueados (estrela laranja até a V1.5; pago online até haver fornecedor).

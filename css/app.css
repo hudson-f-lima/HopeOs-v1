@@ -1616,7 +1616,8 @@ body{font-variant-numeric:tabular-nums;}
 .ag-card.compact .ag-line1{font-size:11px;padding-top:0;}
 .ag-card.st-falta{outline:2px dashed var(--md-error);outline-offset:-2px;}
 .ag-card.st-falta .ag-n{text-decoration:line-through;text-decoration-thickness:1.5px;}
-.ag-card.ag-pago{filter:saturate(.25) brightness(1.02);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);}
+/* D-080: o pago perde cor só no fundo (saturação baixa), sem filter: o "$" verde continua verde. */
+.ag-card.ag-pago{--card-s:12%;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);}
 .ag-card.ag-pago::after{content:"";position:absolute;top:0;right:0;width:14px;height:14px;background:linear-gradient(225deg,transparent 50%,rgba(0,0,0,.18) 50%);}
 .ag-card.ag-pago .ag-st{right:14px;}
 .ag-card .ag-pago-chip{font-size:9px;font-weight:800;padding:0 4px;border-radius:4px;background:rgba(0,0,0,.12);}
@@ -1637,3 +1638,20 @@ body{font-variant-numeric:tabular-nums;}
 .drag-highlight.conflito .dh-rot{background:#b91c1c;color:#fff;}
 .drag-highlight.fora .dh-rot{background:#b45309;color:#fff;}
 .drag-highlight .dh-msg{background:var(--bg-surface);color:var(--text-primary);padding:1px 6px;border-radius:6px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+
+/* ============ Legenda dos ícones no modal (D-080) ============ */
+.sheet-legenda-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;align-items:start;}
+.sheet-legenda-item .ag-ic{width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:9px;line-height:1;box-shadow:0 0 0 1.5px rgba(255,255,255,.85);}
+.sheet-legenda-item .ag-ic svg{width:11px;height:11px;}
+.sheet-legenda-porque{color:var(--md-neutral);}
+.sheet-legenda .sheet-historico-lista[hidden]{display:none;}
+.sheet-legenda-todos{margin-top:8px;background:none;border:0;padding:6px 0;min-height:44px;color:var(--md-primary);font-weight:700;text-decoration:underline;cursor:pointer;}
+
+/* ============ Agenda com 2 profissionais por vez no celular (D-080) ============
+   Com 3 ou mais profissionais, cada coluna ocupa metade da largura útil; as outras ficam ao lado,
+   com encaixe por coluna ao deslizar (sem barra extra, pedido do dono). A régua e os nomes continuam presos. */
+@media (max-width:767px){
+  .agenda-android .agenda-scroll-container{container-type:inline-size;scroll-snap-type:x proximity;scroll-padding-left:44px;}
+  .agenda-android .agenda-grid.ag-paginada{grid-template-columns:44px repeat(var(--prof-count,1),calc((100cqw - 44px) / 2));min-width:max-content;}
+  .agenda-android .agenda-grid.ag-paginada .agenda-grid-header{scroll-snap-align:start;}
+}

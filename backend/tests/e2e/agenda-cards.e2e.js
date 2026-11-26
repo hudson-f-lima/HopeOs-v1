@@ -2,7 +2,7 @@
 // Clientes novos (sem histórico), plantados para amanhã:
 //   k1 Ana   09:00 30 min — série + agendado pelo link            → ícones 1ª, recorrente, link; serviço visível
 //   k2 Bruno 09:00 15 min — compacto                              → horário, cliente, ícone 1ª e situação na mesma linha
-//   k3 Ana   10:00 60 min — concluído pelo caixa (evento checkout) → acinzentado + chanfro, PAGO, sem alça de arraste
+//   k3 Ana   10:00 60 min — concluído pelo caixa (evento checkout) → fundo sem cor + chanfro, "$" verde, sem alça de arraste
 //   k4 Bruno 10:00 45 min — falta, com observação                 → contorno de falta, nome riscado, aviso visível
 //   k5 Ana   11:00 30 min — concluído à mão (sem evento do caixa)  → não é "pago"
 //   k6 Bruno 11:00 30 min — com observação                        → aviso NÃO aparece (abaixo de 45 min)
@@ -97,9 +97,18 @@ async function irPara(p, data) {
 
   const i3 = await info(k[2]);
   console.log('k3', JSON.stringify(i3));
-  confere('k3 concluído pelo caixa: acinzentado + chanfro, PAGO, sem alça de arraste', i3.cls.includes('ag-pago') && /PAGO/.test(i3.texto) && !i3.alca && i3.situacao === 'Concluído e pago');
-  const filtro = await card(k[2]).evaluate(el => ({ f: getComputedStyle(el).filter, c: getComputedStyle(el).clipPath }));
-  confere('k3 filtro de saturação e recorte do canto aplicados', /saturate/.test(filtro.f) && /polygon/.test(filtro.c), JSON.stringify(filtro));
+  confere('k3 concluído pelo caixa: "$" verde em primeiro, sem alça de arraste (D-080)', i3.cls.includes('ag-pago') && i3.icones[0] === 'pago_local' && !i3.alca && i3.situacao === 'Concluído e pago', JSON.stringify(i3.icones));
+  const filtro = await card(k[2]).evaluate(el => ({ f: getComputedStyle(el).filter, c: getComputedStyle(el).clipPath, dolar: getComputedStyle(el.querySelector('[data-icone="pago_local"]')).backgroundColor }));
+  confere('k3 sem filter no card (o "$" continua verde) e com o recorte do canto', filtro.f === 'none' && /polygon/.test(filtro.c) && filtro.dolar === 'rgb(21, 128, 61)', JSON.stringify(filtro));
+  // Legenda no modal (D-080): fechada por padrão, como o Histórico; lista os ícones do card.
+  await card(k[2]).click(); await p.waitForSelector('#legendaDetails', { timeout: 5000 });
+  const leg = await p.evaluate(() => { const d = document.getElementById('legendaDetails'); const fechado = !d.open; d.open = true; return { fechado, titulo: d.querySelector('summary').textContent.trim(), itens: [...d.querySelectorAll('#legendaDoCard .sheet-legenda-item > span:not(.ag-ic) > b')].map(b => b.textContent) }; });
+  confere('legenda no modal: fechada por padrão, com os ícones do card', leg.fechado && leg.titulo === 'Ícones deste card (2)' && JSON.stringify(leg.itens) === JSON.stringify(['Pago no local', 'Primeira visita']), JSON.stringify(leg));
+  confere('a legenda completa começa escondida', !(await p.locator('#legendaTodos').isVisible()));
+  await p.click('#btnTodosIcones');
+  const todos = await p.evaluate(() => document.querySelectorAll('#legendaTodos .sheet-legenda-item').length);
+  confere('"Ver todos os ícones" mostra a legenda completa (8) e esconde a do card', todos === 8 && await p.locator('#legendaTodos').isVisible() && !(await p.locator('#legendaDoCard').isVisible()), String(todos));
+  await p.evaluate(() => document.getElementById('actionSheet').classList.add('hidden'));
 
   const i4 = await info(k[3]);
   console.log('k4', JSON.stringify(i4));
@@ -107,7 +116,7 @@ async function irPara(p, data) {
   confere('k4 (45 min) mostra o aviso da observação', i4.aviso === '⚠ Alergia a amônia', String(i4.aviso));
 
   const i5 = await info(k[4]);
-  confere('k5 concluído à mão não vira "pago"', !i5.cls.includes('ag-pago') && i5.situacao === 'Concluído' && !/PAGO/.test(i5.texto));
+  confere('k5 concluído à mão não vira "pago"', !i5.cls.includes('ag-pago') && i5.situacao === 'Concluído' && !i5.icones.includes('pago_local'));
   const i6 = await info(k[5]);
   confere('k6 (30 min) não mostra a observação', i6.aviso === null);
 

@@ -13,7 +13,8 @@ Protótipo aprovado (25/11): artifact "Cards da Agenda" (claude.ai/artifact/2TnU
 | 1 | Grade do tamanho do dia + selo "N fora" | Feita (D-074, PR #66) |
 | 2 | Card novo: densidade por altura, situação no canto, 7 ícones com dados, concluído e pago | Feita (D-077), sem migration |
 | 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda | Feita (D-078), sem migration. Pendente: passo do salão (`slot_padrao` não chega à tela) |
-| 4 | Legenda dos ícones, estrela amarela, "$" verde do pago, alças de cima e de baixo com etiqueta de horário, passo do arraste | Planejada: `docs/planning/AGENDA_CARDS_ETAPA4.md` (4a → 4b → 4c → 4d) |
+| 4a | Legenda dos ícones no modal (fechada, como o Histórico), estrela amarela, "$" verde do pago (sem `filter`), 2 profissionais por vez no celular | Feita (D-080) |
+| 4b–4d | Alças de cima e de baixo com etiqueta de horário, passo de 10 min por aparelho, ideias de baixo esforço cognitivo | Planejadas: `docs/planning/AGENDA_CARDS_ETAPA4.md` |
 | — | Cor e intensidade escolhidas no cadastro do serviço | **BLOQUEADO**: coluna nova = migration 028+, só com autorização |
 
 Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
@@ -34,6 +35,11 @@ Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
 - **Etiqueta de horário** igual nos três gestos: "09:10–09:40 (30 min)", presa ao card que acompanha o dedo.
 - **Passo:** o dono quer 10 min ou configurável. Proposta: padrão 10, escolha por aparelho (sem migration). Por salão exige coluna nova (028). A grade (`GRID_MIN`) acompanha o passo.
 - **Remarcar com duração nova:** `novaDuracaoMin` no `PATCH /agenda/:id/status` (reagendado). A 027 já recebe a duração no `jsonb`: não precisa de migration.
+
+## Colunas no celular (D-080)
+- Com 3 ou mais profissionais: **2 por vez**, cada coluna com metade da largura útil; o resto ao **deslizar de lado**, com encaixe por coluna.
+- **Sem barra ou indicador acima da grade** (o dono testou e recusou: polui). Os nomes no cabeçalho dizem quem está na tela.
+- No arraste, a borda lateral rola de lado com a mesma espera de 0,4 s da vertical.
 
 ## Ícones fora da etapa 2 (não implementar)
 | Ícone | Motivo |

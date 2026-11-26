@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: legenda dos ícones e 2 profissionais por vez no celular (D-080)
+- Ao tocar no card, o campo "Ícones deste card" explica cada ícone. "Ver todos os ícones" mostra a legenda completa.
+- Assinante em dia aparece com estrela amarela. Atendimento pago no caixa mostra um "$" verde no lugar do texto "PAGO".
+- No celular, a agenda mostra 2 profissionais por vez, com mais espaço para ler. Deslize para o lado para ver os outros.
+
 ## Agenda: horários livres pela duração do serviço também no app (D-079)
 - No novo agendamento, a lista de horários livres agora parte de cada espaço livre e anda pela duração do serviço, como no link do cliente. Não aparecem mais horários colados uns nos outros, como 14:20 e 14:30 para um serviço de 30 min.
 - Um horário fora da lista ainda pode ser digitado à mão; o sistema confere conflito e escala ao gravar.
