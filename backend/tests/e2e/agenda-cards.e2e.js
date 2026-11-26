@@ -76,7 +76,7 @@ async function irPara(p, data) {
     situacao: el.querySelector('.ag-st')?.getAttribute('aria-label') || null,
     servico: !!el.querySelector('.ag-line2'),
     aviso: el.querySelector('.ag-aviso')?.textContent.trim() || null,
-    alca: !!el.querySelector('.drag-handle'),
+    alca: !!el.querySelector('.resize-handle'),
     texto: el.innerText.replace(/\s+/g, ' ').trim(),
     nomeLarg: Math.round(el.querySelector('.ag-n').getBoundingClientRect().width),
     horaVisivel: (() => { const r = el.querySelector('.ag-t').getBoundingClientRect(); const c = el.getBoundingClientRect(); return r.width > 0 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1; })(),

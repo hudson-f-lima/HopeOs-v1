@@ -734,7 +734,7 @@ router.patch('/agenda/:id/status', authorizePor(permissaoDoStatus, 'agenda:atend
     if (reagendamento.novoServicoId) servico = await requireActiveEntity(repo, 'servicos', novoServicoId, 'Serviço', 'SERVICE_NOT_FOUND');
     const profNovo = await requireActiveEntity(repo, 'profissionais', novoProfissionalId, 'Profissional', 'PROFESSIONAL_NOT_FOUND');
 
-    const duracaoMinNovo = servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min;
+    const duracaoMinNovo = reagendamento.novaDuracaoMin || (servico ? (servico.duracao_min || original.duracao_min) : original.duracao_min);
     const dispVersaoRe = await repo.versaoDisponibilidade().catch(() => null); // D-058: antes de conferir
     const foraRe = await assertDentroDaDisponibilidade(req, repo, { profissional: profNovo, data: reagendamento.novaData, horario: reagendamento.novoHorario, duracaoMin: duracaoMinNovo, forcar: reagendamento.foraDaDisponibilidade });
     // Regras da agenda só quando o dia muda (trocar serviço ou hora no mesmo dia não cria horário novo para o cliente).

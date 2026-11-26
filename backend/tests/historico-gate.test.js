@@ -341,6 +341,30 @@ test('H12 rota do piloto usa a trilha do tenant (HTTP)', async () => {
   assert.deepStrictEqual(nd(b), [0, 1, 0], 'B só enxerga a própria trilha');
 });
 
+test('H-DUR remarcar com novaDuracaoMin (D-081): fim fixo ao puxar o topo; conflito conta a duração nova; faixa 10–480', async () => {
+  const dia = '2030-02-04';
+  // Corte de 30 min às 10:00 (fim 10:30). Puxar o topo para 09:40 mantém o fim: duração 50.
+  const a = (await criar('10:00', { data: dia })).data.data;
+  const r = await patchStatus(a.id, 'reagendado', { novaData: dia, novoHorario: '09:40', novaDuracaoMin: 50 });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const novo = db.agendamentos.find(x => x.id === r.data.data.novo.id);
+  assert.deepStrictEqual([String(novo.horario).slice(0, 5), novo.duracao_min], ['09:40', 50]);
+  // Conflito com a duração nova: outro às 11:00; 10:30 com 60 min invade, com 30 caberia.
+  await criar('11:00', { data: dia });
+  const conf = await patchStatus(novo.id, 'reagendado', { novaData: dia, novoHorario: '10:30', novaDuracaoMin: 60 });
+  assert.strictEqual(code(conf), 'SCHEDULE_CONFLICT', JSON.stringify(conf.data));
+  assert.strictEqual(db.agendamentos.find(x => x.id === novo.id).status, 'agendado', 'nada mudou');
+  // Fora da faixa ou não inteiro → 422, nada muda.
+  for (const v of [5, 481, '50', 12.5]) {
+    const x = await patchStatus(novo.id, 'reagendado', { novaData: dia, novoHorario: '09:40', novaDuracaoMin: v });
+    assert.strictEqual(code(x), 'INVALID_DURATION', `${v}: ${JSON.stringify(x.data)}`);
+  }
+  assert.strictEqual(db.agendamentos.find(x => x.id === novo.id).status, 'agendado');
+  // Sem o campo, a duração continua a do agendamento (comportamento de antes).
+  const semCampo = await patchStatus(novo.id, 'reagendado', { novaData: dia, novoHorario: '14:00' });
+  assert.strictEqual(db.agendamentos.find(x => x.id === semCampo.data.data.novo.id).duracao_min, 50);
+});
+
 async function controleSemBestEffort() {
   const id = (await criar('18:00')).data.data.id;
   SupabaseRepository.prototype.registrarEventoAgenda = async () => { throw new Error('falha simulada'); };

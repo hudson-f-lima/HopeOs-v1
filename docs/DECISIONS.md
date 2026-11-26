@@ -1255,3 +1255,49 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - `agenda-confiavel`: a asserção da D-055 passou a conferir 2 por vez, com o terceiro ao deslizar.
   - `test:offline` verde; E2E 50/50.
 - **Não muda:** servidor, permissões, ícones bloqueados (estrela laranja até a V1.5; pago online até haver fornecedor).
+
+## D-081 — Alças de cima e de baixo do card, etiqueta de horário e passo de 10 min por aparelho (cards 4b; sem migration)
+- **Pedido (Platform Owner, 2026-11-26):**
+  - "Segurar no topo do card e redimensiona. Segurar na parte inferior do card e redimensiona. Segurar no meio do card arrastar."
+  - O horário do encaixe aparece enquanto arrasta e enquanto redimensiona.
+  - Passo de 10 min no aparelho (decidido em 26/11).
+- **Zonas do card:**
+  - Faixa de cima (14 px) muda o **início com o fim parado**.
+  - Faixa de baixo muda o **fim com o início parado**.
+  - O meio arrasta.
+  - Card com menos de 30 min só tem a faixa de baixo, para sobrar meio para pegar.
+  - A faixa de cima substitui a barrinha só visual que existia desde a D-078.
+- **Etiqueta única "09:40–11:00 (80 min)"** nos três gestos. No arraste ela fica presa ao card que acompanha o dedo, com o profissional e "ocupado" ou "fora da escala" quando for o caso. Nas alças fica acima ou abaixo do card.
+- **Limites:**
+  - O passo conta a partir do início e da duração originais, não do ponto onde o dedo pegou.
+  - A alça de cima para no fim do atendimento anterior do mesmo profissional; a de baixo para no início do seguinte.
+  - Duração mínima de 10 min.
+  - **Esc** cancela arraste e redimensionamento sem gravar.
+- **Servidor:** `PATCH /api/agenda/:id/status` (reagendado) aceita `novaDuracaoMin` (inteiro de 10 a 480).
+  - Puxar o topo é uma remarcação com duração nova numa operação só. A 027 grava a duração do `jsonb`: sem migration.
+  - O conflito e a escala são conferidos com a duração nova.
+  - "Desfazer" volta horário e duração.
+  - Sem o campo, a remarcação mantém a duração, como antes.
+- **Passo:** escolha por aparelho em Agenda › (i), com as opções 5, 10, 15, 20 e 30. O padrão é 10. Fica guardado no navegador; sem armazenamento, vale 10.
+  - Vale para o arraste, as alças e as setas do teclado.
+  - A grade de toque dos horários livres continua de 20 min, para o alvo de toque não ficar pequeno; o card pode parar entre as linhas.
+- **Verificação:**
+  - `historico-gate` H-DUR:
+    - 10:00/30 puxado para 09:40 grava 09:40/50;
+    - 10:30 com 60 min sobre um atendimento às 11:00 dá `SCHEDULE_CONFLICT`, e nada muda;
+    - 5, 481, "50" e 12,5 dão 422;
+    - sem o campo, a duração é mantida.
+    - **Controle negativo:** com a rota ignorando o campo, o H-DUR cai.
+  - E2E `agenda-alcas` (390×844, CSP). Cobre:
+    - alça de cima "09:40–11:00 (80 min)" gravando 09:40/80, e Desfazer voltando a 10:00/60;
+    - limite no vizinho "09:30–11:00 (90 min)", e Esc sem mudar nada;
+    - alça de baixo "10:00–11:10 (70 min)";
+    - card de 20 min sem alça de cima;
+    - etiqueta do arraste "10:10–11:20 (70 min) · Ana", e Esc;
+    - passo 30 lembrado depois de recarregar, com ↑ movendo 30 min.
+    - **Controles negativos:** sem enviar a duração nova, o E2E cai (grava 09:40/60); sem o limite do vizinho, cai ("09:00–11:00 (120 min)").
+  - Ajustes em testes antigos:
+    - `agenda-confiavel` pega o card logo abaixo da alça de cima. Medido: o ponto de soltar antigo caía na borda de 1 px da grade.
+    - `agenda-arraste`: ↓ anda 10 min (09:10).
+  - `test:offline` verde; E2E 51/51.
+- **Não coberto por navegador:** o toque com o dedo nas alças. O Playwright não simula bem; o mouse cobre a mesma conta.

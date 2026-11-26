@@ -34,7 +34,23 @@ const JANELA_PADRAO = [8, 20];
 export let HORA_INICIO = JANELA_PADRAO[0];
 export let HORA_FIM = JANELA_PADRAO[1];
 export const GRID_MIN = 20;
-export const SNAP_MIN = 20;
+// Passo do arraste e do redimensionamento (D-081): escolha deste aparelho, padrão 10 min. A grade de
+// toque dos horários livres continua de 20 (alvo de toque); o card pode parar entre as linhas.
+export const PASSOS_ARRASTE = [5, 10, 15, 20, 30];
+function lerPasso() {
+  try { const v = Number(localStorage.getItem('hopeos.agenda.passo')); if (PASSOS_ARRASTE.includes(v)) return v; } catch { /* sem armazenamento: padrão */ }
+  return 10;
+}
+export let SNAP_MIN = lerPasso();
+export function definirPasso(v) {
+  if (!PASSOS_ARRASTE.includes(v)) return;
+  SNAP_MIN = v;
+  try { localStorage.setItem('hopeos.agenda.passo', String(v)); } catch { /* vale só nesta sessão */ }
+}
+// "09:40–11:00 (80 min)": a mesma etiqueta no arraste e nas duas alças (D-081).
+function rotuloHorario(iniMinDaGrade, dur) {
+  return `${minutesSinceStartToHHMM(iniMinDaGrade)}–${minutesSinceStartToHHMM(iniMinDaGrade + dur)} (${dur} min)`;
+}
 export let TIMELINE_TOTAL_HEIGHT = (HORA_FIM - HORA_INICIO) * 60 * PX_POR_MIN;
 
 export const AGENDA_STATUS_META = {
@@ -229,8 +245,11 @@ function renderAgBlock(item) {
     : bloqueiosDoDia(item.profissional_id, state.selectedDay).some(b => iniDia < b.fim && iniDia + duracao > b.ini) ? 'sobre bloqueio' : '');
 
   const isEditable = !['concluido', 'no_show'].includes(item.status);
-  const dragHtml = isEditable ? `<div class="drag-handle" data-ag-id="${item.id}"></div>` : '';
-  const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}"></div>` : '';
+  // Zonas do card (D-081): faixa de cima muda o início (fim parado); faixa de baixo muda o fim; o meio
+  // arrasta. Card com menos de 30 min só tem a de baixo, para sobrar meio para pegar.
+  const comTopo = isEditable && duracao >= 30;
+  const dragHtml = comTopo ? `<div class="resize-handle resize-topo" data-ag-id="${item.id}" data-modo="inicio" aria-hidden="true"></div>` : '';
+  const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}" data-modo="fim" aria-hidden="true"></div>` : '';
   const cliente = findClienteNome(item.cliente_id);
   const servico = findServicoNome(item.servico_id);
   const codigos = codigosDoCard(item);
@@ -239,6 +258,7 @@ function renderAgBlock(item) {
   const cls = ['ag-block', 'ag-card'];
   if (compact) cls.push('compact');
   if (isEditable) cls.push('editavel');
+  if (comTopo) cls.push('com-topo');
   if (conflito) cls.push('ag-conflito');
   if (item.status === 'no_show') cls.push('st-falta');
   if (pago) cls.push('ag-pago');
@@ -1046,14 +1066,21 @@ function clearHighlights() {
   document.querySelectorAll('.drag-highlight').forEach(el => el.remove());
 }
 
-function showResizeTooltip(block, text) {
-  let tooltip = block.querySelector('.resize-tooltip');
-  if (!tooltip) {
+function showResizeTooltip(block, text, emCima = false) {
+  // O card corta o que sai dele (overflow), então a dica fica presa à coluna, acima ou abaixo do card.
+  const col = block.parentElement;
+  let tooltip = col && col.querySelector('.resize-tooltip');
+  if (!tooltip && col) {
     tooltip = document.createElement('div');
     tooltip.className = 'resize-tooltip';
-    block.appendChild(tooltip);
+    tooltip.setAttribute('role', 'status');
+    col.appendChild(tooltip);
   }
+  if (!tooltip) return;
   tooltip.textContent = text;
+  tooltip.classList.toggle('topo', emCima);
+  const topoCard = block.offsetTop; const base = topoCard + block.offsetHeight;
+  tooltip.style.top = (emCima ? topoCard - 26 : base + 4) + 'px';
 }
 
 function hideResizeTooltip() {
@@ -1124,7 +1151,8 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
       novoProfissionalId: profId,
       permitirConflito: !!permitirConflito,
       foraDaDisponibilidade,
-      aceitarAvisos
+      aceitarAvisos,
+      ...(opcoes.novaDuracaoMin ? { novaDuracaoMin: opcoes.novaDuracaoMin } : {})
     }
   })
   .then(async r => {
@@ -1140,7 +1168,7 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
         type: 'success',
         message: 'Remarcado para ' + horario + ' com ' + (findProfissionalNome(profId) || 'o profissional') + '.', // showToast escapa o texto
         duration: 8000,
-        action: { label: 'Desfazer', onClick: () => executarReagendar(novoId, v.profId, v.data, v.horario, false, false, false, { focar: opcoes.focar }) }
+        action: { label: 'Desfazer', onClick: () => executarReagendar(novoId, v.profId, v.data, v.horario, false, false, false, { focar: opcoes.focar, novaDuracaoMin: v.duracao >= 10 && v.duracao <= 480 ? v.duracao : undefined }) }
       });
     }
     return r;
@@ -1172,7 +1200,7 @@ function moverCard(ag, profId, minC, { focar = false } = {}) {
     return;
   }
   executarReagendar(ag.id, profId, state.selectedDay, horario, false, false, false, {
-    focar, voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5) }
+    focar, voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5), duracao: ag.duracao_min || 30 }
   });
 }
 
@@ -1200,7 +1228,12 @@ function startDrag(agId, e, origem) {
   clone.style.top = clientY - pegaY + 'px';
   document.body.appendChild(clone);
 
-  state.dragging = { agId, clone, targetProf: null, targetMin: null, originalBlock: block, pegaY, pegaX, x: clientX, y: clientY };
+  const rot = document.createElement('div');
+  rot.className = 'ag-arraste-rot';
+  rot.setAttribute('role', 'status');
+  document.body.appendChild(rot);
+  state.dragging = { agId, clone, rot, targetProf: null, targetMin: null, originalBlock: block, pegaY, pegaX, x: clientX, y: clientY };
+  document.addEventListener('keydown', onGestoKeydown);
 
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('touchmove', onDragMove, { passive: false });
@@ -1228,6 +1261,12 @@ function atualizarAlvo(clientX, clientY) {
     d.targetMin = minC;
     const alvo = avaliarDestino(ag, d.targetProf, minC);
     highlightSlot(d.targetProf, minC, alvo, dur);
+    // Etiqueta em cima do card que acompanha o dedo, fora do alcance do dedo (D-081).
+    const cr = d.clone.getBoundingClientRect();
+    d.rot.className = 'ag-arraste-rot' + (alvo.estado === 'livre' ? '' : ' ' + alvo.estado);
+    d.rot.textContent = rotuloHorario(minC, dur) + ' · ' + (findProfissionalNome(d.targetProf) || '') + (alvo.estado === 'conflito' ? ' · ocupado' : alvo.estado === 'fora' ? ' · fora da escala' : '');
+    d.rot.style.left = (cr.left + cr.width / 2) + 'px';
+    d.rot.style.top = cr.top + 'px';
     profCol.closest('.agenda-grid')?.setAttribute('data-arraste-horario', formatTime(alvo.hora, alvo.mins));
   }
   ajustarRolagemAuto(clientX, clientY);
@@ -1273,7 +1312,8 @@ function onDragMove(e) {
   atualizarAlvo(e.touches?.[0].clientX ?? e.clientX, e.touches?.[0].clientY ?? e.clientY);
 }
 
-function onDragEnd() {
+function onDragEnd(_ev, cancelar = false) {
+  document.removeEventListener('keydown', onGestoKeydown);
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('touchmove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
@@ -1287,8 +1327,9 @@ function onDragEnd() {
   if (!d) return;
   ultimoArrasteEm = Date.now();
   d.clone?.remove();
+  d.rot?.remove();
   d.originalBlock?.classList.remove('dragging');
-  if (!d.targetProf) return;
+  if (cancelar || !d.targetProf) return;
   const ag = findAgendaItemById(d.agId);
   if (ag) moverCard(ag, d.targetProf, d.targetMin);
 }
@@ -1319,105 +1360,87 @@ function onCardKeydown(ev) {
   moverCard(ag, profId, minC, { focar: true });
 }
 
-function startResize(agId, e) {
+// Redimensionar (D-081): alça de baixo muda o fim (início parado); alça de cima muda o início (fim
+// parado). O passo conta a partir da duração/início originais, não do ponto onde o dedo pegou. Não
+// passa por cima do vizinho do mesmo profissional; a etiqueta mostra "início–fim (duração)".
+function startResize(agId, e, modo = 'fim') {
   e.preventDefault();
   e.stopPropagation();
-  const block = document.querySelector(`[data-ag-id="${agId}"]`);
-  if (!block) return;
-
+  const block = document.querySelector(`.ag-card[data-ag-id="${CSS.escape(agId)}"]`);
+  const ag = findAgendaItemById(agId);
+  if (!block || !ag) return;
   const clientY = e.touches?.[0].clientY ?? e.clientY;
-
-  state.resizing = {
-    agId,
-    block,
-    yInicio: clientY,
-    alturaInicio: block.offsetHeight
-  };
-
+  const ini0 = itemStartMinutes(ag);
+  const dur0 = ag.duracao_min || 30;
+  const outros = (state.weekAgenda[state.selectedDay] || []).filter(i => i.id !== ag.id && i.profissional_id === ag.profissional_id && !['cancelado', 'no_show', 'reagendado'].includes(i.status));
+  let proximo = (HORA_FIM - HORA_INICIO) * 60; let anterior = 0;
+  for (const o of outros) {
+    const s0 = itemStartMinutes(o); const f0 = s0 + (o.duracao_min || 30);
+    if (s0 >= ini0 + 1 && s0 < proximo) proximo = s0;
+    if (f0 <= ini0 + dur0 - 1 && s0 < ini0 && f0 > anterior) anterior = f0;
+  }
+  state.resizing = { agId, block, modo, yInicio: clientY, ini0, dur0, ini: ini0, dur: dur0, proximo, anterior, topo0: block.offsetTop };
   document.addEventListener('mousemove', onResizeMove);
   document.addEventListener('touchmove', onResizeMove, { passive: false });
   document.addEventListener('mouseup', onResizeEnd);
   document.addEventListener('touchend', onResizeEnd);
+  document.addEventListener('keydown', onGestoKeydown);
+  showResizeTooltip(block, rotuloHorario(ini0, dur0), modo === 'inicio');
 }
 
 function onResizeMove(e) {
   if (e.cancelable) e.preventDefault();
-  const currentResizing = state.resizing;
-  if (!currentResizing) return;
+  const r = state.resizing;
+  if (!r) return;
   const clientY = e.touches?.[0].clientY ?? e.clientY;
-  const delta = clientY - currentResizing.yInicio;
-  const minAltura = SNAP_MIN * PX_POR_MIN;
-  let novaAltura = Math.max(minAltura, currentResizing.alturaInicio + delta);
-
-  novaAltura = Math.round(novaAltura / minAltura) * minAltura;
-
-  const novaMin = novaAltura / PX_POR_MIN;
-  const ag = findAgendaItemById(currentResizing.agId);
-  const [h, m] = ag.horario.split(':').map(Number);
-  const inicioMin = (h - HORA_INICIO) * 60 + m;
-  const fimMin = inicioMin + novaMin;
-
-  const maxMin = (HORA_FIM - HORA_INICIO) * 60;
-  const professionalId = ag.profissional_id;
-  const dayItems = state.weekAgenda[state.selectedDay] || [];
-  
-  const otherItems = dayItems.filter(item => 
-    item.id !== ag.id && 
-    item.profissional_id === professionalId && 
-    !['cancelado', 'no_show', 'reagendado'].includes(item.status)
-  );
-
-  let nextStartMin = maxMin;
-  for (const other of otherItems) {
-    const [h2, m2] = other.horario.split(':').map(Number);
-    const start2 = (h2 - HORA_INICIO) * 60 + m2;
-    if (start2 >= inicioMin && start2 < nextStartMin) {
-      nextStartMin = start2;
-    }
+  const passos = Math.round((clientY - r.yInicio) / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
+  if (r.modo === 'inicio') {
+    const fim = r.ini0 + r.dur0;
+    r.ini = Math.max(r.anterior, Math.min(fim - 10, r.ini0 + passos));
+    r.dur = fim - r.ini;
+  } else {
+    r.ini = r.ini0;
+    r.dur = Math.max(10, Math.min(r.proximo - r.ini0, r.dur0 + passos));
   }
-
-  if (fimMin > nextStartMin) {
-    novaAltura = (nextStartMin - inicioMin) * PX_POR_MIN;
-  }
-
-  currentResizing.block.style.height = novaAltura + 'px';
-
-  const durMin = Math.round(novaAltura / PX_POR_MIN);
-  const fimH = h + Math.floor((m + durMin) / 60);
-  const fimM = (m + durMin) % 60;
-  showResizeTooltip(currentResizing.block, `${durMin}min (até ${String(fimH).padStart(2,'0')}:${String(fimM).padStart(2,'0')})`);
-
+  r.block.style.top = (r.ini * PX_POR_MIN) + 'px';
+  r.block.style.height = (r.dur * PX_POR_MIN) + 'px';
+  showResizeTooltip(r.block, rotuloHorario(r.ini, r.dur), r.modo === 'inicio');
   navigator.vibrate?.([5]);
 }
 
-function onResizeEnd(e) {
+function onResizeEnd(_ev, cancelar = false) {
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('touchmove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
   document.removeEventListener('touchend', onResizeEnd);
+  document.removeEventListener('keydown', onGestoKeydown);
   hideResizeTooltip();
-
-  const currentResizing = state.resizing;
-  if (!currentResizing) return;
-  const novaDuracao = Math.round(currentResizing.block.offsetHeight / PX_POR_MIN);
-  const ag = findAgendaItemById(currentResizing.agId);
-  if (!ag || novaDuracao === ag.duracao_min) {
-    state.resizing = null;
+  const r = state.resizing;
+  state.resizing = null;
+  if (!r) return;
+  ultimoArrasteEm = Date.now();
+  const ag = findAgendaItemById(r.agId);
+  const volta = () => { r.block.style.top = (r.ini0 * PX_POR_MIN) + 'px'; r.block.style.height = (r.dur0 * PX_POR_MIN) + 'px'; };
+  if (cancelar || !ag || (r.ini === r.ini0 && r.dur === r.dur0)) { volta(); return; }
+  if (r.modo === 'inicio') {
+    // Início novo com o fim parado: remarcação com duração nova, numa operação só (D-081).
+    executarReagendar(ag.id, ag.profissional_id, state.selectedDay, minutesSinceStartToHHMM(r.ini), false, false, false, {
+      novaDuracaoMin: r.dur,
+      voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5), duracao: r.dur0 }
+    }).then(res => { if (!res) volta(); });
     return;
   }
+  api('/agenda/' + r.agId + '/duracao', { method: 'PATCH', body: { duracaoMin: r.dur } })
+    .then(() => loadWeekAgenda())
+    .catch(err => { showBanner('Erro ao ajustar duração: ' + err.message, 'error'); volta(); });
+}
 
-  api('/agenda/' + currentResizing.agId + '/duracao', {
-    method: 'PATCH',
-    body: { duracaoMin: novaDuracao }
-  })
-  .then(() => {
-    loadWeekAgenda();
-  })
-  .catch(err => {
-    showBanner('Erro ao ajustar duração: ' + err.message, 'error');
-    currentResizing.block.style.height = (ag.duracao_min * PX_POR_MIN) + 'px';
-  });
-  state.resizing = null;
+// Esc cancela o arraste ou o redimensionamento sem gravar nada.
+function onGestoKeydown(ev) {
+  if (ev.key !== 'Escape') return;
+  ev.preventDefault();
+  if (state.dragging) onDragEnd(ev, true);
+  if (state.resizing) onResizeEnd(ev, true);
 }
 
 function formatTime(h, m) {
@@ -1482,13 +1505,18 @@ export function initAgenda() {
   document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
 
   timelineCols.addEventListener('keydown', onCardKeydown);
+  const passoSel = document.getElementById('agPasso');
+  if (passoSel) {
+    passoSel.value = String(SNAP_MIN);
+    passoSel.addEventListener('change', () => { definirPasso(Number(passoSel.value)); showBanner('Passo do arraste: ' + SNAP_MIN + ' min neste aparelho.', 'ok'); });
+  }
 
   // Mouse: o arraste começa quando o ponteiro anda mais de 6 px com o botão apertado; sem andar,
   // é um clique e abre o card como sempre.
   timelineCols.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     const resizeHandle = e.target.closest('.resize-handle');
-    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e); return; }
+    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e, resizeHandle.dataset.modo || 'fim'); return; }
     const card = e.target.closest('.ag-card.editavel');
     if (!card) return;
     const origem = { x: e.clientX, y: e.clientY };
@@ -1506,7 +1534,7 @@ export function initAgenda() {
   let toqueInicio = null;
   timelineCols.addEventListener('touchstart', e => {
     const resizeHandle = e.target.closest('.resize-handle');
-    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e); return; }
+    if (resizeHandle) { startResize(resizeHandle.dataset.agId, e, resizeHandle.dataset.modo || 'fim'); return; }
     const card = e.target.closest('.ag-card.editavel');
     if (!card || e.touches.length !== 1) return;
     const t = e.touches[0];

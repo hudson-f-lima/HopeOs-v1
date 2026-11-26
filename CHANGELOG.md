@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: alças de cima e de baixo e passo de 10 minutos (D-081)
+- Segure a faixa de cima do card para mudar o início (o fim fica onde está); a de baixo muda o fim; o meio arrasta.
+- Enquanto arrasta ou estica, uma etiqueta mostra "início–fim (duração)". Esc cancela.
+- O passo agora é de 10 minutos. Para trocar neste aparelho: Agenda › (i) › Passo do arraste.
+
 ## Agenda: legenda dos ícones e 2 profissionais por vez no celular (D-080)
 - Ao tocar no card, o campo "Ícones deste card" explica cada ícone. "Ver todos os ícones" mostra a legenda completa.
 - Assinante em dia aparece com estrela amarela. Atendimento pago no caixa mostra um "$" verde no lugar do texto "PAGO".

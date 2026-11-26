@@ -152,7 +152,7 @@
             <button type="button" class="agx-ic" id="btnAgBuscar" aria-expanded="false" aria-controls="agBusca" aria-label="Buscar cliente na semana"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
             <button type="button" class="agx-ic" id="btnAgMes" aria-expanded="false" aria-controls="agMes" aria-label="Abrir o calendário do mês"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/><line x1="3.5" y1="10" x2="20.5" y2="10" stroke="currentColor" stroke-width="2"/><line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
             <button type="button" class="agx-ic" id="btnAgendaLembretes" aria-label="Lembretes de confirmação"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-            <button type="button" class="agx-ic" id="btnAgInfo" aria-expanded="false" aria-controls="agInfo" aria-label="Legenda, totais e lista de espera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg></button>
+            <button type="button" class="agx-ic" id="btnAgInfo" aria-expanded="false" aria-controls="agInfo" aria-label="Legenda, totais, passo do arraste e lista de espera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg></button>
           </div>
         </div>
         <div class="agx-data">
@@ -173,10 +173,13 @@
           <p class="agx-escopo" id="agBuscaEscopo"></p>
           <div id="agBuscaResultado" aria-live="polite"></div>
         </section>
-        <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais e lista de espera">
+        <section class="agx-painel hidden" id="agInfo" aria-label="Legenda, totais, passo do arraste e lista de espera">
           <p class="agx-escopo" id="weekCountLabel">—</p>
           <div class="ag-legenda" id="agLegenda" aria-label="Legenda da agenda"><span><i class="lg lg-livre"></i>Livre</span><span><i class="lg lg-fora"></i>Fora da escala</span><span><i class="lg lg-bloq"></i>Bloqueado</span><span><i class="lg lg-conf">⚠</i>Conflito</span><span><i class="lg lg-incerto"></i>Não confirmado</span></div>
           <p class="agx-escopo">Contam os agendamentos ativos (sem cancelados e remarcados) dos profissionais selecionados. Nenhum número aqui é estimado.</p>
+          <label class="agx-passo" for="agPasso">Passo do arraste neste aparelho
+            <select id="agPasso"><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
+          </label>
           <button class="btn btn-secondary" id="btnAbrirListaEspera" type="button">+ Lista de espera</button>
         </section>
         <div class="agx-profs">

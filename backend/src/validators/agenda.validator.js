@@ -65,10 +65,16 @@ function validateStatusChangePayload(body) {
 }
 
 function validateReagendamentoPayload(body) {
-  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito, foraDaDisponibilidade, aceitarAvisos } = body || {};
+  const { novaData, novoHorario, novoServicoId, novoProfissionalId, permitirConflito, foraDaDisponibilidade, aceitarAvisos, novaDuracaoMin } = body || {};
   if (!novaData) throw createAppError('DATE_REQUIRED', 'novaData obrigatória para reagendamento.', 422);
   if (!novoHorario) throw createAppError('TIME_REQUIRED', 'novoHorario obrigatório para reagendamento.', 422);
+  // D-081: puxar o topo do card muda o início e mantém o fim, então a duração muda junto, numa
+  // remarcação só (a 027 grava a duração do jsonb). Mesma faixa do PATCH /duracao.
+  if (novaDuracaoMin !== undefined && (!Number.isInteger(novaDuracaoMin) || novaDuracaoMin < 10 || novaDuracaoMin > 480)) {
+    throw createAppError('INVALID_DURATION', 'novaDuracaoMin deve ser um inteiro entre 10 e 480 minutos.', 422);
+  }
   return {
+    novaDuracaoMin: novaDuracaoMin === undefined ? null : novaDuracaoMin,
     novaData,
     novoHorario,
     novoServicoId: novoServicoId || null,
