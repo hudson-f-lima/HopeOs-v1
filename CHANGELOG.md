@@ -1,5 +1,10 @@
 # Changelog
 
+## "Cliente chegou" pode ser desligado no salão (D-084)
+- Em Gestão › Regras da agenda, escolha se a recepção marca a chegada do cliente.
+- Desligado, o card e a tela Agora oferecem "Iniciar atendimento" direto, e o aviso de atraso não aparece.
+- Corrigido: a recepção e o profissional agora recebem as regras do salão (tolerância de atraso e prazo de cancelamento). Antes, a tela usava sempre o padrão.
+
 ## Comandas: histórico por período (D-082)
 - No histórico de comandas, escolha o período com um toque: Hoje, Ontem, Esta semana, Este mês ou Mês anterior.
 - Em "Personalizado", toque no primeiro dia e no último, como no extrato do banco.

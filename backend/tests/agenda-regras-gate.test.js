@@ -46,7 +46,7 @@ setIdentityStore(createMemoryIdentityStore({
     { id: 'm2', empresa_id: A, user_id: RECEP, role: 'recepcao', status: 'ativo' },
     { id: 'm3', empresa_id: A, user_id: PROF, role: 'profissional', status: 'ativo', profissional_id: ANA }
   ],
-  membership_units: [{ membership_id: 'm2', unit_id: UNIT }]
+  membership_units: [{ membership_id: 'm2', unit_id: UNIT }, { membership_id: 'm3', unit_id: UNIT }]
 }));
 const tokens = { 'h.admin.s': ADMIN, 'h.recep.s': RECEP, 'h.prof.s': PROF };
 setAuthProvider({ async getUser(t) { if (!tokens[t]) throw createAppError('UNAUTHENTICATED', 'x', 401); return { id: tokens[t] }; } });
@@ -140,6 +140,20 @@ test('R04 configurar: PATCH /empresa com as regras (faixas), só quem configura'
   assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaIntervaloMinDias: null } })).data.data.agenda_intervalo_min_dias, null, 'null desliga');
   await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaIntervaloMinDias: 7 } });
   assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.recep.s', body: { agendaMaxFuturosRecepcao: 9 } })).status, 403, 'recepção não configura');
+});
+
+test('R04b "Cliente chegou" do salão (028, D-084): só booleano, só quem configura; profissional lê', async () => {
+  const off = await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaUsaChegada: false } });
+  assert.strictEqual(off.status, 200, off.raw);
+  assert.strictEqual(off.data.data.agenda_usa_chegada, false);
+  const lido = await request('GET', '/api/empresa', { token: 'h.prof.s' });
+  assert.strictEqual(lido.status, 200, lido.raw);
+  assert.strictEqual(lido.data.data.agenda_usa_chegada, false, 'o profissional precisa ler para a tela Agora');
+  for (const v of ['sim', 1, 0, null, 'false']) {
+    assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaUsaChegada: v } })).status, 422, JSON.stringify(v));
+  }
+  assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.recep.s', body: { agendaUsaChegada: true } })).status, 403, 'recepção não configura');
+  assert.strictEqual((await request('PATCH', '/api/empresa', { token: 'h.admin.s', body: { agendaUsaChegada: true } })).data.data.agenda_usa_chegada, true);
 });
 
 test('R05 serviço com prazo e antecedência próprios (vazio volta para o do salão)', async () => {

@@ -5,6 +5,7 @@
 import { api } from '../api.js';
 import { state, stateBus, loadWeekAgenda, findClienteNome, findServicoNome, podeFecharAtendimento } from '../state.js';
 import { escapeHtml, todayStr, showBanner, clearBanner } from '../utils.js';
+import { carregarRegras, usaChegada } from './agendaCard.js';
 
 const el = id => document.getElementById(id);
 const ENCERRADOS = ['cancelado', 'reagendado', 'no_show', 'concluido', 'fechado'];
@@ -57,7 +58,8 @@ function render() {
 
 function acaoDisponivel(item) {
   if (!item || !item.profissional_id || item.profissional_id !== state.session?.profissional_id) return null;
-  const acao = ACAO[item.status];
+  // Salão sem "Cliente chegou" (D-084): de agendado ou confirmado, inicia o atendimento direto.
+  const acao = !usaChegada() && ['agendado', 'confirmado'].includes(item.status) ? ACAO.aguardando : ACAO[item.status];
   return acao?.comanda && !podeFecharAtendimento(state.session, item) ? null : acao;
 }
 
@@ -88,4 +90,6 @@ export function initAgora() {
   stateBus.addEventListener('agenda:updated', render);
   stateBus.addEventListener('catalog:updated', render);
   render();
+  // As regras do salão chegam depois do login; a ação certa ("Cliente chegou" ou "Iniciar") depende delas.
+  stateBus.addEventListener('agenda:updated', () => carregarRegras().then(render));
 }

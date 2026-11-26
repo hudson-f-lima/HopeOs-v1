@@ -150,6 +150,7 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 | `POST/PATCH /api/profissionais` | `catalogo:editar` | aceita `cargoId` (da mesma empresa, senão 422 `CARGO_NOT_FOUND`) |
 | `POST/PATCH /api/servicos` | `catalogo:editar` | aceita `categoriaId` e `modeloHeranca: FIXED_SERVICE|BY_CATEGORY|BY_ROLE` |
 | `PATCH /api/empresa` | `empresa:configurar` | também `cnpj` (dígitos verificadores; máscara aceita; `null` limpa), `razaoSocial`, `salaoParceiro`, `bufferMin` (0/5/10/15), `reguaAlertaFaltas` < `reguaSinalFaltas` |
+| `PATCH /api/empresa` (D-084, migration 028) | `empresa:configurar` | `agendaUsaChegada`: só `true` ou `false` (outro valor → 422 `INVALID_FIELD`). `GET /api/empresa` devolve `agenda_usa_chegada` (padrão `true`); a tela decide entre "Cliente chegou" e "Iniciar atendimento". O servidor continua aceitando os dois caminhos de status |
 | `POST /api/onboarding/cargos` | `empresa:configurar` | `{ itens: [{ nome, comissaoPct, modeloComissao }] }`, idempotente |
 | `GET /api/relatorios/cota-parte?mes=YYYY-MM` | `painel:financeiro` | `{ comandas, valorItensCentavos, cotaParteSalaoCentavos, cotaParteProfissionaisCentavos, profissionais[{ nome, itens, valorCentavos, cotaParteCentavos }], salaoParceiro, cnpj, razaoSocial }` |
 | `GET /api/insights/clients/:id/reliability` | `painel:operacional` | inclui `regua: { faltasSeguidas, nivel: ok|tolerada|alerta|exigir_sinal, mensagem, limites }` — só alerta, sem cobrança |

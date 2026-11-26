@@ -1,7 +1,7 @@
 import { showToast } from './toast.js';
 import { resetClienteRapido, initClienteRapido } from './clienteRapido.js';
 import { initAgendaMes, desenharFiltro, recarregarMesSeAberto, profsNaGrade, atualizarPaineis } from './agendaMes.js';
-import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin } from './agendaCard.js';
+import { htmlCampos, htmlCliente, initCardAgendamento, resetarEditor, confirmarRegras, textoCancelamento, atrasoMin, usaChegada } from './agendaCard.js';
 import { bloqueiosDoDia, htmlBloqueios, abrirHorarioLivre, abrirBloqueio, initAgendaBloqueio, htmlFora, foraDaEscala, carregarGradeDia, gradeDoDia, motivoIncerto } from './agendaBloqueio.js';
 import { extrasEscolhidos, resetExtras, abrirOpcoes, acoesDoAtendimento, abrirEtapas } from './atendimento.js';
 import { repeticaoEscolhida, resetRepeticao, criarSerieComPrevia, acoesDaSerie, abrirSerie, verSerie } from './series.js';
@@ -733,15 +733,19 @@ function openActionSheet(item) {
   // A ação principal (checkout) vem primeiro e larga; as outras em grade de botões menores.
   const checkout = podeFecharAtendimento(state.session, item)
     ? '<button class="btn primary" data-sheet-action="checkout">Abrir checkout</button>' : '';
+  // Salão sem "Cliente chegou" (D-084): o passo seguinte é iniciar o atendimento direto.
+  const chegada = usaChegada()
+    ? '<button class="btn" data-sheet-action="chegou">Cliente chegou</button>'
+    : '<button class="btn" data-sheet-action="cadeira">Iniciar atendimento</button>';
   if (item.status === 'agendado') {
     actionsHtml = checkout + `
       <button class="btn" data-sheet-action="confirmar">Confirmar</button>
-      <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
+      ${chegada}
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
       <button class="btn danger" data-sheet-action="cancelar">Cancelar</button>`;
   } else if (item.status === 'confirmado') {
     actionsHtml = checkout + `
-      <button class="btn" data-sheet-action="chegou">Cliente chegou</button>
+      ${chegada}
       <button class="btn danger" data-sheet-action="noshow">No-show</button>
       <button class="btn danger agc-largo" data-sheet-action="cancelar">Cancelar</button>`;
   } else if (item.status === 'aguardando') {
