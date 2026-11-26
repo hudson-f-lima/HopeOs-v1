@@ -49,7 +49,10 @@ const ATRASO_POSSIVEL = hh * 60 + mm - hora >= 15;
   };
   const regra = async (p, valor) => {
     await p.click('#navGestao'); await p.waitForTimeout(300);
-    await p.click('#subtabBtnRegras'); await p.waitForSelector('#formRegras');
+    // Abrir Regras busca GET /empresa e redesenha o formulário: escolher antes da resposta
+    // perderia a escolha (o redesenho volta o valor salvo). Espera a resposta e o redesenho.
+    const lido = p.waitForResponse(r => new URL(r.url()).pathname === '/api/empresa' && r.request().method() === 'GET');
+    await p.click('#subtabBtnRegras'); await lido; await p.waitForSelector('#formRegras'); await p.waitForTimeout(200);
     await p.selectOption('#rgChegada', valor);
     await p.click('#btnRegrasSalvar'); await p.waitForTimeout(800);
     await p.click('#btnFecharGestao'); await p.waitForTimeout(300);
@@ -70,7 +73,8 @@ const ATRASO_POSSIVEL = hh * 60 + mm - hora >= 15;
 
   // 2) Profissional: Agora.
   const pr = await entrar('profissional@dev.local');
-  await pr.waitForSelector('#btnAgoraAcao', { timeout: 10000 }).catch(() => {});
+  // As regras do salão chegam depois da agenda: a tela Agora troca o botão quando elas chegam.
+  await pr.waitForFunction(() => document.getElementById('btnAgoraAcao')?.textContent.trim() === 'Iniciar atendimento', null, { timeout: 8000 }).catch(() => {});
   const acao = await pr.evaluate(() => { const x = document.getElementById('btnAgoraAcao'); return x ? x.textContent.trim() : null; });
   confere('tela Agora do profissional oferece "Iniciar atendimento"', acao === 'Iniciar atendimento', String(acao));
 

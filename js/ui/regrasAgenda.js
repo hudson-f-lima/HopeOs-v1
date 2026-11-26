@@ -82,6 +82,8 @@ async function salvar(ev) {
 
 export async function carregarRegrasAgenda() {
   if (!sessionPode('empresa:configurar')) return;
+  // Sem formulário velho enquanto busca (D-084): mexer nele e a resposta chegar depois apagava a escolha.
+  el('regrasConteudo').innerHTML = '<p class="body-sm text-tertiary" role="status">Carregando as regras…</p>';
   try { render(await api('/empresa')); } catch (err) { el('regrasConteudo').textContent = err.message; }
 }
 

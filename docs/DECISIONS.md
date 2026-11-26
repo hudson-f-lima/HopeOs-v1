@@ -1390,6 +1390,9 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
   - A falha era guardada como `{}` e a busca nunca se repetia. Recepção e profissional nunca recebiam as regras do salão.
   - O aviso de atraso usava sempre 15 min, e o prazo de cancelamento do salão, no aviso ao cancelar, usava sempre 2 h, mesmo com outro valor configurado.
   - Agora só a resposta que deu certo é guardada, e a busca se repete quando a agenda carrega.
+- **Segundo bug corrigido (REAL, desde a D-049; achado pelo CI):** abrir Regras da agenda buscava `GET /empresa` com o formulário antigo ainda na tela. Se a pessoa mudasse um campo antes da resposta chegar, o redesenho trazia o valor salvo de volta e "Salvar" gravava o valor antigo, sem aviso.
+  - Agora a tela mostra "Carregando as regras…" até a resposta chegar.
+  - Reproduzido com a resposta atrasada de propósito: o teste antigo cai igual ao CI; com a correção da tela, ele passa.
 - **Numeração:** a 028 estava prevista para consentimento e aniversário. Esses itens passam para a 029, ainda não autorizada.
 - **Verificação:**
   - Gate `agenda-regras` R04b: `false` grava e o profissional lê; `"sim"`, `1`, `0`, `null` e `"false"` dão 422; recepção recebe 403.
