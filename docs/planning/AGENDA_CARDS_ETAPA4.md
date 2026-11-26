@@ -47,7 +47,7 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 | **Tempo de pausa/processamento** (química) em listras dentro do card | Encaixar outro cliente na pausa | **Não** (campo novo = migration) | — |
 
 ## 5. Ordem proposta (cada uma em PR próprio)
-1. **4a. Legenda e ícones** (5, 6, 9): dobra no menu do card, estrela amarela, "$" verde, acinzentado sem `filter`. Menor risco e mais visível.
+1. **4a. Legenda e ícones** (5, 6, 9): **feita (D-080)**, junto com a agenda de 2 profissionais por vez no celular (pedido de 26/11), sem barra extra acima da grade.
 2. **4b. Alças de cima e de baixo, e etiqueta de horário** (2, 3, 4): `novaDuracaoMin` na remarcação, com gate; E2E com as duas bordas e controle negativo.
 3. **4c. Passo** (1), depois da decisão do dono. A grade (`GRID_MIN`) acompanha o passo, para o card cair na linha.
 4. **4d. Ideias da seção 4**, uma por vez, na ordem: buraco aproveitável, visita ligada, cliente atrasado.
