@@ -65,18 +65,27 @@ const SITUACAO_CARD = {
   pago: { nome: 'Concluído e pago', svg: SVG_ST('<path d="m2 13 4 4 8-9M10 17l1 1 10-11"/>') },
   no_show: { nome: 'Faltou', svg: SVG_ST('<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>') }
 };
-const ESTRELA = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.6.7-5 4.5 1.4 6.6L12 17.2l-5.9 3.3 1.4-6.6-5-4.5 6.6-.7z"/></svg>';
+const ESTRELA = cor => `<svg viewBox="0 0 24 24" fill="${cor}" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.6.7-5 4.5 1.4 6.6L12 17.2l-5.9 3.3 1.4-6.6-5-4.5 6.6-.7z"/></svg>`;
 const TRACO = d => `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 // Só os 7 ícones com dado gravado (skill agenda-cards). O servidor diz quais valem (GET /agenda?marcadores=1).
+// D-080: estrela amarela = plano ativo e pago; vermelha = atrasado ou suspenso; "$" verde = pago no
+// local (comanda fechada no caixa; vem de `pago`, não dos marcadores). `porque` alimenta a legenda.
 export const ICONES_CARD = {
-  assinatura: { nome: 'Assinante', cor: '#b45309', html: ESTRELA },
-  assinatura_atraso: { nome: 'Assinatura em atraso', cor: '#b91c1c', html: ESTRELA },
-  primeira_visita: { nome: 'Primeira visita', cor: '#0f766e', html: '<b>1ª</b>' },
-  recorrente: { nome: 'Horário recorrente', cor: '#4338ca', html: TRACO('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>') },
-  link: { nome: 'Agendou pelo link', cor: '#0369a1', html: TRACO('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>') },
-  espera: { nome: 'Veio da lista de espera', cor: '#6d28d9', html: TRACO('<path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/>') },
-  faltas: { nome: 'Histórico de faltas', cor: '#c2410c', html: '<b>!</b>' }
+  assinatura: { nome: 'Assinante em dia', porque: 'Plano de assinatura ativo, com o mês pago.', cor: '#facc15', html: ESTRELA('#422006') },
+  assinatura_atraso: { nome: 'Assinatura em atraso', porque: 'Pagamento do plano atrasado ou suspenso.', cor: '#b91c1c', html: ESTRELA('#fff') },
+  pago_local: { nome: 'Pago no local', porque: 'Comanda fechada no caixa do salão.', cor: '#15803d', html: '<b>$</b>' },
+  primeira_visita: { nome: 'Primeira visita', porque: 'Nenhum atendimento concluído antes.', cor: '#0f766e', html: '<b>1ª</b>' },
+  recorrente: { nome: 'Horário recorrente', porque: 'Faz parte de uma série (semanal, quinzenal…).', cor: '#4338ca', html: TRACO('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>') },
+  link: { nome: 'Agendou pelo link', porque: 'O próprio cliente marcou pelo link do salão.', cor: '#0369a1', html: TRACO('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>') },
+  espera: { nome: 'Veio da lista de espera', porque: 'O horário foi dado a quem esperava vaga.', cor: '#6d28d9', html: TRACO('<path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/>') },
+  faltas: { nome: 'Histórico de faltas', porque: 'Cliente na régua de faltas do salão.', cor: '#c2410c', html: '<b>!</b>' }
 };
+// Ícones de um card na ordem do card: os do servidor e, se pago, o "$" logo depois das estrelas.
+export function codigosDoCard(item) {
+  const c = (Array.isArray(item.marcadores) ? item.marcadores : []).filter(k => ICONES_CARD[k]);
+  if (item.pago === true) c.splice(c.filter(k => k.startsWith('assinatura')).length, 0, 'pago_local');
+  return c;
+}
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -191,8 +200,8 @@ function matizDoServico(item) {
 
 const horaDoMinuto = min => String(Math.floor(min / 60) % 24).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
 
-export function iconesDoCard(marcadores) {
-  return (Array.isArray(marcadores) ? marcadores : []).filter(c => ICONES_CARD[c]).map(c => {
+export function iconesDoCard(codigos) {
+  return (Array.isArray(codigos) ? codigos : []).filter(c => ICONES_CARD[c]).map(c => {
     const i = ICONES_CARD[c];
     return `<span class="ag-ic" data-icone="${c}" style="background:${i.cor}" title="${escapeHtml(i.nome)}" role="img" aria-label="${escapeHtml(i.nome)}">${i.html}</span>`;
   }).join('');
@@ -224,8 +233,9 @@ function renderAgBlock(item) {
   const resizeHtml = isEditable ? `<div class="resize-handle" data-ag-id="${item.id}"></div>` : '';
   const cliente = findClienteNome(item.cliente_id);
   const servico = findServicoNome(item.servico_id);
-  const icones = iconesDoCard(item.marcadores);
-  const nomesIcones = (item.marcadores || []).filter(c => ICONES_CARD[c]).map(c => ICONES_CARD[c].nome);
+  const codigos = codigosDoCard(item);
+  const icones = iconesDoCard(codigos);
+  const nomesIcones = codigos.map(c => ICONES_CARD[c].nome);
   const cls = ['ag-block', 'ag-card'];
   if (compact) cls.push('compact');
   if (isEditable) cls.push('editavel');
@@ -236,7 +246,7 @@ function renderAgBlock(item) {
   const tag = conflito ? '<span class="ag-conf-tag">⚠ ' + conflito + '</span> ' : '';
   const line1 = `<div class="ag-line1">${tag}<span class="ag-t">${horario}</span> <span class="ag-n">${escapeHtml(cliente)}</span>${compact && icones ? `<span class="ag-icons">${icones}</span>` : ''}</div>`;
   const corpo = compact ? '' : [
-    duracao >= 30 ? `<div class="ag-line2">${escapeHtml(servico)}${pago ? ' <span class="ag-pago-chip">PAGO</span>' : ''}</div>` : '',
+    duracao >= 30 ? `<div class="ag-line2">${escapeHtml(servico)}</div>` : '',
     duracao >= 45 && item.observacoes ? `<div class="ag-aviso">⚠ ${escapeHtml(item.observacoes)}</div>` : '',
     icones ? `<div class="ag-icons">${icones}</div>` : ''
   ].join('');
@@ -290,6 +300,8 @@ export function renderTimeline() {
   }
   
   container.style.setProperty('--prof-count', profs.length);
+  // D-080: com 3 ou mais profissionais, o celular mostra 2 por vez (CSS) e o resto fica ao lado.
+  container.classList.toggle('ag-paginada', profs.length > 2);
   const deslocamento = ajustarJanela(state.selectedDay, profs);
 
   let html = '';
@@ -345,6 +357,7 @@ export function renderTimeline() {
   const rolagem = document.getElementById('timelineContainer');
   if (deslocamento && rolagem) rolagem.scrollTop += deslocamento * 60 * PX_POR_MIN;
   atualizarSeloFora(state.selectedDay, profs);
+  atualizarPagina();
 
   positionRedline();
   // Fora da escala (D-047): a grade do dia chega do servidor e a tela redesenha uma vez (também
@@ -736,6 +749,7 @@ function openActionSheet(item) {
     ${htmlCampos(item)}
     <p class="body-sm hidden agc-plano" id="sheetPlano" role="status"></p>
     <div class="sheet-actions agc-acoes">${actionsHtml}${acoesDaSerie(item)}${acoesDoAtendimento(item)}</div>
+    ${htmlLegendaIcones(item)}
     <details class="sheet-historico" id="historicoDetails">
       <summary>Histórico</summary>
       <div id="historicoBody" class="sheet-historico-body">Carregando…</div>
@@ -744,9 +758,32 @@ function openActionSheet(item) {
   document.getElementById('actionSheet').dataset.agendaId = item.id;
   const details = document.getElementById('historicoDetails');
   details.addEventListener('toggle', () => { if (details.open && !details.dataset.loaded) loadHistorico(item.id); });
+  document.getElementById('btnTodosIcones')?.addEventListener('click', ev => {
+    const lista = document.getElementById('legendaTodos');
+    lista.hidden = !lista.hidden;
+    ev.currentTarget.textContent = lista.hidden ? 'Ver todos os ícones' : 'Ver só os deste card';
+    document.getElementById('legendaDoCard').hidden = !lista.hidden;
+  });
   openModal('actionSheet');
   loadReliabilityBadge(item.cliente_id);
   carregarSeloPlano(item);
+}
+
+// Legenda dos ícones (D-080): campo que abre e fecha, como o Histórico, fechado por padrão. Só aparece
+// quando o card tem ícone. "Ver todos os ícones" troca para a legenda completa.
+function linhaLegenda(c) {
+  const i = ICONES_CARD[c];
+  return `<li class="sheet-legenda-item">${iconesDoCard([c])}<span><b>${escapeHtml(i.nome)}</b> <span class="sheet-legenda-porque">${escapeHtml(i.porque)}</span></span></li>`;
+}
+function htmlLegendaIcones(item) {
+  const codigos = codigosDoCard(item);
+  if (!codigos.length) return '';
+  return `<details class="sheet-historico sheet-legenda" id="legendaDetails">
+      <summary>Ícones deste card (${codigos.length})</summary>
+      <ul class="sheet-historico-lista" id="legendaDoCard">${codigos.map(linhaLegenda).join('')}</ul>
+      <ul class="sheet-historico-lista" id="legendaTodos" hidden>${Object.keys(ICONES_CARD).map(linhaLegenda).join('')}</ul>
+      <button type="button" class="sheet-legenda-todos" id="btnTodosIcones">Ver todos os ícones</button>
+    </details>`;
 }
 
 // Selo do plano de assinatura no card (D-043): "Plano X: coberto (2 de 4)" ou o motivo de não
@@ -1125,6 +1162,34 @@ function focarCard(id) {
   if (el) el.focus({ preventScroll: false });
 }
 
+// Agenda com 2 profissionais por vez (D-080): diz quem está na tela e anda de 2 em 2 colunas.
+// Só aparece quando as colunas não cabem todas (celular com 3 ou mais profissionais).
+function colunasDaGrade() {
+  const c = document.getElementById('timelineContainer');
+  const heads = [...document.querySelectorAll('#agendaGrid .agenda-grid-header')];
+  const largura = heads[0] ? heads[0].getBoundingClientRect().width : 0;
+  return { c, heads, largura };
+}
+function atualizarPagina() {
+  const el = document.getElementById('agPagina');
+  if (!el) return;
+  const { c, heads, largura } = colunasDaGrade();
+  const cabem = largura ? Math.max(1, Math.round((c.clientWidth - 44) / largura)) : heads.length;
+  if (!c || !heads.length || cabem >= heads.length) { el.classList.add('hidden'); return; }
+  const primeira = Math.min(heads.length - cabem, Math.max(0, Math.round(c.scrollLeft / largura)));
+  const nomes = profsNaGrade().slice(primeira, primeira + cabem).map(p => (p.nome || '').split(' ')[0]);
+  document.getElementById('agPagTxt').textContent = `${nomes.join(' e ')} · ${primeira + 1}–${primeira + cabem} de ${heads.length}`;
+  document.getElementById('agPagAnt').disabled = primeira === 0;
+  document.getElementById('agPagProx').disabled = primeira + cabem >= heads.length;
+  el.classList.remove('hidden');
+}
+function andarColunas(direcao) {
+  const { c, largura } = colunasDaGrade();
+  if (!c || !largura) return;
+  const cabem = Math.max(1, Math.round((c.clientWidth - 44) / largura));
+  c.scrollBy({ left: direcao * cabem * largura, behavior: 'smooth' });
+}
+
 // Mover um card (arraste ou teclado) para outro profissional/horário do mesmo dia (D-078).
 // Ocupado: nada muda, e a tela diz por quem. Mesmo lugar: nada a fazer.
 function moverCard(ag, profId, minC, { focar = false } = {}) {
@@ -1194,32 +1259,37 @@ function atualizarAlvo(clientX, clientY) {
     highlightSlot(d.targetProf, minC, alvo, dur);
     profCol.closest('.agenda-grid')?.setAttribute('data-arraste-horario', formatTime(alvo.hora, alvo.mins));
   }
-  ajustarRolagemAuto(clientY);
+  ajustarRolagemAuto(clientX, clientY);
 }
 
 // Rolagem automática perto da borda de cima ou de baixo da grade. Só começa depois de o dedo
 // ficar 0,4 s na faixa da borda: passar por ela, ou soltar no último horário visível, não rola.
 const BORDA_ROLAGEM_PX = 32;
 const ESPERA_ROLAGEM_MS = 400;
-function ajustarRolagemAuto(clientY) {
+function ajustarRolagemAuto(clientX, clientY) {
   const c = document.getElementById('timelineContainer');
   if (!c || !state.dragging) return pararRolagemAuto();
   const r = c.getBoundingClientRect();
-  const passo = clientY < r.top + BORDA_ROLAGEM_PX ? -12 : clientY > r.bottom - BORDA_ROLAGEM_PX ? 12 : 0;
-  if (!passo) return pararRolagemAuto();
-  if (rolagemAuto && rolagemAuto.passo === passo) return;
+  const passoY = clientY < r.top + BORDA_ROLAGEM_PX ? -12 : clientY > r.bottom - BORDA_ROLAGEM_PX ? 12 : 0;
+  // D-080: com as colunas lado a lado, perto da borda esquerda (depois da régua) ou direita rola para o lado.
+  const podeX = c.scrollWidth > c.clientWidth;
+  const passoX = !podeX ? 0 : clientX < r.left + 44 + BORDA_ROLAGEM_PX ? -12 : clientX > r.right - BORDA_ROLAGEM_PX ? 12 : 0;
+  if (!passoY && !passoX) return pararRolagemAuto();
+  const chave = passoX + ',' + passoY;
+  if (rolagemAuto && rolagemAuto.chave === chave) return;
   pararRolagemAuto();
   const desde = performance.now();
   const tick = agora => {
     if (!state.dragging || !rolagemAuto) return;
     if (agora - desde >= ESPERA_ROLAGEM_MS) {
-      const antes = c.scrollTop;
-      c.scrollTop += passo;
-      if (c.scrollTop !== antes) atualizarAlvo(state.dragging.x, state.dragging.y);
+      const antes = c.scrollTop + ',' + c.scrollLeft;
+      c.scrollTop += passoY;
+      c.scrollLeft += passoX;
+      if (c.scrollTop + ',' + c.scrollLeft !== antes) atualizarAlvo(state.dragging.x, state.dragging.y);
     }
     if (rolagemAuto) rolagemAuto.raf = requestAnimationFrame(tick);
   };
-  rolagemAuto = { passo, raf: requestAnimationFrame(tick) };
+  rolagemAuto = { chave, raf: requestAnimationFrame(tick) };
 }
 function pararRolagemAuto() {
   if (rolagemAuto) cancelAnimationFrame(rolagemAuto.raf);
@@ -1439,6 +1509,13 @@ export function initAgenda() {
   const timelineCols = document.getElementById('agendaGrid');
   timelineCols.addEventListener('click', onTimelineClick);
   document.getElementById('agSeloFora')?.addEventListener('click', irParaForaDaEscala);
+  document.getElementById('agPagAnt')?.addEventListener('click', () => andarColunas(-1));
+  document.getElementById('agPagProx')?.addEventListener('click', () => andarColunas(1));
+  let pagRaf = 0;
+  document.getElementById('timelineContainer')?.addEventListener('scroll', () => {
+    cancelAnimationFrame(pagRaf); pagRaf = requestAnimationFrame(atualizarPagina);
+  }, { passive: true });
+  window.addEventListener('resize', () => requestAnimationFrame(atualizarPagina));
 
   timelineCols.addEventListener('keydown', onCardKeydown);
 
