@@ -206,13 +206,15 @@
             <button type="button" id="btnComandasAgenda" class="btn btn-secondary" aria-pressed="true" aria-controls="comandasRegistros">Atendimentos da agenda</button>
             <button type="button" id="btnComandasHistorico" class="btn btn-secondary" aria-pressed="false" aria-controls="comandasRegistros">Histórico de comandas</button>
           </div>
+          <div id="comandasPeriodo" class="comandas-periodo hidden" aria-label="Período do histórico"></div>
           <div id="comandasFiltros" class="comandas-filtros">
-            <div class="field">
+            <div class="field" id="comandasDataCampo">
               <label for="comandasData">Data</label>
               <input type="date" id="comandasData" required />
             </div>
             <button type="button" id="btnAtualizarComandas" class="btn btn-secondary">Atualizar</button>
           </div>
+          <p id="comandasResumo" class="comandas-resumo hidden" role="status"></p>
           <p id="comandasContexto" class="body-sm text-tertiary"></p>
           <p id="comandasStatus" class="body-sm" role="status"></p>
           <ul id="comandasRegistros" class="comandas-registros" role="list" aria-label="Atendimentos da agenda"></ul>

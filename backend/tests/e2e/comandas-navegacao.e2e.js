@@ -185,10 +185,10 @@ async function conferirSelecaoPorTeclado(p) {
     assert.equal(await linha(p, agBruno.id).isVisible(), false, 'o atendimento pago sai da fila');
 
     await admin.click('#btnComandasHistorico');
-    const data = admin.locator('#comandasData');
-    await data.fill('2001-01-02');
+    // D-082: no histórico o período vem dos atalhos (o campo de data fica para a fila da agenda).
+    await admin.click('#comandasPeriodo [data-atalho="ontem"]');
     await admin.waitForFunction(() => /Nenhuma comanda fechada/.test(document.getElementById('comandasStatus').textContent));
-    await data.fill(HOJE);
+    await admin.click('#comandasPeriodo [data-atalho="hoje"]');
     await admin.locator(`[data-comandas-historico="${id}"]`).click();
     const detalhe = admin.locator('#comandasDetalhe');
     await detalhe.waitFor();

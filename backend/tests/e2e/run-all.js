@@ -62,6 +62,7 @@ const CASOS = [
   { nome: 'metas' },
   { nome: 'comanda' },
   { nome: 'comandas-navegacao' },
+  { nome: 'comandas-periodo' },
   { nome: 'gestao-navegacao' },
   { nome: 'checkout-retomada' },
   { nome: 'agora' },

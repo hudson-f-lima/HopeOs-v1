@@ -1,5 +1,10 @@
 # Changelog
 
+## Comandas: histórico por período (D-082)
+- No histórico de comandas, escolha o período com um toque: Hoje, Ontem, Esta semana, Este mês ou Mês anterior.
+- Em "Personalizado", toque no primeiro dia e no último, como no extrato do banco.
+- O topo mostra quantas comandas, o total recebido e, se houver, o estornado. A lista vem separada por dia.
+
 ## Agenda: alças de cima e de baixo e passo de 10 minutos (D-081)
 - Segure a faixa de cima do card para mudar o início (o fim fica onde está); a de baixo muda o fim; o meio arrasta.
 - Enquanto arrasta ou estica, uma etiqueta mostra "início–fim (duração)". Esc cancela.

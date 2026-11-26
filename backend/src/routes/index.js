@@ -1171,17 +1171,40 @@ async function carregarLedgerDasComandas(repo, ids) {
   return { itens, pagamentos, estornos, estornoItens, estornoPagamentos };
 }
 
+// Período das Comandas (D-082): um dia (`data`, como antes) ou de `inicio` a `fim`, até 92 dias.
+const MAX_DIAS_PERIODO = 92;
+function periodoDaQuery(query, hoje) {
+  if (query.inicio === undefined && query.fim === undefined) {
+    const data = validarDataQuery(query.data, hoje);
+    return { inicio: data, fim: data };
+  }
+  if (query.inicio === undefined || query.inicio === '') throw createAppError('INVALID_DATE', 'inicio é obrigatório com fim.', 422, { field: 'inicio' });
+  const inicio = validarDataQuery(query.inicio, hoje);
+  const fim = validarDataQuery(query.fim, inicio);
+  if (fim < inicio) throw createAppError('INVALID_RANGE', 'fim deve ser igual ou posterior a inicio.', 422, { inicio, fim });
+  if (diasEntre(inicio, fim) + 1 > MAX_DIAS_PERIODO) throw createAppError('RANGE_TOO_LONG', `Escolha um período de até ${MAX_DIAS_PERIODO} dias.`, 422, { maxDias: MAX_DIAS_PERIODO });
+  return { inicio, fim };
+}
+
 router.get('/comandas', authorize('comanda:historico'), async (req, res, next) => {
   try {
     const hoje = agoraNoFuso(env.APP_TIMEZONE, clock.agora()).data;
-    const data = validarDataQuery(req.query.data, hoje);
+    const { inicio, fim } = periodoDaQuery(req.query, hoje);
     const repo = new SupabaseRepository(req.auth.empresa_id);
-    const comandos = await repo.list('comandos', { empresa_id: repo.empresaId, data });
+    const comandos = inicio === fim
+      ? await repo.list('comandos', { empresa_id: repo.empresaId, data: inicio })
+      : await repo.list('comandos', { empresa_id: repo.empresaId }, { inicio, fim });
     const [ledger, clientes] = await Promise.all([carregarLedgerDasComandas(repo, comandos.map(c => c.id)), repo.list('clientes', { empresa_id: repo.empresaId })]);
     const nomes = new Map(clientes.map(c => [c.id, c.nome]));
     const lista = comandos.map(c => comandaComSaldo(c, ledger, hoje, nomes))
-      .sort((a, b) => String(b.hora || '').localeCompare(String(a.hora || '')));
-    res.json({ ok: true, data: { data, hoje, prazoDias: PRAZO_DIAS, comandas: lista } });
+      .sort((a, b) => `${b.data} ${b.hora || ''}`.localeCompare(`${a.data} ${a.hora || ''}`));
+    // Resumo do período, do servidor: o recebido nas vendas e, à parte, o devolvido em estornos delas.
+    const resumo = {
+      comandas: lista.length,
+      recebidoCentavos: lista.reduce((s, c) => s + c.totalRecebidoCentavos, 0),
+      estornadoCentavos: lista.reduce((s, c) => s + c.estornos.reduce((t, e) => t + Number(e.reembolsoCentavos || 0), 0), 0)
+    };
+    res.json({ ok: true, data: { data: inicio, inicio, fim, hoje, prazoDias: PRAZO_DIAS, comandas: lista, resumo } });
   } catch (err) { next(err); }
 });
 
