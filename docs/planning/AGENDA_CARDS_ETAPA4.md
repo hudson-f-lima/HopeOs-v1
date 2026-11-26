@@ -48,7 +48,7 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 
 ## 5. Ordem proposta (cada uma em PR próprio)
 1. **4a. Legenda e ícones** (5, 6, 9): **feita (D-080)**, junto com a agenda de 2 profissionais por vez no celular (pedido de 26/11), sem barra extra acima da grade.
-2. **4b. Alças de cima e de baixo, e etiqueta de horário** (2, 3, 4): `novaDuracaoMin` na remarcação, com gate; E2E com as duas bordas e controle negativo.
+2. **4b. Alças de cima e de baixo, e etiqueta de horário** (2, 3, 4): **feita (D-081)**, junto com o passo de 10 min por aparelho (item 1).
 3. **4c. Passo** (1), depois da decisão do dono. A grade (`GRID_MIN`) acompanha o passo, para o card cair na linha.
 4. **4d. Ideias da seção 4**, uma por vez, na ordem: buraco aproveitável, visita ligada, cliente atrasado.
 - Bloqueados: estrela laranja (V1.5), pago online (gateway), tempo de pausa (migration).

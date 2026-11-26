@@ -1599,7 +1599,7 @@ body{font-variant-numeric:tabular-nums;}
 .ag-block.ag-card{--h:215;background:hsl(var(--h) var(--card-s) var(--card-l));color:hsl(var(--h) 35% var(--card-text-l));
   border:1px solid hsl(var(--h) var(--card-s) calc(var(--card-l) - 10%));border-left:4px solid hsl(var(--h) var(--card-s) var(--card-border-l));
   padding:4px 22px 4px 7px;display:flex;flex-direction:column;gap:1px;box-shadow:none;}
-.ag-card.editavel{padding-top:12px;}
+.ag-card.com-topo{padding-top:12px;}
 .ag-card .ag-line1{display:flex;align-items:center;gap:4px;min-width:0;font-size:12px;letter-spacing:0;pointer-events:none;}
 .ag-card .ag-t{font-weight:700;font-variant-numeric:tabular-nums;opacity:.85;flex:none;}
 .ag-card .ag-n{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;}
@@ -1609,10 +1609,10 @@ body{font-variant-numeric:tabular-nums;}
 .ag-card .ag-ic{width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;flex:none;color:#fff;font-size:9px;line-height:1;box-shadow:0 0 0 1.5px rgba(255,255,255,.85);}
 .ag-card .ag-ic svg{width:10px;height:10px;}
 .ag-card .ag-st{position:absolute;top:3px;right:4px;width:15px;height:15px;display:grid;place-items:center;pointer-events:none;}
-.ag-card.editavel .ag-st{top:12px;}
+.ag-card.com-topo .ag-st{top:12px;}
 .ag-card .ag-st svg{width:15px;height:15px;}
 .ag-card.compact{padding-top:2px;padding-bottom:2px;justify-content:center;}
-.ag-card.compact.editavel{padding-top:12px;}
+
 .ag-card.compact .ag-line1{font-size:11px;padding-top:0;}
 .ag-card.st-falta{outline:2px dashed var(--md-error);outline-offset:-2px;}
 .ag-card.st-falta .ag-n{text-decoration:line-through;text-decoration-thickness:1.5px;}
@@ -1655,3 +1655,16 @@ body{font-variant-numeric:tabular-nums;}
   .agenda-android .agenda-grid.ag-paginada{grid-template-columns:44px repeat(var(--prof-count,1),calc((100cqw - 44px) / 2));min-width:max-content;}
   .agenda-android .agenda-grid.ag-paginada .agenda-grid-header{scroll-snap-align:start;}
 }
+
+/* ============ Alças e etiqueta de horário (D-081, cards 4b) ============ */
+.ag-card .resize-handle{height:14px;cursor:ns-resize;touch-action:none;}
+.ag-card .resize-topo{position:absolute;top:0;bottom:auto;left:0;right:0;z-index:5;border-radius:10px 10px 0 0;background:hsl(var(--h) var(--card-s) calc(var(--card-l) - 7%));}
+.ag-card .resize-topo::after{content:"";position:absolute;top:5px;left:50%;transform:translateX(-50%);width:20px;height:3px;border-radius:2px;background:var(--primary);}
+.ag-card .resize-tooltip.topo{top:-28px;bottom:auto;}
+.ag-arraste-rot{position:fixed;z-index:10000;pointer-events:none;transform:translate(-50%,-100%);margin-top:-6px;background:var(--text-primary);color:var(--bg-surface);
+  font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:var(--elevation-2);}
+.ag-arraste-rot.conflito{background:#b91c1c;color:#fff;}
+.ag-arraste-rot.fora{background:#b45309;color:#fff;}
+.agx-passo{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--text-secondary);}
+.agx-passo select{width:auto;min-height:40px;}
+.agenda-grid-col > .resize-tooltip{bottom:auto;z-index:12;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:800;}

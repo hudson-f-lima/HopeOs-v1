@@ -172,6 +172,8 @@ Campos de autoria (`created_by`, `updated_by`, `cancelled_by`, `actor_id`, `inte
 
 Remarcação (`status: 'reagendado'` com `reagendamento`, e `POST /api/public/meu-agendamento/remarcar`), D-063/027: o novo horário e o original `reagendado` são gravados numa transação. Se o original mudou de status depois de lido → 409 `AGENDAMENTO_MUDOU`, sem nada gravado. Escala mudada durante a gravação → 409 `ESCALA_MUDOU` (antes da D-063, 500 no banco real).
 
+Na remarcação pela equipe, `novaDuracaoMin` (opcional, inteiro de 10 a 480; fora disso, 422 `INVALID_DURATION`) grava o novo horário com outra duração na mesma operação. Conflito e escala são conferidos com a duração nova (D-081). Sem o campo, a duração é mantida.
+
 ## D-013 — estorno de comanda (migration 009)
 - `POST /api/comandas/:id/estorno` (`checkout:estornar`: admin/gestor, só usuário)
   - Corpo: `{tipo:'total'|'parcial', idempotencyKey, motivoCodigo: erro_lancamento|desistencia_cliente|insatisfacao|duplicidade|outro, motivo (10–500), devolverEstoque? (total), itens?:[{comandoItemId, quantidade, devolveEstoque?}] (parcial), reembolsos?:[{formaCode, valorCentavos}] | reembolsoForma? (parcial)}`.

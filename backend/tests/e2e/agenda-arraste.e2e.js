@@ -9,7 +9,7 @@
 //      solta → grava; aviso com "Desfazer" → volta para Ana 09:00 (outra remarcação no servidor);
 //   3) arrastar até Bruno 10:00 (ocupado): prévia vermelha com "Ocupado: Ocupante Teste"; solta → nada muda;
 //   4) arrastar até 08:00 (fora da escala): prévia âmbar; volta ao lugar e solta → nada muda;
-//   5) teclado: foco no card e ↓ → Ana 09:20, e o foco fica no card novo;
+//   5) teclado: foco no card e ↓ → Ana 09:10 (passo padrão de 10 min, D-081), e o foco fica no card novo;
 //   6) card pago: apertar e mover não arrasta;
 //   7) segurar perto da borda de baixo rola a grade.
 // Cada passo confere o banco de teste (/__db/agendamentos).
@@ -124,7 +124,7 @@ async function irPara(p, data) {
   await p.focus(`.ag-card[data-ag-id="${id1}"]`);
   await p.keyboard.press('ArrowDown'); await p.waitForTimeout(1500);
   const depoisTeclado = await ativosDe(cli[0]);
-  confere('↓ move para Ana 09:20', JSON.stringify(resumo(depoisTeclado)) === JSON.stringify(['Ana 09:20']), JSON.stringify(resumo(depoisTeclado)));
+  confere('↓ move um passo (10 min): Ana 09:10', JSON.stringify(resumo(depoisTeclado)) === JSON.stringify(['Ana 09:10']), JSON.stringify(resumo(depoisTeclado)));
   const focado = await p.evaluate(() => document.activeElement && document.activeElement.dataset.agId);
   confere('o foco fica no card movido', depoisTeclado[0] && focado === depoisTeclado[0].id, String(focado));
 

@@ -85,19 +85,20 @@ async function entrar(b, email, viewport = { width: 390, height: 844 }) {
     return { hora: s.dataset.time, top: rr.top, x: rr.left + rr.width / 2 };
   }, BRUNO);
   const alca = await r.evaluate(id => {
-    const bl = document.querySelector(`[data-ag-id="${id}"].ag-block`); const h = bl && bl.querySelector('.drag-handle');
-    if (!h) return null;
+    // D-081: o topo (14 px) agora é a alça de início; pega o card logo abaixo dela, no meio.
+    const bl = document.querySelector(`[data-ag-id="${id}"].ag-block`);
+    if (!bl) return null;
     bl.scrollIntoView({ block: 'center' });
-    const hb = h.getBoundingClientRect(); const bb = bl.getBoundingClientRect();
-    return { x: hb.left + hb.width / 2, y: hb.top + hb.height / 2, pega: hb.top + hb.height / 2 - bb.top };
+    const bb = bl.getBoundingClientRect();
+    return { x: bb.left + bb.width / 2, y: bb.top + 16, pega: 16 };
   }, naSemana2.id);
   if (!destino || !alca) { falhas.push('arraste: sem destino livre ou sem alça'); console.log('ARRASTE: sem destino/alça', JSON.stringify({ destino, alca })); }
   else {
     // A alça pode ter mudado de lugar com o scrollIntoView: mede de novo o destino.
     const d2 = await r.evaluate(([bruno, hora]) => { const s = document.querySelector(`.slot-vazio[data-prof="${bruno}"][data-time="${hora}"]`); const rr = s.getBoundingClientRect(); return { top: rr.top, x: rr.left + rr.width / 2 }; }, [BRUNO, destino.hora]);
-    const a2 = await r.evaluate(id => { const bl = document.querySelector(`[data-ag-id="${id}"].ag-block`); const h = bl.querySelector('.drag-handle'); const hb = h.getBoundingClientRect(); const bb = bl.getBoundingClientRect(); return { x: hb.left + hb.width / 2, y: hb.top + hb.height / 2, pega: hb.top + hb.height / 2 - bb.top }; }, naSemana2.id);
+    const a2 = await r.evaluate(id => { const bb = document.querySelector(`[data-ag-id="${id}"].ag-block`).getBoundingClientRect(); return { x: bb.left + bb.width / 2, y: bb.top + 16, pega: 16 }; }, naSemana2.id);
     await r.mouse.move(a2.x, a2.y); await r.mouse.down();
-    const yFinal = d2.top + a2.pega + 2; // topo do bloco 2 px abaixo da linha do horário
+    const yFinal = d2.top + a2.pega - 1; // topo do bloco 1 px acima da linha (arredonda para ela; o ponteiro fica dentro da coluna, não na borda da grade)
     for (let i = 1; i <= 8; i++) { await r.mouse.move(a2.x + (d2.x - a2.x) * i / 8, a2.y + (yFinal - a2.y) * i / 8); await r.waitForTimeout(30); }
     const previa = await r.evaluate(() => { const h = document.querySelector('.drag-highlight .dh-ini'); return h ? h.textContent.trim() : null; });
     confere('prévia do arraste mostra o horário da linha (' + destino.hora + ')', previa === destino.hora, String(previa));
