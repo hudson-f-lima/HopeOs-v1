@@ -1665,8 +1665,8 @@ body{font-variant-numeric:tabular-nums;}
   font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:var(--elevation-2);}
 .ag-arraste-rot.conflito{background:#b91c1c;color:#fff;}
 .ag-arraste-rot.fora{background:#b45309;color:#fff;}
-.agx-passo{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--text-secondary);}
-.agx-passo select{width:auto;min-height:40px;}
+.aparelho-aviso{margin:0 0 16px;padding:10px 12px;border-radius:12px;background:var(--bg-app-light);font-size:13px;color:var(--text-secondary);}
+.aparelho-aviso b{color:var(--text-primary);}
 .agenda-grid-col > .resize-tooltip{bottom:auto;z-index:12;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:800;}
 
 /* ============ Comandas por período (D-082) ============ */
