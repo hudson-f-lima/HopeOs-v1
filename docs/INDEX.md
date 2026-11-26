@@ -35,6 +35,7 @@ SQL dentro destes documentos é **DRAFT ONLY**: o schema real está em `supabase
 
 | Documento | Situação em 2026-11-23 |
 |---|---|
+| [`planning/AGENDA_CARDS_ETAPA4.md`](planning/AGENDA_CARDS_ETAPA4.md) | Cards etapa 4 (26/11): legenda, estrelas, "$" do pago, alças de cima e de baixo, passo do arraste; ideias de baixo esforço cognitivo; decisões do dono pendentes |
 | [`planning/INTELLIGENCE_DASHBOARD.md`](planning/INTELLIGENCE_DASHBOARD.md) | D-072: inventário, arquitetura, seleção de gráficos e critérios de validação |
 | [`planning/BLUEPRINT_MASTER_V2_ANALISE.md`](planning/BLUEPRINT_MASTER_V2_ANALISE.md) | Ondas 1 e 2 feitas (D-062, D-063); decisões da Onda 3 pendentes |
 | [`planning/CADASTROS_PROFUNDIDADE_ANALISE.md`](planning/CADASTROS_PROFUNDIDADE_ANALISE.md) | Análise; decisões do dono pendentes (ficha do cliente, leitura do AppBarber) |

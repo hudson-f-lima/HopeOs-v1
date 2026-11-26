@@ -13,6 +13,7 @@ Protótipo aprovado (25/11): artifact "Cards da Agenda" (claude.ai/artifact/2TnU
 | 1 | Grade do tamanho do dia + selo "N fora" | Feita (D-074, PR #66) |
 | 2 | Card novo: densidade por altura, situação no canto, 7 ícones com dados, concluído e pago | Feita (D-077), sem migration |
 | 3 | Arraste: prévia início–fim + profissional, conflito com nome, desfazer 8 s, teclado, rolagem na borda | Feita (D-078), sem migration. Pendente: passo do salão (`slot_padrao` não chega à tela) |
+| 4 | Legenda dos ícones, estrela amarela, "$" verde do pago, alças de cima e de baixo com etiqueta de horário, passo do arraste | Planejada: `docs/planning/AGENDA_CARDS_ETAPA4.md` (4a → 4b → 4c → 4d) |
 | — | Cor e intensidade escolhidas no cadastro do serviço | **BLOQUEADO**: coluna nova = migration 028+, só com autorização |
 
 Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
@@ -23,6 +24,16 @@ Ordem: 2 antes de 3. O arraste usa o card novo; fazer 3 antes refaz o trabalho.
 - Situação (agendado, confirmado, chegou, atendendo, pago, faltou) é um **ícone no canto superior**. Nunca troca a cor do card.
 - Selo da grade: texto curto **"N fora"** (`#agSeloFora`). Não usar faixa larga.
 - Ícones: só os **7 que já têm dado**. São estes: assinante, assinatura em atraso, primeira visita, horário recorrente, agendou pelo link, veio da lista de espera e histórico de faltas.
+
+## Pedidos do dono em 26/11 (etapa 4)
+- **Cores das estrelas:** amarela = plano ativo e pago; vermelha = inadimplente (atrasada ou suspensa); laranja = plano de outra unidade (**BLOQUEADO**, D-073/V1.5). Pausada e cancelada não mostram estrela.
+- **Pago no local:** "$" verde no lugar do texto "PAGO". O acinzentado do pago fica **no fundo** (menos saturação), nunca com `filter` no card inteiro, que apagaria o verde.
+- **Pago online:** ícone reservado (cartão com raio, azul), **BLOQUEADO** até existir gateway.
+- **Legenda:** ao tocar no card, uma dobra "Ícones deste card" (como o histórico) e o link "Ver todos os ícones".
+- **Zonas do card:** topo 14 px redimensiona o início (o fim fica parado); base 14 px redimensiona o fim (o início fica parado); o meio arrasta. Card abaixo de 30 min: só a base redimensiona.
+- **Etiqueta de horário** igual nos três gestos: "09:10–09:40 (30 min)", presa ao card que acompanha o dedo.
+- **Passo:** o dono quer 10 min ou configurável. Proposta: padrão 10, escolha por aparelho (sem migration). Por salão exige coluna nova (028). A grade (`GRID_MIN`) acompanha o passo.
+- **Remarcar com duração nova:** `novaDuracaoMin` no `PATCH /agenda/:id/status` (reagendado). A 027 já recebe a duração no `jsonb`: não precisa de migration.
 
 ## Ícones fora da etapa 2 (não implementar)
 | Ícone | Motivo |
