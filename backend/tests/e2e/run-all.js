@@ -80,6 +80,7 @@ const CASOS = [
   { nome: 'agenda-arraste' },
   { nome: 'agenda-colunas' },
   { nome: 'agenda-alcas' },
+  { nome: 'agenda-arrastar-vazio' },
   { nome: 'card-agendamento' },
   { nome: 'regras-agenda' },
   { nome: 'chegada-salao' },

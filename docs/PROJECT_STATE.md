@@ -57,6 +57,7 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
+- **D-086 (27/11, PR rascunho):** segurar e arrastar no espaço vazio escolhe início e duração (agendar com `duracaoMin` ou bloquear o trecho), com a mesma dinâmica do arraste do card. Sem migration.
 - **D-084 (26/11, PR rascunho, migration 028):** "Cliente chegou" vira opção do salão em Regras da agenda. Desligado: card e tela Agora oferecem "Iniciar atendimento" direto e o aviso de atraso some. Corrige também as regras do salão que nunca chegavam à tela da recepção e do profissional.
 - **D-083 (26/11, PR #80):** Gestão em 8 grupos por intenção (busca acha pelos nomes antigos) e grupo novo "Como a agenda aparece", com zoom da grade e passo do arraste por aparelho. "Cliente chegou" como opção do salão veio na D-084. Sem migration.
 - **D-082 (26/11, PR #79):** Comandas › Histórico por período: atalhos (Hoje, Ontem, Esta semana, Este mês, Mês anterior) e calendário de dois toques, resumo do servidor (recebido e estornado) e lista por dia; `GET /comandas?inicio=&fim=` (até 92 dias). Sem migration.

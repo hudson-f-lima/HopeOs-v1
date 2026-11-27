@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: segure no espaço vazio e arraste para escolher o horário (D-086)
+- Segure um horário livre e arraste para cima ou para baixo: a etiqueta mostra "início–fim (duração)". O trecho para no próximo cliente ou bloqueio.
+- Ao soltar, escolha Agendar ou Bloquear. Em Agendar, o horário e a duração já vêm escolhidos. Se quiser, use a duração do serviço.
+- O toque curto continua igual.
+
 ## "Cliente chegou" pode ser desligado no salão (D-084)
 - Em Gestão › Regras da agenda, escolha se a recepção marca a chegada do cliente.
 - Desligado, o card e a tela Agora oferecem "Iniciar atendimento" direto, e o aviso de atraso não aparece.

@@ -511,19 +511,36 @@ export function updateNovoAgendamentoPreview() {
   const horario = document.getElementById('agHorario').value;
   const el = document.getElementById('agDuracaoPreview');
   if (!el) return;
-  if (!servicoId || !horario) { el.textContent = ''; return; }
+  const escolhida = state.agDuracaoEscolhida;
+  if ((!servicoId && !escolhida) || !horario) { el.textContent = ''; return; }
   const duracao = duracaoNovoAgendamento(servicoId, state.fuzzyAgProfissional.getValue());
   const [h, m] = horario.split(':').map(Number);
   const endTotalMin = h * 60 + m + duracao;
   const endStr = String(Math.floor(endTotalMin / 60) % 24).padStart(2, '0') + ':' + String(endTotalMin % 60).padStart(2, '0');
   const ultrapassa = endTotalMin > HORA_FIM * 60;
-  el.textContent = `Este serviço ocupa ${duracao} minutos (até ${endStr}).` + (ultrapassa ? ' Atenção: ultrapassa o horário de funcionamento (20:00).' : '');
+  const aviso = ultrapassa ? ' Atenção: ultrapassa o horário de funcionamento (20:00).' : '';
   el.style.color = ultrapassa ? 'var(--md-error)' : 'var(--md-outline)';
+  if (!escolhida) { el.textContent = `Este serviço ocupa ${duracao} minutos (até ${endStr}).` + aviso; return; }
+  // Duração escolhida na agenda (D-086), com a opção de voltar à do serviço.
+  el.textContent = `Duração: ${duracao} min, escolhida na agenda (até ${endStr}).` + aviso;
+  if (servicoId) {
+    state.agDuracaoEscolhida = null;
+    const doServico = duracaoNovoAgendamento(servicoId, state.fuzzyAgProfissional.getValue());
+    state.agDuracaoEscolhida = escolhida;
+    if (doServico !== escolhida) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn-link'; b.id = 'btnDuracaoServico';
+      b.textContent = `Usar a do serviço (${doServico} min)`;
+      b.addEventListener('click', () => { state.agDuracaoEscolhida = null; updateNovoAgendamentoPreview(); });
+      el.append(' ', b);
+    }
+  }
 }
 
-function openNovoAgendamentoModal(dateStr, horario, profissionalId) {
+function openNovoAgendamentoModal(dateStr, horario, profissionalId, faixa = null) {
   const date = dateStr || state.selectedDay || todayStr();
   state.agListaEspera = null;
+  state.agDuracaoEscolhida = faixa && Number.isInteger(faixa.duracaoMin) ? faixa.duracaoMin : null;
 
   state.fuzzyAgCliente.clear();
   resetClienteRapido();
@@ -579,6 +596,8 @@ function slotsKey(servicoId, profissionalId, data) {
 // Duração usada na prévia e na checagem local de conflito: a do backend quando
 // os slots da mesma seleção já chegaram; senão a do serviço.
 function duracaoNovoAgendamento(servicoId, profissionalId) {
+  // Trecho escolhido arrastando no vazio (D-086): vale a duração escolhida, até a pessoa trocar pela do serviço.
+  if (state.agDuracaoEscolhida) return state.agDuracaoEscolhida;
   const data = document.getElementById('agData').value;
   const info = state.agSlotsInfo;
   if (info && info.key === slotsKey(servicoId, profissionalId, data)) return info.duracaoMin;
@@ -726,7 +745,7 @@ async function criarAgendamento(clienteId, servicoId, profissionalId, data, hora
   try {
     const espera = await decidirEspera(clienteId, servicoId);
     if (!espera.ok) return; // voltou: nada é gravado e o formulário continua aberto
-    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera.listaEsperaId, baixarEsperaOutroServico: espera.baixarOutroServico ? true : undefined } });
+    await api('/agenda', { method: 'POST', body: { clienteId, servicoId, profissionalId, data, horario, duracaoMin: state.agDuracaoEscolhida || undefined, permitirConflito: !!permitirConflito, foraDaDisponibilidade, aceitarAvisos, listaEsperaId: espera.listaEsperaId, baixarEsperaOutroServico: espera.baixarOutroServico ? true : undefined } });
     state.agListaEspera = null;
     closeNovoAgendamentoModal();
     showBanner('Agendamento criado.', 'ok');
@@ -1295,11 +1314,11 @@ const BORDA_ROLAGEM_PX = 32;
 const ESPERA_ROLAGEM_MS = 400;
 function ajustarRolagemAuto(clientX, clientY) {
   const c = document.getElementById('timelineContainer');
-  if (!c || !state.dragging) return pararRolagemAuto();
+  if (!c || !(state.dragging || state.selecao)) return pararRolagemAuto();
   const r = c.getBoundingClientRect();
   const passoY = clientY < r.top + BORDA_ROLAGEM_PX ? -12 : clientY > r.bottom - BORDA_ROLAGEM_PX ? 12 : 0;
   // D-080: com as colunas lado a lado, perto da borda esquerda (depois da régua) ou direita rola para o lado.
-  const podeX = c.scrollWidth > c.clientWidth;
+  const podeX = !state.selecao && c.scrollWidth > c.clientWidth; // a seleção no vazio fica na coluna onde começou
   const passoX = !podeX ? 0 : clientX < r.left + 44 + BORDA_ROLAGEM_PX ? -12 : clientX > r.right - BORDA_ROLAGEM_PX ? 12 : 0;
   if (!passoY && !passoX) return pararRolagemAuto();
   const chave = passoX + ',' + passoY;
@@ -1307,12 +1326,13 @@ function ajustarRolagemAuto(clientX, clientY) {
   pararRolagemAuto();
   const desde = performance.now();
   const tick = agora => {
-    if (!state.dragging || !rolagemAuto) return;
+    const g = state.dragging || state.selecao;
+    if (!g || !rolagemAuto) return;
     if (agora - desde >= ESPERA_ROLAGEM_MS) {
       const antes = c.scrollTop + ',' + c.scrollLeft;
       c.scrollTop += passoY;
       c.scrollLeft += passoX;
-      if (c.scrollTop + ',' + c.scrollLeft !== antes) atualizarAlvo(state.dragging.x, state.dragging.y);
+      if (c.scrollTop + ',' + c.scrollLeft !== antes) (g === state.dragging ? atualizarAlvo : atualizarSelecao)(g.x, g.y);
     }
     if (rolagemAuto) rolagemAuto.raf = requestAnimationFrame(tick);
   };
@@ -1458,6 +1478,93 @@ function onGestoKeydown(ev) {
   ev.preventDefault();
   if (state.dragging) onDragEnd(ev, true);
   if (state.resizing) onResizeEnd(ev, true);
+  if (state.selecao) fimSelecao(ev, true);
+}
+
+// ---------- Segurar e arrastar no vazio (D-086) ----------
+// A mesma dinâmica do arraste do card: passo do aparelho, etiqueta "início–fim (duração) · profissional",
+// rolagem na borda, Esc cancela. Fica na coluna onde começou e para no próximo atendimento ou bloqueio
+// (para cima, no anterior). Ao soltar, abre a escolha Agendar ou Bloquear com o trecho.
+const OCUPA = i => !['cancelado', 'reagendado', 'no_show'].includes(i.status);
+function startSelecao(profId, clientX, clientY) {
+  const col = document.querySelector(`.agenda-grid-col[data-prof-id="${CSS.escape(profId)}"]`);
+  if (!col) return;
+  const total = (HORA_FIM - HORA_INICIO) * 60;
+  const a = Math.max(0, Math.min(total - SNAP_MIN, Math.floor((clientY - col.getBoundingClientRect().top) / PX_POR_MIN / SNAP_MIN) * SNAP_MIN));
+  const ocupados = profItemsForDay(profId).filter(OCUPA).map(i => { const s = itemStartMinutes(i); return [s, s + (Number(i.duracao_min) || 30)]; })
+    .concat(bloqueiosDoDia(profId, state.selectedDay).map(b => [b.ini - HORA_INICIO * 60, b.fim - HORA_INICIO * 60]));
+  // Começou em cima de algo ocupado (ex.: um bloqueio): não é vazio.
+  if (ocupados.some(([s, f]) => a < f && a + SNAP_MIN > s)) return;
+  let anterior = 0; let proximo = total;
+  for (const [s, f] of ocupados) {
+    if (s >= a + SNAP_MIN && s < proximo) proximo = s;
+    if (f <= a && f > anterior) anterior = f;
+  }
+  const caixa = document.createElement('div');
+  caixa.className = 'ag-selecao';
+  caixa.setAttribute('aria-hidden', 'true');
+  col.appendChild(caixa);
+  const rot = document.createElement('div');
+  rot.className = 'ag-arraste-rot';
+  rot.setAttribute('role', 'status');
+  document.body.appendChild(rot);
+  state.selecao = { profId, a, anterior, proximo, ini: a, fim: a + SNAP_MIN, caixa, rot, x: clientX, y: clientY };
+  document.addEventListener('mousemove', onSelecaoMove);
+  document.addEventListener('touchmove', onSelecaoMove, { passive: false });
+  document.addEventListener('mouseup', fimSelecao);
+  document.addEventListener('touchend', fimSelecao);
+  document.addEventListener('touchcancel', fimSelecao);
+  document.addEventListener('keydown', onGestoKeydown);
+  atualizarSelecao(clientX, clientY);
+}
+
+function atualizarSelecao(clientX, clientY) {
+  const s = state.selecao;
+  if (!s) return;
+  s.x = clientX; s.y = clientY;
+  const col = document.querySelector(`.agenda-grid-col[data-prof-id="${CSS.escape(s.profId)}"]`);
+  if (!col) return;
+  if (!s.caixa.isConnected) col.appendChild(s.caixa); // a grade foi redesenhada no meio do gesto
+  const cur = Math.round((clientY - col.getBoundingClientRect().top) / PX_POR_MIN / SNAP_MIN) * SNAP_MIN;
+  let ini = Math.min(s.a, cur); let fim = Math.max(s.a + SNAP_MIN, cur);
+  ini = Math.max(ini, s.anterior); fim = Math.min(fim, s.proximo);
+  if (fim - ini > 480) { if (cur < s.a) ini = fim - 480; else fim = ini + 480; }
+  if (ini !== s.ini || fim !== s.fim) navigator.vibrate?.([5]);
+  s.ini = ini; s.fim = fim;
+  const fora = foraDaEscala(s.profId, state.selectedDay, HORA_INICIO * 60 + ini, HORA_INICIO * 60 + fim);
+  s.caixa.className = 'ag-selecao' + (fora ? ' fora' : '');
+  s.caixa.style.top = ini * PX_POR_MIN + 'px';
+  s.caixa.style.height = (fim - ini) * PX_POR_MIN + 'px';
+  const r = s.caixa.getBoundingClientRect();
+  s.rot.className = 'ag-arraste-rot' + (fora ? ' fora' : '');
+  s.rot.textContent = rotuloHorario(ini, fim - ini) + ' · ' + (findProfissionalNome(s.profId) || '') + (fora ? ' · fora da escala' : '');
+  s.rot.style.left = (r.left + r.width / 2) + 'px';
+  s.rot.style.top = r.top + 'px';
+  ajustarRolagemAuto(clientX, clientY);
+}
+
+function onSelecaoMove(e) {
+  if (!state.selecao) return;
+  if (e.cancelable) e.preventDefault();
+  atualizarSelecao(e.touches?.[0].clientX ?? e.clientX, e.touches?.[0].clientY ?? e.clientY);
+}
+
+function fimSelecao(_ev, cancelar = false) {
+  document.removeEventListener('mousemove', onSelecaoMove);
+  document.removeEventListener('touchmove', onSelecaoMove);
+  document.removeEventListener('mouseup', fimSelecao);
+  document.removeEventListener('touchend', fimSelecao);
+  document.removeEventListener('touchcancel', fimSelecao);
+  document.removeEventListener('keydown', onGestoKeydown);
+  pararRolagemAuto();
+  const s = state.selecao;
+  state.selecao = null;
+  if (!s) return;
+  s.caixa.remove(); s.rot.remove();
+  ultimoArrasteEm = Date.now(); // o soltar não vira o toque curto (que abriria só 20 min)
+  if (cancelar) return;
+  abrirHorarioLivre(state.selectedDay, minutesSinceStartToHHMM(s.ini), s.profId, openNovoAgendamentoModal, abrirAgendarDaEspera,
+    { fim: minutesSinceStartToHHMM(s.fim), duracaoMin: s.fim - s.ini });
 }
 
 function formatTime(h, m) {
@@ -1549,11 +1656,14 @@ export function initAgenda() {
     const resizeHandle = e.target.closest('.resize-handle');
     if (resizeHandle) { startResize(resizeHandle.dataset.agId, e, resizeHandle.dataset.modo || 'fim'); return; }
     const card = e.target.closest('.ag-card.editavel');
-    if (!card) return;
+    // Vazio (D-086): apertar e mover escolhe o trecho; sem mover, é o toque de sempre.
+    const vazio = !card && sessionPode('agenda:criar') ? e.target.closest('.slot-vazio[data-prof]') : null;
+    if (!card && !vazio) return;
     const origem = { x: e.clientX, y: e.clientY };
     const mover = ev => {
       if (Math.hypot(ev.clientX - origem.x, ev.clientY - origem.y) <= 6) return;
       parar();
+      if (vazio) { ev.preventDefault(); startSelecao(vazio.dataset.prof, origem.x, origem.y); atualizarSelecao(ev.clientX, ev.clientY); return; }
       startDrag(card.dataset.agId, ev, origem);
     };
     const parar = () => { document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', parar); };
@@ -1567,15 +1677,18 @@ export function initAgenda() {
     const resizeHandle = e.target.closest('.resize-handle');
     if (resizeHandle) { startResize(resizeHandle.dataset.agId, e, resizeHandle.dataset.modo || 'fim'); return; }
     const card = e.target.closest('.ag-card.editavel');
-    if (!card || e.touches.length !== 1) return;
+    const vazio = !card && sessionPode('agenda:criar') ? e.target.closest('.slot-vazio[data-prof]') : null;
+    if ((!card && !vazio) || e.touches.length !== 1) return;
     const t = e.touches[0];
     toqueInicio = { x: t.clientX, y: t.clientY };
     clearTimeout(longPressTimer);
+    // Card: segurar 0,3 s pega. Vazio (D-086): segurar 0,4 s começa a escolher o trecho.
     longPressTimer = setTimeout(() => {
       longPressTimer = null;
       navigator.vibrate?.([10]);
-      startDrag(card.dataset.agId, { clientX: toqueInicio.x, clientY: toqueInicio.y }, toqueInicio);
-    }, 300);
+      if (vazio) startSelecao(vazio.dataset.prof, toqueInicio.x, toqueInicio.y);
+      else startDrag(card.dataset.agId, { clientX: toqueInicio.x, clientY: toqueInicio.y }, toqueInicio);
+    }, vazio ? 400 : 300);
   }, { passive: true });
 
   timelineCols.addEventListener('touchend', () => { clearTimeout(longPressTimer); longPressTimer = null; });
