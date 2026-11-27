@@ -1426,3 +1426,39 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - arrastar um card de metade grava o horário novo, e lá ele volta à largura inteira;
     - sem violação de CSP e sem 5xx.
   - **Controle negativo:** com todas as faixas iguais a 1, ou seja, como era antes, 6 conferências caem.
+
+## D-086 — Segurar e arrastar no espaço vazio para escolher o trecho (sem migration)
+- **Pedido (Platform Owner, 2026-11-27):** "ao clicar e segurar no espaço vazio e arrastar, escolhe o horário do agendamento de variável usando a mesma dinâmica inteligente do arrastar card". O dono aprovou as quatro recomendações:
+  1. lado a lado sem chave (D-085);
+  2. o agendamento usa a duração escolhida, com botão para trocar pela do serviço;
+  3. o trecho para no próximo atendimento;
+  4. o mesmo gesto também bloqueia.
+- **Gesto:**
+  - No celular, segurar 0,4 s no vazio. O card continua com 0,3 s, e mexer o dedo antes disso é rolagem.
+  - No computador, apertar e mover mais de 6 px.
+  - O toque curto continua igual: abre "Agendar ou Bloquear" naquele horário.
+  - Só aparece para quem pode criar agendamento (`agenda:criar`).
+- **Enquanto arrasta:**
+  - o trecho cresce do passo tocado até o dedo, para baixo ou para cima, no passo do aparelho;
+  - a etiqueta mostra "09:20–10:00 (40 min) · Ana", no mesmo formato da D-081;
+  - o trecho fica na coluna onde começou;
+  - para no próximo atendimento ou bloqueio e, para cima, no fim do anterior;
+  - mínimo de um passo, máximo de 8 h;
+  - fora da escala, a seleção fica laranja com "fora da escala", mas o gesto continua;
+  - a rolagem automática na borda funciona igual (0,4 s na faixa);
+  - Esc cancela.
+- **Ao soltar:** abre a escolha de sempre, com o trecho no título.
+  - **Agendar:** o formulário vem com profissional, dia e início. A prévia diz "Duração: 40 min, escolhida na agenda" e oferece o botão "Usar a do serviço (N min)". A gravação envia `duracaoMin`, que o servidor já aceitava (`resolveDuracaoMin`). Com vários serviços ou repetição, vale a duração de cada serviço, como antes.
+  - **Bloquear:** a opção "O trecho escolhido (até HH:MM)" vem primeiro e já marcada.
+- **Verificação:**
+  - E2E novo `agenda-arrastar-vazio`, com mouse e tela de 390×844:
+    - etiqueta "09:20–10:00 (40 min) · Ana", trecho no título da escolha e formulário com 09:20 e a duração escolhida;
+    - agendamento gravado às 09:20 com 40 min, embora o serviço tenha 45;
+    - parada no cliente das 11:00, e Esc cancela sem abrir nada;
+    - para cima, parada no fim do horário anterior, e bloqueio gravado 10:00–10:50;
+    - o toque curto continua sem trecho;
+    - sem violação de CSP e sem 5xx.
+  - **Controles negativos:**
+    - sem o limite dos vizinhos, 4 verificações falham;
+    - sem enviar `duracaoMin`, o agendamento grava 45 min e 3 verificações falham.
+- **Não coberto por teste automático:** o toque segurado no celular, que usa o mesmo código com espera de 0,4 s. Como na D-078 e na D-081, a conferência é no aparelho.

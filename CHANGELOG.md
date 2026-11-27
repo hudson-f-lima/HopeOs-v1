@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: segure no espaço vazio e arraste para escolher o horário (D-086)
+- Segure um horário livre e arraste para cima ou para baixo: a etiqueta mostra "início–fim (duração)". O trecho para no próximo cliente ou bloqueio.
+- Ao soltar, escolha Agendar ou Bloquear. Em Agendar, o horário e a duração já vêm escolhidos. Se quiser, use a duração do serviço.
+- O toque curto continua igual.
+
 ## Agenda: atendimentos ao mesmo tempo lado a lado (D-085)
 - Dois atendimentos no mesmo horário do mesmo profissional agora dividem a largura, em vez de um cobrir o outro.
 - Com três ou mais ao mesmo tempo, cada card mostra o horário e as iniciais. Toque para ver tudo.

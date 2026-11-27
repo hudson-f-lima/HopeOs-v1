@@ -14,7 +14,7 @@ const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m %
 const proprioId = () => (state.session && state.session.profissional_id) || null;
 const dataBR = d => d.split('-').reverse().slice(0, 2).join('/');
 
-let alvo = null; // { data, horario, profissionalId, abrirAgendar }
+let alvo = null; // { data, horario, profissionalId, abrirAgendar, faixa } — faixa: trecho escolhido arrastando no vazio (D-086)
 let aberto = null; // exceção tocada na grade
 
 // ---------- Grade ----------
@@ -129,7 +129,8 @@ function pintarEspera(r) {
   box.dataset.itens = JSON.stringify(itens.slice(0, 5));
 }
 
-export async function abrirHorarioLivre(data, horario, profissionalId, abrirAgendar, abrirDaEspera) {
+// faixa (D-086): { fim: 'HH:MM', duracaoMin } quando a pessoa arrastou no vazio para escolher o trecho.
+export async function abrirHorarioLivre(data, horario, profissionalId, abrirAgendar, abrirDaEspera, faixa = null) {
   const podeAgendar = sessionPode('agenda:criar');
   // Fora da escala não há o que bloquear: só agendar (o servidor pede confirmação para encaixar).
   const fora = foraDaEscala(profissionalId, data, min(horario), min(horario) + 1);
@@ -138,10 +139,10 @@ export async function abrirHorarioLivre(data, horario, profissionalId, abrirAgen
   if (!podeBloquear) {
     // Sem bloquear: só abre a escolha se alguém da lista de espera combina; senão, direto agendar.
     const r = await espera;
-    if (!r || !(r.itens || []).length) return abrirAgendar(data, horario, profissionalId);
+    if (!r || !(r.itens || []).length) return abrirAgendar(data, horario, profissionalId, faixa);
   }
-  alvo = { data, horario, profissionalId, abrirAgendar, abrirDaEspera };
-  el('slotTitulo').textContent = dataBR(data) + ' · ' + horario + ' · ' + (findProfissionalNome(profissionalId) || 'Profissional');
+  alvo = { data, horario, profissionalId, abrirAgendar, abrirDaEspera, faixa };
+  el('slotTitulo').textContent = dataBR(data) + ' · ' + horario + (faixa ? '–' + faixa.fim + ' (' + faixa.duracaoMin + ' min)' : '') + ' · ' + (findProfissionalNome(profissionalId) || 'Profissional');
   el('slotEscolha').classList.remove('hidden');
   el('btnSlotAgendar').classList.toggle('hidden', !podeAgendar);
   el('btnSlotBloquear').classList.toggle('hidden', !podeBloquear);
@@ -171,9 +172,12 @@ async function mostrarBloquear() {
   const proximo = ocupados[0];
   const opcoes = [];
   const add = (fim, rotulo) => { if (fim > ini && fim <= 24 * 60 && !opcoes.some(o => o.fim === fim)) opcoes.push({ fim, rotulo }); };
+  // Trecho escolhido arrastando no vazio (D-086): vem primeiro e já marcado.
+  const escolhido = alvo.faixa ? min(alvo.faixa.fim) : null;
+  if (escolhido) add(escolhido, 'O trecho escolhido (até ' + alvo.faixa.fim + ')');
   add(ini + 30, '30 min'); add(ini + 60, '1 hora');
   if (proximo) add(proximo, 'Até o próximo cliente (' + hhmm(proximo) + ')');
-  pintarOpcoes(opcoes, proximo ? Math.min(proximo, ini + 60) : ini + 60);
+  pintarOpcoes(opcoes, escolhido || (proximo ? Math.min(proximo, ini + 60) : ini + 60));
   try {
     const d = await api('/disponibilidade/dia?data=' + encodeURIComponent(data) + '&profissionalId=' + encodeURIComponent(profissionalId));
     const periodo = (d.periodos || []).find(p => min(p.inicio) <= ini && min(p.fim) > ini);
@@ -287,7 +291,7 @@ function erro(m) { const x = el('slotErro'); x.textContent = m; x.classList.remo
 export function initAgendaBloqueio() {
   if (!el('modalSlot')) return;
   el('slotMotivos').innerHTML = MOTIVOS.map(m => '<button type="button" class="chip" data-slot-motivo="' + escapeHtml(m) + '">' + escapeHtml(m) + '</button>').join('');
-  el('btnSlotAgendar').addEventListener('click', () => { const a = alvo; closeModal('modalSlot'); a.abrirAgendar(a.data, a.horario, a.profissionalId); });
+  el('btnSlotAgendar').addEventListener('click', () => { const a = alvo; closeModal('modalSlot'); a.abrirAgendar(a.data, a.horario, a.profissionalId, a.faixa); });
   el('btnSlotBloquear').addEventListener('click', mostrarBloquear);
   el('slotEspera').addEventListener('click', ev => {
     const b = ev.target.closest('[data-espera-id]');

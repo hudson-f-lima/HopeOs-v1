@@ -549,6 +549,10 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;color:var(--text-primar
 .prof-col.col-hidden{display:none;}
 .slot-vazio{position:absolute;left:2px;right:2px;border:1px dashed var(--border);border-radius:6px;cursor:pointer;}
 .slot-vazio:hover{background:var(--primary-soft);}
+.slot-vazio{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+/* Trecho escolhido arrastando no vazio (D-086). */
+.ag-selecao{position:absolute;left:2px;right:2px;z-index:9;pointer-events:none;border-radius:8px;border:2px solid var(--primary);background:color-mix(in srgb,var(--primary) 16%,transparent);}
+.ag-selecao.fora{border-color:#b45309;border-style:dashed;background:color-mix(in srgb,#b45309 12%,transparent);}
 .ag-bloqueio{position:absolute;left:2px;right:2px;border-radius:6px;cursor:pointer;z-index:1;overflow:hidden;color:var(--md-on-surface);font-size:11px;font-weight:700;padding:4px 6px;border:1px solid var(--md-outline);background:repeating-linear-gradient(135deg,var(--md-surface-variant) 0 6px,transparent 6px 12px);}
 .ag-bloqueio span{background:var(--md-surface);border-radius:4px;padding:1px 4px;}
 .ag-fora{position:absolute;left:0;right:0;z-index:0;pointer-events:none;background-color:color-mix(in srgb,var(--md-surface-variant) 55%,transparent);background-image:radial-gradient(circle,color-mix(in srgb,var(--md-outline) 70%,transparent) 1px,transparent 1.4px);background-size:8px 8px;}
