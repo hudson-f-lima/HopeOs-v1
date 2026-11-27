@@ -1406,6 +1406,27 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - **Controles negativos:** com o cache antigo de `{}`, 3 conferências caem; com a opção ignorada, 3 caem.
   - `test:offline` verde.
 
+## D-085 — Atendimentos ao mesmo tempo lado a lado na agenda (sem migration)
+- **Pedido (Platform Owner, 2026-11-27):** teste em produção, "dois cards no mesmo tempo ficaram parcialmente sobrepostos. O melhor é que eles fiquem lado a lado". Aprovado sem chave: ligado sempre, porque ninguém quer um card escondendo outro. Isso é uma exceção à regra da D-083, de uma chave para cada função.
+- **Antes:** cada card ocupava a largura inteira da coluna. Dois atendimentos ao mesmo tempo, como um encaixe forçado ou um horário marcado pelo link, ficavam um sobre o outro.
+- **Agora:** é a lógica de uma agenda de calendário.
+  - Os cards que se cruzam na mesma coluna formam um grupo. Cada card vai para a primeira faixa livre do grupo, e a largura é dividida pelo número de faixas.
+  - Um card que não cruza com ninguém continua com a largura inteira.
+  - O cruzamento usa o horário real: dois atendimentos seguidos, como 11:00–11:10 e 11:10, não ficam lado a lado.
+  - **Card dividido:** o horário fica na primeira linha e o nome embaixo, em até 2 linhas.
+  - **Com 3 ou mais ao mesmo tempo:** o card mostra o horário e as iniciais. O nome inteiro continua no rótulo de acessibilidade e aparece ao tocar.
+- **Não muda:** arrastar, as alças de cima e de baixo, o teclado, o aviso ⚠ de conflito e as 2 colunas por vez no celular. O alvo do arraste é calculado pela coluna e pela altura, não pela largura do card.
+- **Verificação:**
+  - E2E novo `agenda-lado-a-lado`, em tela de 390×844:
+    - um card sozinho fica com a largura inteira;
+    - dois ao mesmo tempo ficam com metade cada, sem se cobrir;
+    - um card das 10:40 reusa a faixa que ficou livre;
+    - dois seguidos ficam com a largura inteira;
+    - três ao mesmo tempo ficam com um terço cada e mostram as iniciais;
+    - arrastar um card de metade grava o horário novo, e lá ele volta à largura inteira;
+    - sem violação de CSP e sem 5xx.
+  - **Controle negativo:** com todas as faixas iguais a 1, ou seja, como era antes, 6 conferências caem.
+
 ## D-086 — Segurar e arrastar no espaço vazio para escolher o trecho (sem migration)
 - **Pedido (Platform Owner, 2026-11-27):** "ao clicar e segurar no espaço vazio e arrastar, escolhe o horário do agendamento de variável usando a mesma dinâmica inteligente do arrastar card". O dono aprovou as quatro recomendações:
   1. lado a lado sem chave (D-085);

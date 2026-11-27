@@ -139,6 +139,30 @@ function profItemsForDay(profId) {
   );
 }
 
+// Lado a lado (D-085): atendimentos que se cruzam na mesma coluna dividem a largura, como numa agenda
+// de calendário. Cada grupo de cards que se tocam (direta ou indiretamente) recebe faixas; o card vai
+// para a primeira faixa livre e a largura é a do grupo. O cruzamento é pelo horário real: dois
+// atendimentos seguidos (11:00–11:10 e 11:10) não ficam lado a lado, porque não são ao mesmo tempo.
+export function faixasDaColuna(itens) {
+  const lista = itens.map(i => {
+    const ini = itemStartMinutes(i);
+    return { id: i.id, ini, fim: ini + (Number(i.duracao_min) || 30) };
+  }).sort((a, b) => a.ini - b.ini || b.fim - a.fim);
+  const faixas = new Map();
+  let grupo = []; let fimGrupo = -Infinity; let fins = [];
+  const fechar = () => { grupo.forEach(g => faixas.set(g.id, { faixa: g.faixa, de: fins.length })); grupo = []; fins = []; };
+  for (const c of lista) {
+    if (c.ini >= fimGrupo) { fechar(); fimGrupo = -Infinity; }
+    let f = fins.findIndex(fim => fim <= c.ini);
+    if (f < 0) { f = fins.length; fins.push(c.fim); } else fins[f] = c.fim;
+    grupo.push({ id: c.id, faixa: f });
+    fimGrupo = Math.max(fimGrupo, c.fim);
+  }
+  fechar();
+  return faixas;
+}
+const iniciais = nome => String(nome || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+
 function itemStartMinutes(item) {
   const [h, m] = String(item.horario).slice(0, 5).split(':').map(Number);
   return (h - HORA_INICIO) * 60 + m;
@@ -238,7 +262,7 @@ export function iconesDoCard(codigos) {
 
 // Densidade pela duração (D-077): horário, cliente, ícones e situação sempre; o serviço a partir de
 // 30 min; o aviso (observações) a partir de 45 min. O que não cabe corta com reticências.
-function renderAgBlock(item) {
+function renderAgBlock(item, lado = { faixa: 0, de: 1 }) {
   const top = itemStartMinutes(item) * PX_POR_MIN;
   const duracao = item.duracao_min || 30;
   const height = toHeight(duracao);
@@ -269,6 +293,10 @@ function renderAgBlock(item) {
   const icones = iconesDoCard(codigos);
   const nomesIcones = codigos.map(c => ICONES_CARD[c].nome);
   const cls = ['ag-block', 'ag-card'];
+  // Com 3 ou mais lado a lado, o card fica estreito: horário e iniciais (o nome inteiro fica no toque e no leitor de tela).
+  const estreito = lado.de >= 3;
+  if (lado.de > 1) cls.push('ag-lado');
+  if (estreito) cls.push('ag-estreito');
   if (compact) cls.push('compact');
   if (isEditable) cls.push('editavel');
   if (comTopo) cls.push('com-topo');
@@ -277,8 +305,8 @@ function renderAgBlock(item) {
   if (pago) cls.push('ag-pago');
   const stHtml = `<span class="ag-st" title="${escapeHtml(situacao.nome)}" role="img" aria-label="${escapeHtml(situacao.nome)}">${situacao.svg}</span>`;
   const tag = conflito ? '<span class="ag-conf-tag">⚠ ' + conflito + '</span> ' : '';
-  const line1 = `<div class="ag-line1">${tag}<span class="ag-t">${horario}</span> <span class="ag-n">${escapeHtml(cliente)}</span>${compact && icones ? `<span class="ag-icons">${icones}</span>` : ''}</div>`;
-  const corpo = compact ? '' : [
+  const line1 = `<div class="ag-line1">${tag}<span class="ag-t">${horario}</span> <span class="ag-n">${escapeHtml(estreito ? iniciais(cliente) : cliente)}</span>${compact && icones && !estreito ? `<span class="ag-icons">${icones}</span>` : ''}</div>`;
+  const corpo = compact || estreito ? '' : [
     duracao >= 30 ? `<div class="ag-line2">${escapeHtml(servico)}</div>` : '',
     duracao >= 45 && item.observacoes ? `<div class="ag-aviso">⚠ ${escapeHtml(item.observacoes)}</div>` : '',
     icones ? `<div class="ag-icons">${icones}</div>` : ''
@@ -287,7 +315,7 @@ function renderAgBlock(item) {
 
   return `
     <div class="${cls.join(' ')}"
-         style="top:${top}px;height:${height}px;--h:${matizDoServico(item)};"
+         style="top:${top}px;height:${height}px;--h:${matizDoServico(item)};${lado.de > 1 ? `--faixa:${lado.faixa};--faixas:${lado.de};` : ''}"
          aria-label="${escapeHtml(rotulo)}"
          tabindex="0" role="button"
          data-action="open-sheet"
@@ -310,7 +338,9 @@ function renderProfColInner(p) {
     return `<div class="slot-vazio${fora}${extra}" style="top:${m * PX_POR_MIN}px;height:${GRID_MIN * PX_POR_MIN}px;" data-action="add-slot" data-prof="${p.id}" data-time="${timeStr}"></div>`;
   }).join('');
   const foraHtml = htmlFora(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN });
-  const blocksHtml = profItemsForDay(p.id).map(item => renderAgBlock(item)).join('');
+  const itens = profItemsForDay(p.id);
+  const faixas = faixasDaColuna(itens);
+  const blocksHtml = itens.map(item => renderAgBlock(item, faixas.get(item.id))).join('');
   return foraHtml + emptyHtml + htmlBloqueios(p.id, state.selectedDay, { horaInicio: HORA_INICIO, horaFim: HORA_FIM, pxPorMin: PX_POR_MIN }) + blocksHtml;
 }
 

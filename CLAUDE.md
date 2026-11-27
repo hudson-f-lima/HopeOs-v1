@@ -25,6 +25,6 @@ Antes de criar subagentes, avaliar se a delegação tende a melhorar o resultado
 
 ## Fundação
 - Stack: Node.js/Express, Supabase/Postgres e PWA.
-- Migrations físicas: **001–027, todas aplicadas em produção** (`hopeos-v1`; conferido por `list_migrations` em 2026-11-23). A decisão que autorizou cada uma está na regra de migrations acima e em `docs/DECISIONS.md`; os nomes estão nos arquivos de `supabase/migrations/`. Rollbacks da 007 à 028 em `supabase/rollback/`. **028 autorizada (D-084), entra em produção no merge do PR dela. 029+ não autorizada.** A 009 tornou o ledger financeiro imutável por trigger (D-013): limpar dados ou excluir empresa com histórico exige SQL autorizado (RUNBOOK §4.1).
+- Migrations físicas: **001–028, todas aplicadas em produção** (`hopeos-v1`; conferido por `list_migrations` em 2026-11-26, depois do merge do PR #81). A decisão que autorizou cada uma está na regra de migrations acima e em `docs/DECISIONS.md`; os nomes estão nos arquivos de `supabase/migrations/`. Rollbacks da 007 à 028 em `supabase/rollback/`. **029+ não autorizada.** A 009 tornou o ledger financeiro imutável por trigger (D-013): limpar dados ou excluir empresa com histórico exige SQL autorizado (RUNBOOK §4.1).
 - **Merge na `main` aplica `supabase/migrations` em produção** (integração GitHub do Supabase, D-010). Toda migration precisa de linha em `supabase/migrations.lock`; o CI (`check_migrations.sh`) barra o resto.
 - Documentação: [`docs/INDEX.md`](docs/INDEX.md).

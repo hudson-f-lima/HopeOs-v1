@@ -1629,6 +1629,15 @@ body{font-variant-numeric:tabular-nums;}
 .ag-card .resize-handle{background:none;}
 
 /* ============ Arraste da agenda (D-078, cards etapa 3) ============ */
+/* Lado a lado (D-085): a coluna (menos 4 px de cada lado) dividida pelas faixas do grupo, com 2 px entre os cards. */
+.ag-block.ag-lado{right:auto;left:calc(4px + (100% - 8px) * var(--faixa) / var(--faixas));width:calc((100% - 8px) / var(--faixas) - 2px);padding-left:5px;padding-right:5px;}
+/* Card dividido: horário na primeira linha (ao lado do ícone de situação) e o nome embaixo, quebrando linha. */
+.ag-card.ag-lado .ag-line1{flex-wrap:wrap;row-gap:1px;align-items:flex-start;}
+.ag-card.ag-lado .ag-t{flex-basis:100%;padding-right:15px;}
+.ag-card.ag-lado .ag-n{flex-basis:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.ag-block.ag-estreito{padding-left:3px;padding-right:3px;}
+.ag-card.ag-estreito .ag-t{padding-right:0;font-size:11px;}
+.ag-card.ag-estreito .ag-st{top:auto;bottom:3px;right:3px;}
 .ag-card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y;}
 .ag-card.editavel{cursor:grab;}
 .ag-card:focus-visible{outline:3px solid var(--primary);outline-offset:1px;z-index:6;}

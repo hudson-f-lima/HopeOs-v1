@@ -8,14 +8,14 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Item | Estado | Evidência |
 |---|---|---|
 | Banco | Supabase **`hopeos-v1`** (`gsttjozcmdvgstcpadiq`, sa-east-1, Postgres 17), `ACTIVE_HEALTHY` | `list_projects` |
-| Migrations em produção | **001–027 todas aplicadas** (a 027 `agendamento_atomico` entrou no merge do PR #58) | `list_migrations` |
+| Migrations em produção | **001–028 todas aplicadas** (a 028 `agenda_usa_chegada` entrou no merge do PR #81, em 26/11; coluna conferida: boolean, not null, padrão true) | `list_migrations` |
 | API | Render, serviço `HopeOs-v1`, deploy **live no commit `3358bf8`** desde 2026-11-22 11:26 UTC | `list_deploys` |
 | Saúde | `GET /api/health` 200 · `GET /api/health/banco` 200 `banco: ok` · PWA 200 | requisições de 2026-11-23 |
 | PWA | GitHub Pages: `https://hudson-f-lima.github.io/HopeOs-v1/` | — |
 | Monitoramento | UptimeRobot: API (KeepAlive), app (PWA) e banco (D-059). Chave da API do UptimeRobot trocada pelo dono em 2026-11-22 | D-059 |
 | Dados reais | 1 empresa, 8 clientes ativos, 0 telefones duplicados (consulta agregada de 2026-11-22). Contagem de dados de teste: **não executada** | — |
 
-- **Fundação física:** `supabase/migrations/001–027` aplicadas; `028_agenda_usa_chegada` autorizada (D-084), aplica no merge (rollbacks 007–028). **029+ não autorizada.** Merge na `main` aplica migrations em produção (D-010); toda migration exige linha em `supabase/migrations.lock` e decisão em `DECISIONS.md`. A lista de qual decisão autorizou cada migration está em [`../CLAUDE.md`](../CLAUDE.md).
+- **Fundação física:** `supabase/migrations/001–028` aplicadas (rollbacks 007–028). **029+ não autorizada.** Merge na `main` aplica migrations em produção (D-010); toda migration exige linha em `supabase/migrations.lock` e decisão em `DECISIONS.md`. A lista de qual decisão autorizou cada migration está em [`../CLAUDE.md`](../CLAUDE.md).
 - **Não misturar:** o projeto `kortex-os-v2-staging` (`hyzoocmmtmjlgdyifwhu`) é de OUTRO projeto. Nunca aplicar migrations, SQL ou configuração do HOPE OS nele (Platform Owner, 2026-10-16).
 - **V1.5 e escala global:** BLOQUEADAS. Não avançar com P0 aberto.
 - **Agendamento pelo link público:** vem **desligado** (`PUBLIC_BOOKING_LINKS` ausente no `render.yaml`). Ligar exige aviso de privacidade do cliente aprovado, dados do salão no aviso e Red Team com o link ligado (D-014, D-037).
@@ -59,6 +59,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
 - **D-086 (27/11, PR rascunho):** segurar e arrastar no espaço vazio escolhe início e duração (agendar com `duracaoMin` ou bloquear o trecho), com a mesma dinâmica do arraste do card. Sem migration.
 - **D-084 (26/11, PR rascunho, migration 028):** "Cliente chegou" vira opção do salão em Regras da agenda. Desligado: card e tela Agora oferecem "Iniciar atendimento" direto e o aviso de atraso some. Corrige também as regras do salão que nunca chegavam à tela da recepção e do profissional.
+- **D-085 (27/11, PR #82):** atendimentos ao mesmo tempo ficam lado a lado na agenda, dividindo a largura da coluna; com 3 ou mais, cada card mostra horário e iniciais. Sem chave, sempre ligado. Sem migration.
+- **D-084 (26/11, PR #81, migration 028 aplicada em produção em 26/11):** "Cliente chegou" vira opção do salão em Regras da agenda. Desligado: card e tela Agora oferecem "Iniciar atendimento" direto e o aviso de atraso some. Corrige também as regras do salão que nunca chegavam à tela da recepção e do profissional.
 - **D-083 (26/11, PR #80):** Gestão em 8 grupos por intenção (busca acha pelos nomes antigos) e grupo novo "Como a agenda aparece", com zoom da grade e passo do arraste por aparelho. "Cliente chegou" como opção do salão veio na D-084. Sem migration.
 - **D-082 (26/11, PR #79):** Comandas › Histórico por período: atalhos (Hoje, Ontem, Esta semana, Este mês, Mês anterior) e calendário de dois toques, resumo do servidor (recebido e estornado) e lista por dia; `GET /comandas?inicio=&fim=` (até 92 dias). Sem migration.
 - **D-081 (26/11, PR #78):** alças de cima (início com fim parado) e de baixo (fim) no card, etiqueta "início–fim (duração)" nos três gestos, Esc cancela, passo de 10 min por aparelho; remarcação aceita `novaDuracaoMin`. Sem migration.
@@ -120,5 +122,5 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 ## 8. Handoff (ciclo de 2026-11-21 a 2026-11-23)
 - **Concluído:** migrations 025–027; agenda confiável (D-055, D-058, D-060); saúde do banco e monitores (D-059); E2E com navegação comum (D-061); Onda 1 e Onda 2 do Blueprint v2 (D-062, D-063); Cockpit (D-064); Painel sem número inventado (D-065); revisão semântica da documentação (este ciclo).
 - **Para o próximo agente:** leia `AGENTS.md`, `CLAUDE.md`, `docs/INDEX.md` e este arquivo. Para código, leia também `CODEX.md`. Uma prioridade por vez.
-- **Não fazer:** migration 028+ sem autorização registrada; tocar 001–027; executar SQL em produção; declarar produção aprovada sem Red Team; apagar auditorias, prompts históricos ou evidências do dono (regra do `AGENTS.md`); colocar segredos, credenciais do AppBarber ou dado pessoal em arquivo, commit ou PR.
+- **Não fazer:** migration 029+ sem autorização registrada; tocar 001–028; executar SQL em produção; declarar produção aprovada sem Red Team; apagar auditorias, prompts históricos ou evidências do dono (regra do `AGENTS.md`); colocar segredos, credenciais do AppBarber ou dado pessoal em arquivo, commit ou PR.
 - **Ordem recomendada do que vem:** painel e cockpit já estão no ar → chaves VAPID e lembrete por push → migration 029 (consentimento e aniversário) → WhatsApp automático (fornecedor) → cobrança recorrente da assinatura (fornecedor + Red Team + período em paralelo).
