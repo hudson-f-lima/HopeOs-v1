@@ -262,7 +262,14 @@ async function salvar() {
       const d = Number(el('agcDuracao').value);
       if (!Number.isInteger(d) || d < 10 || d > 480) throw new Error('Duração entre 10 e 480 minutos.');
       if (d === (item.duracao_min || 30)) return fecharEditor();
-      await api('/agenda/' + encodeURIComponent(item.id) + '/duracao', { method: 'PATCH', body: { duracaoMin: d } });
+      // Além da escala (D-087): pergunta, como na remarcação.
+      try {
+        await api('/agenda/' + encodeURIComponent(item.id) + '/duracao', { method: 'PATCH', body: { duracaoMin: d } });
+      } catch (err) {
+        if (!(err.code === 'FORA_DA_DISPONIBILIDADE' && sessionPode('agenda:encaixar')
+          && await confirmAction({ title: 'Fora do horário', message: err.message + ' Alterar mesmo assim? Fica registrado como encaixe.', confirmLabel: 'Alterar mesmo assim' }))) throw err;
+        await api('/agenda/' + encodeURIComponent(item.id) + '/duracao', { method: 'PATCH', body: { duracaoMin: d, foraDaDisponibilidade: true } });
+      }
     } else {
       const mud = {};
       if (c === 'servico') { mud.novoServicoId = el('agcServico').value; if (mud.novoServicoId === item.servico_id) return fecharEditor(); }
