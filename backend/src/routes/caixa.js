@@ -62,4 +62,31 @@ router.get('/caixa/fechamento', authorize('caixa:conferir'), async (req, res, ne
   } catch (err) { next(err); }
 });
 
+// Caixa por período (D-088): só leitura, até 92 dias. Busca o período uma vez (comandas, pagamentos,
+// movimentos, ajustes e fechamentos) e calcula cada dia pela conta do fechamento do dia.
+// Não grava nada: fechar continua sendo POST /caixa/fechamentos, de um dia.
+const MAX_DIAS_PERIODO = 92;
+router.get('/caixa/periodo', authorize('caixa:conferir'), async (req, res, next) => {
+  try {
+    const { resumoCaixaPeriodo } = require('../engines/CaixaEngine');
+    if (req.query.inicio === undefined || req.query.inicio === '' || req.query.fim === undefined || req.query.fim === '') {
+      throw createAppError('INVALID_DATE', 'inicio e fim são obrigatórios.', 422, { field: req.query.inicio ? 'fim' : 'inicio' });
+    }
+    const inicio = validarData(req.query.inicio);
+    const fim = validarData(req.query.fim);
+    if (fim < inicio) throw createAppError('INVALID_RANGE', 'fim deve ser igual ou posterior a inicio.', 422, { inicio, fim });
+    const dias = Math.round((Date.parse(fim + 'T00:00:00Z') - Date.parse(inicio + 'T00:00:00Z')) / 864e5) + 1;
+    if (dias > MAX_DIAS_PERIODO) throw createAppError('RANGE_TOO_LONG', `Escolha um período de até ${MAX_DIAS_PERIODO} dias.`, 422, { maxDias: MAX_DIAS_PERIODO });
+    // Tenant só do req.auth; empresa_id de query/body é ignorado.
+    const repo = new SupabaseRepository(req.auth.empresa_id);
+    const f = { empresa_id: repo.empresaId };
+    const p = { inicio, fim };
+    const [comandos, movimentos, formasPagamento, ajustes, fechamentos] = await Promise.all([
+      repo.list('comandos', f, p), repo.list('caixa_movimentos', f, p), repo.list('formas_pagamento', f), repo.list('caixa_ajustes', f, p), repo.list('caixa_fechamentos', f, p)
+    ]);
+    const pagamentos = await repo.listPagamentosDasComandas(comandos.map(c => c.id));
+    res.json({ ok: true, data: resumoCaixaPeriodo({ inicio, fim, comandos, pagamentos, movimentos, formasPagamento, ajustes, fechamentos }) });
+  } catch (err) { next(err); }
+});
+
 module.exports = { caixaRouter: router };

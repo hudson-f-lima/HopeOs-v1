@@ -4,7 +4,8 @@
 // fechamento é imutável e fechar de novo o mesmo dia grava outro — vale o mais recente.
 import { api } from '../api.js';
 import { sessionRoleIn, stateBus, sessionPode } from '../state.js';
-import { escapeHtml, centsToBRL, genIdempotencyKey, confirmAction } from '../utils.js';
+import { escapeHtml, centsToBRL, genIdempotencyKey, confirmAction, todayStr } from '../utils.js';
+import { criarSeletorPeriodo, rotuloPeriodo, diasNoIntervalo } from './periodo.js';
 
 const el = id => document.getElementById(id);
 const fmtData = d => { const [a, m, dd] = String(d).split('-'); return `${dd}/${m}/${a}`; };
@@ -62,12 +63,60 @@ function render(f) {
     <p class="list-count-hint">"Conferir" só mostra. "Fechar caixa do dia" grava o valor contado e a diferença. Prazo de recebimento conforme o cadastro atual da forma.</p>`;
 }
 
+// Período do caixa (D-088): um dia = conferir e fechar, como sempre; mais de um dia = só consulta
+// (GET /caixa/periodo). Fechar continua sendo de um dia.
+let seletor = null;
+const diaEscolhido = () => { const p = seletor.periodo(); return p.inicio === p.fim ? p.inicio : null; };
+
+function modoPeriodo(ehPeriodo) {
+  el('caixaForm').classList.toggle('hidden', ehPeriodo);
+  el('btnFecharCaixa').classList.toggle('hidden', ehPeriodo);
+  el('caixaFechamentoMsg').textContent = '';
+}
+
+function renderPeriodo(r) {
+  const t = r.totais;
+  const n = diasNoIntervalo(r.inicio, r.fim);
+  const formas = t.porForma.length
+    ? t.porForma.map(p => `<div class="row" data-forma="${escapeHtml(p.formaCode)}"><span>${escapeHtml(p.label || p.formaCode)} (${p.quantidadePagamentos}x)${p.taxaCentavos ? ` · taxa ${centsToBRL(p.taxaCentavos)}` : ''}</span><b>${centsToBRL(p.valorCentavos)}</b></div>`).join('')
+    : '<p class="empty-state">Nenhuma comanda fechada neste período.</p>';
+  const situacao = d => !d.quantidadeComandas && !d.fechamento ? '' : !d.fechamento ? '<span style="color:var(--md-error)">sem fechar</span>'
+    : d.fechamento.desatualizado ? '<span style="color:var(--md-error)">fechado, mas mudou depois</span>'
+    : d.fechamento.diferencaCentavos ? `<span style="color:var(--md-error)">fechado com diferença de ${centsToBRL(d.fechamento.diferencaCentavos)}</span>` : 'fechado, confere';
+  const dias = r.dias.map(d => `<div class="row" data-dia-caixa="${escapeHtml(d.data)}"><span>${escapeHtml(rotuloPeriodo(d.data, d.data))} · ${d.quantidadeComandas} ${d.quantidadeComandas === 1 ? 'comanda' : 'comandas'}${situacao(d) ? ' · ' + situacao(d) : ''}</span><b>${centsToBRL(d.saldoDoDiaCentavos)}</b></div>`).join('');
+  el('caixaResultado').innerHTML = `
+    <p class="aviso-periodo" id="caixaAvisoPeriodo" role="status"><b>Período de ${n} dias: só consulta.</b> Para conferir a gaveta e fechar o caixa, escolha um dia.</p>
+    <div class="row"><span>Comandas fechadas</span><b id="caixaQtd">${t.quantidadeComandas}</b></div>
+    <div class="row"><span>Total recebido (bruto)</span><b id="caixaBruto">${centsToBRL(t.totalBrutoCentavos)}</b></div>
+    <div class="row"><span>Taxas de pagamento</span><b>${centsToBRL(t.taxaTotalCentavos)}</b></div>
+    <div class="row"><span>Líquido esperado</span><b>${centsToBRL(t.liquidoEsperadoCentavos)}</b></div>
+    ${t.estornosCentavos ? `<div class="row"><span style="color:var(--md-error)">Estornos lançados</span><b style="color:var(--md-error)">${centsToBRL(t.estornosCentavos)}</b></div>` : ''}
+    <div class="row total"><span>Saldo do período (vendas − estornos)</span><b id="caixaSaldoPeriodo">${centsToBRL(t.saldoCentavos)}</b></div>
+    ${t.sangriasCentavos || t.suprimentosCentavos ? `<div class="row"><span>Sangrias / suprimentos</span><b>${centsToBRL(-t.sangriasCentavos)} / ${centsToBRL(t.suprimentosCentavos)}</b></div>` : ''}
+    <h3 class="body-sm text-tertiary" style="margin:10px 0 4px">Por forma de pagamento</h3>
+    ${formas}
+    <h3 class="body-sm text-tertiary" style="margin:10px 0 4px">Dia a dia</h3>
+    <p class="body-sm" id="caixaPendencias" style="margin:0 0 4px;${t.diasComVendaSemFechar || t.diasFechadosDesatualizados ? 'color:var(--md-error)' : ''}">${t.diasComVendaSemFechar || t.diasFechadosDesatualizados
+      ? `${t.diasComVendaSemFechar ? t.diasComVendaSemFechar + (t.diasComVendaSemFechar === 1 ? ' dia com venda sem fechar' : ' dias com venda sem fechar') : ''}${t.diasComVendaSemFechar && t.diasFechadosDesatualizados ? ' · ' : ''}${t.diasFechadosDesatualizados ? t.diasFechadosDesatualizados + (t.diasFechadosDesatualizados === 1 ? ' fechamento desatualizado' : ' fechamentos desatualizados') : ''}.`
+      : 'Todos os dias com venda estão fechados.'}</p>
+    ${dias || '<p class="empty-state">Sem movimento no período.</p>'}
+    ${t.ledgerConsistente ? '' : '<p class="body-sm" style="color:var(--md-error)">Atenção: em algum dia, pagamentos e movimentos de caixa não batem. Abra o dia para ver.</p>'}`;
+}
+
 export async function atualizarCaixa() {
   if (!sessionPode('caixa:conferir')) return;
   const erro = el('caixaErro');
   erro.textContent = '';
+  const dia = diaEscolhido();
+  modoPeriodo(!dia);
+  if (!dia) {
+    const { inicio, fim } = seletor.periodo();
+    try { renderPeriodo(await api(`/caixa/periodo?inicio=${encodeURIComponent(inicio)}&fim=${encodeURIComponent(fim)}`)); }
+    catch (err) { erro.textContent = err.message; }
+    return;
+  }
   const params = new URLSearchParams();
-  if (el('caixaData').value) params.set('data', el('caixaData').value);
+  params.set('data', dia);
   const contado = reaisParaCentavos(el('caixaContado').value);
   if (Number.isNaN(contado)) { erro.textContent = 'Valor contado inválido. Use, por exemplo, 150,00.'; return; }
   if (contado !== null) params.set('contadoDinheiroCentavos', String(contado));
@@ -77,9 +126,7 @@ export async function atualizarCaixa() {
   try {
     const qs = params.toString();
     const f = await api(`/caixa/fechamento${qs ? `?${qs}` : ''}`);
-    // Sem data na consulta, o servidor responde o dia de hoje do salão.
-    if (!params.has('data')) hojeDoSalao = f.data;
-    if (!el('caixaData').value) el('caixaData').value = f.data;
+    if (!hojeDoSalao) hojeDoSalao = todayStr();
     render(f);
     if (f.data === hojeDoSalao) {
       const u = f.ultimoFechamento;
@@ -108,7 +155,9 @@ async function fecharCaixa() {
   chaves.fechamento = chaves.fechamento || genIdempotencyKey();
   try {
     const body = { contadoDinheiroCentavos: contado, fundoTrocoCentavos: fundo || 0, idempotencyKey: chaves.fechamento };
-    if (el('caixaData').value) body.data = el('caixaData').value;
+    const dia = diaEscolhido();
+    if (!dia) { msg.textContent = 'Escolha um dia para fechar o caixa.'; return; }
+    body.data = dia;
     const r = await api('/caixa/fechamentos', { method: 'POST', body });
     chaves.fechamento = null;
     msg.textContent = r.diferencaCentavos === 0 ? 'Caixa fechado. Confere.' : `Caixa fechado com diferença de ${centsToBRL(r.diferencaCentavos)}.`;
@@ -147,5 +196,5 @@ export function initCaixa() {
   el('btnFecharCaixa').addEventListener('click', fecharCaixa);
   el('caixaAjusteForm').addEventListener('submit', ev => { ev.preventDefault(); lancarAjuste(); });
   el('caixaForm').addEventListener('submit', ev => { ev.preventDefault(); atualizarCaixa(); });
-  el('caixaData').addEventListener('change', atualizarCaixa);
+  seletor = criarSeletorPeriodo(el('caixaPeriodo'), { tipo: 'passado', hoje: todayStr, aoMudar: atualizarCaixa, rotulo: 'Período do caixa' });
 }

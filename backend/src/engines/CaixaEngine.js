@@ -124,4 +124,75 @@ function aplicarAjustesCaixa(fechamento, { ajustes = [], fundoTrocoCentavos = 0,
   };
 }
 
-module.exports = { buildFechamentoCaixa, aplicarAjustesCaixa, FORMA_DINHEIRO };
+// Caixa por período (D-088): só leitura. Cada dia é calculado pela mesma conta do fechamento do dia
+// (buildFechamentoCaixa + aplicarAjustesCaixa); o período soma os dias. Fechar continua sendo de um dia.
+// `fechamentos` = caixa_fechamentos do período; vale o mais recente de cada dia, e ele fica
+// "desatualizado" se houve movimento depois (mesma regra de GET /caixa/fechamento).
+function resumoCaixaPeriodo({ inicio, fim, comandos = [], pagamentos = [], movimentos = [], formasPagamento = [], ajustes = [], fechamentos = [] }) {
+  const datas = new Set([...comandos, ...movimentos, ...ajustes, ...fechamentos].map(x => String(x.data).slice(0, 10)).filter(d => d >= inicio && d <= fim));
+  const ultimoDoDia = new Map();
+  for (const f of fechamentos) {
+    const d = String(f.data).slice(0, 10);
+    const u = ultimoDoDia.get(d);
+    if (!u || String(f.created_at || '') >= String(u.created_at || '')) ultimoDoDia.set(d, f);
+  }
+  const dias = [...datas].sort().map(data => {
+    const base = buildFechamentoCaixa({ data, comandos, pagamentos, movimentos, formasPagamento });
+    const u = ultimoDoDia.get(data);
+    let fechamento = null;
+    if (u) {
+      const agora = aplicarAjustesCaixa(base, { ajustes, fundoTrocoCentavos: u.fundo_troco_centavos || 0 });
+      fechamento = {
+        diferencaCentavos: u.diferenca_centavos,
+        desatualizado: agora.dinheiro.esperadoCentavos !== u.esperado_dinheiro_centavos || base.totalBrutoCentavos !== u.total_bruto_centavos
+      };
+    }
+    const comAjustes = aplicarAjustesCaixa(base, { ajustes });
+    return {
+      data,
+      quantidadeComandas: base.quantidadeComandas,
+      totalBrutoCentavos: base.totalBrutoCentavos,
+      liquidoEsperadoCentavos: base.liquidoEsperadoCentavos,
+      estornosCentavos: base.estornos.valorCentavos,
+      saldoDoDiaCentavos: base.saldoDoDiaCentavos,
+      sangriasCentavos: comAjustes.ajustes.sangriasCentavos,
+      suprimentosCentavos: comAjustes.ajustes.suprimentosCentavos,
+      ledgerConsistente: base.ledger.consistente,
+      porForma: base.porForma,
+      gorjetaBrutaCentavos: base.gorjetas.brutaCentavos,
+      taxaTotalCentavos: base.taxaTotalCentavos,
+      fechamento
+    };
+  });
+  const soma = campo => dias.reduce((s, d) => s + d[campo], 0);
+  const formas = new Map();
+  for (const d of dias) for (const p of d.porForma) {
+    const g = formas.get(p.formaCode) || { formaCode: p.formaCode, label: p.label, quantidadePagamentos: 0, valorCentavos: 0, taxaCentavos: 0 };
+    g.quantidadePagamentos += p.quantidadePagamentos; g.valorCentavos += p.valorCentavos; g.taxaCentavos += p.taxaCentavos;
+    formas.set(p.formaCode, g);
+  }
+  const comVenda = dias.filter(d => d.quantidadeComandas > 0);
+  return {
+    inicio, fim,
+    totais: {
+      quantidadeComandas: soma('quantidadeComandas'),
+      totalBrutoCentavos: soma('totalBrutoCentavos'),
+      taxaTotalCentavos: soma('taxaTotalCentavos'),
+      liquidoEsperadoCentavos: soma('liquidoEsperadoCentavos'),
+      gorjetaBrutaCentavos: soma('gorjetaBrutaCentavos'),
+      estornosCentavos: soma('estornosCentavos'),
+      saldoCentavos: soma('saldoDoDiaCentavos'),
+      sangriasCentavos: soma('sangriasCentavos'),
+      suprimentosCentavos: soma('suprimentosCentavos'),
+      porForma: [...formas.values()].map(g => ({ ...g, liquidoEsperadoCentavos: g.valorCentavos - g.taxaCentavos }))
+        .sort((a, b) => b.valorCentavos - a.valorCentavos || String(a.formaCode).localeCompare(String(b.formaCode))),
+      diasComVenda: comVenda.length,
+      diasComVendaSemFechar: comVenda.filter(d => !d.fechamento).length,
+      diasFechadosDesatualizados: dias.filter(d => d.fechamento && d.fechamento.desatualizado).length,
+      ledgerConsistente: dias.every(d => d.ledgerConsistente)
+    },
+    dias: dias.map(({ porForma, gorjetaBrutaCentavos, taxaTotalCentavos, ...d }) => d)
+  };
+}
+
+module.exports = { buildFechamentoCaixa, aplicarAjustesCaixa, resumoCaixaPeriodo, FORMA_DINHEIRO };

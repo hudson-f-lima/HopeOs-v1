@@ -1540,3 +1540,40 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - amanhã fica desligado.
   - O E2E `estorno` continua verde.
   - **Controle negativo:** se o primeiro toque consultar, o gate (P04) e o E2E caem.
+
+### D-088, parte 2 — Caixa por período (consulta), fechamento continua de um dia
+- **Tela (Painel › Fechamento de caixa):**
+  - o campo "Dia" virou o seletor de período (passado);
+  - **um dia:** tudo como antes. Mostra fundo de troco, dinheiro contado, "Conferir" e "Fechar caixa do dia", e consulta `GET /caixa/fechamento?data=`;
+  - **mais de um dia:** só consulta. Aparece o aviso "Período de N dias: só consulta. Para conferir a gaveta e fechar o caixa, escolha um dia", e fundo, contado e "Fechar" somem;
+  - no período aparecem:
+    - os totais (comandas, bruto, taxas, líquido, estornos, saldo, sangrias e suprimentos);
+    - o total por forma de pagamento;
+    - o dia a dia, com a situação de cada dia: fechado e confere, fechado com diferença, fechado mas mudou depois, ou sem fechar;
+    - o resumo de pendências ("1 dia com venda sem fechar").
+  - a sangria e o suprimento continuam sendo de hoje.
+- **Servidor:** rota nova `GET /caixa/periodo?inicio=&fim=`.
+  - Permissão `caixa:conferir`. É só leitura e não grava nada.
+  - Valida as datas como a D-082: `INVALID_DATE`, `INVALID_RANGE` e `RANGE_TOO_LONG`, com limite de 92 dias.
+  - Busca o período de uma vez, em 6 consultas mais os pagamentos em lotes de 100. Antes, seriam cerca de 5 consultas por dia.
+  - Calcula cada dia pela mesma conta do fechamento do dia, na função pura nova `resumoCaixaPeriodo` (`CaixaEngine`).
+  - O fechamento vale pelo mais recente do dia. Ele fica "desatualizado" quando houve movimento depois, pela mesma regra de `GET /caixa/fechamento`.
+  - Dias sem movimento não entram na lista.
+  - `GET /caixa/fechamento` e `POST /caixa/fechamentos` não mudaram.
+- **Verificação:**
+  - Gate novo `caixa-periodo`, com 6 testes:
+    - totais conferidos à mão: bruto 18000, taxa 300, estorno −2000, saldo 16000, por forma de pagamento; a outra empresa e os dias fora do período não entram;
+    - dia a dia: fechado e confere, sem fechar, e dia sem movimento fora da lista;
+    - cada dia bate com `GET /caixa/fechamento` do mesmo dia;
+    - "desatualizado" no motor, e o refechamento limpa a marca;
+    - as respostas 422;
+    - recepção lê, profissional recebe 403, sem token recebe 401.
+    - **Controles negativos:** sem o filtro de empresa, o CX01 e o CX03 caem; sem o limite de 92 dias, o CX05 cai.
+  - E2E novo `caixa-periodo`, com o checkout real:
+    - "Hoje" usa `?data=`, e não o período;
+    - de ontem a hoje usa `/caixa/periodo`, mostra o aviso, esconde fundo, contado e "Fechar", mostra 2 comandas e R$ 120,00, com hoje "sem fechar";
+    - voltando a "Hoje", "Fechar" grava o dia de hoje;
+    - no período, hoje passa a aparecer "fechado".
+    - **Controle negativo:** se "Fechar" não sumir no período, o E2E cai.
+  - `caixa.e2e` passou a ler o dia pelo seletor (começa em Hoje).
+- **Achado no caminho:** o checkout recusa preço enviado pela tela (`FRONTEND_FINANCIAL_INPUT_FORBIDDEN`). Isso confirma que o servidor é a fonte do preço; o E2E usa o preço do serviço.
