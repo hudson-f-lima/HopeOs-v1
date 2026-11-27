@@ -4,7 +4,8 @@
 // o valor revertido e grava a linha negativa no caixa de hoje.
 import { api } from '../api.js';
 import { state, stateBus, sessionPode } from '../state.js';
-import { escapeHtml, centsToBRL, openModal, closeModal } from '../utils.js';
+import { escapeHtml, centsToBRL, openModal, closeModal, todayStr } from '../utils.js';
+import { criarSeletorPeriodo, rotuloPeriodo } from './periodo.js';
 import { showToast } from './toast.js';
 
 const el = id => document.getElementById(id);
@@ -18,6 +19,7 @@ const MOTIVOS = [
 const STATUS = { fechado: 'Fechada', estornado_parcial: 'Estorno parcial', estornado: 'Estornada' };
 let lista = [];
 let atual = null;
+let seletor = null; // período das comandas (D-088): atalhos e calendário de dois toques, como em Comandas
 let chave = null;
 
 export function podeEstornar() {
@@ -27,24 +29,24 @@ export function podeEstornar() {
 
 function renderLista(dados) {
   lista = dados.comandas;
+  const variosDias = dados.inicio && dados.fim && dados.inicio !== dados.fim;
   el('estornoLista').innerHTML = lista.length
     ? lista.map(c => `
       <div class="row estorno-row" data-comanda="${escapeHtml(c.id)}">
-        <span>${c.hora ? `${escapeHtml(String(c.hora).slice(0, 5))} · ` : ''}${escapeHtml(c.clienteNome || 'Sem cliente')} · <span class="text-tertiary" data-status="${escapeHtml(c.status)}">${STATUS[c.status] || c.status}</span></span>
+        <span>${variosDias && c.data ? `${escapeHtml(rotuloPeriodo(String(c.data).slice(0, 10), String(c.data).slice(0, 10)))} · ` : ''}${c.hora ? `${escapeHtml(String(c.hora).slice(0, 5))} · ` : ''}${escapeHtml(c.clienteNome || 'Sem cliente')} · <span class="text-tertiary" data-status="${escapeHtml(c.status)}">${STATUS[c.status] || c.status}</span></span>
         <span style="display:flex;gap:8px;align-items:center"><b>${centsToBRL(c.totalRecebidoCentavos)}</b>
         ${c.estornavel ? `<button type="button" class="btn btn-secondary btn-estornar" data-estornar="${escapeHtml(c.id)}" style="width:auto;padding:4px 10px">Estornar</button>` : ''}</span>
       </div>`).join('')
-    : '<p class="empty-state">Nenhuma comanda fechada neste dia.</p>';
+    : `<p class="empty-state">${variosDias ? 'Nenhuma comanda fechada neste período.' : 'Nenhuma comanda fechada neste dia.'}</p>`;
 }
 
 export async function atualizarComandasEstorno() {
   if (!podeEstornar()) return;
   el('estornoErro').textContent = '';
   try {
-    const qs = el('estornoData').value ? `?data=${encodeURIComponent(el('estornoData').value)}` : '';
-    const dados = await api(`/comandas${qs}`);
-    if (!el('estornoData').value) el('estornoData').value = dados.data;
-    renderLista(dados);
+    const { inicio, fim } = seletor.periodo();
+    const qs = inicio === fim ? `?data=${encodeURIComponent(inicio)}` : `?inicio=${encodeURIComponent(inicio)}&fim=${encodeURIComponent(fim)}`;
+    renderLista(await api(`/comandas${qs}`));
   } catch (err) {
     el('estornoErro').textContent = err.message;
   }
@@ -116,7 +118,7 @@ async function confirmar() {
 export function initEstorno() {
   if (!podeEstornar()) return;
   el('cardComandasEstorno').classList.remove('hidden');
-  el('estornoData').addEventListener('change', atualizarComandasEstorno);
+  seletor = criarSeletorPeriodo(el('estornoPeriodo'), { tipo: 'passado', hoje: todayStr, aoMudar: atualizarComandasEstorno, rotulo: 'Período das comandas' });
   el('estornoLista').addEventListener('click', ev => {
     const b = ev.target.closest('[data-estornar]');
     if (b) abrir(b.dataset.estornar);

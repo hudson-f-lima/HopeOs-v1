@@ -1495,3 +1495,48 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - esticar além da escala pergunta; Cancelar mantém 30 min; "Alterar mesmo assim" grava 60 min.
   - **Controle negativo:** com o comportamento antigo de volta, falham as duas suítes, `agenda-arraste` e `encaixe-perguntar`.
 - **Teste do Painel corrigido no caminho (REAL, falhava também na `main`):** `ocupacao-realizada` procurava "Sem escala para calcular" em qualquer valor do widget. Numa sexta-feira, a "Ocupação prevista" (o resto da semana, com o sábado sem escala no seed) também mostra esse texto, e o teste achava dois. Agora ele confere a linha da "Ocupação realizada". O defeito era do teste, não da tela.
+
+## D-088 — Um jeito só de escolher datas: seletor de período reutilizável; Estornos é o primeiro (sem migration)
+- **Pedido (Platform Owner, 2026-11-27):** padronizar outros campos com o calendário da aba Comandas (D-082).
+  - O dono aprovou 7 campos, o limite de 92 dias e o protótipo (claude.ai/artifact/DTwdv8wGzmVxuXFbaJ64gS).
+  - Ordem aprovada:
+    1. Componente e Estornos;
+    2. Caixa;
+    3. Escala em lote, folga/bloqueio e Lembretes;
+    4. Ganhos e Assinantes, com escolha de mês.
+- **Achados que mudaram a lista (REAL, no código):**
+  - **Caixa:** o dia escolhido também é o dia que se fecha (`POST /caixa/fechamentos`). Um período só pode ser consulta.
+  - **Ganhos:** o mês vai como `referenciaMes` no pagamento de comissão. Por isso Ganhos e Assinantes continuam por mês.
+  - **"Início" de Assinantes:** é a data de uma assinatura nova, não um filtro. Saiu da lista.
+- **Componente (`js/ui/periodo.js`):**
+  - `criarSeletorPeriodo(raiz, { tipo, hoje, aoMudar })` monta os atalhos, o resumo ("25/11 a 26/11 · 2 dias") e o calendário de dois toques.
+  - O primeiro toque espera o segundo e só então consulta.
+  - Acima de 92 dias, o período é cortado em 92.
+  - `tipo: 'passado'` usa os atalhos da D-082 e não aceita datas depois de hoje.
+  - `tipo: 'futuro'`:
+    - atalhos: Hoje, Amanhã, Esta semana (até sábado), Próxima semana (domingo a sábado), Resto do mês, Próximo mês;
+    - aceita de hoje a 92 dias para frente;
+    - é para a escala e a folga, nos próximos PRs.
+  - `htmlCalendario` ganhou `min`/`max`. Sem eles, vale o de antes: nada depois de hoje.
+  - A aba Comandas não mudou: continua com o código da D-082. Passar ela para o componente fica para depois, com teste próprio.
+- **Estornos (Painel › "Comandas e estorno"):**
+  - o campo de data saiu e o seletor de período entrou;
+  - um dia consulta `?data=`, mais de um dia consulta `?inicio=&fim=`;
+  - com vários dias, cada comanda mostra a data na frente;
+  - o servidor não mudou, porque `GET /comandas` já aceita período desde a D-082;
+  - o prazo de estorno, de 30 dias, continua no servidor: comandas mais antigas aparecem sem o botão "Estornar".
+- **Verificação:**
+  - Gate novo `periodo-seletor`, com 5 testes:
+    - atalhos para trás iguais aos da D-082;
+    - atalhos para frente, incluindo a virada de ano;
+    - limites do calendário;
+    - o seletor: começa sem consultar, o primeiro toque espera, a consulta sai em ordem e o período é cortado em 92 dias;
+    - o seletor para frente desliga ontem.
+  - E2E novo `estorno-periodo`:
+    - mostra os atalhos e tira o campo antigo;
+    - "Hoje" consulta `?data=`, e "Ontem" também;
+    - o primeiro toque não consulta e o segundo consulta `?inicio=&fim=`;
+    - aparecem 2 comandas, com a data na frente de cada uma, e o resumo "· 2 dias";
+    - amanhã fica desligado.
+  - O E2E `estorno` continua verde.
+  - **Controle negativo:** se o primeiro toque consultar, o gate (P04) e o E2E caem.

@@ -1687,6 +1687,11 @@ body{font-variant-numeric:tabular-nums;}
 .comandas-periodo.hidden{display:none;}
 .comandas-atalhos{display:flex;flex-wrap:wrap;gap:6px;}
 .comandas-atalho{min-height:40px;}
+/* Seletor de período reutilizável (D-088): o mesmo visual dos atalhos das Comandas. */
+.per-seletor{display:flex;flex-direction:column;gap:8px;margin:4px 0 8px;}
+.per-atalhos{display:flex;flex-wrap:wrap;gap:6px;}
+.per-atalho{min-height:40px;}
+.per-resumo{margin:0;font-size:13px;font-weight:600;color:var(--text-secondary);font-variant-numeric:tabular-nums;}
 .per-cal{border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg-surface);}
 .per-cal-h{display:flex;justify-content:space-between;align-items:center;}
 .per-cal-h button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid var(--border);background:var(--bg-glass-light);color:var(--text-primary);font-size:18px;}

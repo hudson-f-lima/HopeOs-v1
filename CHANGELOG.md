@@ -1,5 +1,9 @@
 # Changelog
 
+## Painel: comandas e estorno por período (D-088)
+- Em "Comandas e estorno", escolha o período como na aba Comandas: Hoje, Ontem, Esta semana, Este mês, Mês anterior ou Personalizado (toque no primeiro e no último dia).
+- Com mais de um dia, cada comanda mostra a data.
+
 ## Agenda: pergunta antes de recusar (D-087)
 - Soltar um card num horário ocupado agora pergunta "Encaixar mesmo assim?". Os dois ficam lado a lado e o encaixe fica no histórico. Antes, só avisava que nada tinha mudado.
 - Também pergunta quando outro aparelho ocupou o horário antes e quando a duração passa do horário de trabalho.
