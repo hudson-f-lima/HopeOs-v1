@@ -52,7 +52,9 @@ Classificação: **LIVRE** = só código, sem migration. **DECISÃO** = depende 
 3. **4c. Passo** (1), depois da decisão do dono. A grade (`GRID_MIN`) acompanha o passo, para o card cair na linha.
 4. **4d. Ideias da seção 4**, uma por vez, cada uma com a sua chave em Gestão › Como a agenda aparece (por aparelho, ligada por padrão; decidido em 26/11):
    - **feita (D-083):** reorganização da Gestão por intenção, zoom da grade e passo do arraste;
-   - depois, na ordem: espaço livre aproveitável, visita ligada, lado a lado;
+   - **feito (D-085):** lado a lado, adiantado a pedido do dono depois do teste em produção (27/11), sem chave;
+   - **próximo (D-086, aprovado em 27/11):** segurar e arrastar no espaço vazio para escolher início e duração (agendar ou bloquear);
+   - depois, na ordem: espaço livre aproveitável, visita ligada;
    - destaque de atraso no card: depois de "Cliente chegou" virar opção do salão (caminho B, precisa da migration 028).
 - Bloqueados: estrela laranja (V1.5), pago online (gateway), tempo de pausa (migration).
 
