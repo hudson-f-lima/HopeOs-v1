@@ -181,7 +181,10 @@ async function legado(route, reduzir) {
     const operacional = await respostaOperacional;
     assert.equal((await dadoDaResposta(operacional)).realizada.minutosRealizados, 90);
     await page.click('#dobraIndicadores > summary');
-    await page.locator('#dbOccupancyWidget b').filter({ hasText: /^Sem escala para calcular$/ }).waitFor();
+    // A linha da ocupação realizada (D-087): numa sexta, a "Ocupação prevista" (resto da semana, sábado sem
+    // escala no seed) também mostra "Sem escala para calcular", e procurar em qualquer <b> achava dois.
+    await page.locator('#dbOccupancyWidget .row', { has: page.locator('strong', { hasText: 'Ocupação realizada' }) })
+      .locator('b').filter({ hasText: /^Sem escala para calcular$/ }).waitFor();
     assert.ok(!requisicoes.includes('/api/dashboard'), 'A recepção já recebe a ocupação pela consulta operacional.');
     const headers = { authorization: await operacional.request().headerValue('authorization') };
     const empresa = await operacional.request().headerValue('x-empresa-id');

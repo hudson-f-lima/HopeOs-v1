@@ -736,9 +736,16 @@ function closeReagendarModal() {
 }
 
 // Fora da disponibilidade (D-033): o servidor recusa; quem pode encaixar decide forçar.
-async function confirmarForaDaDisponibilidade(err) {
+// Horário ocupado que só o servidor viu (D-087): outro aparelho marcou antes de esta tela atualizar.
+// Mesma pergunta do arraste; sem a permissão, o erro segue com o motivo.
+async function confirmarEncaixe(err) {
+  if (err.code !== 'SCHEDULE_CONFLICT' || !sessionPode('agenda:encaixar')) return false;
+  return confirmAction({ title: 'Horário ocupado', message: 'Já há atendimento nesse horário. Encaixar mesmo assim? Os dois ficam lado a lado e o encaixe fica no histórico.', confirmLabel: 'Encaixar' });
+}
+
+async function confirmarForaDaDisponibilidade(err, verbo = 'Agendar') {
   if (err.code !== 'FORA_DA_DISPONIBILIDADE' || !sessionPode('agenda:encaixar')) return false;
-  return confirmAction({ title: 'Fora do horário', message: `${err.message} Agendar mesmo assim? Fica registrado como encaixe.`, confirmLabel: 'Agendar mesmo assim' });
+  return confirmAction({ title: 'Fora do horário', message: `${err.message} ${verbo} mesmo assim? Fica registrado como encaixe.`, confirmLabel: `${verbo} mesmo assim` });
 }
 
 // Pedido da lista de espera ao agendar (D-060, opção C):
@@ -783,6 +790,7 @@ async function criarAgendamento(clienteId, servicoId, profissionalId, data, hora
   } catch (err) {
     if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, true, aceitarAvisos);
     if (!aceitarAvisos && await confirmarRegras(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, permitirConflito, foraDaDisponibilidade, true);
+    if (!permitirConflito && await confirmarEncaixe(err)) return criarAgendamento(clienteId, servicoId, profissionalId, data, horario, true, foraDaDisponibilidade, aceitarAvisos);
     showBanner(err.message, 'error');
   }
 }
@@ -1171,7 +1179,7 @@ function showConflictDialog(profissionalId, data, hora, min, duracaoMin, onConfi
         O que você quer fazer?
       </div>
       <div style="display:flex; flex-direction:column; gap:10px">
-        <button id="btn-encaixar" style="
+        <button id="btn-encaixar"${sessionPode('agenda:encaixar') ? '' : ' hidden'} style="
           padding:12px; border-radius:10px; border:none; cursor:pointer;
           background:#7c3aed; color:#fff; font-weight:700; font-size:14px">
           ✓ Encaixar mesmo assim
@@ -1240,8 +1248,9 @@ function executarReagendar(agId, profId, data, horario, permitirConflito, foraDa
     return r;
   })
   .catch(async err => {
-    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, true, aceitarAvisos, opcoes);
+    if (!foraDaDisponibilidade && await confirmarForaDaDisponibilidade(err, 'Remarcar')) return executarReagendar(agId, profId, data, horario, permitirConflito, true, aceitarAvisos, opcoes);
     if (!aceitarAvisos && await confirmarRegras(err)) return executarReagendar(agId, profId, data, horario, permitirConflito, foraDaDisponibilidade, true, opcoes);
+    if (!permitirConflito && await confirmarEncaixe(err)) return executarReagendar(agId, profId, data, horario, true, foraDaDisponibilidade, aceitarAvisos, opcoes);
     showBanner('Erro ao reagendar: ' + err.message, 'error');
   });
 }
@@ -1261,13 +1270,23 @@ function moverCard(ag, profId, minC, { focar = false } = {}) {
   const alvo = avaliarDestino(ag, profId, minC);
   const horario = formatTime(alvo.hora, alvo.mins);
   if (profId === ag.profissional_id && horario === String(ag.horario).slice(0, 5)) return;
+  const opcoes = { focar, voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5), duracao: ag.duracao_min || 30 } };
   if (alvo.estado === 'conflito') {
-    showBanner(`Horário ocupado por ${alvo.ocupantes}. Nada mudou.`, 'warning');
+    // Encaixe (D-087): antes só avisava "Nada mudou". Quem pode encaixar decide; os dois ficam lado a
+    // lado (D-085) e o servidor registra o encaixe. Quem não pode, sabe por quê.
+    if (!sessionPode('agenda:encaixar')) {
+      showBanner(`Horário ocupado por ${alvo.ocupantes}. Encaixar exige a permissão "Encaixar"; nada mudou.`, 'warning');
+      return;
+    }
+    confirmAction({
+      title: 'Horário ocupado',
+      // confirmAction escapa o texto; concatenado (não template) como nas outras mensagens com nome.
+      message: horario + ' com ' + (findProfissionalNome(profId) || 'o profissional') + ' já tem ' + alvo.ocupantes + '. Encaixar mesmo assim? Os dois ficam lado a lado e o encaixe fica no histórico.',
+      confirmLabel: 'Encaixar'
+    }).then(ok => { if (ok) executarReagendar(ag.id, profId, state.selectedDay, horario, true, false, false, opcoes); });
     return;
   }
-  executarReagendar(ag.id, profId, state.selectedDay, horario, false, false, false, {
-    focar, voltar: { profId: ag.profissional_id, data: String(ag.data).slice(0, 10), horario: String(ag.horario).slice(0, 5), duracao: ag.duracao_min || 30 }
-  });
+  executarReagendar(ag.id, profId, state.selectedDay, horario, false, false, false, opcoes);
 }
 
 // Arraste (D-055, D-078): o card inteiro é a alça. O bloco acompanha o dedo a partir do ponto em
@@ -1497,9 +1516,14 @@ function onResizeEnd(_ev, cancelar = false) {
     }).then(res => { if (!res) volta(); });
     return;
   }
-  api('/agenda/' + r.agId + '/duracao', { method: 'PATCH', body: { duracaoMin: r.dur } })
+  // Esticar além da escala (D-087): pergunta como no arraste, em vez de só recusar.
+  const gravar = fora => api('/agenda/' + r.agId + '/duracao', { method: 'PATCH', body: { duracaoMin: r.dur, ...(fora ? { foraDaDisponibilidade: true } : {}) } })
     .then(() => loadWeekAgenda())
-    .catch(err => { showBanner('Erro ao ajustar duração: ' + err.message, 'error'); volta(); });
+    .catch(async err => {
+      if (!fora && await confirmarForaDaDisponibilidade(err, 'Alterar')) return gravar(true);
+      showBanner('Erro ao ajustar duração: ' + err.message, 'error'); volta();
+    });
+  gravar(false);
 }
 
 // Esc cancela o arraste ou o redimensionamento sem gravar nada.

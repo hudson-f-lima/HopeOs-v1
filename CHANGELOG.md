@@ -1,5 +1,10 @@
 # Changelog
 
+## Agenda: pergunta antes de recusar (D-087)
+- Soltar um card num horário ocupado agora pergunta "Encaixar mesmo assim?". Os dois ficam lado a lado e o encaixe fica no histórico. Antes, só avisava que nada tinha mudado.
+- Também pergunta quando outro aparelho ocupou o horário antes e quando a duração passa do horário de trabalho.
+- Quem não tem a permissão "Encaixar" vê o motivo, sem botão que daria erro.
+
 ## Agenda: segure no espaço vazio e arraste para escolher o horário (D-086)
 - Segure um horário livre e arraste para cima ou para baixo: a etiqueta mostra "início–fim (duração)". O trecho para no próximo cliente ou bloqueio.
 - Ao soltar, escolha Agendar ou Bloquear. Em Agendar, o horário e a duração já vêm escolhidos. Se quiser, use a duração do serviço.

@@ -7,7 +7,8 @@
 //   1) tocar sem arrastar abre o card (o arraste não rouba o clique);
 //   2) arrastar pelo meio do card (sem alça) até Bruno 09:00: prévia "09:00–09:30 · Bruno" (livre);
 //      solta → grava; aviso com "Desfazer" → volta para Ana 09:00 (outra remarcação no servidor);
-//   3) arrastar até Bruno 10:00 (ocupado): prévia vermelha com "Ocupado: Ocupante Teste"; solta → nada muda;
+//   3) arrastar até Bruno 10:00 (ocupado): prévia vermelha com "Ocupado: Ocupante Teste"; solta → pergunta
+//      (D-087): Cancelar não muda nada; Encaixar grava ao lado; Desfazer volta;
 //   4) arrastar até 08:00 (fora da escala): prévia âmbar; volta ao lugar e solta → nada muda;
 //   5) teclado: foco no card e ↓ → Ana 09:10 (passo padrão de 10 min, D-081), e o foco fica no card novo;
 //   6) card pago: apertar e mover não arrasta;
@@ -104,13 +105,25 @@ async function irPara(p, data) {
   await desfazer.click(); await p.waitForTimeout(1300);
   confere('desfazer volta para Ana 09:00 (no servidor)', JSON.stringify(resumo(await ativosDe(cli[0]))) === JSON.stringify(['Ana 09:00']), JSON.stringify(resumo(await ativosDe(cli[0]))));
 
-  // 3) Destino ocupado: prévia vermelha com o nome; soltar não muda nada.
+  // 3) Destino ocupado: prévia vermelha com o nome; soltar PERGUNTA (D-087). Cancelar não muda nada;
+  //    Encaixar grava ao lado do ocupante (remarcação com permitirConflito); Desfazer volta.
   id1 = await cardDe(cli[0]);
   const pv3 = await arrastar(id1, bruno.id, '10:00');
   console.log('PRÉVIA ocupado:', JSON.stringify(pv3));
   confere('prévia ocupada diz quem ocupa', pv3 && /conflito/.test(pv3.cls) && pv3.texto.includes('Ocupado: Ocupante Teste'), JSON.stringify(pv3));
-  confere('soltar no ocupado não muda nada', JSON.stringify(resumo(await ativosDe(cli[0]))) === JSON.stringify(['Ana 09:00']));
-  confere('aviso diz por quem está ocupado', /Horário ocupado por Ocupante Teste\. Nada mudou\./.test(await p.textContent('#toast-container')));
+  await p.waitForSelector('#confirm-action-ok', { timeout: 5000 }).catch(() => {});
+  const pergunta = await p.evaluate(() => { const d = document.querySelector('#confirm-action-ok')?.closest('dialog, .modal, [role="dialog"]'); return d ? d.textContent.replace(/\s+/g, ' ') : null; });
+  confere('soltar no ocupado pergunta se encaixa, dizendo quem ocupa', Boolean(pergunta) && /Horário ocupado/.test(pergunta) && /Ocupante Teste/.test(pergunta) && /Encaixar/.test(pergunta), String(pergunta).slice(0, 160));
+  await p.click('#confirm-action-cancel'); await p.waitForTimeout(800);
+  confere('Cancelar: nada muda', JSON.stringify(resumo(await ativosDe(cli[0]))) === JSON.stringify(['Ana 09:00']));
+  id1 = await cardDe(cli[0]);
+  await arrastar(id1, bruno.id, '10:00');
+  await p.waitForSelector('#confirm-action-ok', { timeout: 5000 });
+  await p.click('#confirm-action-ok'); await p.waitForTimeout(1500);
+  confere('Encaixar: grava em Bruno 10:00, ao lado do ocupante', JSON.stringify(resumo(await ativosDe(cli[0]))) === JSON.stringify(['Bruno 10:00']), JSON.stringify(resumo(await ativosDe(cli[0]))));
+  const desf3 = p.locator('.toast .toast-action-btn', { hasText: 'Desfazer' }).last();
+  await desf3.click(); await p.waitForTimeout(1500);
+  confere('Desfazer o encaixe volta para Ana 09:00', JSON.stringify(resumo(await ativosDe(cli[0]))) === JSON.stringify(['Ana 09:00']), JSON.stringify(resumo(await ativosDe(cli[0]))));
 
   // 4) Fora da escala: prévia âmbar; voltar ao lugar e soltar não muda nada.
   id1 = await cardDe(cli[0]);

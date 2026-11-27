@@ -57,7 +57,8 @@ Este arquivo guarda o estado, as pendências e o handoff do ciclo atual. A crono
 | Backup automático em produção | **AUSENTE**: ferramentas e teste de restauração existem (D-021); a rotina diária foi adiada pelo dono | `RUNBOOK_BACKUP.md` |
 
 ## 3. Entregas recentes (detalhe em `DECISIONS.md`)
-- **D-086 (27/11, PR rascunho):** segurar e arrastar no espaço vazio escolhe início e duração (agendar com `duracaoMin` ou bloquear o trecho), com a mesma dinâmica do arraste do card. Sem migration.
+- **D-087 (27/11, PR rascunho):** a agenda pergunta antes de recusar: encaixe ao soltar card em horário ocupado, horário que outro aparelho ocupou (remarcar e criar) e duração além da escala (alça e modal). Botão "Encaixar" só para quem tem a permissão. Sem migration.
+- **D-086 (27/11, PR #83):** segurar e arrastar no espaço vazio escolhe início e duração (agendar com `duracaoMin` ou bloquear o trecho), com a mesma dinâmica do arraste do card. Sem migration.
 - **D-085 (27/11, PR #82):** atendimentos ao mesmo tempo ficam lado a lado na agenda, dividindo a largura da coluna; com 3 ou mais, cada card mostra horário e iniciais. Sem chave, sempre ligado. Sem migration.
 - **D-084 (26/11, PR #81, migration 028 aplicada em produção em 26/11):** "Cliente chegou" vira opção do salão em Regras da agenda. Desligado: card e tela Agora oferecem "Iniciar atendimento" direto e o aviso de atraso some. Corrige também as regras do salão que nunca chegavam à tela da recepção e do profissional.
 - **D-083 (26/11, PR #80):** Gestão em 8 grupos por intenção (busca acha pelos nomes antigos) e grupo novo "Como a agenda aparece", com zoom da grade e passo do arraste por aparelho. "Cliente chegou" como opção do salão veio na D-084. Sem migration.

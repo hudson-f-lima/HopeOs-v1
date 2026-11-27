@@ -1462,3 +1462,36 @@ Pedido do Platform Owner na missão Kortex Intelligence Dashboard. Implementaç�
     - sem o limite dos vizinhos, 4 verificações falham;
     - sem enviar `duracaoMin`, o agendamento grava 45 min e 3 verificações falham.
 - **Não coberto por teste automático:** o toque segurado no celular, que usa o mesmo código com espera de 0,4 s. Como na D-078 e na D-081, a conferência é no aparelho.
+
+## D-087 — A agenda pergunta antes de recusar: encaixe e fora do horário (sem migration)
+- **Pedido (Platform Owner, 2026-11-27):** "Arrastei um card do Gustavo para a agenda do Alex e tentei sobrepor/encaixar, mas foi negado. Faltou a opção de perguntar. Verifique esta e outras negativas."
+- **Causa (REAL):** ao soltar um card num horário ocupado, `moverCard` mostrava só "Horário ocupado por X. Nada mudou." e parava. O servidor já aceitava o encaixe na remarcação (`permitirConflito`, com a permissão `agenda:encaixar`); faltava a tela perguntar.
+- **Varredura das negativas da agenda:**
+
+| # | Onde | Antes | Agora |
+|---|---|---|---|
+| 1 | Arrastar ou mover pelo teclado para horário ocupado | Só avisava "Nada mudou" | Pergunta "Encaixar mesmo assim?". Quem não tem a permissão vê o motivo |
+| 2 | Remarcação recusada pelo servidor por horário ocupado (tela desatualizada, outro aparelho marcou antes) | Erro | Pergunta e grava com `permitirConflito` |
+| 3 | Agendamento novo recusado pelo servidor pelo mesmo motivo | Erro | Pergunta e grava com `permitirConflito` |
+| 4 | Esticar o card pela alça de baixo além da escala | Erro, e o card voltava | Pergunta "Alterar mesmo assim?" e grava com `foraDaDisponibilidade` |
+| 5 | Mudar a duração pelo modal do card além da escala | Erro | Pergunta, como a remarcação |
+| 6 | Diálogo de conflito do formulário | Oferecia "Encaixar" a quem não tem a permissão (o servidor recusava com 403) | O botão só aparece para quem pode encaixar |
+
+- **Já perguntavam (conferido no código):**
+  - modal do card ao mudar dia, hora, profissional ou serviço (fora do horário, regras da agenda e horário ocupado);
+  - formulário novo, nos casos de fora do horário e regras;
+  - remarcação pelo arraste, nos casos de fora do horário e regras.
+- **Recusas mantidas de propósito:**
+  - o profissional sem a agenda de todos não move um card para outro profissional (`assertOwn`, 403);
+  - não dá para bloquear por cima de um cliente: a tela diz qual horário está no caminho;
+  - a seleção no vazio (D-086) e a alça de cima (D-081) param no vizinho, como aprovado;
+  - a série recorrente pula os horários ocupados e lista quais foram pulados.
+- **Não verificado nesta rodada:** a escolha de combinações do atendimento com vários serviços e a baixa da lista de espera.
+- **Texto:** a pergunta usa o verbo de cada caso (Agendar, Remarcar, Alterar) e diz que os dois atendimentos ficam lado a lado (D-085) e que o encaixe fica no histórico.
+- **Verificação:**
+  - `agenda-arraste`, passo 3: soltar no ocupado pergunta e diz quem ocupa; Cancelar não muda nada; Encaixar grava ao lado; Desfazer volta ao horário anterior.
+  - E2E novo `encaixe-perguntar`:
+    - a tela desatualizada recebe a recusa do servidor, pergunta e grava (no arraste e ao criar);
+    - esticar além da escala pergunta; Cancelar mantém 30 min; "Alterar mesmo assim" grava 60 min.
+  - **Controle negativo:** com o comportamento antigo de volta, falham as duas suítes, `agenda-arraste` e `encaixe-perguntar`.
+- **Teste do Painel corrigido no caminho (REAL, falhava também na `main`):** `ocupacao-realizada` procurava "Sem escala para calcular" em qualquer valor do widget. Numa sexta-feira, a "Ocupação prevista" (o resto da semana, com o sábado sem escala no seed) também mostra esse texto, e o teste achava dois. Agora ele confere a linha da "Ocupação realizada". O defeito era do teste, não da tela.
