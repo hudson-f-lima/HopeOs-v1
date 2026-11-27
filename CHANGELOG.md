@@ -1,5 +1,10 @@
 # Changelog
 
+## Painel: caixa por período (D-088)
+- No Fechamento de caixa, escolha o período como na aba Comandas.
+- Com um dia, tudo continua igual: confira a gaveta e feche o caixa.
+- Com mais de um dia, a tela vira consulta: totais, formas de pagamento e cada dia com a situação do fechamento (fechado, com diferença, mudou depois ou sem fechar). Para fechar, escolha um dia.
+
 ## Painel: comandas e estorno por período (D-088)
 - Em "Comandas e estorno", escolha o período como na aba Comandas: Hoje, Ontem, Esta semana, Este mês, Mês anterior ou Personalizado (toque no primeiro e no último dia).
 - Com mais de um dia, cada comanda mostra a data.

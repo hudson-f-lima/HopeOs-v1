@@ -64,6 +64,7 @@ const CASOS = [
   { nome: 'comandas-navegacao' },
   { nome: 'comandas-periodo' },
   { nome: 'estorno-periodo' },
+  { nome: 'caixa-periodo' },
   { nome: 'gestao-navegacao' },
   { nome: 'gestao-aparencia' },
   { nome: 'checkout-retomada' },

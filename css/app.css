@@ -1691,6 +1691,8 @@ body{font-variant-numeric:tabular-nums;}
 .per-seletor{display:flex;flex-direction:column;gap:8px;margin:4px 0 8px;}
 .per-atalhos{display:flex;flex-wrap:wrap;gap:6px;}
 .per-atalho{min-height:40px;}
+.aviso-periodo{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:var(--bg-app-light);font-size:13px;color:var(--text-secondary);}
+.aviso-periodo b{color:var(--text-primary);}
 .per-resumo{margin:0;font-size:13px;font-weight:600;color:var(--text-secondary);font-variant-numeric:tabular-nums;}
 .per-cal{border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg-surface);}
 .per-cal-h{display:flex;justify-content:space-between;align-items:center;}

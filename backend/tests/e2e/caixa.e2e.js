@@ -33,8 +33,10 @@ async function entrar(b, email) {
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
   await p.click('#navDashboard'); await p.click('#dobraCaixa > summary'); await p.waitForTimeout(800);
-  if (await p.inputValue('#caixaData') !== hojeSP) { await p.fill('#caixaData', hojeSP); await p.dispatchEvent('#caixaData', 'change'); await p.waitForTimeout(600); }
-  console.log('CARD VISÍVEL:', await p.isVisible('#cardCaixa'), '| dia:', await p.inputValue('#caixaData'));
+  // D-088: o dia vem do seletor de período, que começa em "Hoje".
+  const resumoDia = (await p.textContent('#caixaPeriodo .per-resumo')).trim();
+  if (resumoDia !== hojeSP.slice(8, 10) + '/' + hojeSP.slice(5, 7)) throw new Error(`o caixa deveria abrir em hoje, abriu em ${resumoDia}`);
+  console.log('CARD VISÍVEL:', await p.isVisible('#cardCaixa'), '| dia:', resumoDia);
   console.log('RESUMO:', await p.textContent('#caixaQtd'), '|', await p.textContent('#caixaBruto'), '| esperado:', await p.textContent('#caixaEsperado'));
   await p.fill('#caixaContado', '45,00'); await p.click('#btnConferirCaixa'); await p.waitForTimeout(600);
   console.log('CONFERÊNCIA:', (await p.textContent('#caixaDiferenca')).replace(/\s+/g, ' ').trim(), '| data-diferenca=', await p.getAttribute('#caixaDiferenca', 'data-diferenca'));
